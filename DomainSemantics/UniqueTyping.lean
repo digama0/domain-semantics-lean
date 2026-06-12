@@ -1,36 +1,43 @@
 import DomainSemantics.Adequacy
 
-/-! # Unique typing and a trans'-free variant
+/-! # Unique typing, and discharging the `IsDefEq` scaffolding
 
-We work over `Term.IsDefEq`, which has a heterogeneous transitivity rule
-`trans'` whose middle term may live at a different sort. Using
-`sort_inv` and `forallE_inv` from `Adequacy.lean`, we prove type
-uniqueness up to defeq, without needing stratified judgments.
+The "real" defeq judgment for the project is `IsDefEq'`, defined in
+`Term.lean`. Internally we work with the instrumented variant `IsDefEq`,
+which carries explicit sort-typing premises at every congruence rule
+and has a heterogeneous transitivity rule `trans'` whose middle term
+may live at a different sort. This file ties the two together.
 
-* `HasTypeS Γ e A b` is a bundled typing judgment carrying sort proofs
+Using `sort_inv` and `forallE_inv` from `Adequacy.lean` we first prove
+type uniqueness for `IsDefEq`, and then show that the `trans'` rule and
+the extra sort proofs are admissible — so the working judgment really
+is equivalent to the standard one.
+
+* `HasType Γ e A b` is a bundled typing judgment carrying sort proofs
   at every constructor, used as the inductive scaffold for the type
-  uniqueness theorem `HasTypeS.uniq`.
-* From `uniq` we derive `IsDefEq.uniq_sort`: heterogeneous transitivity
-  on sort-typed equalities is in fact homogeneous.
-* `IsDefEq'` is the no-`trans'` variant of `IsDefEq`; `uniq_sort` makes
-  the heterogeneous rule admissible, so `IsDefEq.iff` exhibits an
-  equivalence on well-formed contexts. -/
+  uniqueness theorem `HasType.uniq`.
+* `IsDefEq.uniq_sort` derives sort uniqueness from `uniq`: heterogeneous
+  transitivity on sort-typed equalities is in fact homogeneous.
+* `IsDefEq.iff` is the headline result: on well-formed contexts the
+  scaffolded `IsDefEq` and the standard `IsDefEq'` derive the same
+  equalities. After this point clients are free to think of `IsDefEq`
+  as `IsDefEq'`. -/
 
 namespace DomainSemantics
 
 section
 set_option hygiene false
-local notation:65 Γ " ⊨ " e " : " A:36 => HasTypeS Γ e A true
-local notation:65 Γ " ⊨ " e " :! " A:36 => HasTypeS Γ e A false
+local notation:65 Γ " ⊨ " e " : " A:36 => HasType Γ e A true
+local notation:65 Γ " ⊨ " e " :! " A:36 => HasType Γ e A false
 
 /--
-Bundled Term typing judgment. `Γ ⊨ e : A` (`b = true`) allows definitional
-equality coercion; `Γ ⊨ e :! A` (`b = false`) is structural-only. This is
-the Term analog of `HasTypeStrong` from the VEnv side, stripped of the
-stratification index. Sort witnesses are carried at each constructor so
-that type inversion is a direct structural property.
+Bundled typing judgment over `IsDefEq`. `Γ ⊨ e : A` (`b = true`) allows
+definitional equality coercion; `Γ ⊨ e :! A` (`b = false`) is
+structural-only. Sort witnesses are carried at each constructor so that
+type inversion is a direct structural property — the scaffolding used to
+prove `HasType.uniq` and ultimately `IsDefEq.uniq_sort`.
 -/
-inductive HasTypeS : List Term → Term → Term → Bool → Prop where
+inductive HasType : List Term → Term → Term → Bool → Prop where
   | bvar : Lookup Γ i A → Γ ⊢ A : .sort u → Γ ⊨ .bvar i :! A
   | sort' : Γ ⊨ .sort l :! .sort true
   | app :
@@ -49,12 +56,12 @@ inductive HasTypeS : List Term → Term → Term → Bool → Prop where
 
 end
 
-scoped notation:65 Γ " ⊨ " e " : " A:36 => HasTypeS Γ e A true
-scoped notation:65 Γ " ⊨ " e " :! " A:36 => HasTypeS Γ e A false
+scoped notation:65 Γ " ⊨ " e " : " A:36 => HasType Γ e A true
+scoped notation:65 Γ " ⊨ " e " :! " A:36 => HasType Γ e A false
 
-/-- A bundled `HasTypeS` derivation can be projected back to a plain
+/-- A bundled `HasType` derivation can be projected back to a plain
 `IsDefEq` derivation of reflexivity at the given type. -/
-theorem HasTypeS.hasType : HasTypeS Γ e A b → Γ ⊢ e : A
+theorem HasType.hasType : HasType Γ e A b → Γ ⊢ e : A
   | .bvar h hA => .bvar h hA
   | .sort' => .sort
   | .app hA hB hBa ihf iha => .appDF hA hB ihf.hasType iha.hasType hBa
@@ -66,9 +73,8 @@ theorem HasTypeS.hasType : HasTypeS Γ e A b → Γ ⊢ e : A
 /-- Every `b = true` derivation unfolds to a `b = false` (structural) derivation
 together with a transport: any defeq involving the structural type can be
 re-targeted at the original type. -/
-theorem HasTypeS.unfold (h : Γ ⊨ e : A) :
-    ∃ A', (Γ ⊨ e :! A') ∧
-      ∀ {C u}, Γ ⊢ C ≡ A' : .sort u → ∃ u', Γ ⊢ C ≡ A : .sort u' := by
+theorem HasType.unfold (h : Γ ⊨ e : A) :
+    ∃ A', Γ ⊨ e :! A' ∧ ∀ {C u}, Γ ⊢ C ≡ A' : .sort u → ∃ u', Γ ⊢ C ≡ A : .sort u' := by
   generalize hb : true = b at h
   induction h with cases hb
   | base h_s => exact ⟨_, h_s, fun input => ⟨_, input⟩⟩
@@ -76,9 +82,9 @@ theorem HasTypeS.unfold (h : Γ ⊨ e : A) :
     obtain ⟨A', h_s, chain⟩ := ihe rfl
     exact ⟨A', h_s, fun input => let ⟨_, eq⟩ := chain input; ⟨_, eq.trans' d⟩⟩
 
-/-- Reduce any `HasTypeS` derivation (at either `b`) to a structural one with
+/-- Reduce any `HasType` derivation (at either `b`) to a structural one with
 a transport function. -/
-theorem HasTypeS.toStructural (h : HasTypeS Γ e A b) :
+theorem HasType.toStructural (h : HasType Γ e A b) :
     ∃ A', (Γ ⊨ e :! A') ∧
       ∀ {C u}, Γ ⊢ C ≡ A' : .sort u → ∃ u', Γ ⊢ C ≡ A : .sort u' := by
   cases b
@@ -87,8 +93,8 @@ theorem HasTypeS.toStructural (h : HasTypeS Γ e A b) :
 
 /-- Type uniqueness up to defeq: any two derivations of `e` give defeq-equivalent
 types. The middle `b` parameters are arbitrary. -/
-theorem HasTypeS.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
-    (hΓ : ⊢ Γ) (H1 : HasTypeS Γ e A b₁) (H2 : HasTypeS Γ e B b₂) :
+theorem HasType.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
+    (hΓ : ⊢ Γ) (H1 : HasType Γ e A b₁) (H2 : HasType Γ e B b₂) :
     ∃ u, Γ ⊢ A ≡ B : .sort u := by
   induction H1 generalizing B b₂ with
   | bvar h_l h_t =>
@@ -130,11 +136,11 @@ theorem HasTypeS.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
     obtain ⟨_, eq⟩ := ihe hΓ H2
     exact ⟨_, d.symm.trans' eq⟩
 
-/-- Every `IsDefEq` derivation projects to a pair of `HasTypeS` derivations
+/-- Every `IsDefEq` derivation projects to a pair of `HasType` derivations
 on the two sides. The `trans'` case is the only one that needs work: it
-uses `HasTypeS.uniq` on the middle term plus `sort_inv` to collapse the
+uses `HasType.uniq` on the middle term plus `sort_inv` to collapse the
 heterogeneous step. -/
-theorem IsDefEq.toHasTypeS {Γ : List Term} {e₁ e₂ A : Term}
+theorem IsDefEq.toHasType {Γ : List Term} {e₁ e₂ A : Term}
     (hΓ : ⊢ Γ) (h : Γ ⊢ e₁ ≡ e₂ : A) : Γ ⊨ e₁ : A ∧ Γ ⊨ e₂ : A := by
   induction h with
   | bvar h_l h_t => exact and_self_iff.2 <| .base <| .bvar h_l h_t
@@ -168,49 +174,20 @@ theorem IsDefEq.toHasTypeS {Γ : List Term} {e₁ e₂ A : Term}
 the two sort levels coincide. -/
 theorem IsDefEq.uniq_sort {Γ : List Term} {e₁ e₂ e₃ : Term} {u v : Bool}
     (hΓ : ⊢ Γ) (h1 : Γ ⊢ e₁ ≡ e₂ : .sort u) (h2 : Γ ⊢ e₂ ≡ e₃ : .sort v) : u = v := by
-  have ⟨_, h_e2_u⟩ := h1.toHasTypeS hΓ
-  have ⟨h_e2_v, _⟩ := h2.toHasTypeS hΓ
+  have ⟨_, h_e2_u⟩ := h1.toHasType hΓ
+  have ⟨h_e2_v, _⟩ := h2.toHasType hΓ
   obtain ⟨_, eq⟩ := h_e2_u.uniq hΓ h_e2_v
   exact sort_inv hΓ eq
 
-/-! ## `IsDefEq'`: defeq without heterogeneous `trans'`
+/-- The instrumented judgment `IsDefEq` proves exactly the same equalities
+as the standard judgment `IsDefEq'` on well-formed contexts.
 
-We show that the `trans'` rule is admissible (via `uniq_sort`), so the
-trans'-free system is equivalent to `IsDefEq`. -/
-
-section
-set_option hygiene false
-local notation:65 Γ " ⊢' " e " : " A:36 => IsDefEq' Γ e e A
-local notation:65 Γ " ⊢' " e1 " ≡ " e2 " : " A:36 => IsDefEq' Γ e1 e2 A
-
-/--
-The no-`trans'` variant of `IsDefEq`. Same constructors except the
-heterogeneous transitivity is omitted; it becomes admissible via `uniq_sort`.
--/
-inductive IsDefEq' : List Term → Term → Term → Term → Prop where
-  | bvar : Lookup Γ i A → Γ ⊢' .bvar i : A
-  | symm : Γ ⊢' e ≡ e' : A → Γ ⊢' e' ≡ e : A
-  | trans : Γ ⊢' e₁ ≡ e₂ : A → Γ ⊢' e₂ ≡ e₃ : A → Γ ⊢' e₁ ≡ e₃ : A
-  | sort : Γ ⊢' .sort l : .sort true
-  | appDF : Γ ⊢' f ≡ f' : .forallE A B → Γ ⊢' a ≡ a' : A →
-    Γ ⊢' .app f a ≡ .app f' a' : B.inst a
-  | lamDF : Γ ⊢' A ≡ A' : .sort u → A::Γ ⊢' body ≡ body' : B →
-    Γ ⊢' .lam A body ≡ .lam A' body' : .forallE A B
-  | forallEDF : Γ ⊢' A ≡ A' : .sort u → A::Γ ⊢' body ≡ body' : .sort v →
-    Γ ⊢' .forallE A body ≡ .forallE A' body' : .sort v
-  | defeqDF : Γ ⊢' A ≡ B : .sort u → Γ ⊢' e1 ≡ e2 : A → Γ ⊢' e1 ≡ e2 : B
-  | beta : A::Γ ⊢' e : B → Γ ⊢' e' : A →
-    Γ ⊢' .app (.lam A e) e' ≡ e.inst e' : B.inst e'
-  | eta : Γ ⊢' e : .forallE A B →
-    Γ ⊢' .lam A (.app e.lift (.bvar 0)) ≡ e : .forallE A B
-  | proofIrrel : Γ ⊢' p : .sort false → Γ ⊢' h : p → Γ ⊢' h' : p → Γ ⊢' h ≡ h' : p
-
-end
-
-scoped notation:65 Γ " ⊢' " e " : " A:36 => IsDefEq' Γ e e A
-scoped notation:65 Γ " ⊢' " e1 " ≡ " e2 " : " A:36 => IsDefEq' Γ e1 e2 A
-
-/-- Forward direction: every `IsDefEq'` derivation embeds into `IsDefEq`. -/
+Forward: every `IsDefEq'` derivation lifts to `IsDefEq` by inserting the
+missing sort proofs (recovered from `⊢ Γ` via `.bvar₀`, `.appDF₀`,
+`.lamDF₀`, …). Backward: every `IsDefEq` derivation collapses to
+`IsDefEq'` by dropping the sort premises and discharging `trans'` via
+`IsDefEq.uniq_sort` (the two sort levels coincide, so heterogeneous
+transitivity is in fact homogeneous). -/
 theorem IsDefEq'.iff' {Γ : List Term} {e₁ e₂ A : Term}
     (hΓ : ⊢ Γ) : Γ ⊢' e₁ ≡ e₂ : A ↔ Γ ⊢ e₁ ≡ e₂ : A := by
   refine ⟨fun h => ?_, fun h => ?_⟩
@@ -258,7 +235,13 @@ theorem Ctx.WF.iff : ∀ {Γ}, ⊢ Γ ↔ ⊢' Γ
     fun ⟨hΓ, _, hA⟩ => ⟨iff.1 hΓ, _, (IsDefEq'.iff' hΓ).2 hA⟩,
     fun ⟨hΓ, _, hA⟩ => ⟨iff.2 hΓ, _, (IsDefEq'.iff' (iff.2 hΓ)).1 hA⟩⟩
 
-/-- `IsDefEq` and `IsDefEq'` are equivalent. -/
+/-! ### Discharging the scaffolding -/
+
+/-- On any well-formed context (in either formulation, via `Ctx.WF.iff`),
+the instrumented `IsDefEq` proves the same equalities as the standard `IsDefEq'`.
+After this point clients are free to treat the two notations as interchangeable,
+and the choice of `IsDefEq` over `IsDefEq'` inside the project
+is purely a matter of proof ergonomics. -/
 theorem IsDefEq.iff {Γ : List Term} {e₁ e₂ A : Term} (hΓ : ⊢' Γ) :
     Γ ⊢ e₁ ≡ e₂ : A ↔ Γ ⊢' e₁ ≡ e₂ : A := (IsDefEq'.iff' (Ctx.WF.iff.2 hΓ)).symm
 
@@ -272,6 +255,9 @@ theorem forallE_inv' (hΓ : ⊢' Γ)
   have hΓA : ⊢' A₀ :: Γ := Ctx.WF.iff.1 ⟨hΓs, _, hA.hasType.1⟩
   exact ⟨u, v, (IsDefEq.iff hΓ).1 hA, (IsDefEq.iff hΓA).1 hB⟩
 
+/-- Sort/Pi disjointness: a sort is never definitionally equal to a Pi-type.
+A consequence of weak-head determinacy and the fact that `.sort u` is
+already in WHNF. -/
 theorem sort_forallE_inv' (hΓ : ⊢' Γ) : ¬Γ ⊢' .sort u ≡ Term.forallE A₁ B₁ : .sort s :=
   fun H => sort_forallE_inv (Ctx.WF.iff.2 hΓ) ((IsDefEq.iff hΓ).2 H)
 

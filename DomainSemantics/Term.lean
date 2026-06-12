@@ -13,15 +13,22 @@ The syntactic core of the project.
   case `Term.inst e a = e.subst (Subst.one a)`.
 * `Lookup`, `Ctx.Lift'` and `Ctx.WF` formalise context membership,
   context weakenings, and well-formedness.
-* `IsDefEq` (notation `Γ ⊢ e₁ ≡ e₂ : A`) is the central definitional-
-  equality judgment. Each congruence rule carries explicit sort proofs
-  for the subterms involved (so e.g. `appDF` premises include
-  `Γ ⊢ A : sort u` and `A::Γ ⊢ B : sort v`), and the system keeps a
-  heterogeneous transitivity rule `trans'` whose middle term may live
-  at a different sort. This permissive setup lets type uniqueness be
-  proven *after the fact* via Adequacy. The trans'-free variant
-  `IsDefEq'` in `UniqueTyping.lean` is equivalent on well-formed
-  contexts.
+* `IsDefEq'` (notation `Γ ⊢' e₁ ≡ e₂ : A`) is the actual definitional-
+  equality judgment we care about — the standard set of congruence,
+  β, η and proof-irrelevance rules with ordinary homogeneous
+  transitivity, and no sort-proof bookkeeping at the leaves.
+* `IsDefEq` (notation `Γ ⊢ e₁ ≡ e₂ : A`) is a formalisation crutch
+  built around the same syntax. It augments `IsDefEq'` with
+  - a heterogeneous transitivity rule `trans'` whose middle term may
+    live at a different sort, and
+  - explicit sort-typing premises at every congruence rule (so e.g.
+    `appDF` carries `Γ ⊢ A : sort u` and `A::Γ ⊢ B : sort v`).
+
+  These extras make `IsDefEq` *easier* to work with internally —
+  inductions get stronger inversion data, and `trans'` lets us defer
+  sort uniqueness until after Adequacy proves it. Once `uniq_sort` is
+  available, `IsDefEq.iff` shows the two systems are equivalent on
+  well-formed contexts, so the crutch is invisible to clients.
 * `Ctx.SubstEq` is the two-sided substitution judgment used to derive
   the substitution lemma `IsDefEq.subst'`.
 * `WHRed` / `WHNF` / `WHRedS` set up weak-head reduction and its
@@ -243,20 +250,73 @@ theorem Lookup.determ (H1 : Lookup Γ i A) (H2 : Lookup Γ i A') : A = A' := by
   | zero => rfl
   | succ _ ih => cases ih r1; rfl
 
+/-! ## `IsDefEq'`: the standard definitional-equality judgment
+
+`IsDefEq'` is the "real" defeq relation — the one we'd write down by
+default for a dependently-typed λ-calculus, with the usual congruence
+rules, β, η, proof-irrelevance and *homogeneous* transitivity. The
+sister relation `IsDefEq` (below) is a formalisation trick that adds
+heterogeneous transitivity (`trans'`) and beefier sort-proof premises
+to make internal proofs go through; `IsDefEq.iff` (in `UniqueTyping.lean`)
+shows it is equivalent to `IsDefEq'` on well-formed contexts. -/
+
+section
+set_option hygiene false
+local notation:65 Γ " ⊢' " e " : " A:36 => IsDefEq' Γ e e A
+local notation:65 Γ " ⊢' " e1 " ≡ " e2 " : " A:36 => IsDefEq' Γ e1 e2 A
+
+/--
+The standard definitional-equality judgment on `Term`. Has the usual
+congruence, β, η and proof-irrelevance rules and ordinary homogeneous
+transitivity. The sister relation `IsDefEq` adds heterogeneous
+transitivity `trans'` plus explicit sort-typing premises at every
+congruence site as an internal scaffolding; `IsDefEq.iff` discharges
+the equivalence after `uniq_sort`.
+-/
+inductive IsDefEq' : List Term → Term → Term → Term → Prop where
+  | bvar : Lookup Γ i A → Γ ⊢' .bvar i : A
+  | symm : Γ ⊢' e ≡ e' : A → Γ ⊢' e' ≡ e : A
+  | trans : Γ ⊢' e₁ ≡ e₂ : A → Γ ⊢' e₂ ≡ e₃ : A → Γ ⊢' e₁ ≡ e₃ : A
+  | sort : Γ ⊢' .sort l : .sort true
+  | appDF : Γ ⊢' f ≡ f' : .forallE A B → Γ ⊢' a ≡ a' : A →
+    Γ ⊢' .app f a ≡ .app f' a' : B.inst a
+  | lamDF : Γ ⊢' A ≡ A' : .sort u → A::Γ ⊢' body ≡ body' : B →
+    Γ ⊢' .lam A body ≡ .lam A' body' : .forallE A B
+  | forallEDF : Γ ⊢' A ≡ A' : .sort u → A::Γ ⊢' body ≡ body' : .sort v →
+    Γ ⊢' .forallE A body ≡ .forallE A' body' : .sort v
+  | defeqDF : Γ ⊢' A ≡ B : .sort u → Γ ⊢' e1 ≡ e2 : A → Γ ⊢' e1 ≡ e2 : B
+  | beta : A::Γ ⊢' e : B → Γ ⊢' e' : A →
+    Γ ⊢' .app (.lam A e) e' ≡ e.inst e' : B.inst e'
+  | eta : Γ ⊢' e : .forallE A B →
+    Γ ⊢' .lam A (.app e.lift (.bvar 0)) ≡ e : .forallE A B
+  | proofIrrel : Γ ⊢' p : .sort false → Γ ⊢' h : p → Γ ⊢' h' : p → Γ ⊢' h ≡ h' : p
+
+end
+
+scoped notation:65 Γ " ⊢' " e " : " A:36 => IsDefEq' Γ e e A
+scoped notation:65 Γ " ⊢' " e1 " ≡ " e2 " : " A:36 => IsDefEq' Γ e1 e2 A
+
 section
 local notation:65 (priority := high) Γ " ⊢ " e1 " : " A:36 => IsDefEq Γ e1 e1 A
 local notation:65 (priority := high) Γ " ⊢ " e1 " ≡ " e2 " : " A:36 => IsDefEq Γ e1 e2 A
 
-/-- The core definitional-equality judgment `Γ ⊢ e₁ ≡ e₂ : A`.
+/-- An instrumented variant of `IsDefEq'` used as internal scaffolding.
 
-Each congruence rule (`bvar`, `appDF`, `lamDF`, `forallEDF`, `beta`, `eta`)
-carries the sort-typing proofs of its subterms explicitly, so structural
-inversion is direct. Includes the usual β, η and proof-irrelevance
-rules, plus a heterogeneous transitivity `trans'` whose middle term may
-live at a different sort — a permissive system designed so that type
-uniqueness can be proven *after the fact* via Adequacy. The trans'-free
-variant `IsDefEq'` in `UniqueTyping.lean` is equivalent on well-formed
-contexts. -/
+Two features distinguish it from `IsDefEq'`:
+* every congruence constructor (`bvar`, `appDF`, `lamDF`, `forallEDF`,
+  `beta`, `eta`) carries explicit sort-typing premises for its
+  subterms, so structural inversion gives back the sort proofs for
+  free; and
+* a heterogeneous transitivity `trans'` allows the middle term to live
+  at a different sort, making it admissible to chain `A ≡ B : sort u`
+  with `B ≡ C : sort v` before we have proved sort uniqueness.
+
+Both features are technically removable: `IsDefEq.iff` in
+`UniqueTyping.lean` exhibits an equivalence with `IsDefEq'` on
+well-formed contexts, and the strengthened premises are recoverable
+via `IsDefEq.hasType` / `IsDefEq.isType`. We keep `IsDefEq` as the
+working judgment because it streamlines the soundness and adequacy
+proofs that have to lift the relation pointwise. -/
 inductive IsDefEq : List Term → Term → Term → Term → Prop where
   | bvar : Lookup Γ i A → Γ ⊢ A : .sort u → Γ ⊢ .bvar i : A
   | symm : Γ ⊢ e ≡ e' : A → Γ ⊢ e' ≡ e : A
