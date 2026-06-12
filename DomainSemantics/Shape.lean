@@ -26,7 +26,6 @@ abbrev ShapeFun (n) := List (Shape n × Shape n)
   | 0 => Shape0.sort rel
   | _+1 => ShapeS.sort rel
 
-abbrev Shape.prop : Shape n := .sort false
 abbrev Shape.type : Shape n := .sort true
 
 def ShapeFun.bot : ShapeFun n := [(.bot, .bot)]
@@ -51,13 +50,7 @@ theorem Shape.Compat.comm {n} {s t : Shape n} : s.Compat t = t.Compat s := by
     constructor <;> intro H _ _ h1 _ _ h2 h3 <;> exact ih ▸ H _ _ h2 _ _ h1 (ih ▸ h3)
   cases s <;> cases t <;> simp +singlePass [Compat, eq_comm, ih, go]
 
-theorem ShapeFun.Compat.comm {n} {f f' : ShapeFun n} :
-    Compat Shape.Compat f f' = Compat Shape.Compat f' f := Shape.Compat.comm.go _ Shape.Compat.comm
-
 theorem Shape.Compat.symm {n} {s t : Shape n} : s.Compat t → t.Compat s := (comm ▸ ·)
-
-theorem ShapeFun.Compat.symm {n} {f f' : ShapeFun n} :
-    Compat Shape.Compat f f' → Compat Shape.Compat f' f := (comm ▸ ·)
 
 theorem Shape.Compat.bot_l {n} {s : Shape n} : bot.Compat s := by cases n <;> rfl
 theorem Shape.Compat.bot_r {n} {s : Shape n} : s.Compat bot := symm bot_l
@@ -67,9 +60,6 @@ theorem Shape.Compat.sort_sort : Compat (sort r : Shape n) (sort r') ↔ r = r' 
 theorem Shape.Compat.forallE_forallE {a a' : Shape n} {f f' : ShapeFun n} :
     Compat (n := n+1) (.forallE a f) (.forallE a' f') ↔
     a.Compat a' ∧ ShapeFun.Compat Compat f f' := by simp only [Compat, Bool.and_eq_true]
-theorem Shape.Compat.lam_lam {f f' : ShapeFun n} :
-    Compat (n := n+1) (.lam f) (.lam f') ↔ ShapeFun.Compat Compat f f' := by simp only [Compat]
-
 def ShapeFun.ble (R : α → α → Bool) (f f' : List (α × α)) : Bool :=
   f.all fun (x, y) => f'.any fun (x', y') => R x' x && R y y'
 
@@ -84,14 +74,7 @@ def ShapeFun.LE (s s' : ShapeFun n) : Prop := ShapeFun.ble Shape.ble s s'
 def Shape.LE (s s' : Shape n) : Prop := s.ble s'
 instance : LE (Shape n) := ⟨Shape.LE⟩
 instance : DecidableRel (α := Shape n) (· ≤ ·) := fun x y => inferInstanceAs (Decidable (x.ble y))
-instance : DecidableRel (ShapeFun.LE (n := n)) :=
-  fun x y => inferInstanceAs (Decidable (ShapeFun.ble _ x y))
-
 @[simp] theorem Shape.bot_le : Shape.bot ≤ (s : Shape n) := by cases n <;> rfl
-
-theorem ShapeFun.LE.def' {f f' : ShapeFun n} : ShapeFun.LE f f' ↔
-    ∀ x ∈ f, ∃ x' ∈ f', x'.1 ≤ x.1 ∧ x.2 ≤ x'.2 := by
-  simp [LE, ble]; rfl
 
 theorem ShapeFun.LE.def {f f' : ShapeFun n} : ShapeFun.LE f f' ↔
     ∀ x y : Shape n, (x, y) ∈ f → ∃ x' y' : Shape n, (x', y') ∈ f' ∧ x' ≤ x ∧ y ≤ y' := by
@@ -116,8 +99,6 @@ theorem Shape.LE.rfl {s : Shape n} : s ≤ s := by
       simp only [ShapeFun.ble, List.all_eq_true, List.any_eq_true, Bool.and_eq_true]
       exact fun _ h => ⟨_, h, ih, ih⟩
     cases s <;> simp [ble, ih, ihf]
-
-theorem Shape.LE.of_eq {s : Shape n} : s = t → s ≤ t := by rintro ⟨⟩; exact .rfl
 
 theorem ShapeFun.LE.rfl {s : ShapeFun n} : s.LE s := by
   simp only [ShapeFun.LE, ShapeFun.ble, List.all_eq_true, List.any_eq_true, Bool.and_eq_true]
@@ -161,7 +142,7 @@ theorem Shape.LE.trans {s t u : Shape n} : s ≤ t → t ≤ u → s ≤ u := by
       simp only [ShapeFun.ble, List.all_eq_true, List.any_eq_true, Bool.and_eq_true]
       rintro h1 h2 x hx; let ⟨_, hy, x1, x2⟩ := h1 _ hx; let ⟨_, hz, y1, y2⟩ := h2 _ hy
       exact ⟨_, hz, ih y1 x1, ih x2 y2⟩
-    cases s <;> cases t <;> simp [ble] <;> cases u <;> simp [ble, *] <;> grind [List.Forall₂.trans]
+    cases s <;> cases t <;> simp [ble] <;> cases u <;> simp [ble, *] <;> grind
 
 theorem ShapeFun.LE.trans {s t u : ShapeFun n} : s.LE t → t.LE u → s.LE u := by
   simp only [ShapeFun.LE, ShapeFun.ble, List.all_eq_true, List.any_eq_true, Bool.and_eq_true]
@@ -189,10 +170,6 @@ theorem Shape.Compat.mono_r {n} {s t t' : Shape n}
   · exact ⟨ih le.1 H.1, go le.2 H.2⟩
   · exact go le H
 
-theorem ShapeFun.Compat.mono_r {n} {s t t' : ShapeFun n} :
-    t.LE t' → Compat Shape.Compat s t' → Compat Shape.Compat s t :=
-  Shape.Compat.mono_r.go _ Shape.Compat.mono_r
-
 theorem Shape.Compat.mono {n} {s s' t t' : Shape n}
     (le₁ : s ≤ s') (le₂ : t ≤ t') (H : s'.Compat t') : s.Compat t :=
   mono_r le₂ <| symm <| mono_r le₁ <| symm H
@@ -209,9 +186,6 @@ def Shape.lift : ∀ {n} m, Shape n → Shape m
 @[simp] theorem Shape.lift_bot : (.bot : Shape n).lift m = .bot := by
   cases n <;> [rfl; cases m <;> rfl]
 
-@[simp] theorem ShapeFun.lift_bot :
-    ShapeFun.lift (Shape.lift m) (.bot : ShapeFun n) = ShapeFun.bot := by simp [ShapeFun.lift, bot]
-
 @[simp] theorem Shape.lift_sort : (.sort r : Shape n).lift m = .sort r := by
   cases n <;> [rfl; cases m <;> rfl]
 
@@ -223,9 +197,6 @@ theorem Shape.lift_self {s : Shape n} : s.lift n = s := by
   · cases s <;> [rfl; grind]
   · rw [Shape.lift_self, this Shape.lift_self]
   · rw [this Shape.lift_self]
-
-theorem ShapeFun.lift_self {s : ShapeFun n} : lift (Shape.lift n) s = s := by
-  simp [ShapeFun.lift]; apply List.map_id''; simp [Shape.lift_self]
 
 theorem Shape.lift_lift {s : Shape n₁} (le : n₁ ≤ n₂ ∨ n₃ ≤ n₂) :
     (s.lift n₂).lift n₃ = s.lift _ := by
@@ -290,10 +261,7 @@ theorem Shape.lift_mono {s t : Shape n} : s ≤ t → s.lift m ≤ t.lift m := b
         exact fun H _ h1 => let ⟨_, h2, h3, h4⟩ := H _ h1; ⟨_, h2, ih h3, ih h4⟩
       have := @Shape.lift_mono n m; dsimp [(· ≤ ·), Shape.LE] at this
       have := @go n m Shape.lift_mono
-      cases s <;> cases t <;> simp [ble, lift, *] <;> grind [List.Forall₂.imp]
-
-theorem ShapeFun.lift_mono {s t : ShapeFun n} : s.LE t →
-    LE (lift (Shape.lift m) s) (lift (Shape.lift _) t) := Shape.lift_mono.go Shape.lift_mono
+      cases s <;> cases t <;> simp [ble, lift, *] <;> grind
 
 protected theorem Shape.Compat.lift {x y : Shape n} (le : n ≤ m) :
     (x.lift m).Compat (y.lift m) = x.Compat y := by
@@ -308,190 +276,6 @@ protected theorem Shape.Compat.lift {x y : Shape n} (le : n ≤ m) :
       ShapeFun.Compat Compat x y := by
     rw [Bool.eq_iff_iff]; simp only [ShapeFun.lift, ShapeFun.Compat.def, List.forall_mem_map, ih]
   cases x <;> cases y <;> simp [Compat, lift, go, *]
-
-theorem ShapeFun.Compat.lift {x y : ShapeFun n} (le : n ≤ m) :
-    Compat Shape.Compat (lift (Shape.lift m) x) (lift (Shape.lift m) y) =
-    Compat Shape.Compat x y := Shape.Compat.lift.go _ _ (Shape.Compat.lift le)
-
-def ShapeFun.plift (lift : α → β × Option β) (x : List (α × α)) :
-    List (β × β) × Option (List (β × β)) :=
-  (x.filterMap fun (a, b) => (lift a).2.map fun a => (a, (lift b).1),
-   x.mapM fun (a, b) => (lift b).2.map fun b => ((lift a).1, b))
-
-def Shape.plift : ∀ {n m}, Shape n → Shape m × Option (Shape m)
-  | 0, _, .sort r | _+1, _, .sort r => (.sort r, some (.sort r))
-  | 0, _, .bot | _+1, _, .bot => (.bot, some .bot)
-  | _+1, 0, _ => (.bot, none)
-  | _+1, _+1, .forallE s f =>
-    let (s₀, s₁) := s.plift
-    let (f₀, f₁) := ShapeFun.plift plift f
-    (.forallE s₀ f₀, return .forallE (← s₁) (← f₁))
-  | _+1, _+1, .lam f =>
-    let (f₀, f₁) := ShapeFun.plift plift f
-    (.lam f₀, return .lam (← f₁))
-
-theorem Shape.plift_eq_lift (le : n ≤ m) {s : Shape n} :
-    s.plift = (s.lift m, some (s.lift m)) := by
-  let rec go {n m} (IH : n ≤ m → ∀ {s : Shape n}, s.plift = (s.lift m, some (s.lift m)))
-      (le : n ≤ m) {s : ShapeFun n} :
-      ShapeFun.plift plift s = (ShapeFun.lift (lift m) s, some (ShapeFun.lift (lift m) s)) := by
-    simp only [ShapeFun.plift, ShapeFun.lift, IH le]; congr 1
-    · rw [← List.filterMap_eq_map]; rfl
-    · rw [List.mapM_eq_some, List.forall₂_map_right_iff]
-      exact .rfl fun _ _ => rfl
-  unfold plift; split <;> simp [lift] at le ⊢ <;> simp [plift_eq_lift le, go plift_eq_lift le]
-
-theorem ShapeFun.plift_eq_lift (le : n ≤ m) {s : ShapeFun n} :
-    plift Shape.plift s = (lift (Shape.lift m) s, some (lift (Shape.lift m) s)) :=
-  Shape.plift_eq_lift.go Shape.plift_eq_lift le
-
-theorem Shape.plift_lift (le : n ≤ m) {s : Shape n} :
-    (s.lift m).plift = (s, some s) := by
-  let rec go {n m} (IH : n ≤ m → ∀ {s : Shape n}, (s.lift m).plift = (s, some s))
-      (le : n ≤ m) {s : ShapeFun n} :
-      ShapeFun.plift plift (ShapeFun.lift (lift m) s) = (s, some s) := by
-    simp only [ShapeFun.plift, ShapeFun.lift, List.filterMap_map, List.mapM_map]; congr 1
-    · refine .trans ?_ List.filterMap_some; congr 1; funext (a, b); simp [IH le]
-    · rw [List.mapM_eq_some]; refine .rfl fun (a, b) _ => by simp [IH le]
-  unfold lift; split <;> (try cases m) <;> try simp [plift, sort, bot] at le ⊢
-  · cases le; cases s <;> grind
-  · simp [plift_lift le, go plift_lift le]
-  · simp [go plift_lift le]
-
-@[simp] theorem Shape.bot_plift : (bot (n := n)).plift (m := m) = (bot, some bot) := by
-  cases n <;> simp [bot, plift]
-
-theorem List.mapM_mapM_option (f : α → Option β) (g : β → Option γ) :
-    (List.mapM f l).bind (List.mapM g) = List.mapM (f · |>.bind g) l := by
-  induction l with simp [Option.bind_assoc] | cons a l ih
-  congr 1; ext1; rw [Option.bind_comm]; congr 1; ext1; simp [← ih, Option.bind_assoc]
-
-theorem Shape.plift_plift (le : n₁ ≤ n₂ ∨ n₃ ≤ n₂) {s : Shape n₁} :
-    ((s.plift.1 : Shape n₂).plift.1 : Shape n₃) = s.plift.1 ∧
-    (s.plift.2 : Option (Shape n₃)) = (s.plift.2 : Option (Shape n₂)).bind (·.plift.2) := by
-  suffices ∀ {n₁ n₂ n₃}, n₂ ≤ n₁ → n₃ ≤ n₂ → ∀ {s : Shape n₁},
-      ((s.plift.1 : Shape n₂).plift.1 : Shape n₃) = s.plift.1 ∧
-      (s.plift.2 : Option (Shape n₃)) = (s.plift.2 : Option (Shape n₂)).bind (·.plift.2) by
-    obtain le | le := le
-    · simp [plift_eq_lift le]
-      obtain h1 | h1 := Nat.le_total n₂ n₃
-      · simp [plift_eq_lift h1, plift_eq_lift (Nat.le_trans le h1), lift_lift (.inl le)]
-      obtain h2 | h2 := Nat.le_total n₁ n₃
-      · rw [← lift_lift (.inl h2), plift_lift h1, plift_eq_lift h2]; exact ⟨rfl, rfl⟩
-      · rw [← (this le h2).1, (this le h2).2, plift_lift le]; exact ⟨rfl, rfl⟩
-    · obtain h1 | h1 := Nat.le_total n₂ n₁
-      · rw [(this h1 le).1, (this h1 le).2]; exact ⟨rfl, rfl⟩
-      simp [plift_eq_lift h1]
-      obtain h2 | h2 := Nat.le_total n₁ n₃
-      · rw [← lift_lift (.inl h2), plift_lift le, plift_eq_lift h2]; exact ⟨rfl, rfl⟩
-      · rw [← (this h1 h2).1, (this h1 h2).2, plift_lift h1]; exact ⟨rfl, rfl⟩
-  intro n₁ n₂ n₃ h1 h2 s
-  induction n₁ generalizing n₂ n₃ with
-  | zero => cases h1; simp [plift_eq_lift (Nat.le_refl _), lift_self] | succ n₁ ih
-  cases n₂ with | zero => cases h2; simp [plift_eq_lift (Nat.le_refl _), lift_self] | succ n₂
-  cases n₃ with
-  | zero =>
-    cases s with simp [plift]
-    | forallE s f => cases s.plift.2 <;> simp; cases (ShapeFun.plift plift f).2 <;> simp [plift]
-    | lam f => cases (ShapeFun.plift plift f).2 <;> simp [plift]
-  | succ n₃
-  simp at h1 h2; replace ih {s} := ih (s := s) h1 h2
-  let rec go {s : ShapeFun n₁} :
-      (ShapeFun.plift (plift (m := n₃)) (ShapeFun.plift (plift (m := n₂)) s).1).1 =
-      (ShapeFun.plift plift s).1 ∧
-      ((ShapeFun.plift plift s).2 : Option (ShapeFun n₃)) =
-      ((ShapeFun.plift plift s).2 : Option (ShapeFun n₂)).bind (ShapeFun.plift plift · |>.2) := by
-    simp [ShapeFun.plift]; constructor
-    · rw [List.filterMap_filterMap]; congr 1; ext1 ⟨x, y⟩; dsimp
-      simp [Option.bind_map, Function.comp_def]
-      have := @ih x; revert this
-      cases (x.plift.2 : Option (Shape n₂)) <;> simp +contextual [ih.1]
-    · rw [List.mapM_mapM_option]; congr 1; ext1
-      simp [Option.map_eq_bind, Option.bind_assoc, Function.comp_def, ih]
-  cases s with simp [plift, ih, go, Option.bind_assoc]
-  | forallE => congr 1; ext; rw [Option.bind_comm]
-
-theorem ShapeFun.plift_plift (le : n₁ ≤ n₂ ∨ n₃ ≤ n₂) {s : ShapeFun n₁} :
-    (plift (Shape.plift (m := n₃)) (plift (Shape.plift (m := n₂)) s).1).1 =
-    (plift Shape.plift s).1 ∧
-    ((plift Shape.plift s).2 : Option (ShapeFun n₃)) =
-    ((plift Shape.plift s).2 : Option (ShapeFun n₂)).bind (plift Shape.plift · |>.2) :=
-  Shape.plift_plift.go _ _ _ (Shape.plift_plift le)
-
-theorem Shape.plift_thm (le : n ≤ m) {s : Shape m} {t : Shape n} :
-    (t.lift m ≤ s ↔ t ≤ (s.plift (m := n)).1) ∧
-    (s ≤ t.lift m ↔ ∃ z, (s.plift (m := n)).2 = some z ∧ z ≤ t) := by
-  let rec go {n m}
-      (IH : n ≤ m → ∀ {s : Shape m} {t : Shape n},
-        (t.lift m ≤ s ↔ t ≤ s.plift.1) ∧ (s ≤ t.lift m ↔ ∃ z, s.plift.2 = some z ∧ z ≤ t))
-      (le : n ≤ m) {s : ShapeFun m} {t : ShapeFun n} :
-      (ShapeFun.LE (ShapeFun.lift (lift _) t) s ↔ ShapeFun.LE t (ShapeFun.plift plift s).1) ∧
-      (ShapeFun.LE s (ShapeFun.lift (lift _) t) ↔
-        ∃ z, (ShapeFun.plift plift s).2 = some z ∧ ShapeFun.LE z t) := by
-    simp [ShapeFun.LE, ShapeFun.ble, ShapeFun.lift, ShapeFun.plift, List.mapM_eq_some,
-      -List.any_filterMap, -Prod.forall]
-    refine ⟨⟨fun H (a, b) h => ?_, fun H (a, b) h => ?_⟩,
-      ⟨fun H => ?_, fun ⟨l, hl, hl2⟩ (a, b) h => ?_⟩⟩
-    · obtain ⟨a₁, b₁, h1, h2, h3⟩ := H _ h
-      have ⟨z, hz, hz2⟩ := (IH le).2.1 h2
-      exact ⟨_, _, ⟨_, _, h1, _, hz, rfl, rfl⟩, hz2, (IH le).1.1 h3⟩
-    · obtain ⟨_, _, ⟨_, _, h1, _, h2, rfl, rfl⟩, h3, h4⟩ := H _ h
-      exact ⟨_, _, h1, (IH le).2.2 ⟨_, h2, h3⟩, (IH le).1.2 h4⟩
-    · induction s with | nil => exact ⟨[], .nil, nofun⟩ | cons p s ih
-      simp only [List.mem_cons, or_imp, forall_and, forall_eq] at H
-      have ⟨⟨a', b', h1, h2, h3⟩, H⟩ := H
-      have ⟨l, hl, hl2⟩ := ih H
-      have ⟨z, hz, hz2⟩ := (IH le).2.1 h3
-      refine ⟨_::l, .cons ⟨_, hz, rfl⟩ hl, ?_⟩
-      exact List.forall_mem_cons.2 ⟨⟨_, _, h1, (IH le).1.1 h2, hz2⟩, hl2⟩
-    · obtain ⟨_, h1, _, h2, rfl⟩ := hl.forall_exists_l _ h
-      have ⟨_, _, h3, h4, h5⟩ := hl2 _ h1
-      exact ⟨_, _, h3, (IH le).1.2 h4, (IH le).2.2 ⟨_, h2, h5⟩⟩
-  unfold plift; split
-    <;> (try (first | cases Nat.le_zero.1 le | cases n); cases t)
-    <;> (try · simp [lift, sort, bot, (· ≤ ·), LE, ble])
-    <;> (try · cases t <;> simp [lift, sort, bot, Shape.LE.def])
-  · rename_i s _ _; cases s with
-    | bot | sort => grind
-    | _ => cases t <;> simp [lift, sort, bot, (· ≤ ·), LE, ble]
-  all_goals have le := Nat.le_of_succ_le_succ le
-  · cases t with simp [lift, sort, bot, Shape.LE.def]
-    | forallE => ?_ | _ => intros; subst_vars; simp
-    simp [Shape.plift_thm le,
-      go Shape.plift_thm le]; grind
-  · cases t with simp [lift, sort, bot, Shape.LE.def]
-    | lam => ?_ | _ => intros; subst_vars; simp
-    simp [go Shape.plift_thm le]; grind
-
-theorem Shape.le_plift (le : n ≤ m) {s : Shape m} {t : Shape n} :
-    t ≤ s.plift.1 ↔ t.lift m ≤ s := (Shape.plift_thm le).1.symm
-
-theorem Shape.plift_le (le : n ≤ m) {s : Shape m} {t : Shape n} :
-    (∃ z, s.plift.2 = some z ∧ z ≤ t) ↔ s ≤ t.lift m := (Shape.plift_thm le).2.symm
-
-theorem ShapeFun.le_plift (le : n ≤ m) {s : ShapeFun m} {t : ShapeFun n} :
-    LE t (plift Shape.plift s).1 ↔ LE (lift (Shape.lift m) t) s :=
-  (Shape.plift_thm.go Shape.plift_thm le).1.symm
-
-theorem ShapeFun.plift_le (le : n ≤ m) {s : ShapeFun m} {t : ShapeFun n} :
-    (∃ z, (plift Shape.plift s).2 = some z ∧ LE z t) ↔ LE s (lift (Shape.lift m) t) :=
-  (Shape.plift_thm.go Shape.plift_thm le).2.symm
-
-theorem Shape.plift_mono {s t : Shape m} (H : s ≤ t) : (s.plift (m := n)).1 ≤ t.plift.1 := by
-  obtain le | le := Nat.le_total m n
-  · rw [Shape.plift_eq_lift le, Shape.plift_eq_lift le]; exact Shape.lift_mono H
-  · exact (Shape.le_plift le).2 (.trans ((Shape.le_plift le).1 .rfl) H)
-
-protected theorem Shape.Compat.plift {x y : Shape n} :
-    (x.Compat y → (x.plift.1 : Shape m).Compat y.plift.1) ∧
-    ∀ {x' y' : Shape m}, x.plift.2 = some x' → y.plift.2 = some y' → x'.Compat y' → x.Compat y := by
-  obtain le | le := Nat.le_total n m
-  · simp [plift_eq_lift le, Compat.lift le]
-  refine ⟨fun h => ?_, fun h1 h2 h => ?_⟩
-  · rw [← Compat.lift le]
-    exact Compat.mono ((Shape.le_plift le).1 .rfl) ((Shape.le_plift le).1 .rfl) h
-  · apply Compat.mono ((Shape.plift_le le).1 ⟨_, h1, .rfl⟩) ((Shape.plift_le le).1 ⟨_, h2, .rfl⟩)
-    rwa [Compat.lift le]
 
 def ShapeFun.olift (lift : α → Option β) (x : List (α × α)) : Option (List (β × β)) :=
   x.mapM fun (a, b) => return (← lift a, ← lift b)
@@ -635,21 +419,6 @@ theorem Shape.join_bot {x : Shape n} : x.join bot = x := by cases n <;> cases x 
 @[simp] theorem Shape.sort_join_sort :
     join (.sort r : Shape n) (.sort r') = if r = r' then .sort r else .bot := by cases n <;> rfl
 
-theorem ShapeFun.lift_join {x y : ShapeFun n} (le : n ≤ m) :
-    lift (Shape.lift m) (join Shape.join x y) =
-    join Shape.join (lift (Shape.lift m) x) (lift (Shape.lift m) y) :=
-  Shape.lift_join.go _ _ le (Shape.lift_join le)
-
-def Shape.lam' (s : ShapeFun n) : Shape (n + 1) :=
-  if s.all (·.2 ≤ .bot) then .bot else .lam s
-
-def Shape.trim : ∀ {n}, Shape n → Shape n
-  | 0, s => s
-  | _+1, .bot => .bot
-  | _+1, .sort r => .sort r
-  | _+1, .forallE s f => .forallE s.trim (f.map fun x => (x.1.trim, x.2.trim))
-  | _+1, .lam f => .lam' (f.map fun x => (x.1.trim, x.2.trim))
-
 def ShapeFun.WF (WF : Shape n → Prop) (f : ShapeFun n) : Prop :=
   ((∃ y, (.bot, y) ∈ f) ∧ ∀ x ∈ f, ∀ y ∈ f,
     (x.1.Compat y.1 → ∃ z ∈ f, x.1.join y.1 ≤ z.1 ∧ z.1 ≤ x.1.join y.1) ∧
@@ -657,19 +426,12 @@ def ShapeFun.WF (WF : Shape n → Prop) (f : ShapeFun n) : Prop :=
   ∀ x ∈ f, WF x.1 ∧ WF x.2
 
 def ShapeFun.NonZero (f : ShapeFun n) := ∃ x ∈ f, ¬x.2 ≤ .bot
-def Shape.ListNonZero (l : List (Shape n)) := ∃ x ∈ l, ¬x ≤ .bot
 
 instance {f : ShapeFun n} : Decidable f.NonZero :=
   inferInstanceAs (Decidable (∃ x ∈ f, ¬x.2 ≤ .bot))
-instance {l : List (Shape n)} : Decidable (Shape.ListNonZero l) :=
-  inferInstanceAs (Decidable (∃ x ∈ l, ¬x ≤ .bot))
 
 theorem ShapeFun.NonZero.mono {f f' : ShapeFun n} (le : f.LE f') : NonZero f → NonZero f'
   | ⟨_, h1, h2⟩ => have ⟨_, _, a1, _, a2⟩ := ShapeFun.LE.def.1 le _ _ h1; ⟨_, a1, mt a2.trans h2⟩
-
-theorem Shape.ListNonZero.mono {l l' : List (Shape n)}
-    (le : l.Forall₂ (· ≤ ·) l') : ListNonZero l → ListNonZero l'
-  | ⟨_, h1, h2⟩ => have ⟨_, a1, a2⟩ := le.forall_exists_l _ h1; ⟨_, a1, mt a2.trans h2⟩
 
 def Shape.WF : ∀ {n}, Shape n → Prop
   | 0, _ | _+1, .bot | _+1, .sort .. => True
@@ -682,13 +444,6 @@ theorem ShapeFun.NonZero.lift_iff {n m} {x : ShapeFun n} (le : n ≤ m) :
   refine ⟨fun ⟨_, _, ⟨_, _, h1, rfl, rfl⟩, h2⟩ => ?_, fun ⟨_, _, h1, h2⟩ => ?_⟩
   · exact ⟨_, _, h1, mt ((Shape.lift_le_bot le).2 ∘ Shape.le_bot.1) h2⟩
   · exact ⟨_, _, ⟨_, _, h1, rfl, rfl⟩, mt (Shape.le_bot.2 ∘ (Shape.lift_le_bot le).1) h2⟩
-
-theorem Shape.ListNonZero.lift_iff {n m} {x : List (Shape n)} (le : n ≤ m) :
-    ListNonZero (x.map (lift m)) ↔ ListNonZero (n := n) x := by
-  simp [ListNonZero]
-  constructor
-  · exact fun ⟨_, ⟨_, h1, rfl⟩, h2⟩ => ⟨_, h1, mt ((Shape.lift_le_bot le).2 ∘ Shape.le_bot.1) h2⟩
-  · exact fun ⟨_, h1, h2⟩ => ⟨_, ⟨_, h1, rfl⟩, mt (Shape.le_bot.2 ∘ (Shape.lift_le_bot le).1) h2⟩
 
 theorem Shape.WF.lift_iff (le : n ≤ m) : WF (x.lift m) ↔ WF (n := n) x := by
   induction n generalizing m with | zero => cases m <;> cases x <;> trivial | succ n ih
@@ -718,11 +473,6 @@ theorem Shape.WF.lift_iff (le : n ≤ m) : WF (x.lift m) ↔ WF (n := n) x := by
 theorem ShapeFun.WF.lift_iff {x : ShapeFun n} (le : n ≤ m) :
     WF Shape.WF (lift (Shape.lift m) x) ↔ WF Shape.WF x :=
   Shape.WF.lift_iff.go _ _ le (Shape.WF.lift_iff le)
-
-protected theorem Shape.WF.lift (le : n ≤ m) : WF (n := n) x → WF (x.lift m) := (lift_iff le).2
-
-protected theorem ShapeFun.WF.lift {x : ShapeFun n} (le : n ≤ m) : WF Shape.WF x →
-    WF Shape.WF (lift (Shape.lift m) x) := (lift_iff le).2
 
 protected theorem Shape.WF.olift {x : Shape n} (H : x.olift (m := m) = some x') :
     WF x ↔ WF x' := by
@@ -777,15 +527,6 @@ def WShape.lam (f : WShapeFun n) (h : f.NonZero) :
 def WShape.lam' (f : WShapeFun n) : WShape (n + 1) := if h : f.NonZero then .lam f h else .bot
 theorem WShape.lam_eq_lam' {f : WShapeFun n} {hl} : WShape.lam f hl = .lam' f := by
   simp [lam', hl]
-
-def WShape.ListNonZero (l : List (WShape n)) := ∃ x ∈ l, ¬x.1 ≤ .bot
-instance {l : List (WShape n)} : Decidable (WShape.ListNonZero l) :=
-  inferInstanceAs (Decidable (∃ x ∈ l, ¬x.1 ≤ .bot))
-
-theorem WShape.ListNonZero.def {l : List (WShape n)} :
-    ListNonZero l ↔ Shape.ListNonZero (l.map (·.1)) := by
-  simp only [ListNonZero, Shape.ListNonZero, List.mem_map]
-  exact ⟨fun ⟨_, h1, h2⟩ => ⟨_, ⟨_, h1, rfl⟩, h2⟩, fun ⟨_, ⟨_, h1, rfl⟩, h2⟩ => ⟨_, h1, h2⟩⟩
 
 def WShapeFun.bot {n : Nat} : WShapeFun n := ⟨.bot, .bot⟩
 
@@ -843,22 +584,8 @@ instance : LE (WShape n) := ⟨WShape.LE⟩
 instance : LE (WShapeFun n) := ⟨WShapeFun.LE⟩
 
 instance : DecidableRel (α := WShape n) (· ≤ ·) := fun a b => inferInstanceAs (Decidable (a.1 ≤ b.1))
-instance : DecidableRel (α := WShapeFun n) (· ≤ ·) :=
-  fun a b => inferInstanceAs (Decidable (a.1.LE b.1))
-
 theorem WShape.LE.def {a b : WShape n} : a ≤ b ↔ a.1 ≤ b.1 := .rfl
 theorem WShapeFun.LE.def {a b : WShapeFun n} : a ≤ b ↔ a.1.LE b.1 := .rfl
-
-theorem WShapeFun.NonZero.iff {f : WShapeFun n} : f.NonZero ↔ ∃ x ∈ f, ¬x.2 ≤ .bot :=
-  ⟨fun ⟨_, h1, h2⟩ => ⟨_, f.mem_val h1, h2⟩, fun ⟨_, h1, h2⟩ => ⟨_, h1, h2⟩⟩
-
-theorem WShapeFun.NonZero.mono {f f' : WShapeFun n} :
-    (h1 : f.LE f') → (h2 : NonZero f) → NonZero f' :=
-  ShapeFun.NonZero.mono
-
-theorem WShape.ListNonZero.mono {l l' : List (WShape n)}
-    (le : l.Forall₂ (· ≤ ·) l') : ListNonZero l → ListNonZero l' := by
-  simp [ListNonZero.def]; apply Shape.ListNonZero.mono; simpa
 
 theorem WShape.lift_val {s : WShape n} (le : n ≤ m) : (s.lift m).1 = s.1.lift m := by
   simp [lift, Shape.olift_eq_lift le]
@@ -891,9 +618,6 @@ theorem WShape.forallE.inj {f : WShapeFun n} :
 
 theorem WShape.lift_self {s : WShape n} : s.lift n = s := by
   ext; rw [lift_val (Nat.le_refl _), Shape.lift_self]
-
-theorem WShapeFun.lift_self {s : WShapeFun n} : s.lift n = s := by
-  ext; rw [lift_val (Nat.le_refl _), ShapeFun.lift_self]
 
 theorem WShape.lift_lift {s : WShape n₁} (le : n₁ ≤ n₂ ∨ n₃ ≤ n₂) :
     (s.lift n₂).lift n₃ = s.lift n₃ := by
@@ -990,11 +714,6 @@ theorem WShapeFun.NonZero.lift_iff {n m} {x : WShapeFun n} (le : n ≤ m) :
     (x.lift m).NonZero ↔ NonZero (n := n) x := by
   simp [NonZero, lift_val le, ShapeFun.NonZero.lift_iff le]
 
-theorem WShape.ListNonZero.lift_iff {n m} {x : List (WShape n)} (le : n ≤ m) :
-    ListNonZero (x.map (lift m)) ↔ ListNonZero (n := n) x := by
-  simp [ListNonZero.def, ← Shape.ListNonZero.lift_iff le]
-  apply iff_of_eq; congr 2; ext x; simp [lift_val le]
-
 @[simp] theorem WShape.lift_lam' {f : WShapeFun n} (le : n ≤ m) :
     (WShape.lam' f).lift (m+1) = .lam' (f.lift m) := by
   ext1; simp [lam']; split <;> simp [WShapeFun.lift_val le, WShapeFun.NonZero.lift_iff le,
@@ -1020,12 +739,6 @@ theorem WShape.lift_eq_lam' {s : WShape (n+1)} (le : n ≤ m)
 
 protected theorem WShape.LE.rfl {s : WShape n} : s ≤ s := Shape.LE.rfl
 protected theorem WShape.LE.trans {s t u : WShape n} : s ≤ t → t ≤ u → s ≤ u := Shape.LE.trans
-
-theorem WShape.LE.forallE_decomp {s : WShape (n+1)} {a : WShape n} {f : WShapeFun n} :
-    s ≤ .forallE a f → s = .bot ∨ ∃ a' f', s = .forallE a' f' := by
-  simp [WShape.LE.def, Shape.LE.def, forallE]; obtain ⟨⟨⟩, _⟩ := s <;> simp
-  · simp [bot, Shape.bot]
-  · rename_i wf; intros; exact .inr ⟨⟨_, wf.1⟩, ⟨_, wf.2⟩, rfl⟩
 
 @[simp] theorem WShape.forallE_le_forallE {a a' : WShape n} {f f' : WShapeFun n} :
     WShape.forallE a f ≤ .forallE a' f' ↔ a ≤ a' ∧ f ≤ f' := Shape.forallE_le_forallE
@@ -1057,9 +770,6 @@ theorem WShape.forallE_le {s : WShape (n+1)} {a : WShape n} {f : WShapeFun n} :
     exact ⟨⟨a', wf.1⟩, ⟨b', wf.2⟩, h1, h2, WShape.ext h3.symm⟩
   · intro ⟨a', f', h1, h2, h3⟩; subst h3; exact WShape.forallE_le_forallE.2 ⟨h1, h2⟩
 
-theorem WShape.lam_le_lam {f f' : WShapeFun n} {hf hf'} :
-    WShape.lam f hf ≤ .lam f' hf' ↔ f ≤ f' := .rfl
-
 theorem WShape.lam'_le_lam' {f f' : WShapeFun n} :
     WShape.lam' f ≤ .lam' f' ↔ f ≤ f' := by
   simp [WShape.LE.def, lam', WShapeFun.LE.def]
@@ -1068,30 +778,6 @@ theorem WShape.lam'_le_lam' {f f' : WShapeFun n} :
     refine ⟨_, _, h1, fun _ _ h3 h4 h5 => h' ⟨_, h3, mt h5.trans h2⟩⟩
   · intro _ y h1; have h2 := Decidable.by_contra (mt (⟨_, h1, ·⟩) h)
     have ⟨_, h⟩ := f'.2.1.1; exact ⟨_, _, h, Shape.bot_le, .trans h2 Shape.bot_le⟩
-
-theorem WShape.LE.le_lam {s : WShape (n+1)} {f : WShapeFun n} {hl} :
-    s ≤ .lam f hl → s = .bot ∨ ∃ f' hl', s = .lam f' hl' := by
-  simp [WShape.LE.def, Shape.LE.def, lam]; obtain ⟨⟨⟩, _⟩ := s <;> simp
-  · simp [bot, Shape.bot]
-  · rename_i wf; intros; exact .inr ⟨⟨_, wf.1⟩, wf.2, rfl⟩
-
-theorem WShape.LE.lam_le {s : WShape (n+1)} {f : WShapeFun n} {hl} :
-    .lam f hl ≤ s → ∃ f' hl', s = .lam f' hl' := by
-  simp [WShape.LE.def, Shape.LE.def, lam]; obtain ⟨⟨⟩, _⟩ := s <;> simp
-  rename_i wf; intros; exact ⟨⟨_, wf.1⟩, wf.2, rfl⟩
-
-theorem WShape.LE.le_lam' {s : WShape (n+1)} {f : WShapeFun n} :
-    s ≤ .lam' f → ∃ f', s = .lam' f' := by
-  rw [lam']; split
-  · intro h; obtain rfl | ⟨_, h, rfl⟩ := h.le_lam
-    · exact ⟨.bot, by simp⟩
-    · exact ⟨_, lam_eq_lam'⟩
-  · simp [le_bot]; rintro rfl; exact ⟨.bot, by simp⟩
-
-theorem WShape.lam.inj {f f' : WShapeFun n} {h h'} :
-    WShape.lam f h = WShape.lam f' h' ↔ f = f' := by
-  simp [WShape.ext_iff, WShapeFun.ext_iff, lam]
-  exact iff_of_eq (ShapeS.lam.injEq ..)
 
 theorem WShapeFun.bot_mem (f : WShapeFun n) : ∃ y, (.bot, y) ∈ f :=
   let ⟨_, h⟩ := f.2.1.1; ⟨_, f.mem_val h⟩
@@ -1112,13 +798,6 @@ instance : Decidable (WShapeFun.Compat a b) := inferInstanceAs (Decidable (_ = t
 @[simp] theorem WShape.Compat.forallE_forallE {a a' : WShape n} {f f' : WShapeFun n} :
     (WShape.forallE a f).Compat (.forallE a' f') ↔ a.Compat a' ∧ WShapeFun.Compat f f' :=
   Shape.Compat.forallE_forallE
-
-@[simp] theorem WShape.Compat.lam_lam {f f' : WShapeFun n} {hf hf'} :
-    (WShape.lam f hf).Compat (.lam f' hf') ↔ WShapeFun.Compat f f' := Shape.Compat.lam_lam
-
-theorem WShape.Compat.lam'_lam' {f f' : WShapeFun n} (H : f.Compat f') :
-    (WShape.lam' f).Compat (.lam' f') := by
-  unfold lam'; split <;> [split <;> [exact lam_lam.2 H; exact .bot_r]; exact .bot_l]
 
 theorem WShapeFun.Compat.def {n} {f f' : WShapeFun n} :
     f.Compat f' ↔ ∀ x ∈ f, ∀ y ∈ f', x.1.Compat y.1 → x.2.Compat y.2 := by
@@ -1202,14 +881,6 @@ theorem join_mem' {f : WShapeFun n} {x y x' y'}
       ∀ w, j ≤ w ↔ x ≤ w ∧ x' ≤ w :=
   let ⟨_, a1, a2, a3⟩ := f.join_mem' hx hy hc
   ⟨⟨_, (ih.2 hc).1⟩, rfl, _, a1, a2, a3, (ih.2 hc).2⟩
-
-theorem compat_app_r {f : WShapeFun n} {x x' : WShape n} (hc : x.Compat x') :
-    (f.1.app x.1).Compat (f.1.app x'.1) :=
-  have ⟨_, a1, a2, _⟩ := app_core ih f x; have a2 := f.mem_val a2
-  have ⟨_, b1, b2, _⟩ := app_core ih f x'; have b2 := f.mem_val b2
-  have ⟨_, _, _, c2, c3, _, c5⟩ := join_mem' ih a2 b2 (Shape.Compat.mono a1 b1 hc)
-  have ⟨c6, c7⟩ := (c5 _).1 .rfl
-  ih.1 _ (f.mem_mono a2 c2 (c6.trans c3)) (f.mem_mono b2 c2 (c7.trans c3))
 
 theorem compat_app_l {f f' : WShapeFun n} (hc : f.Compat f') (x : WShape n) :
     (f.1.app x.1).Compat (f'.1.app x.1) := by
@@ -1355,8 +1026,6 @@ theorem WShape.Compat.iff {x y : WShape n} : x.Compat y ↔ ∃ z, x ≤ z ∧ y
 theorem WShape.Compat.of_le {x : WShape n} (h : x ≤ y) : x.Compat y :=
   WShape.Compat.iff.2 ⟨_, h, .rfl⟩
 theorem WShape.Compat.rfl {x : WShape n} : x.Compat x := .of_le .rfl
-theorem WShape.Compat.symm {x : WShape n} : x.Compat y → y.Compat x := Shape.Compat.symm
-
 def WShape.join (a b : WShape n) : WShape n :=
   if h : a.Compat b then ⟨a.1.join b.1, (WShape.join_prop.2 h).1⟩ else .bot
 def WShape.Join (x y z : WShape n) : Prop :=
@@ -1382,11 +1051,6 @@ theorem WShape.lift_join {x y : WShape n} (le : n ≤ m) :
   · rw [dif_pos ((WShape.Compat.lift le).2 h)]; ext1; simp [lift_val le, Shape.lift_join le]
   · rw [dif_neg (mt (WShape.Compat.lift le).1 h), lift_bot]
 
-theorem WShapeFun.join_mem {f : WShapeFun n}
-    (hx : (x, y) ∈ f) (hy : (x', y') ∈ f) (hc : x.Compat x') :
-    ∃ z, z ∈ f ∧ x.join x' ≤ z.1 ∧ z.1 ≤ x.join x' := by
-  simp only [WShape.LE.def, WShape.join_val hc, f.join_mem' hx hy hc]
-
 @[simp] theorem WShape.bot_join {x : WShape n} : bot.join x = x := by
   ext1; rw [join_val Compat.bot_l, bot, Shape.bot_join]
 @[simp] theorem WShape.join_bot {x : WShape n} : x.join bot = x := by
@@ -1408,12 +1072,6 @@ theorem WShape.Join.lift {x y z : WShape n} (le : n ≤ m) :
 theorem WShape.join_self {x y : WShape n} : WShape.Join x x y ↔ x ≤ y ∧ y ≤ x :=
   ⟨fun H => ⟨((H _).1 .rfl).1, (H _).2 ⟨.rfl, .rfl⟩⟩,
    fun ⟨H1, H2⟩ _ => ⟨fun h => ⟨H1.trans h, H1.trans h⟩, fun h => H2.trans h.1⟩⟩
-
-theorem WShape.Join.left {x y : WShape n} (h : y ≤ x) : WShape.Join x y x :=
-  fun _ => ⟨fun H => ⟨H, h.trans H⟩, (·.1)⟩
-
-theorem WShape.Join.right {x y : WShape n} (h : y ≤ x) : WShape.Join y x x :=
-  fun _ => ⟨fun H => ⟨h.trans H, H⟩, (·.2)⟩
 
 def WShapeFun.Join (x y z : WShapeFun n) : Prop := ∀ w : WShapeFun n, z ≤ w ↔ x ≤ w ∧ y ≤ w
 
@@ -1451,34 +1109,6 @@ theorem WShapeFun.Join.iff :
   refine ⟨fun h => ⟨Compat.iff.2 ⟨_, h.le⟩, ?_⟩, fun ⟨h1, h2, h3⟩ w => ?_⟩
   · exact ⟨((mk h.compat _).2 h.le), (h _).2 (mk h.compat).le⟩
   · exact ⟨fun h => (mk h1 _).1 (h2.trans h), fun h => h3.trans <| (mk h1 _).2 h⟩
-
-theorem WShapeFun.join_mem'' {f : WShapeFun n}
-    (hx : (x, y) ∈ f) (hy : (x', y') ∈ f) (hc : x.Compat x') : ∃ z, z ∈ f ∧ x.Join x' z.1 := by
-  have ⟨⟨z, w⟩, h1, h2⟩ := f.join_mem' hx hy hc
-  refine ⟨_, h1, WShape.Join.iff.2 ⟨hc, ?_⟩⟩
-  simpa only [WShape.LE.def, WShape.join_val hc]
-
-def WShapeFun.ofElems (f : List (WShape n × WShape n))
-    (h1 : ∃ y, (WShape.bot, y) ∈ f)
-    (h2 : ∀ x ∈ f, ∀ y ∈ f,
-      (x.1.Compat y.1 → ∃ z ∈ f, x.1.Join y.1 z.1) ∧
-      (x.1 ≤ y.1 → x.2 ≤ y.2)) : WShapeFun n := by
-  refine ⟨f.map fun x => (x.1.1, x.2.1), ?_, ?_⟩
-  · simp only [List.mem_map, Prod.mk.injEq]
-    have ⟨_, h1⟩ := h1; refine ⟨⟨_, _, h1, rfl, rfl⟩, ?_⟩
-    rintro _ ⟨⟨x, y⟩, a1, rfl⟩ ⟨x', y'⟩ ⟨⟨u, v⟩, a2, ⟨⟩⟩; dsimp
-    have ⟨b1, b2⟩ := h2 _ a1 _ a2; refine ⟨fun hc => ?_, b2⟩
-    have ⟨_, c1, c2⟩ := b1 hc; have := (WShape.Join.iff.1 c2).2
-    simp only [WShape.LE.def, WShape.join_val hc] at this
-    exact ⟨_, ⟨⟨_, _⟩, c1, rfl⟩, this⟩
-  · simp; rintro _ _ x y _ rfl rfl; exact ⟨x.2, y.2⟩
-
-theorem WShapeFun.mem_ofElems {f : List (WShape n × WShape n)} {h1 h2} :
-    (x, y) ∈ WShapeFun.ofElems f h1 h2 ↔ (x, y) ∈ f := by
-  show (x.1, y.1) ∈ f.map (fun p => (p.1.1, p.2.1)) ↔ _
-  simp only [List.mem_map, Prod.mk.injEq]
-  exact ⟨fun ⟨⟨a, b⟩, h, ha, hb⟩ => by cases WShape.ext ha; cases WShape.ext hb; exact h,
-    fun h => ⟨_, h, rfl, rfl⟩⟩
 
 def TShape := Σ n, WShape n
 abbrev WShape.T : WShape n → TShape := Sigma.mk _
@@ -1535,17 +1165,6 @@ theorem TShape.LE.lam'_decomp {f : WShapeFun n} {f' : WShapeFun n'} :
     have ⟨_, h⟩ := f'.bot_mem
     exact ⟨_, _, (WShapeFun.mem_lift le₂).2 ⟨_, _, h, rfl, rfl⟩, by simp⟩
 
-theorem TShape.LE.le_lam {f : WShapeFun n} {hl} {f' : WShapeFun n'} {hl'}
-    (le : (WShape.lam f hl).T ≤ (WShape.lam f' hl').T) :
-    f.lift (max n n') ≤ f'.lift (max n n') := by
-  have le₁ := Nat.le_max_left n n'; have le₂ := Nat.le_max_right n n'
-  have h := (TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂)).1 le
-  have h_raw : ((WShape.lam f hl).lift _).1 ≤ ((WShape.lam f' hl').lift _).1 := h
-  rw [WShape.lift_val (Nat.succ_le_succ le₁), WShape.lift_val (Nat.succ_le_succ le₂)] at h_raw
-  simp only [WShape.lam, Shape.lift, Shape.LE.def] at h_raw
-  show (f.lift _).1.LE (f'.lift _).1
-  rw [WShapeFun.lift_val le₁, WShapeFun.lift_val le₂]; exact h_raw
-
 def TShape.bot : TShape := WShape.T (n := 0) .bot
 def TShape.sort (r : Bool) : TShape := WShape.T (n := 0) (.sort r)
 def TShape.type : TShape := .sort true
@@ -1564,8 +1183,6 @@ theorem TShape.LE.lift_r {a b : TShape} (h1 : b.1 ≤ a.1) : a ≤ b ↔ a.2 ≤
 theorem WShape.LE.T_iff {a b : WShape n} : a.T ≤ b.T ↔ a ≤ b :=
   (TShape.LE.lift_l (Nat.le_refl _) (a := a.T) (b := b.T)).trans (WShape.lift_self ▸ .rfl)
 theorem WShape.LE.T {a b : WShape n} : a ≤ b → a.T ≤ b.T := T_iff.2
-theorem WShape.LE.of_T {a b : WShape n} : a.T ≤ b.T → a ≤ b := T_iff.1
-
 theorem TShape.bot_eqv : (WShape.bot (n := n)).T ≤ bot ∧ bot ≤ (WShape.bot (n := n)).T := by
   simp [TShape.LE.def', bot, WShape.lift_bot]
 
@@ -1623,12 +1240,6 @@ theorem TShape.sort_not_le_forallE {a' : WShape n'} {f' : WShapeFun n'} :
   have hk : max n (n' + 1) = max n (n' + 1) - 1 + 1 := by omega
   rw [hk] at h; simp [Shape.sort, Shape.lift] at h
 
-theorem WShape.Compat_lift_val {a : WShape n₁} {b : WShape n₂}
-    (le₁ : n₁ ≤ m) (le₂ : n₂ ≤ m) :
-    (a.lift m).Compat (b.lift m) ↔ (a.1.lift m).Compat (b.1.lift m) := by
-  show (a.lift m).1.Compat (b.lift m).1 ↔ _
-  rw [lift_val le₁, lift_val le₂]
-
 def TShape.Compat (x y : TShape) : Prop := (x.2.lift (max x.1 y.1)).Compat (y.2.lift _)
 
 theorem TShape.Compat.def {x y : TShape} (h1 : x.1 ≤ m) (h2 : y.1 ≤ m) :
@@ -1640,8 +1251,6 @@ theorem WShape.Compat.T_iff {x y : WShape n} : x.Compat y ↔ x.T.Compat y.T := 
   refine .trans ?_ (TShape.Compat.def (x := x.T) (y := y.T) (Nat.le_refl _) (Nat.le_refl _)).symm
   rw [WShape.lift_self, WShape.lift_self]
 
-theorem WShape.Compat.T {x y : WShape n} : x.Compat y → x.T.Compat y.T := T_iff.1
-
 theorem TShape.Compat.def' {x y : TShape} : x.Compat y ↔ ∃ z, x ≤ z ∧ y ≤ z := by
   refine ⟨fun h => ?_, fun ⟨z, h1, h2⟩ => ?_⟩
   · have ⟨z, h1, h2⟩ := WShape.Compat.iff.1 h
@@ -1650,37 +1259,11 @@ theorem TShape.Compat.def' {x y : TShape} : x.Compat y ↔ ∃ z, x ≤ z ∧ y 
     exact (TShape.Compat.def hk.1 hk.2.1).2 <|
       WShape.Compat.iff.2 ⟨z.2.lift k, (LE.def hk.1 hk.2.2).1 h1, (LE.def hk.2.1 hk.2.2).1 h2⟩
 
-theorem TShape.Compat.bot_l : TShape.bot.Compat x :=
-  TShape.Compat.def'.2 ⟨x, TShape.bot_le, .rfl⟩
-
-theorem TShape.Compat.bot_r : Compat x TShape.bot :=
-  TShape.Compat.def'.2 ⟨x, .rfl, TShape.bot_le⟩
-
-theorem TShape.Compat.bot_l' : (WShape.bot (n := n)).T.Compat x :=
-  TShape.Compat.def'.2 ⟨x, TShape.bot_le', .rfl⟩
-
-theorem TShape.Compat.bot_r' : Compat x (WShape.bot (n := n)).T :=
-  TShape.Compat.def'.2 ⟨x, .rfl, TShape.bot_le'⟩
-
 theorem NonZero.not_iff {f : WShapeFun n} : ¬f.NonZero ↔ f ≤ .bot := by
   simp only [WShapeFun.NonZero, ShapeFun.NonZero, Prod.exists, not_exists, not_and,
     Decidable.not_not, WShapeFun.bot, ShapeFun.bot, WShapeFun.LE.def, ShapeFun.LE.def,
     List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false, and_assoc, exists_and_left,
     exists_eq_left, Shape.bot_le, true_and]
-
-theorem WShapeFun.NonZero.iff' {f : WShapeFun n} : f.NonZero ↔ ¬f ≤ .bot :=
-  (Decidable.not_iff_comm.1 NonZero.not_iff).symm
-
-theorem WShapeFun.NonZero.join {f f' : WShapeFun n} (h : f.Compat f') :
-    (f.join f').NonZero ↔ f.NonZero ∨ f'.NonZero := by
-  refine ⟨fun hjoin => ?_, ?_⟩
-  · by_cases h1 : f.NonZero <;> [exact .inl h1; skip]
-    by_cases h2 : f'.NonZero <;> [exact .inr h2; skip]
-    refine (NonZero.iff'.1 hjoin ?_).elim
-    exact (WShapeFun.Join.mk h _).2 ⟨NonZero.not_iff.1 h1, NonZero.not_iff.1 h2⟩
-  · rintro (h1 | h1) <;> refine NonZero.iff'.2 fun hbot => NonZero.iff'.1 h1 ?_
-    · exact ((WShapeFun.Join.mk h _).1 hbot).1
-    · exact ((WShapeFun.Join.mk h _).1 hbot).2
 
 theorem WShape.Compat.mono {x y x' y' : WShape n}
     (h1 : x ≤ x') (h2 : y ≤ y') (H : x'.Compat y') : x.Compat y :=
@@ -1691,15 +1274,6 @@ theorem WShapeFun.Compat.mono {x y x' y' : WShapeFun n}
     (h1 : x ≤ x') (h2 : y ≤ y') (H : x'.Compat y') : x.Compat y :=
   have ⟨_, a1, a2⟩ := WShapeFun.Compat.iff.1 H
   WShapeFun.Compat.iff.2 ⟨_, h1.trans a1, h2.trans a2⟩
-
-theorem TShape.Compat.mono {x y x' y' : TShape}
-    (h1 : x ≤ x') (h2 : y ≤ y') (H : x'.Compat y') : x.Compat y := by
-  let k := max (max x.1 y.1) (max x'.1 y'.1)
-  have hk := Nat.max_le.1 (Nat.le_refl k); simp only [Nat.max_le] at hk
-  have h1 := (TShape.LE.def hk.1.1 hk.2.1).1 h1
-  have h2 := (TShape.LE.def hk.1.2 hk.2.2).1 h2
-  have H := (TShape.Compat.def hk.2.1 hk.2.2).1 H
-  exact (TShape.Compat.def hk.1.1 hk.1.2).2 <| H.mono h1 h2
 
 theorem WShape.Compat.lam' {a b : WShapeFun n} : Compat (.lam' a) (.lam' b) ↔ a.Compat b := by
   rw [WShape.lam']; split <;> rename_i h1
@@ -1720,21 +1294,12 @@ theorem WShape.Join.lam' {a b c : WShapeFun n} :
     · simp [NonZero.not_iff.1 h]
   simp only [this, H _]
 
-theorem WShape.le_zipWith_join (hc : List.Forall₂ WShape.Compat l l') :
-    l.Forall₂ (· ≤ ·) (l.zipWith WShape.join l') ∧
-    l'.Forall₂ (· ≤ ·) (l.zipWith WShape.join l') := by
-  induction hc with | nil => exact ⟨.nil, .nil⟩ | cons h _ ih
-  have h := (WShape.Join.mk h).le; exact ⟨.cons h.1 ih.1, .cons h.2 ih.2⟩
-
 def TShape.join (x y : TShape) : TShape := ⟨max x.1 y.1, (x.2.lift _).join (y.2.lift _)⟩
 
 theorem TShape.lift_join {x y : TShape} (h1 : x.1 ≤ m) (h2 : y.1 ≤ m) :
     (x.join y).2.lift m = (x.2.lift m).join (y.2.lift m) := by
   simp [join, WShape.lift_join (Nat.max_le.2 ⟨h1, h2⟩), WShape.lift_lift (.inl (Nat.le_max_left ..)),
     WShape.lift_lift (.inl (Nat.le_max_right ..))]
-
-theorem WShape.T_join {a b : WShape n} : a.T.join b.T = (a.join b).T := by
-  rw [TShape.join, Nat.max_self n]; simp [lift_self]
 
 def TShape.Join (x y z : TShape) := ∀ w, z ≤ w ↔ x ≤ w ∧ y ≤ w
 
@@ -1766,23 +1331,6 @@ theorem TShape.Join.mk (H : x.Compat y) : Join x y (x.join y) := by
   rw [TShape.Join.def hx hy (Nat.le_refl _), TShape.lift_join hx hy]
   exact .mk ((TShape.Compat.def hx hy).1 H)
 
-theorem ShapeFun.WF.bot_le (wf : WF Shape.WF f) : ShapeFun.bot.LE f := by
-  simp [ShapeFun.LE.def, bot]
-  exact ⟨.bot, wf.1.1, Shape.bot_le⟩
-
-theorem Shape.WF.lam_non_bot (wf : WF (n := n+1) (.lam f)) : ∃ x y, (x, y) ∈ f ∧ y ≠ .bot :=
-  have ⟨⟨_, _⟩, h1, h2⟩ := wf.2; ⟨_, _, h1, mt Shape.le_bot.2 h2⟩
-
-theorem ShapeFun.app_core (f : ShapeFun n) (x) :
-    f.app x = .bot ∨ ∃ x', x' ≤ x ∧ (x', f.app x) ∈ f ∧ ∀ y ∈ f, y.1 ≤ x → y.1 ≤ x' := by
-  refine let P := _; let f' := f.trunc x; (?_ :
-    let y' := ((f'.find? P).getD (.bot, .bot)).2
-    y' = .bot ∨ ∃ x', x' ≤ x ∧ (x', y') ∈ f ∧ ∀ y ∈ f, y.1 ≤ x → y.1 ≤ x')
-  cases h : f'.find? P <;> simp
-  have := List.find?_some h; simp [P, mem_trunc] at this ⊢
-  have ⟨h1, h2⟩ := mem_trunc.1 <| List.mem_of_find?_eq_some h
-  refine .inr ⟨_, h2, h1, this⟩
-
 def ShapeFun.WF.app {f : ShapeFun n} (wf : WF Shape.WF f) (wfa : a.WF) : (ShapeFun.app f a).WF := by
   have ⟨_, _, h, _⟩ := WShape.join_prop.app_core WShape.join_prop ⟨_, wf⟩ ⟨_, wfa⟩
   exact (wf.2 _ h).2
@@ -1797,9 +1345,6 @@ theorem WShapeFun.app_core (f : WShapeFun n) (x) :
 
 theorem WShapeFun.Compat.app_l {f f' : WShapeFun n} :
     f.Compat f' → ∀ x, (f.app x).Compat (f'.app x) := WShape.join_prop.compat_app_l WShape.join_prop
-
-theorem WShape.Compat.app_r (f : WShapeFun n) :
-    x.Compat x' → (f.app x).Compat (f.app x') := WShape.join_prop.compat_app_r WShape.join_prop
 
 @[simp] theorem ShapeFun.bot_app : (@ShapeFun.bot n).app x = .bot := by
   simp [ShapeFun.bot, ShapeFun.app, ShapeFun.maxBelow, trunc]
@@ -1884,24 +1429,6 @@ theorem TShape.app_mono {f : WShape (n + 1)} {f' : WShape (m + 1)} {a : WShape n
   refine (WShape.app_mono_l ?_ _).trans (WShape.app_mono_r le₂)
   exact (LE.def (Nat.succ_le_succ lm₁) (Nat.succ_le_succ lm₂)).1 le₁
 
-theorem WShape.Compat.app {f f' : WShape (n+1)} {a a' : WShape n}
-    (cf : f.Compat f') (ca : a.Compat a') : (f.app a).Compat (f'.app a') := by
-  have ⟨zf, hf1, hf2⟩ := WShape.Compat.iff.1 cf
-  have ⟨za, ha1, ha2⟩ := WShape.Compat.iff.1 ca
-  exact WShape.Compat.iff.2 ⟨zf.app za,
-    (WShape.app_mono_l hf1 _).trans (WShape.app_mono_r ha1),
-    (WShape.app_mono_l hf2 _).trans (WShape.app_mono_r ha2)⟩
-
-theorem TShape.Compat.app {f : WShape (n + 1)} {f' : WShape (m + 1)}
-    {a : WShape n} {a' : WShape m}
-    (cf : f.T.Compat f'.T) (ca : a.T.Compat a'.T) :
-    (f.app a).T.Compat (f'.app a').T := by
-  have le₁ := Nat.le_max_left n m; have le₂ := Nat.le_max_right n m
-  rw [TShape.Compat.def le₁ le₂, WShape.lift_app le₁, WShape.lift_app le₂]
-  exact WShape.Compat.app
-    ((TShape.Compat.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂)).1 cf)
-    ((TShape.Compat.def le₁ le₂).1 ca)
-
 theorem WShapeFun.mem_join {f f' : WShapeFun n} {a} (hc : f.Compat f') :
     (a, b) ∈ f.join f' ↔ ∃ x ∈ f, ∃ y ∈ f', x.1.Compat y.1 ∧
       let j := x.1.join y.1; a = j ∧ b = (f.app j).join (f'.app j) := by
@@ -1917,8 +1444,6 @@ theorem WShapeFun.mem_join {f f' : WShapeFun n} {a} (hc : f.Compat f') :
 
 def ShapeFun.single (x y : Shape n) : ShapeFun n :=
   (x, y) :: if x ≤ .bot then [] else [(.bot, .bot)]
-
-theorem ShapeFun.self_mem_single : (x, y) ∈ single x y := .head _
 
 protected theorem ShapeFun.WF.single (x y : WShape n) : WF Shape.WF (single x.1 y.1) := by
   refine ⟨?_, fun p hp => ?_⟩; rotate_left
@@ -1972,11 +1497,6 @@ theorem WShapeFun.lift_single (le : n ≤ m) {x y : WShape n} :
 theorem WShapeFun.compat_single {f : WShapeFun n} :
     Compat f (single x y) ↔ ∀ a ∈ f, a.1.Compat x → a.2.Compat y := by
   simp [WShapeFun.Compat.def, mem_single, WShape.Compat.bot_r]
-
-theorem ShapeFun.lift_single (le : n ≤ m) {x y : Shape n} :
-    lift (Shape.lift _) (ShapeFun.single x y) = (ShapeFun.single (x.lift m) (y.lift m)) := by
-  simp [lift, single] <;> split <;> rename_i h <;>
-    simpa [Shape.lift_le_bot le, Shape.le_bot] using h
 
 theorem WShapeFun.Join.app_l {f g h : WShapeFun n}
     (hJ : Join f g h) (p : WShape n) : WShape.Join (f.app p) (g.app p) (h.app p) := by
@@ -2105,9 +1625,6 @@ protected theorem Shape.HasType.forallE (H : HasTypePi (n := n) b a r) :
 protected theorem Shape.HasType.lam (H : HasTypeLam (n := n) f a b) :
     HasType (n := n+1) (.lam f) (.forallE a b) := unfold_iff.2 (.lam H)
 
-theorem Shape.HasType.bot_r (H : HasType (n := n) x .bot) : x = .bot := by
-  cases n <;> cases x <;> simp [HasType, hasType, bot] at H ⊢
-
 theorem Shape.HasType.toType (H : HasType (n := n) m (.sort r)) : HasType m .type := by
   unfold HasType hasType at H; revert H; generalize eq : sort r = s
   split <;> cases eq <;> simp [HasType, hasType]
@@ -2192,10 +1709,6 @@ theorem WShape.HasType.mono_r {m a a' : WShape n} (ha : a ≤ a')
 theorem WShape.HasDom.mono_r {f : WShapeFun n} {a a' r} :
     a ≤ a' → HasType a' (.sort r) → HasDom f a → HasDom f a' := HasType.mono_r.ih_dom HasType.mono_r
 
-theorem WShape.HasTypeLam.mono_r {f : WShapeFun n} {a a' b b'} :
-    HasTypePi b' a' r → a ≤ a' → b ≤ b' → HasTypeLam f a b → HasTypeLam f a' b' :=
-  HasType.mono_r.ih_lam HasType.mono_r
-
 private theorem find_cycle (R : α → α → Prop)
     (trans : ∀ {x y z}, R x y → R y z → R x z) (l : List α)
     (H : ∀ x ∈ l, ∃ y ∈ l, R x y) : ∀ x ∈ l, ∃ y ∈ l, R x y ∧ R y y := by
@@ -2271,10 +1784,6 @@ theorem WShape.HasType.mono_l {m m' a : WShape n}
 
 theorem WShape.HasDom.mono_l {f f' : WShapeFun n} : f ≤ f' → f' ≤ f →
     HasDom f a → HasDom f' a := WShape.HasType.mono_l.ih_dom WShape.HasType.mono_l
-theorem WShape.HasTypePi.mono_l {a a' : WShape n} : b ≤ b' → b' ≤ b → a ≤ a' → a' ≤ a →
-    HasTypePi b a r → HasTypePi b' a' r := WShape.HasType.mono_l.ih_pi WShape.HasType.mono_l
-theorem WShape.HasTypeLam.mono_l {f f' : WShapeFun n} : f ≤ f' → f' ≤ f →
-    HasTypeLam f a b → HasTypeLam f' a b := WShape.HasType.mono_l.ih_lam WShape.HasType.mono_l
 
 theorem WShape.HasDom.iff {f : WShapeFun n} :
     HasDom f a ↔ ∀ x, ∃ x', x' ≤ x ∧ x'.HasType a ∧ f.app x ≤ f.app x' := by
@@ -2378,10 +1887,6 @@ theorem WShape.HasTypePi.toType (H : HasTypePi (n := n) b a r) : HasTypePi (n :=
 
 theorem WShape.HasType.lam_isType {f : WShapeFun n} {hf} :
     ¬HasType (WShape.lam f hf) (.sort r) := nofun
-theorem WShape.HasType.sort_not_forallE {a : WShape n} {f : WShapeFun n} :
-    ¬HasType (n := n+1) (.sort r) (.forallE a f) := nofun
-theorem WShape.HasType.forallE_not_forallE {a a' : WShape n} {f f' : WShapeFun n} :
-    ¬HasType (n := n+1) (.forallE a f) (.forallE a' f') := nofun
 
 theorem WShape.HasType.bot : HasType (n := n) x (.sort r) → HasType .bot x := (.bot' ·.toType)
 
@@ -2495,12 +2000,6 @@ theorem WShape.HasType.join {m₁ m₂ a : WShape n} (hJ : m₁.Compat m₂)
 theorem WShape.HasDom.join {a a' : WShape n} {f f' : WShapeFun n} :
     f.Compat f' → a.Compat a' → HasDom f a → HasDom f' a' →
     HasDom (f.join f') (a.join a') := HasType.join.go_dom _ HasType.join
-theorem WShape.HasTypePi.join {a a' : WShape n} {b b' : WShapeFun n} {r} :
-    a.Compat a' → b.Compat b' → HasTypePi b a r → HasTypePi b' a' r →
-    WShape.HasTypePi (b.join b') (a.join a') r := HasType.join.go_pi _ HasType.join
-theorem WShape.HasTypeLam.join {f f' : WShapeFun n} {a b} :
-    f.Compat f' → HasTypeLam f a b → HasTypeLam f' a b →
-    WShape.HasTypeLam (f.join f') a b := HasType.join.go_lam _ HasType.join
 
 theorem WShape.HasType.join' {m₁ m₂ m a : WShape n} (hJ : m₁.Join m₂ m)
     (h1 : m₁.HasType a) (h2 : m₂.HasType a) : m.HasType a :=
@@ -2564,10 +2063,6 @@ theorem TShape.HasType.join' (hJ : Join m₁ m₂ m)
 
 theorem TShape.HasType.bot_r' (ha : a ≤ .bot) (H : HasType x a) : x ≤ .bot :=
   (mono_r (r := true) ha (.bot' .sort) H).bot_r
-
-nonrec theorem TShape.HasType.isType (H : HasType m a) : a.HasType .type :=
-  let k := max m.1 a.1; have hk := Nat.max_le.1 (Nat.le_refl k)
-  (TShape.HasType.def hk.2 (Nat.zero_le _)).2 H.isType
 
 inductive LE_Forall {n} : TShape → WShape n → WShapeFun n → Prop where
   | bot : a ≤ .bot → LE_Forall a b f
@@ -2658,16 +2153,6 @@ theorem TShape.HasType.bot_T (H : HasType x (.sort r)) : HasType (WShape.T (n :=
   H.bot.mono_l bot_eqv.2 bot_eqv.1
 theorem TShape.HasType.bot_T' (H : HasType x .type) : HasType (WShape.T (n := n) .bot) x := H.bot_T
 
-theorem TShape.HasType.join {m₁ m₂ a : TShape} (hJ : m₁.Compat m₂)
-    (h1 : m₁.HasType a) (h2 : m₂.HasType a) : (m₁.join m₂).HasType a := by
-  let k := max (max m₁.1 m₂.1) a.1
-  have hk := Nat.max_le.1 (Nat.le_refl k); simp only [Nat.max_le] at hk
-  have h1 := (TShape.HasType.def hk.1.1 hk.2).1 h1
-  have h2 := (TShape.HasType.def hk.1.2 hk.2).1 h2
-  have hJ := (TShape.Compat.def hk.1.1 hk.1.2).1 hJ
-  have := TShape.lift_join hk.1.1 hk.1.2 ▸ h1.join hJ h2
-  exact (TShape.HasType.def (Nat.max_le.2 hk.1) hk.2).1 this
-
 theorem WShape.HasType.proofIrrel
     (ha : HasType (n := n) a .prop) (hx : HasType x a) : x = .bot := by
   cases n with | zero => cases ha.unfold; exact hx.bot_r | succ n
@@ -2733,7 +2218,3 @@ theorem WShape.HasDom.single :
         · exact ⟨_, _, .inr ⟨hx, rfl, rfl⟩, bot_le, h1, .bot' h2⟩
     · refine ⟨_, _, .inr ⟨h, rfl, rfl⟩, .rfl, .rfl, .bot' ?_⟩
       obtain h | ⟨_, h⟩ := H <;> [exact h.isType; exact h]
-
-theorem WShape.HasDom.mono (le : a ≤ a') (h : a'.HasType .type) (H : HasDom f a) : HasDom f a' :=
-  HasDom.def.2 fun x y hm => let ⟨x', y', h1, h2, h3, h4⟩ := HasDom.def.1 H x y hm
-    ⟨x', y', h1, h2, h3, .mono_r le h h4⟩

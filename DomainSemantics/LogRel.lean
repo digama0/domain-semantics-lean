@@ -12,7 +12,6 @@ structure LogRelBase (Γ : List Term) (n : Nat) where
 
 structure LogRel (Γ : List Term) (n : Nat) extends LogRelBase Γ n where
   sort_iff : TmEq M N A (.sort r) (.sort r') ↔ ∃ u, Γ ⊢ M ⤳* .sort u ∧ Γ ⊢ N ⤳* .sort u
-  sort_iff_ty : TyEq M N (.sort r) ↔ ∃ u, Γ ⊢ M ⤳* .sort u ∧ Γ ⊢ N ⤳* .sort u
   bot : a.HasType .type → TmEq M N A .bot a
   toType : TmEq M N A m (.sort r) → TyEq M N m
   left : TmEq M N A m a → TmEq M M A m a
@@ -30,7 +29,6 @@ structure LogRel (Γ : List Term) (n : Nat) extends LogRelBase Γ n where
   join_ty : m₁.Compat m₂ → m₁.HasType .type → m₂.HasType .type →
     TyEq A B m₁ → TyEq A B m₂ → TyEq A B (m₁.join m₂)
   whr : Γ ⊢ M ⤳* M' → Γ ⊢ N ⤳* N' → (TmEq M N A m a ↔ TmEq M' N' A m a)
-  whr_ty : Γ ⊢ A ⤳* A' → Γ ⊢ B ⤳* B' → (TyEq A B m ↔ TyEq A' B' m)
 
 theorem LogRelBase.TyEq.sort {R : LogRel Γ n} : R.TyEq (.sort u) (.sort u) (.sort r) :=
   R.toType (A := default) (r := default) (R.sort_iff.2 ⟨_, .rfl, .rfl⟩)
@@ -51,7 +49,6 @@ def LR0 (wf : ⊢ Γ) : LogRel Γ 0 where
   TmEq M N _ := LR0.TmEq Γ M N
   TyEq := LR0.TyEq Γ
   sort_iff := by simp [LR0.TmEq, LR0.TyEq, WShape.sort]
-  sort_iff_ty := by simp [LR0.TyEq, WShape.sort]
   bot {_ _ _ _} _ := by simp only [LR0.TmEq, LR0.TyEq, WShape.bot]; split <;> trivial
   toType := id
   left {M N A m a} := by
@@ -104,11 +101,6 @@ def LR0 (wf : ⊢ Γ) : LogRel Γ 0 where
     constructor <;> intro ⟨u, r1, r2⟩
     · exact ⟨u, hM.determ_l r1 .sort, hN.determ_l r2 .sort⟩
     · exact ⟨u, .trans hM r1, .trans hN r2⟩
-  whr_ty {A A' B B' m} hA hB := by
-    dsimp [LR0.TyEq]; split <;> [exact .rfl; skip]
-    constructor <;> intro ⟨u, r1, r2⟩
-    · exact ⟨u, hA.determ_l r1 .sort, hB.determ_l r2 .sort⟩
-    · exact ⟨u, .trans hA r1, .trans hB r2⟩
 
 /-! #### Concrete definitions at level n+1 -/
 
@@ -178,8 +170,6 @@ def LRS.TyEq (IH : LogRel Γ n) (M N : Term) : WShape (n+1) → Prop
 @[simp] theorem LRS.TyEq.bot : LRS.TyEq IH M N .bot := trivial
 @[simp] theorem LRS.TyEq.sort_iff :
     LRS.TyEq (Γ := Γ) IH M N (.sort r) ↔ ∃ u, Γ ⊢ M ⤳* .sort u ∧ Γ ⊢ N ⤳* .sort u := .rfl
-@[simp] theorem LRS.TyEq.lam' : LRS.TyEq IH M N (.lam' f) := by
-  unfold WShape.lam'; split <;> trivial
 @[simp] theorem LRS.TyEq.forallE_iff :
     LRS.TyEq (Γ := Γ) IH M N (.forallE b f) ↔ LRS.ValTyPi2 (Γ := Γ) IH M N b f := .rfl
 
@@ -378,7 +368,6 @@ def LRS.TmEq (IH : LogRel Γ n) (M N A : Term) (m a : WShape (n+1)) : Prop :=
     LRS.TmEq IH M N A (.sort r) (.forallE a₁ a₂) ↔ False := .rfl
 @[simp] theorem LRS.TmEq.forallE_forallE :
     LRS.TmEq IH M N A (.forallE b g) (.forallE a₁ a₂) ↔ False := .rfl
-@[simp] theorem LRS.TmEq.lam_a : LRS.TmEq IH M N A m (.lam f hf) ↔ False := .rfl
 @[simp] theorem LRS.TyEq.lam_m : LRS.TyEq IH M N (.lam f hf) ↔ True := .rfl
 
 def LRS (IH : LogRel Γ n) : LogRel Γ (n+1) where
@@ -386,7 +375,6 @@ def LRS (IH : LogRel Γ n) : LogRel Γ (n+1) where
   TmEq := LRS.TmEq IH
   TyEq := LRS.TyEq IH
   sort_iff := .rfl
-  sort_iff_ty := .rfl
   bot ha := by cases ha.unfold <;> trivial
   left_ty := .left
   left {M N A m a} := by
@@ -595,25 +583,11 @@ def LRS (IH : LogRel Γ n) : LogRel Γ (n+1) where
       · exact ⟨A₁, A₂, u, v, rA, hA1, hA2, hA₂, hE, (LRS.LamDefEq.whr hM hN).1 hP⟩
       · exact ⟨A₁, A₂, u, v, rA, hA1, hA2, hA₂, hE, (LRS.LamDefEq.whr hM hN).2 hP⟩
     | _ => rfl
-  whr_ty {A A' B B' m} hA hB := by
-    cases m using WShape.casesOn' with
-    | sort =>
-      constructor <;> intro ⟨u, r1, r2⟩
-      · exact ⟨u, hA.determ_l r1 .sort, hB.determ_l r2 .sort⟩
-      · exact ⟨u, .trans hA r1, .trans hB r2⟩
-    | forallE =>
-      constructor <;> intro ⟨B₁, F₁, B₂, F₂, u, v, rM, rN, rest⟩
-      · exact ⟨B₁, F₁, B₂, F₂, u, v, hA.determ_l rM .forallE, hB.determ_l rN .forallE, rest⟩
-      · exact ⟨B₁, F₁, B₂, F₂, u, v, .trans hA rM, .trans hB rN, rest⟩
-    | _ => rfl
 
 def LR {Γ : List Term} (hΓ : ⊢ Γ) : LogRel Γ n :=
   match n with
   | 0 => LR0 hΓ
   | _+1 => LRS (LR hΓ)
-
-@[simp] theorem LR_zero : LR (n := 0) hΓ = LR0 hΓ := rfl
-@[simp] theorem LR_succ : LR (n := n+1) hΓ = LRS (LR hΓ) := rfl
 
 private theorem LRS.PiDefEq.lift_aux
     {b : WShape n} {f : WShapeFun n} (le : n ≤ n') (htpi_a : WShape.HasTypePi f b true)

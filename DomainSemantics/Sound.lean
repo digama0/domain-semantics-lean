@@ -95,25 +95,6 @@ theorem LE_Interp.unlift (le : m.1 ≤ n)
 theorem LE_Interp.lift (le : m.1 ≤ n)
     (H : LE_Interp ρ m M) : LE_Interp ρ (m.2.lift n).T M := H.mono (TShape.lift_eqv le).1
 
-theorem LE_Interp.closed (cl : M.ClosedN k) (h : ∀ i < k, ρ i = ρ' i)
-    (H : LE_Interp ρ m M) : LE_Interp ρ' m M := by
-  induction H generalizing k ρ' with
-  | bot => exact .bot
-  | sort h1 => exact .sort h1
-  | bvar h1 => exact .bvar ((h _ cl).symm ▸ h1)
-  | app hf ha h1 ih_f ih_a =>
-    exact .app (ih_f cl.1 h) (ih_a cl.2 h) h1
-  | lam ha hdom hbody h1 ih_a ih_body =>
-    refine .lam (ih_a cl.1 h) hdom (fun x hx => ih_body x hx cl.2 ?_) h1
-    intro | 0, _ => rfl | j+1, hi => exact h j (Nat.lt_of_succ_lt_succ hi)
-  | forallE hb hb' hdom hbody h1 ih_b ih_b' ih_body =>
-    refine .forallE (ih_b cl.1 h) (ih_b' cl.1 h) hdom (fun x hx => ih_body x hx cl.2 ?_) h1
-    intro | 0, _ => rfl | i+1, hi => exact h i (Nat.lt_of_succ_lt_succ hi)
-
-theorem LE_Interp.closed_iff {M : Term} (cl : M.ClosedN)
-    {ρ ρ' : Valuation} {m : TShape} : LE_Interp ρ m M ↔ LE_Interp ρ' m M :=
-  ⟨closed cl nofun, closed cl nofun⟩
-
 theorem LE_Interp.weak'_iff (l : Lift) (h : ∀ i, ρ i = ρ' (l.liftVar i)) :
     LE_Interp ρ' m (M.lift' l) ↔ LE_Interp ρ m M := by
   refine ⟨fun H => ?_, fun H => ?_⟩
@@ -810,8 +791,6 @@ structure StrongSoundEq (Γ : List Term) (M N A : Term) : Prop where
 
 theorem SoundEq.rfl : SoundEq Γ M M := fun _ _ _ _ => .rfl
 theorem SoundEq.symm : SoundEq Γ M N → SoundEq Γ N M := fun H _ _ W _ => (H W).symm
-theorem StrongSoundEq.hasType : StrongSoundEq Γ M N A → StrongSound Γ M A ∧ StrongSound Γ N A
-  | ⟨_, h1, h2⟩ => ⟨h1, h2⟩
 theorem StrongSoundEq.symm : StrongSoundEq Γ M N A → StrongSoundEq Γ N M A
   | ⟨h2, h3, h4⟩ => ⟨h2.symm, h4, h3⟩
 theorem StrongSound.sound : StrongSound Γ M A → SoundTy Γ M A

@@ -249,3 +249,20 @@ theorem Ctx.WF.iff : ∀ {Γ}, ⊢ Γ ↔ ⊢' Γ
 /-- `IsDefEq` and `IsDefEq'` are equivalent. -/
 theorem IsDefEq.iff {Γ : List Term} {e₁ e₂ A : Term} (hΓ : ⊢' Γ) :
     Γ ⊢ e₁ ≡ e₂ : A ↔ Γ ⊢' e₁ ≡ e₂ : A := (IsDefEq'.iff' (Ctx.WF.iff.2 hΓ)).symm
+
+/-- Pi–Pi injectivity: if two Pi types are definitionally equal,
+their domains and codomains are each definitionally equal. -/
+theorem forallE_inv' (hΓ : ⊢' Γ)
+    (H : Γ ⊢' Term.forallE A₀ B₀ ≡ Term.forallE A₁ B₁ : .sort s) :
+    ∃ u v, Γ ⊢' A₀ ≡ A₁ : .sort u ∧ A₀::Γ ⊢' B₀ ≡ B₁ : .sort v := by
+  have hΓs : ⊢ Γ := Ctx.WF.iff.2 hΓ
+  have ⟨u, v, hA, hB⟩ := forallE_inv hΓs ((IsDefEq.iff hΓ).2 H)
+  have hΓA : ⊢' A₀ :: Γ := Ctx.WF.iff.1 ⟨hΓs, _, hA.hasType.1⟩
+  exact ⟨u, v, (IsDefEq.iff hΓ).1 hA, (IsDefEq.iff hΓA).1 hB⟩
+
+theorem sort_forallE_inv' (hΓ : ⊢' Γ) : ¬Γ ⊢' .sort u ≡ Term.forallE A₁ B₁ : .sort s :=
+  fun H => sort_forallE_inv (Ctx.WF.iff.2 hΓ) ((IsDefEq.iff hΓ).2 H)
+
+/-- Sort injectivity: if two sorts are definitionally equal, their levels are equal. -/
+theorem sort_inv' (hΓ : ⊢' Γ) (d : Γ ⊢' Term.sort u ≡ Term.sort v : V) : u = v :=
+  sort_inv (Ctx.WF.iff.2 hΓ) ((IsDefEq.iff hΓ).2 d)
