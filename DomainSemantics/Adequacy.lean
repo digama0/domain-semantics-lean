@@ -1,6 +1,62 @@
-import DomainSemantics.ShapeLogRel
+import DomainSemantics.Sound
+import DomainSemantics.LogRel
 
 namespace DomainSemantics
+
+def LR.Subst1 (Γ₀ : List SExpr) (x x' A₀ A A' : SExpr) (ρ : Valuation) (i := 0) : Prop :=
+  Γ₀ ⊢ x ≡ x' : A ∧ ∃ hΓ₀ : ⊢ Γ₀, ∀ {{n}} (a : WShape n), LE_Interp ρ a.T A₀ →
+    (a.HasType .type → (∃ u, Γ₀ ⊢ A ≡ A' : .sort u) ∧ (LR hΓ₀).TyDefEq A A' a) ∧
+    ∀ {{m : WShape n}}, LE_Interp ρ m.T (.bvar i) → m.HasType a → (LR hΓ₀).DefEq x x' A m a
+
+inductive LR.SubstWF (Γ₀ : List SExpr) : Subst → Subst → List SExpr → Valuation → Prop where
+  | id : ⊢ Γ₀ → LR.SubstWF Γ₀ .id .id Γ₀ .nil
+  | cons : LR.SubstWF Γ₀ σ.tail σ'.tail Γ ρ →
+    (∀ {a}, LE_Interp ρ a A →
+      ∃ a', a ≤ a' ∧ LE_Interp ρ a' A ∧ a'.HasType .type) →
+    LE_Interp ρ a A → x.HasType a → Γ ⊢ A : .sort u →
+    LR.Subst1 Γ₀ σ.head σ'.head A.lift (A.subst σ.tail) (A.subst σ'.tail) (ρ.push x) →
+    LR.SubstWF Γ₀ σ σ' (A :: Γ) (ρ.push x)
+
+theorem LR.SubstWF.fits : LR.SubstWF Γ₀ σ σ' Γ ρ → ρ.Fits Γ₀ Γ
+  | .id _ => .nil
+  | .cons W h1 h2 h3 _ _ => .cons W.fits h1 h2 h3
+
+theorem LR.SubstWF.wf : LR.SubstWF Γ₀ σ σ' Γ ρ → ⊢ Γ
+  | .id hWF => hWF
+  | .cons W _ _ _ hA _ => ⟨W.wf, _, hA⟩
+
+theorem LR.SubstWF.wf₀ : LR.SubstWF Γ₀ σ σ' Γ ρ → ⊢ Γ₀
+  | .id hWF => hWF
+  | .cons W _ _ _ _ _ => W.wf₀
+
+theorem LR.SubstWF.toSubstEq (W : LR.SubstWF Γ₀ σ σ' Γ ρ) :
+    Ctx.SubstEq Γ₀ σ σ' Γ := by
+  induction W with
+  | id hWF => exact Ctx.SubstEq.id hWF.strong
+  | cons W h1 h2 h3 hA h0 ih =>
+    refine .cons ih (hA.strong' W.wf.strong) (h0.1.strong' W.wf₀.strong)
+
+theorem LR.SubstWF.left (W : LR.SubstWF Γ₀ σ σ' Γ ρ) : LR.SubstWF Γ₀ σ σ Γ ρ := by
+  induction W with
+  | id hWF => exact .id hWF
+  | cons _ h1 h2 h3 hA h0 ih =>
+    have ⟨a1, _, a2⟩ := h0
+    refine .cons ih h1 h2 h3 hA ⟨a1.hasType.1, ih.wf₀, fun _ a ha => ?_⟩
+    refine ⟨fun ht => ?_, fun _ hM hmem => ?_⟩
+    · have ⟨⟨_, h1⟩, h2⟩ := (a2 a ha).1 ht; exact ⟨⟨_, h1.hasType.1⟩, (LR _).left_ty h2⟩
+    · exact (LR _).left <| (a2 a ha).2 hM hmem
+
+theorem LR.SubstWF.symm (W : LR.SubstWF Γ₀ σ σ' Γ ρ) : LR.SubstWF Γ₀ σ' σ Γ ρ := by
+  induction W with
+  | id hWF => exact .id hWF
+  | cons _ h1 h2 h3 hA h0 ih =>
+    have ⟨a1, _, a2⟩ := h0
+    refine .cons ih h1 h2 h3 hA ⟨?_, ih.wf₀, fun _ a ha => ⟨fun ht => ?_, fun _ hM hmem => ?_⟩⟩
+    · have ⟨⟨_, h1⟩, _⟩ := (a2 (n := 0) _ .bot).1 (.bot .sort)
+      exact h1.defeqDF h0.1.symm
+    · exact let ⟨⟨u, h1⟩, h2⟩ := (a2 a ha).1 ht; ⟨⟨u, h1.symm⟩, (LR _).symm_ty h2⟩
+    · let ⟨_, h2⟩ := (a2 a ha).1 hmem.isType
+      exact (LR _).conv h2 ((LR _).symm ((a2 a ha).2 hM hmem))
 
 def LR.Adequate (Γ₀ Γ : List SExpr) (ρ : Valuation) (M N A : SExpr) (m a : WShape n) :=
   (∀ {{σ σ'}} (W : LR.SubstWF Γ₀ σ σ' Γ ρ),
