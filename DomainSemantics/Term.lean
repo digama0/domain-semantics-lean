@@ -752,12 +752,8 @@ theorem Ctx.SubstEq.lift_at (W : Ctx.SubstEq Γ₀ σ σ' Γ)
       show A.subst (σ.lift_r (.skip .refl)) = (A.subst σ).lift' (.skip .refl) from
         (lift'_subst (e := A) (σ := σ) (ρ := .skip .refl)).symm]
   exact .defeqDF (hAX.symm.weak' (.skip .refl))
-    (.bvar Lookup.zero (hX.weak' (.skip .refl)))
+    (.bvar .zero (hX.weak' (.skip .refl)))
 
-/-- Two-sided strong substitution lemma: returns three propagations simultaneously
-(left σ-vs-τ on `e1`, right σ-vs-τ on `e2`, and the cross `e1.σ ≡ e2.τ`), each at
-the σ-substituted type. This proof is self-contained — it doesn't call
-`IsDefEqStrong.subst`, `forallE_inv'`, `.instDF`, or `.defeqDF_l`. -/
 theorem IsDefEqStrong.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
     (hΓ₀ : CtxStrong Γ₀) (hΓ : CtxStrong Γ)
     (W : Ctx.SubstEq Γ₀ σ τ Γ) (H : IsDefEqStrong Γ e1 e2 A) :
@@ -792,21 +788,14 @@ theorem IsDefEqStrong.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A :
     have he_σ := (ih1 hΓ₀ hΓ W.left).1
     have hlam_σ := (ih2 hΓ₀ hΓ W.left).1
     have h_lift_subst : e.lift.subst σ.lift = (e.subst σ).lift := by
-      rw [show e.lift = e.lift' (.skip .refl) from rfl,
-          subst_lift',
-          show (e.subst σ).lift = (e.subst σ).lift' (.skip .refl) from rfl,
-          lift'_subst]
-      congr 1
+      rw [subst_lift', lift, lift'_subst]; rfl
     have h_lam_eq : (Term.lam A (.app e.lift (.bvar 0))).subst σ =
         .lam (A.subst σ) (.app (e.subst σ).lift (.bvar 0)) := by
       show Term.lam (A.subst σ) (.app (e.lift.subst σ.lift) ((Term.bvar 0).subst σ.lift)) = _
-      rw [h_lift_subst]
-      rfl
+      rw [h_lift_subst]; rfl
     have H_σ : IsDefEqStrong Γ₀
         ((Term.lam A (.app e.lift (.bvar 0))).subst σ) (e.subst σ)
-        ((Term.forallE A B).subst σ) := by
-      rw [h_lam_eq]
-      exact .eta he_σ (h_lam_eq ▸ hlam_σ)
+        ((Term.forallE A B).subst σ) := h_lam_eq ▸ .eta he_σ (h_lam_eq ▸ hlam_σ)
     exact ⟨ih2_l, ih1_l, H_σ.trans ih1_l⟩
   | @beta Γ A u e B e' hA _ _ _ _ ih1 ih2 ih3 ih4 ih5 =>
     have ih5_l := (ih5 hΓ₀ hΓ W).1
@@ -1101,8 +1090,6 @@ theorem IsDefEqStrong.forallE_inv' (hΓ : CtxStrong Γ)
     exact ih hΓ (.inr eq)
   | _ => nomatch eq
 
-/-- Ported from `Strong.lean`'s `IsDefEq.strong'` — requires `CtxStrong` for the
-context, mirroring the VEnv-side `OnCtx Γ (env.IsType U)` precondition. -/
 theorem IsDefEq.strong' (hΓ : CtxStrong Γ) :
     Γ ⊢ e1 ≡ e2 : A → IsDefEqStrong Γ e1 e2 A := by
   intro H
