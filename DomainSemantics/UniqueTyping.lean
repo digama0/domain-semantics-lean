@@ -1,4 +1,4 @@
-import DomainSemantics.ShapeLogRelAdequacy
+import DomainSemantics.Adequacy
 
 /-! # Unique typing over the SExpr weak defeq.
 
