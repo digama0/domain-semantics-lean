@@ -988,7 +988,6 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
   | defeqDF h1 h2 ih1 ih2 =>
     have ⟨a2, a3, a4⟩ := ih2.left
     have ⟨b2, b3, b4⟩ := ih2.right
-    have hd := h1.defeq.defeqDF h2.defeq
     refine ⟨ih2.sound, ?_, ?_⟩
     · exact ⟨a2.defeq_r ih1.sound, a3, a4.trans ih1.sound⟩
     · exact ⟨ih2.right.sound.defeq_r ih1.sound, b3, b4.trans ih1.sound⟩
