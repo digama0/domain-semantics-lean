@@ -3,12 +3,12 @@ import DomainSemantics.LogRel
 
 namespace DomainSemantics
 
-def LR.Subst1 (Γ₀ : List SExpr) (x x' A₀ A A' : SExpr) (ρ : Valuation) (i := 0) : Prop :=
+def LR.Subst1 (Γ₀ : List Term) (x x' A₀ A A' : Term) (ρ : Valuation) (i := 0) : Prop :=
   Γ₀ ⊢ x ≡ x' : A ∧ ∃ hΓ₀ : ⊢ Γ₀, ∀ {{n}} (a : WShape n), LE_Interp ρ a.T A₀ →
     (a.HasType .type → (∃ u, Γ₀ ⊢ A ≡ A' : .sort u) ∧ (LR hΓ₀).TyDefEq A A' a) ∧
     ∀ {{m : WShape n}}, LE_Interp ρ m.T (.bvar i) → m.HasType a → (LR hΓ₀).DefEq x x' A m a
 
-inductive LR.SubstWF (Γ₀ : List SExpr) : Subst → Subst → List SExpr → Valuation → Prop where
+inductive LR.SubstWF (Γ₀ : List Term) : Subst → Subst → List Term → Valuation → Prop where
   | id : ⊢ Γ₀ → LR.SubstWF Γ₀ .id .id Γ₀ .nil
   | cons : LR.SubstWF Γ₀ σ.tail σ'.tail Γ ρ →
     (∀ {a}, LE_Interp ρ a A →
@@ -58,7 +58,7 @@ theorem LR.SubstWF.symm (W : LR.SubstWF Γ₀ σ σ' Γ ρ) : LR.SubstWF Γ₀ �
     · let ⟨_, h2⟩ := (a2 a ha).1 hmem.isType
       exact (LR _).conv h2 ((LR _).symm ((a2 a ha).2 hM hmem))
 
-def LR.Adequate (Γ₀ Γ : List SExpr) (ρ : Valuation) (M N A : SExpr) (m a : WShape n) :=
+def LR.Adequate (Γ₀ Γ : List Term) (ρ : Valuation) (M N A : Term) (m a : WShape n) :=
   (∀ {{σ σ'}} (W : LR.SubstWF Γ₀ σ σ' Γ ρ),
     (LR W.wf₀).DefEq (M.subst σ) (M.subst σ') (A.subst σ) m a ∧
     (LR W.wf₀).DefEq (N.subst σ) (N.subst σ') (A.subst σ) m a) ∧
@@ -355,7 +355,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       have ⟨n', ab, _, le, le', iB, iv, hmb⟩ :=
         (LE_Interp.sound W'.wf HB.defeq W'.fits).2 (hA.forallE_inv'.2 p) |>.out
       exact toValTy le le' (aty.2 _ hp).toType iv hmb ((ihB iB iv hmb).1 W').1
-    have beta {X Y t : SExpr} {σ} : Γ₀ ⊢ .app (.lam (X.subst σ) (Y.subst σ.lift)) t ⤳*
+    have beta {X Y t : Term} {σ} : Γ₀ ⊢ .app (.lam (X.subst σ) (Y.subst σ.lift)) t ⤳*
         Y.subst (σ.cons t) := inst_lift_cons (x := t) ▸ .tail .rfl .beta
     refine ⟨fun x x' p hp ha hv => ?_, fun x p hp ha hv => ?_⟩
     all_goals
@@ -478,7 +478,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     · exact fun a b p hp ha hv => ⟨(vpi_M.1 hp ha hv).1, (vpi_N.1 hp ha hv).2⟩
     refine ((LR _).whr ?_ .rfl).2 (vpi_N.2 hp ha hv)
     rw [(?_ : (e0.subst σ).app a = _)]; · exact .tail .rfl .beta
-    rw [inst_lift_cons, SExpr.subst, lift_subst_cons]; rfl
+    rw [inst_lift_cons, Term.subst, lift_subst_cons]; rfl
   | proofIrrel Hp =>
     refine .wf fun hΓ => .fits fun W => ?_
     have ⟨_, _, s, le_n, le_a, _, hSort, hmem'⟩ := (LE_Interp.sound hΓ Hp.defeq W).2 hA |>.out
@@ -487,7 +487,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     cases (WShape.lift_eq_bot le_n).1 (hS.proofIrrel ha')
     exact .bot hmem.isType
 
-theorem forallE_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A₀ ≡ SExpr.forallE B₁ F₁ : .sort s) :
+theorem forallE_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A₀ ≡ Term.forallE B₁ F₁ : .sort s) :
     ∃ B₀ F₀, Γ ⊢ A₀ ⤳* .forallE B₀ F₀ ∧ ∃ u v,
       Γ ⊢ B₀ ≡ B₁ : .sort u ∧ B₀::Γ ⊢ F₀ ≡ F₁ : .sort v := by
   have hPi : LE_Interp .nil (WShape.T (n := 1) (.forallE .bot WShapeFun.bot)) (.forallE B₁ F₁) := by
@@ -505,16 +505,16 @@ theorem forallE_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A₀ ≡ SExpr.forallE B₁ F
 /-- Pi–Pi injectivity: if two Pi types are definitionally equal,
 their domains and codomains are each definitionally equal. -/
 theorem forallE_inv (hΓ : ⊢ Γ)
-    (H : Γ ⊢ SExpr.forallE A₀ B₀ ≡ SExpr.forallE A₁ B₁ : .sort s) :
+    (H : Γ ⊢ Term.forallE A₀ B₀ ≡ Term.forallE A₁ B₁ : .sort s) :
     ∃ u v, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ A₀::Γ ⊢ B₀ ≡ B₁ : .sort v := by
   have ⟨_, _, red, H⟩ := forallE_whRed_l hΓ H
   cases WHNF.forallE.whRedS red; exact H
 
-theorem sort_forallE_inv (hΓ : ⊢ Γ) : ¬Γ ⊢ .sort u ≡ SExpr.forallE A₁ B₁ : .sort s :=
+theorem sort_forallE_inv (hΓ : ⊢ Γ) : ¬Γ ⊢ .sort u ≡ Term.forallE A₁ B₁ : .sort s :=
   fun H => have ⟨_, _, H⟩ := forallE_whRed_l hΓ H; nomatch WHNF.sort.whRedS H.1
 
 /-- Sort injectivity: if two sorts are definitionally equal, their levels are equal. -/
-theorem sort_inv (hΓ : ⊢ Γ) (d : Γ ⊢ SExpr.sort u ≡ SExpr.sort v : V) : u = v := by
+theorem sort_inv (hΓ : ⊢ Γ) (d : Γ ⊢ Term.sort u ≡ Term.sort v : V) : u = v := by
   have hM : LE_Interp .nil (WShape.T (n := 1) (.sort u)) (.sort u) :=
     .sort TShape.sort_eqv.1
   have ⟨n, mU, mV, h1, h2, h3, hA, h5⟩ := (LE_Interp.sound hΓ d .nil).2 hM |>.out

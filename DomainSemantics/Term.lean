@@ -2,18 +2,18 @@ import DomainSemantics.Lift
 
 namespace DomainSemantics
 
-inductive SExpr where
+inductive Term where
   | bvar (i : Nat)
   | sort (u : Bool)
-  | app (f a : SExpr)
-  | lam (A e : SExpr)
-  | forallE (A B : SExpr)
+  | app (f a : Term)
+  | lam (A e : Term)
+  | forallE (A B : Term)
 
-instance : Inhabited SExpr := ⟨.sort false⟩
+instance : Inhabited Term := ⟨.sort false⟩
 
-namespace SExpr
+namespace Term
 
-@[simp] def lift' : SExpr → Lift → SExpr
+@[simp] def lift' : Term → Lift → Term
   | .bvar i, k => .bvar (k.liftVar i)
   | .sort u, _ => .sort u
   | .app fn arg, k => .app (fn.lift' k) (arg.lift' k)
@@ -22,15 +22,15 @@ namespace SExpr
 
 abbrev lift e := lift' e (.skip .refl)
 
-theorem lift'_comp {e : SExpr} : e.lift' (.comp l₁ l₂) = (e.lift' l₁).lift' l₂ := Eq.symm <| by
+theorem lift'_comp {e : Term} : e.lift' (.comp l₁ l₂) = (e.lift' l₁).lift' l₂ := Eq.symm <| by
   induction e generalizing l₁ l₂ <;> simp [Lift.liftVar_comp, *]
 
-theorem lift'_depth_zero {e : SExpr} (H : l.depth = 0) : e.lift' l = e := by
+theorem lift'_depth_zero {e : Term} (H : l.depth = 0) : e.lift' l = e := by
   induction e generalizing l <;> simp_all [Lift.liftVar_depth_zero]
 
-@[simp] theorem lift'_refl {e : SExpr} : e.lift' .refl = e := lift'_depth_zero rfl
+@[simp] theorem lift'_refl {e : Term} : e.lift' .refl = e := lift'_depth_zero rfl
 
-def ClosedN : SExpr → (k :_:= 0) → Prop
+def ClosedN : Term → (k :_:= 0) → Prop
   | .bvar i, k => i < k
   | .sort .., _ => True
   | .app fn arg, k => fn.ClosedN k ∧ arg.ClosedN k
@@ -52,7 +52,7 @@ theorem ClosedN.lift'_eq (self : ClosedN e k) (h : ρ.Fixes k) : lift' e ρ = e 
 
 theorem ClosedN.lift_eq (self : ClosedN e) : lift e = e := self.lift'_eq ⟨⟩
 
-def instL (ls : List SLevel) : SExpr → SExpr
+def instL (ls : List SLevel) : Term → Term
   | .bvar i => .bvar i
   | .sort u => .sort u
   | .app fn arg => .app (instL ls fn) (instL ls arg)
@@ -63,10 +63,10 @@ theorem ClosedN.instL : ∀ {e}, ClosedN e k → ClosedN (e.instL ls) k
   | .bvar .., h | .sort .., h => h
   | .app .., h | .lam .., h | .forallE .., h => ⟨h.1.instL, h.2.instL⟩
 
-end SExpr
-open SExpr
+end Term
+open Term
 
-def Subst := Nat → SExpr
+def Subst := Nat → Term
 
 def Subst.Depth (σ : Subst) (n n' : Nat) := ∀ i, σ (i + n') = .bvar (i + n)
 
@@ -89,19 +89,19 @@ theorem Subst.Fixes.lift {σ : Subst} (H : σ.Fixes n) : σ.lift.Fixes (n + 1) :
   | n+1, h => by simp [Subst.lift, H _ (Nat.lt_of_succ_lt_succ h)]
 
 def Subst.id : Subst := .bvar
-def Subst.head (σ : Subst) : SExpr := σ 0
+def Subst.head (σ : Subst) : Term := σ 0
 def Subst.tail (σ : Subst) : Subst := fun n => σ (n+1)
 
 theorem Subst.Depth.id : Subst.id.Depth 0 0 := fun _ => rfl
 theorem Subst.Depth.tail {σ : Subst} (H : σ.Depth n (n' + 1)) : σ.tail.Depth n n' := H
 
-def Subst.cons (σ : Subst) (e : SExpr) : Subst
+def Subst.cons (σ : Subst) (e : Term) : Subst
   | 0 => e
   | i+1 => σ i
 
 theorem Subst.Depth.cons {σ : Subst} (H : σ.Depth n n') : (σ.cons e).Depth n (n' + 1) := H
 
-abbrev Subst.one (e : SExpr) : Subst := .cons .id e
+abbrev Subst.one (e : Term) : Subst := .cons .id e
 
 theorem Subst.Depth.one : (Subst.one e).Depth 0 1 := .id
 
@@ -153,7 +153,7 @@ theorem Subst.Depth.toSubst (ρ : Lift) : ρ.toSubst.Depth ρ.size ρ.dom := by
   intro i; simp [Lift.toSubst_apply]
   induction ρ <;> simp! [*] <;> omega
 
-def SExpr.subst : SExpr → Subst → SExpr
+def Term.subst : Term → Subst → Term
   | .bvar i, σ => σ i
   | .sort u, _ => .sort u
   | .app fn arg, σ => .app (fn.subst σ) (arg.subst σ)
@@ -162,28 +162,28 @@ def SExpr.subst : SExpr → Subst → SExpr
 
 @[simp] theorem id_lift : Subst.id.lift = Subst.id := by funext i; cases i <;> rfl
 
-@[simp] theorem subst_id {e : SExpr} : e.subst .id = e := by
+@[simp] theorem subst_id {e : Term} : e.subst .id = e := by
   induction e <;> simp! [*]; rfl
 
-theorem subst_lift' {e : SExpr} : (e.lift' ρ).subst σ = subst e (.lift_l ρ σ) := by
+theorem subst_lift' {e : Term} : (e.lift' ρ).subst σ = subst e (.lift_l ρ σ) := by
   induction e generalizing ρ σ <;> simp! [*, Subst.lift_l_lift]; rfl
 
-theorem lift'_subst {e : SExpr} : (e.subst σ).lift' ρ = subst e (.lift_r σ ρ) := by
+theorem lift'_subst {e : Term} : (e.subst σ).lift' ρ = subst e (.lift_r σ ρ) := by
   induction e generalizing ρ σ <;> simp! [*, Subst.lift_r, Subst.lift_r_lift]
 
-theorem lift'_inj {e e' : SExpr} {ρ : Lift} : e.lift' ρ = e'.lift' ρ ↔ e = e' :=
+theorem lift'_inj {e e' : Term} {ρ : Lift} : e.lift' ρ = e'.lift' ρ ↔ e = e' :=
   ⟨(by simpa [subst_lift', lift_l_inv] using congrArg (·.subst ρ.invS) ·), (· ▸ rfl)⟩
 
-theorem subst_toSubst {e : SExpr} : subst e ρ.toSubst = lift' e ρ := by
+theorem subst_toSubst {e : Term} : subst e ρ.toSubst = lift' e ρ := by
   simp [Lift.toSubst, ← subst_lift']
 
-theorem subst_lift'_inv {e : SExpr} {ρ : Lift} : (e.lift' ρ).subst ρ.invS = e := by
+theorem subst_lift'_inv {e : Term} {ρ : Lift} : (e.lift' ρ).subst ρ.invS = e := by
   rw [subst_lift', lift_l_inv, subst_id]
 
 nonrec def Subst.instL (ls : List SLevel) (σ : Subst) : Subst := instL ls ∘ σ
 
 theorem Subst.instL_lift {σ : Subst} : (σ.instL ls).lift = σ.lift.instL ls := by
-  funext i; obtain _|i := i <;> simp [Subst.instL, lift, SExpr.instL]
+  funext i; obtain _|i := i <;> simp [Subst.instL, lift, Term.instL]
 
 @[simp] theorem instL_subst : (subst e σ).instL ls = subst (e.instL ls) (σ.instL ls) := by
   cases e <;> simp [subst, instL, instL_subst, Subst.instL_lift] <;> simp [Subst.instL]
@@ -191,20 +191,20 @@ theorem Subst.instL_lift {σ : Subst} : (σ.instL ls).lift = σ.lift.instL ls :=
 def Subst.comp (σ σ' : Subst) : Subst := fun x => (σ x).subst σ'
 
 theorem Subst.comp_lift {σ σ' : Subst} : (σ.comp σ').lift = σ.lift.comp σ'.lift := by
-  funext i; cases i <;> simp! [comp, SExpr.lift]
-  rw [SExpr.lift, SExpr.lift, lift'_subst, subst_lift']; rfl
+  funext i; cases i <;> simp! [comp, Term.lift]
+  rw [Term.lift, Term.lift, lift'_subst, subst_lift']; rfl
 
-theorem subst_subst {e : SExpr} : (e.subst σ).subst σ' = subst e (.comp σ σ') := by
+theorem subst_subst {e : Term} : (e.subst σ).subst σ' = subst e (.comp σ σ') := by
   induction e generalizing σ σ' <;> simp! [*, Subst.comp, Subst.comp_lift]
 
-theorem lift_subst {e : SExpr} : e.lift.subst σ = e.subst σ.tail := by
+theorem lift_subst {e : Term} : e.lift.subst σ = e.subst σ.tail := by
   rw [lift, subst_lift', ← Subst.tail_eq_lift_l]
 
-theorem lift_subst_cons {e : SExpr} : e.lift.subst (σ.cons t) = e.subst σ := by
+theorem lift_subst_cons {e : Term} : e.lift.subst (σ.cons t) = e.subst σ := by
   rw [lift_subst, Subst.tail_cons]
 
 theorem Subst.lift_l_eq : Subst.lift_l ρ σ = Subst.comp ρ.toSubst σ := by
-  funext; simp [lift_l, comp, Lift.toSubst_apply, SExpr.subst]
+  funext; simp [lift_l, comp, Lift.toSubst_apply, Term.subst]
 
 theorem Subst.lift_r_eq : Subst.lift_r σ ρ = Subst.comp σ ρ.toSubst := by
   funext i; simp [lift_r, comp, subst_toSubst]
@@ -221,33 +221,33 @@ theorem Subst.Depth.lift_r {σ : Subst}
     (H : σ.Depth ρ.dom n) : (Subst.lift_r σ ρ).Depth ρ.size n := by
   rw [lift_r_eq]; exact .comp (.toSubst _) H
 
-theorem ClosedN.subst_eq {e : SExpr} (self : ClosedN e k) (h : σ.Fixes k) : e.subst σ = e := by
-  induction e generalizing k σ with (simp [ClosedN] at self; simp [*, SExpr.subst])
+theorem ClosedN.subst_eq {e : Term} (self : ClosedN e k) (h : σ.Fixes k) : e.subst σ = e := by
+  induction e generalizing k σ with (simp [ClosedN] at self; simp [*, Term.subst])
   | bvar i => exact h _ self
   | app _ _ ih1 ih2 => exact ⟨ih1 self.1 h, ih2 self.2 h⟩
   | lam _ _ ih1 ih2 | forallE _ _ ih1 ih2 => exact ⟨ih1 self.1 h, ih2 self.2 h.lift⟩
 
-def SExpr.inst (e a : SExpr) : SExpr := e.subst (.one a)
+def Term.inst (e a : Term) : Term := e.subst (.one a)
 
-def SExpr.Skips (e : SExpr) (ρ : Lift) : Prop := lift' (e.subst ρ.invS) ρ = e
+def Term.Skips (e : Term) (ρ : Lift) : Prop := lift' (e.subst ρ.invS) ρ = e
 
-theorem SExpr.Skips.lift (e : SExpr) (ρ : Lift) : Skips (e.lift' ρ) ρ := by
+theorem Term.Skips.lift (e : Term) (ρ : Lift) : Skips (e.lift' ρ) ρ := by
   rw [Skips, subst_lift'_inv]
 
-def SExpr.Skips' : SExpr → (ρ : Lift) → Prop
+def Term.Skips' : Term → (ρ : Lift) → Prop
   | .bvar i, ρ => ∃ j, ρ.liftVar j = i
   | .sort .., _ => True
   | .app fn arg, ρ => fn.Skips' ρ ∧ arg.Skips' ρ
   | .lam ty body, ρ => ty.Skips' ρ ∧ body.Skips' ρ.cons
   | .forallE ty body, ρ => ty.Skips' ρ ∧ body.Skips' ρ.cons
 
-theorem skips_iff {e : SExpr} {ρ : Lift} : Skips e ρ ↔ Skips' e ρ := by
+theorem skips_iff {e : Term} {ρ : Lift} : Skips e ρ ↔ Skips' e ρ := by
   simp [Skips]; induction e generalizing ρ with simp!
   | app _ _ ih1 ih2 => exact and_congr ih1 ih2
   | lam _ _ ih1 ih2 | forallE _ _ ih1 ih2 => exact and_congr ih1 (@ih2 ρ.cons)
   | bvar i =>
     constructor <;> [intro h; intro ⟨j, h⟩]
-    · refine (?_ : have := (match ρ.invS i with | SExpr.bvar .. => True | _ => True); _); split
+    · refine (?_ : have := (match ρ.invS i with | Term.bvar .. => True | _ => True); _); split
       · rename_i eq; cases eq ▸ h; exact ⟨_, rfl⟩
       · suffices ρ.invS i = default by cases this ▸ h
         clear h; rename_i h
@@ -258,7 +258,7 @@ theorem skips_iff {e : SExpr} {ρ : Lift} : Skips e ρ ↔ Skips' e ρ := by
     · refine .trans (?_ : _ = (bvar j).lift' ρ) (congrArg bvar h); congr 1
       rw [← h]; exact congrFun (@lift_l_inv ρ) j
 
-theorem skips_inter {e : SExpr} : Skips e (ρ.inter ρ') ↔ Skips e ρ ∧ Skips e ρ' := by
+theorem skips_inter {e : Term} : Skips e (ρ.inter ρ') ↔ Skips e ρ ∧ Skips e ρ' := by
   simp [skips_iff]
   induction e generalizing ρ ρ' with simp_all!
   | app => grind
@@ -301,32 +301,32 @@ theorem Subst.lift_r_comm (σ : Subst) (ρ : Lift) (H : Subst.Depth σ 0 n) :
   rw [this]; split <;> simp
   have := H (i - n); rw [Nat.sub_add_cancel ‹_›] at this; simp [this]
 
-theorem lift_r_one (e : SExpr) (ρ : Lift) :
+theorem lift_r_one (e : Term) (ρ : Lift) :
     (Subst.one e).lift_r ρ = .lift_l ρ.cons (Subst.one (e.lift' ρ)) := by
   refine (Subst.lift_r_comm (Subst.one e) ρ .one).trans ?_; congr 1
   funext i; simp [Subst.trunc]
   cases i <;> simp [Subst.one, Subst.cons, Subst.lift_r, Subst.id]
 
-theorem lift_inst (e : SExpr) : e.lift.inst e' = e := by
+theorem lift_inst (e : Term) : e.lift.inst e' = e := by
   rw [inst, Subst.one, lift, subst_lift', ← Subst.tail_eq_lift_l, Subst.tail_cons, subst_id]
 
-theorem lift'_inst_hi (e1 e2 : SExpr) (ρ : Lift) :
+theorem lift'_inst_hi (e1 e2 : Term) (ρ : Lift) :
     lift' (e1.inst e2) ρ = (lift' e1 ρ.cons).inst (lift' e2 ρ) := by
   simp [inst, subst_lift', lift'_subst, lift_r_one]
 
-theorem subst_inst {e : SExpr} : (e.inst a).subst σ = (e.subst σ.lift).inst (a.subst σ) := by
-  rw [SExpr.inst, SExpr.inst, subst_subst, subst_subst]; congr 1
-  funext i; obtain _|i := i <;> simp [Subst.comp, Subst.lift, SExpr.subst]
+theorem subst_inst {e : Term} : (e.inst a).subst σ = (e.subst σ.lift).inst (a.subst σ) := by
+  rw [Term.inst, Term.inst, subst_subst, subst_subst]; congr 1
+  funext i; obtain _|i := i <;> simp [Subst.comp, Subst.lift, Term.subst]
   · simp [Subst.one, Subst.cons]
-  · rw [← SExpr.inst, lift_inst]; rfl
+  · rw [← Term.inst, lift_inst]; rfl
 
-theorem inst_lift_cons {e : SExpr} {σ : Subst} :
+theorem inst_lift_cons {e : Term} {σ : Subst} :
     (e.subst σ.lift).inst x = e.subst (σ.cons x) := by
-  rw [SExpr.inst, subst_subst, Subst.one]; congr 1
+  rw [Term.inst, subst_subst, Subst.one]; congr 1
   funext i; obtain _|i := i <;>
-    simp [Subst.comp, Subst.lift, SExpr.subst, Subst.cons, lift_subst_cons]
+    simp [Subst.comp, Subst.lift, Term.subst, Subst.cons, lift_subst_cons]
 
-inductive Ctx.Lift' : Lift → List SExpr → List SExpr → Prop where
+inductive Ctx.Lift' : Lift → List Term → List Term → Prop where
   | refl : Ctx.Lift' .refl Γ Γ
   | skip : Ctx.Lift' l Γ Γ' → Ctx.Lift' (.skip l) Γ (A :: Γ')
   | cons : Ctx.Lift' l Γ Γ' → Ctx.Lift' (.cons l) (A::Γ) (A.lift' l :: Γ')
@@ -341,9 +341,9 @@ theorem Ctx.Lift'.comp (H1 : Ctx.Lift' l Γ₀ Γ₁) (H2 : Ctx.Lift' l' Γ₁ �
     cases H1 with
     | refl => exact .cons H2
     | skip H1 => exact .skip (ih H1)
-    | cons H1 => exact SExpr.lift'_comp ▸ .cons (ih H1)
+    | cons H1 => exact Term.lift'_comp ▸ .cons (ih H1)
 
-inductive Ctx.Inter : List SExpr → List SExpr → Lift → List SExpr → Lift → List SExpr → Prop where
+inductive Ctx.Inter : List Term → List Term → Lift → List Term → Lift → List Term → Prop where
   | refl_l : Ctx.Lift' ρ Γ Δ → Ctx.Inter Γ Δ .refl Γ ρ Δ
   | refl_r : Ctx.Lift' ρ Γ Δ → Ctx.Inter Γ Γ ρ Δ .refl Δ
   | skip_skip : Ctx.Inter Γ Γ₁ ρ₁ Γ₂ ρ₂ Δ → Ctx.Inter Γ Γ₁ (.skip ρ₁) Γ₂ (.skip ρ₂) (A::Δ)
@@ -355,7 +355,7 @@ inductive Ctx.Inter : List SExpr → List SExpr → Lift → List SExpr → Lift
     Ctx.Inter (A :: Γ) (A.lift' (ρ₂.diff ρ₁) :: Γ₁) (.cons ρ₁)
       (A.lift' (ρ₁.diff ρ₂) :: Γ₂) (.cons ρ₂) (A.lift' (ρ₁.inter ρ₂) :: Δ)
 
-theorem lift_eq_lift {e₁ e₂ : SExpr} (H : e₁.lift' ρ₁ = e₂.lift' ρ₂) :
+theorem lift_eq_lift {e₁ e₂ : Term} (H : e₁.lift' ρ₁ = e₂.lift' ρ₂) :
     ∃ e, .lift' e (ρ₂.diff ρ₁) = e₁ ∧ e.lift' (ρ₁.diff ρ₂) = e₂ := by
   have := Skips.lift e₁ ρ₁
   have h1 : _ = _ := skips_inter.2 ⟨.lift e₁ ρ₁, H ▸ Skips.lift e₂ ρ₂⟩
@@ -407,14 +407,14 @@ theorem Ctx.Inter.right (H : Ctx.Inter Γ Γ₁ l₁ Γ₂ l₂ Δ) : Ctx.Lift' 
   | skip_skip _ ih => exact ih.skip
   | cons_skip _ ih => exact ih.skip
   | skip_cons _ ih => exact ih.cons
-  | cons_cons _ ih => rw [← Lift.diff_comp, SExpr.lift'_comp]; exact ih.cons
+  | cons_cons _ ih => rw [← Lift.diff_comp, Term.lift'_comp]; exact ih.cons
 
 theorem Ctx.Inter.left (H : Ctx.Inter Γ Γ₁ l₁ Γ₂ l₂ Δ) : Ctx.Lift' l₁ Γ₁ Δ := H.symm.right
 
 section
 set_option hygiene false
 
-inductive Lookup : List SExpr → Nat → SExpr → Prop where
+inductive Lookup : List Term → Nat → Term → Prop where
   | zero : Lookup (ty::Γ) 0 ty.lift
   | succ : Lookup Γ n ty → Lookup (A::Γ) (n+1) ty.lift
 
@@ -422,11 +422,11 @@ theorem Lookup.weak' (W : Ctx.Lift' ρ Γ Γ') (H : Lookup Γ i A) :
     Lookup Γ' (ρ.liftVar i) (A.lift' ρ) := by
   induction W generalizing i A with
   | refl => simp; exact H
-  | skip W ih => have' := (ih H).succ; rwa [SExpr.lift, ← SExpr.lift'_comp] at this
+  | skip W ih => have' := (ih H).succ; rwa [Term.lift, ← Term.lift'_comp] at this
   | cons W ih =>
     cases H with
-    | zero => refine' cast _ Lookup.zero; congr 1; simp [SExpr.lift, ← SExpr.lift'_comp]
-    | succ H => refine' cast _ (ih H).succ; congr 1; simp [SExpr.lift, ← SExpr.lift'_comp]
+    | zero => refine' cast _ Lookup.zero; congr 1; simp [Term.lift, ← Term.lift'_comp]
+    | succ H => refine' cast _ (ih H).succ; congr 1; simp [Term.lift, ← Term.lift'_comp]
 
 theorem Lookup.weakU_inv (W : Ctx.Lift' ρ Γ Γ')
     (H : Lookup Γ' (ρ.liftVar i) A') : ∃ A, A' = A.lift' ρ ∧ Lookup Γ i A := by
@@ -435,15 +435,15 @@ theorem Lookup.weakU_inv (W : Ctx.Lift' ρ Γ Γ')
   | @skip ρ W _ _ _ ih =>
     simp at H; let .succ H := H
     obtain ⟨_, rfl, h2⟩ := ih H; refine ⟨_, ?_, h2⟩
-    rw [SExpr.lift, ← SExpr.lift'_comp]; rfl
+    rw [Term.lift, ← Term.lift'_comp]; rfl
   | @cons ρ Γ Δ B W ih =>
     cases i with
-    | zero => cases H; exact ⟨_, by simp [SExpr.lift, ← SExpr.lift'_comp], .zero⟩
+    | zero => cases H; exact ⟨_, by simp [Term.lift, ← Term.lift'_comp], .zero⟩
     | succ i =>
       let .succ (ty := C) H := H
       obtain ⟨C, rfl, h⟩ := ih H
       refine ⟨_, ?_, .succ h⟩
-      simp [SExpr.lift, ← SExpr.lift'_comp]
+      simp [Term.lift, ← Term.lift'_comp]
 
 theorem Lookup.weak'_inv (W : Ctx.Lift' ρ Γ Γ')
     (H : Lookup Γ' (ρ.liftVar i) (A.lift' ρ)) : Lookup Γ i A := by
@@ -462,7 +462,7 @@ theorem Lookup.determ (H1 : Lookup Γ i A) (H2 : Lookup Γ i A') : A = A' := by
 
 scoped notation:65 Γ " ⊢ " e " : " A:36 => IsDefEq Γ e e A
 scoped notation:65 Γ " ⊢ " e1 " ≡ " e2 " : " A:36 => IsDefEq Γ e1 e2 A
-inductive IsDefEq : List SExpr → SExpr → SExpr → SExpr → Prop where
+inductive IsDefEq : List Term → Term → Term → Term → Prop where
   | bvar : Lookup Γ i A → Γ ⊢ .bvar i : A
   | symm : Γ ⊢ e ≡ e' : A → Γ ⊢ e' ≡ e : A
   | trans : Γ ⊢ e₁ ≡ e₂ : A → Γ ⊢ e₂ ≡ e₃ : A → Γ ⊢ e₁ ≡ e₃ : A
@@ -485,7 +485,7 @@ inductive IsDefEq : List SExpr → SExpr → SExpr → SExpr → Prop where
 section
 local notation:65 (priority := high) Γ " ⊢ " e1 " : " A:36 => IsDefEqStrong Γ e1 e1 A
 local notation:65 (priority := high) Γ " ⊢ " e1 " ≡ " e2 " : " A:36 => IsDefEqStrong Γ e1 e2 A
-inductive IsDefEqStrong : List SExpr → SExpr → SExpr → SExpr → Prop where
+inductive IsDefEqStrong : List Term → Term → Term → Term → Prop where
   | bvar : Lookup Γ i A → Γ ⊢ A : .sort u → Γ ⊢ .bvar i : A
   | symm : Γ ⊢ e ≡ e' : A → Γ ⊢ e' ≡ e : A
   | trans : Γ ⊢ e₁ ≡ e₂ : A → Γ ⊢ e₂ ≡ e₃ : A → Γ ⊢ e₁ ≡ e₃ : A
@@ -557,7 +557,7 @@ theorem IsDefEqStrong.hasType (H : IsDefEqStrong Γ e1 e2 A) :
   ⟨H.trans H.symm, H.symm.trans H⟩
 
 /-- Each variable's type in the context has a sort-typing derivation in IsDefEqStrong. -/
-def CtxStrong : List SExpr → Prop
+def CtxStrong : List Term → Prop
   | [] => True
   | A :: Γ => CtxStrong Γ ∧ ∃ u, IsDefEqStrong Γ A A (.sort u)
 
@@ -594,13 +594,13 @@ theorem Subst.lift_r_tail {σ : Subst} {ρ : Lift} :
 theorem Subst.lift_r_toSubst {ρ ρ' : Lift} :
     ρ.toSubst.lift_r ρ' = (ρ.comp ρ').toSubst := by
   funext i
-  show (SExpr.bvar (ρ.liftVar i)).lift' ρ' = SExpr.bvar ((ρ.comp ρ').liftVar i)
+  show (Term.bvar (ρ.liftVar i)).lift' ρ' = Term.bvar ((ρ.comp ρ').liftVar i)
   simp [lift', Lift.liftVar_comp]
 
 /-- Two-sided strong substitution structure. Each `.cons` entry carries
 `IsDefEqStrong` witnesses (sort proof in source `Γ` and head-equality in target
 `Γ₀`). The `.nil` constructor allows arbitrary `σ`, `σ'` for an empty source. -/
-inductive Ctx.SubstEq (Γ₀ : List SExpr) : Subst → Subst → List SExpr → Prop where
+inductive Ctx.SubstEq (Γ₀ : List Term) : Subst → Subst → List Term → Prop where
   | nil : Ctx.SubstEq Γ₀ σ σ' []
   | cons : Ctx.SubstEq Γ₀ σ.tail σ'.tail Γ →
     IsDefEqStrong Γ A A (.sort u) →
@@ -676,7 +676,7 @@ set_option hygiene false
 local notation:65 Γ " ⊢ " e " : " A:36 " !! " n:36 => HasTypeStratifiedS Γ e A true n
 local notation:65 Γ " ⊢ " e " :! " A:36 " !! " n:36 => HasTypeStratifiedS Γ e A false n
 
-def Ctx.WF : List SExpr → Prop
+def Ctx.WF : List Term → Prop
   | [] => True
   | A::Γ => WF Γ ∧ ∃ u, Γ ⊢ A : .sort u
 scoped notation:65 "⊢ " Γ:36 => Ctx.WF Γ
@@ -758,7 +758,7 @@ theorem Ctx.SubstEq.lift_at (W : Ctx.SubstEq Γ₀ σ σ' Γ)
 (left σ-vs-τ on `e1`, right σ-vs-τ on `e2`, and the cross `e1.σ ≡ e2.τ`), each at
 the σ-substituted type. This proof is self-contained — it doesn't call
 `IsDefEqStrong.subst`, `forallE_inv'`, `.instDF`, or `.defeqDF_l`. -/
-theorem IsDefEqStrong.substEq' {Γ₀ Γ : List SExpr} {σ τ : Subst} {e1 e2 A : SExpr}
+theorem IsDefEqStrong.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
     (hΓ₀ : CtxStrong Γ₀) (hΓ : CtxStrong Γ)
     (W : Ctx.SubstEq Γ₀ σ τ Γ) (H : IsDefEqStrong Γ e1 e2 A) :
     IsDefEqStrong Γ₀ (e1.subst σ) (e1.subst τ) (A.subst σ) ∧
@@ -797,14 +797,14 @@ theorem IsDefEqStrong.substEq' {Γ₀ Γ : List SExpr} {σ τ : Subst} {e1 e2 A 
           show (e.subst σ).lift = (e.subst σ).lift' (.skip .refl) from rfl,
           lift'_subst]
       congr 1
-    have h_lam_eq : (SExpr.lam A (.app e.lift (.bvar 0))).subst σ =
+    have h_lam_eq : (Term.lam A (.app e.lift (.bvar 0))).subst σ =
         .lam (A.subst σ) (.app (e.subst σ).lift (.bvar 0)) := by
-      show SExpr.lam (A.subst σ) (.app (e.lift.subst σ.lift) ((SExpr.bvar 0).subst σ.lift)) = _
+      show Term.lam (A.subst σ) (.app (e.lift.subst σ.lift) ((Term.bvar 0).subst σ.lift)) = _
       rw [h_lift_subst]
       rfl
     have H_σ : IsDefEqStrong Γ₀
-        ((SExpr.lam A (.app e.lift (.bvar 0))).subst σ) (e.subst σ)
-        ((SExpr.forallE A B).subst σ) := by
+        ((Term.lam A (.app e.lift (.bvar 0))).subst σ) (e.subst σ)
+        ((Term.forallE A B).subst σ) := by
       rw [h_lam_eq]
       exact .eta he_σ (h_lam_eq ▸ hlam_σ)
     exact ⟨ih2_l, ih1_l, H_σ.trans ih1_l⟩
@@ -821,10 +821,10 @@ theorem IsDefEqStrong.substEq' {Γ₀ Γ : List SExpr} {σ τ : Subst} {e1 e2 A 
     have happ_σ := (ih4 hΓ₀ hΓ W.left).1
     have heinst_σ := (ih5 hΓ₀ hΓ W.left).1
     have H_σ : IsDefEqStrong Γ₀
-        ((SExpr.app (SExpr.lam A e) e').subst σ) ((e.inst e').subst σ)
+        ((Term.app (Term.lam A e) e').subst σ) ((e.inst e').subst σ)
         ((B.inst e').subst σ) := by
       show IsDefEqStrong Γ₀
-          (SExpr.app (SExpr.lam (A.subst σ) (e.subst σ.lift)) (e'.subst σ)) _ _
+          (Term.app (Term.lam (A.subst σ) (e.subst σ.lift)) (e'.subst σ)) _ _
       rw [show ((e.inst e').subst σ) = (e.subst σ.lift).inst (e'.subst σ) from subst_inst,
           show ((B.inst e').subst σ) = (B.subst σ.lift).inst (e'.subst σ) from subst_inst]
       refine .beta hA_σ he_σ he'_σ ?_ ?_
@@ -845,7 +845,7 @@ theorem IsDefEqStrong.substEq' {Γ₀ Γ : List SExpr} {σ τ : Subst} {e1 e2 A 
     have ⟨iha_l, iha_r, iha_c⟩ := ih4 hΓ₀ hΓ W
     have ⟨_, _, iha_cleft⟩ := ih4 hΓ₀ hΓ W.left
     -- Construct (B.σ.lift).inst x ≡ (B.σ.lift).inst y at sort v from ih2 at SubstEq.cons.
-    have ih2_cons : ∀ {x y : SExpr}, IsDefEqStrong Γ₀ x y (A.subst σ) →
+    have ih2_cons : ∀ {x y : Term}, IsDefEqStrong Γ₀ x y (A.subst σ) →
         IsDefEqStrong Γ₀ ((B.subst σ.lift).inst x) ((B.subst σ.lift).inst y) (.sort v) := by
       intro x y hxy
       have htail_x : (σ.cons x).tail = σ := by funext i; rfl
@@ -1022,7 +1022,7 @@ theorem IsDefEqStrong.instDF (hΓ : CtxStrong Γ)
 
 /-- Helper: lifting under one binder by a single skip and then substituting `bvar 0`
 gives back the original expression. -/
-private theorem lift_cons_skip_inst_bvar0 {X : SExpr} :
+private theorem lift_cons_skip_inst_bvar0 {X : Term} :
     (X.lift' (.cons (.skip .refl))).inst (.bvar 0) = X := by
   have hsub : (Subst.lift_l (.cons (.skip .refl)) (Subst.one (.bvar 0))) = (Subst.id : Subst) := by
     funext i; cases i with
@@ -1068,10 +1068,10 @@ theorem IsDefEqStrong.forallE_inv' (hΓ : CtxStrong Γ)
     | bvar i =>
       cases i with
       | zero =>
-        simp [SExpr.inst, SExpr.subst, Subst.one, Subst.cons] at eq
+        simp [Term.inst, Term.subst, Subst.one, Subst.cons] at eq
         exact ihe' hΓ (.inl eq)
       | succ n =>
-        simp [SExpr.inst, SExpr.subst, Subst.one, Subst.cons, Subst.id] at eq
+        simp [Term.inst, Term.subst, Subst.one, Subst.cons, Subst.id] at eq
     | forallE A_e B_e =>
       cases eq
       have hΓ' : CtxStrong (A_c::Γ_c) := ⟨hΓ, _, hA⟩
@@ -1201,8 +1201,8 @@ theorem IsDefEq.defeqDF_l (hΓ : ⊢ Γ) (h1 : Γ ⊢ A ≡ A' : .sort u)
 theorem HasType.defeq_l (hΓ : ⊢ Γ) (h1 : Γ ⊢ A ≡ A' : .sort u)
     (h2 : A::Γ ⊢ e : B) : A'::Γ ⊢ e : B := h1.defeqDF_l hΓ h2
 
-variable (Γ₀ : List SExpr) in
-inductive IsDefEqCtx : List SExpr → List SExpr → Prop
+variable (Γ₀ : List Term) in
+inductive IsDefEqCtx : List Term → List Term → Prop
   | zero : ⊢ Γ₀ → IsDefEqCtx Γ₀ Γ₀
   | succ :  IsDefEqCtx Γ₁ Γ₂ → Γ₁ ⊢ A₁ ≡ A₂ : .sort u → IsDefEqCtx (A₁ :: Γ₁) (A₂ :: Γ₂)
 
@@ -1245,7 +1245,7 @@ theorem IsDefEqCtx.symm : IsDefEqCtx Γ₀ Γ₁ Γ₂ → IsDefEqCtx Γ₀ Γ�
 theorem IsDefEqCtx.wf₂ (H : IsDefEqCtx Γ₀ Γ₁ Γ₂) : ⊢ Γ₂ := H.symm.wf₁
 
 scoped notation:65 Γ " ⊢ " e1 " ⤳ " e2:36 => WHRed Γ e1 e2
-inductive WHRed (Γ : List SExpr) : SExpr → SExpr → Prop where
+inductive WHRed (Γ : List Term) : Term → Term → Prop where
   | app : Γ ⊢ f ⤳ f' → Γ ⊢ .app f a ⤳ .app f' a
   | beta : Γ ⊢ .app (.lam A e) a ⤳ e.inst a
 
@@ -1263,7 +1263,7 @@ theorem WHRed.weakU_inv (H : Γ' ⊢ e1.lift' ρ ⤳ e2') :
     let .app e1 _ := e1; let .lam .. := e1; cases he
     simp [← lift'_inst_hi, lift'_inj]; exact .beta
 
-def WHNF (Γ : List SExpr) (e : SExpr) := ∀ e', ¬Γ ⊢ e ⤳ e'
+def WHNF (Γ : List Term) (e : Term) := ∀ e', ¬Γ ⊢ e ⤳ e'
 
 theorem WHNF.lam : WHNF Γ (.lam A e) := nofun
 theorem WHNF.sort : WHNF Γ (.sort A) := nofun
@@ -1280,7 +1280,7 @@ theorem WHRed.determ (H1 : Γ ⊢ e ⤳ e₁) (H2 : Γ ⊢ e ⤳ e₂) : e₁ = 
     | app h2 => cases h2
     | beta => rfl
 
-def WHRedS (Γ : List SExpr) : SExpr → SExpr → Prop := ReflTransGen (WHRed Γ)
+def WHRedS (Γ : List Term) : Term → Term → Prop := ReflTransGen (WHRed Γ)
 scoped notation:65 Γ " ⊢ " e1 " ⤳* " e2:36 => WHRedS Γ e1 e2
 
 theorem WHRedS.weak' (W : Ctx.Lift' ρ Γ Δ) (H : Γ ⊢ e1 ⤳* e2) :

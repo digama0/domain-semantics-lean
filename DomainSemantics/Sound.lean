@@ -1,4 +1,4 @@
-import DomainSemantics.SExpr
+import DomainSemantics.Term
 import DomainSemantics.Shape
 
 namespace DomainSemantics
@@ -29,7 +29,7 @@ theorem Valuation.Compat.le_join {ρ₁ ρ₂ : Valuation}
     (hc : ρ₁.Compat ρ₂) : ρ₁.LE (ρ₁.join ρ₂) ∧ ρ₂.LE (ρ₁.join ρ₂) :=
   ⟨fun i => (TShape.Join.mk (hc i)).le.1, fun i => (TShape.Join.mk (hc i)).le.2⟩
 
-inductive LE_Interp : Valuation → TShape → SExpr → Prop
+inductive LE_Interp : Valuation → TShape → Term → Prop
   | bot : LE_Interp ρ (WShape.T (n := n) .bot) M
   | bvar : m ≤ ρ i → LE_Interp ρ m (.bvar i)
   | sort : m ≤ .sort l → LE_Interp ρ m (.sort l)
@@ -60,7 +60,7 @@ theorem LE_Interp.bvar_iff : LE_Interp ρ m (.bvar i) ↔ m ≤ ρ i :=
   ⟨fun | .bot => TShape.bot_le' | .bvar h => h, .bvar⟩
 
 theorem LE_Interp.le_sort (H : LE_Interp ρ m (.sort u)) : m ≤ .sort u := by
-  generalize eq : SExpr.sort u = M at H
+  generalize eq : Term.sort u = M at H
   induction H with cases eq
   | bot => exact TShape.bot_le'
   | sort h => exact h.trans TShape.sort_eqv.1
@@ -110,7 +110,7 @@ theorem LE_Interp.closed (cl : M.ClosedN k) (h : ∀ i < k, ρ i = ρ' i)
     refine .forallE (ih_b cl.1 h) (ih_b' cl.1 h) hdom (fun x hx => ih_body x hx cl.2 ?_) h1
     intro | 0, _ => rfl | i+1, hi => exact h i (Nat.lt_of_succ_lt_succ hi)
 
-theorem LE_Interp.closed_iff {M : SExpr} (cl : M.ClosedN)
+theorem LE_Interp.closed_iff {M : Term} (cl : M.ClosedN)
     {ρ ρ' : Valuation} {m : TShape} : LE_Interp ρ m M ↔ LE_Interp ρ' m M :=
   ⟨closed cl nofun, closed cl nofun⟩
 
@@ -276,7 +276,7 @@ theorem LE_Interp.join (J : m₁.Join m₂ m) (H1 : LE_Interp ρ m₁ M) (H2 : L
 theorem LE_Interp.subst : LE_Interp ρ m (M.subst σ) ↔
     ∃ ρ', LE_Interp ρ' m M ∧ ∀ i, LE_Interp ρ (ρ' i) (σ i) := by
   refine ⟨fun H => ?_, ?_⟩
-  · suffices ∀ {ρ m N}, LE_Interp ρ m N → ∀ (M : SExpr) (σ : Subst), M.subst σ = N →
+  · suffices ∀ {ρ m N}, LE_Interp ρ m N → ∀ (M : Term) (σ : Subst), M.subst σ = N →
         ∃ ρ', LE_Interp ρ' m M ∧ ∀ i, LE_Interp ρ (ρ' i) (σ i) from this H M σ rfl
     intro ρ m N H M σ eq
     have bvar {ρ : Valuation} {m N} {σ : Subst} {j} (hσj : σ j = N) (hN : LE_Interp ρ m N) :
@@ -455,7 +455,7 @@ theorem LE_Interp.forallE_inv' {b} {f : WShapeFun n} {B F}
     LE_Interp ρ b.T B ∧ ∀ x, LE_Interp (ρ.push x.T) (f.app x).T F := by
   refine ⟨H.forallE_inv.1, fun x => ?_⟩
   have := (LE_Interp.weak (x := x.T) H).forallE_inv.2 .bvar0
-  rwa [SExpr.inst, subst_lift', (?_ : Subst.lift_l _ _ = Subst.id), subst_id] at this
+  rwa [Term.inst, subst_lift', (?_ : Subst.lift_l _ _ = Subst.id), subst_id] at this
   funext i; cases i <;> rfl
 
 theorem LE_Interp.lam_inv {f : WShapeFun n} {B F}
@@ -495,17 +495,17 @@ theorem LE_Interp.lam_inv' {f : WShapeFun n} {hl : f.NonZero} {B F}
     (H : LE_Interp ρ (WShape.T (n := n+1) (WShape.lam f hl)) (.lam B F)) (x : WShape n) :
     LE_Interp (ρ.push x.T) (f.app x).T F := by
   have := (WShape.lam_eq_lam' ▸ LE_Interp.weak (x := x.T) H).lam_inv .bvar0
-  rwa [SExpr.inst, subst_lift', (?_ : Subst.lift_l _ _ = Subst.id), subst_id] at this
+  rwa [Term.inst, subst_lift', (?_ : Subst.lift_l _ _ = Subst.id), subst_id] at this
   funext i; cases i <;> rfl
 
-inductive Valuation.Fits : (Γ Δ : List SExpr) → Valuation → Prop
+inductive Valuation.Fits : (Γ Δ : List Term) → Valuation → Prop
   | nil : Valuation.Fits Γ Γ .nil
   | cons : Valuation.Fits Γ Δ ρ →
     (∀ {a}, LE_Interp ρ a A → ∃ a', a ≤ a' ∧ LE_Interp ρ a' A ∧ a'.HasType .type) →
     LE_Interp ρ a A → x.HasType a →
     Valuation.Fits Γ (A::Δ) (ρ.push x)
 
-def InterpTyped (ρ : Valuation) (m : TShape) (M A : SExpr) :=
+def InterpTyped (ρ : Valuation) (m : TShape) (M A : Term) :=
   ∃ m' a, m ≤ m' ∧ LE_Interp ρ m' M ∧ LE_Interp ρ a A ∧ m'.HasType a
 
 theorem InterpTyped.bot : InterpTyped ρ (WShape.T (n := n) .bot) M A := by
@@ -782,17 +782,17 @@ theorem LE_Interp.sound_forallE
       · exact (TShape.HasType.def le₂ (Nat.zero_le k)).1 heb'
       · exact .bot' .sort
 
-def SoundEq (Γ : List SExpr) (M N : SExpr) : Prop :=
+def SoundEq (Γ : List Term) (M N : Term) : Prop :=
   ∀ {{Γ₀ ρ}}, Valuation.Fits Γ₀ Γ ρ → ∀ {m}, LE_Interp ρ m M ↔ LE_Interp ρ m N
-def SoundTy (Γ : List SExpr) (M A : SExpr) : Prop :=
+def SoundTy (Γ : List Term) (M A : Term) : Prop :=
   ∀ {{Γ₀ ρ}}, Valuation.Fits Γ₀ Γ ρ → ∀ {m}, LE_Interp ρ m M → InterpTyped ρ m M A
 
 mutual
-inductive StrongSound : List SExpr → SExpr → SExpr → Prop where
+inductive StrongSound : List Term → Term → Term → Prop where
   | mk : SoundTy Γ M A →
     StrongSoundCore Γ M A' → SoundEq Γ A' A → StrongSound Γ M A
 
-inductive StrongSoundCore : List SExpr → SExpr → SExpr → Prop where
+inductive StrongSoundCore : List Term → Term → Term → Prop where
   | bvar : Lookup Γ i A → StrongSoundCore Γ (.bvar i) A
   | sort : StrongSoundCore Γ (.sort l) (.sort true)
   | lam : SoundTy Γ A (.sort u) →
@@ -803,7 +803,7 @@ inductive StrongSoundCore : List SExpr → SExpr → SExpr → Prop where
   | forallE : StrongSound Γ A (.sort u) → StrongSound (A::Γ) B (.sort v) →
     StrongSoundCore Γ (.forallE A B) (.sort v)
 end
-structure StrongSoundEq (Γ : List SExpr) (M N A : SExpr) : Prop where
+structure StrongSoundEq (Γ : List Term) (M N A : Term) : Prop where
   sound : SoundEq Γ M N
   left : StrongSound Γ M A
   right : StrongSound Γ N A
@@ -852,7 +852,7 @@ theorem SoundEq.sort : SoundEq Γ (.sort u) (.sort v) ↔ u = v := by
   · injection congrArg (·.1) <| WShape.sort_le.1 <| ((H .nil).1 .sort').le_sort' with eq
   · intro _ ρ W m
     suffices ∀ {u v}, u = v →
-        LE_Interp ρ m (SExpr.sort u) → LE_Interp ρ m (SExpr.sort v) from ⟨this H, this H.symm⟩
+        LE_Interp ρ m (Term.sort u) → LE_Interp ρ m (Term.sort v) from ⟨this H, this H.symm⟩
     intro u v H h; exact .mono (H ▸ h.le_sort) .sort'
 
 theorem SoundEq.forallE (hA : SoundTy Γ A (.sort u))
@@ -932,7 +932,7 @@ theorem LE_Interp.strongSound (hΓ : ⊢ Γ) (H : Γ ⊢ M ≡ N : A) : StrongSo
   induction H with
   | @bvar _ i A _ h h2 ih =>
     refine .rfl ⟨fun _ _ W _ h => ?_, .bvar h, .rfl⟩; clear h2 ih
-    generalize eq : SExpr.bvar i = M at h
+    generalize eq : Term.bvar i = M at h
     induction h with cases eq | bot => exact .mk .rfl .bot .bot (.bot_T' <| .bot .sort) | bvar a1
     induction W generalizing i A with | cons _ h1 h2 h3 ih => ?_ | nil =>
       exact TShape.le_bot'.1 a1 ▸ .mk .rfl .bot .bot (.bot_T' <| .bot .sort)
@@ -947,7 +947,7 @@ theorem LE_Interp.strongSound (hΓ : ⊢ Γ) (H : Γ ⊢ M ≡ N : A) : StrongSo
     exact ⟨a2.trans b2, a3, b5.defeq_r this, b6, b7.trans this⟩
   | @sort _ l =>
     refine .rfl ⟨fun _ _ W _ h => ?_, .sort, .rfl⟩
-    generalize eq : SExpr.sort l = M at h
+    generalize eq : Term.sort l = M at h
     induction h with cases eq
     | bot => exact .mk .rfl .bot .bot (.bot_T' <| .bot .sort)
     | sort h1 => exact .mk h1 (.sort .rfl) (.sort .rfl) (by simpa using .sort)

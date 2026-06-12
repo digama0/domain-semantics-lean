@@ -1,16 +1,16 @@
-import DomainSemantics.SExpr
+import DomainSemantics.Term
 import DomainSemantics.Shape
 
 namespace DomainSemantics
 
-structure LogRelBase (Γ : List SExpr) (n : Nat) where
+structure LogRelBase (Γ : List Term) (n : Nat) where
   wf : ⊢ Γ
   /-- Term validity: `M ≡ N : A` at element-shape `m` and type-shape `a`. -/
-  DefEq (M N A : SExpr) (m a : WShape n) : Prop
+  DefEq (M N A : Term) (m a : WShape n) : Prop
   /-- Type validity: `A ≡ B` are valid types at type-shape `a`. -/
-  TyDefEq (A B : SExpr) (a : WShape n) : Prop
+  TyDefEq (A B : Term) (a : WShape n) : Prop
 
-structure LogRel (Γ : List SExpr) (n : Nat) extends LogRelBase Γ n where
+structure LogRel (Γ : List Term) (n : Nat) extends LogRelBase Γ n where
   sort_iff : DefEq M N A (.sort r) (.sort r') ↔ ∃ u, Γ ⊢ M ⤳* .sort u ∧ Γ ⊢ N ⤳* .sort u
   sort_iff_ty : TyDefEq M N (.sort r) ↔ ∃ u, Γ ⊢ M ⤳* .sort u ∧ Γ ⊢ N ⤳* .sort u
   bot : a.HasType .type → DefEq M N A .bot a
@@ -37,11 +37,11 @@ theorem LogRelBase.TyDefEq.sort {R : LogRel Γ n} : R.TyDefEq (.sort u) (.sort u
 
 /-! #### Concrete definitions at level 0 -/
 
-def LR0.TyDefEq (Γ : List SExpr) (M N : SExpr) : WShape 0 → Prop
+def LR0.TyDefEq (Γ : List Term) (M N : Term) : WShape 0 → Prop
   | ⟨.bot, _⟩ => True
   | ⟨.sort _, _⟩ => ∃ u, Γ ⊢ M ⤳* .sort u ∧ Γ ⊢ N ⤳* .sort u
 
-def LR0.DefEq (Γ : List SExpr) (M N : SExpr) (m a : WShape 0) : Prop :=
+def LR0.DefEq (Γ : List Term) (M N : Term) (m a : WShape 0) : Prop :=
   match a.1 with
   | .bot => True
   | .sort _ => LR0.TyDefEq Γ M N m
@@ -116,7 +116,7 @@ def LR0 (wf : ⊢ Γ) : LogRel Γ 0 where
 For each argument `a ≡ b : A₁`, the substituted codomains are valid types.
 For each argument `a : A₁`, the codomains `A₂[a]` and `B₂[a]` are equal types. -/
 def LRS.PiDefEq (IH : LogRel Γ n)
-    (B F₁ F₂ : SExpr) (b : WShape n) (f : WShapeFun n) : Prop :=
+    (B F₁ F₂ : Term) (b : WShape n) (f : WShapeFun n) : Prop :=
   (∀ {{a b' p}}, p.HasType b → Γ ⊢ a ≡ b' : B → IH.DefEq a b' B p b →
     IH.TyDefEq (F₁.inst a) (F₁.inst b') (f.app p) ∧
     IH.TyDefEq (F₂.inst a) (F₂.inst b') (f.app p)) ∧
@@ -127,14 +127,14 @@ theorem LRS.PiDefEq.left {IH : LogRel Γ n} :
     LRS.PiDefEq IH B F₁ F₂ b f → LRS.PiDefEq IH B F₁ F₁ b f := fun ⟨h1, _⟩ =>
   ⟨fun _ _ _ hp ha a1 => ⟨(h1 hp ha a1).1, (h1 hp ha a1).1⟩, fun _ _ hp ha a1 => (h1 hp ha a1).1⟩
 
-def LRS.ValTyPi2 (IH : LogRel Γ n) (M₁ M₂ : SExpr) (b : WShape n) (f : WShapeFun n) : Prop :=
+def LRS.ValTyPi2 (IH : LogRel Γ n) (M₁ M₂ : Term) (b : WShape n) (f : WShapeFun n) : Prop :=
   ∃ B₁ F₁ B₂ F₂ u v,
     Γ ⊢ M₁ ⤳* .forallE B₁ F₁ ∧ Γ ⊢ M₂ ⤳* .forallE B₂ F₂ ∧
     Γ ⊢ B₁ ≡ B₂ : .sort u ∧ B₁::Γ ⊢ F₁ ≡ F₂ : .sort v ∧ IH.TyDefEq B₁ B₂ b ∧
     LRS.PiDefEq IH B₁ F₁ F₂ b f
 
 def LRS.LamDefEq (IH : LogRel Γ n)
-    (M N A₁ A₂ : SExpr) (m : WShapeFun n) (a₁ : WShape n) (a₂ : WShapeFun n) : Prop :=
+    (M N A₁ A₂ : Term) (m : WShapeFun n) (a₁ : WShape n) (a₂ : WShapeFun n) : Prop :=
   (∀ {{a b p}}, WShape.HasType p a₁ → Γ ⊢ a ≡ b : A₁ → IH.DefEq a b A₁ p a₁ →
     IH.DefEq (M.app a) (M.app b) (A₂.inst a) (m.app p) (a₂.app p) ∧
     IH.DefEq (N.app a) (N.app b) (A₂.inst a) (m.app p) (a₂.app p)) ∧
@@ -170,7 +170,7 @@ theorem LRS.LamDefEq.mono_r_1 {IH : LogRel Γ n}
 
 /-- Type validity at element-shape `m` (merged `TyDefEq` / `EqTyDefEq`).
 Non-trivial at `.forallE` (Pi injectivity) and `.sort` (sort injectivity). -/
-def LRS.TyDefEq (IH : LogRel Γ n) (M N : SExpr) : WShape (n+1) → Prop
+def LRS.TyDefEq (IH : LogRel Γ n) (M N : Term) : WShape (n+1) → Prop
   | ⟨.bot, _⟩ | ⟨.lam _, _⟩ => True
   | ⟨.sort _, _⟩ => ∃ u, Γ ⊢ M ⤳* .sort u ∧ Γ ⊢ N ⤳* .sort u
   | ⟨.forallE b f, wf⟩ => LRS.ValTyPi2 IH M N ⟨b, wf.1⟩ ⟨f, wf.2⟩
@@ -347,7 +347,7 @@ theorem LRS.LamDefEq.whr {IH : LogRel Γ n}
   · exact (IH.whr (.app hM) (.app hN)).2 (pae hp ha a1)
 
 /-- Term validity at `(m, a)`. -/
-def LRS.DefEq (IH : LogRel Γ n) (M N A : SExpr) (m a : WShape (n+1)) : Prop :=
+def LRS.DefEq (IH : LogRel Γ n) (M N A : Term) (m a : WShape (n+1)) : Prop :=
   match ha : a.1 with
   | .bot => True
   | .sort _ => LRS.TyDefEq IH M N m
@@ -607,7 +607,7 @@ def LRS (IH : LogRel Γ n) : LogRel Γ (n+1) where
       · exact ⟨B₁, F₁, B₂, F₂, u, v, .trans hA rM, .trans hB rN, rest⟩
     | _ => rfl
 
-def LR {Γ : List SExpr} (hΓ : ⊢ Γ) : LogRel Γ n :=
+def LR {Γ : List Term} (hΓ : ⊢ Γ) : LogRel Γ n :=
   match n with
   | 0 => LR0 hΓ
   | _+1 => LRS (LR hΓ)
@@ -617,9 +617,9 @@ def LR {Γ : List SExpr} (hΓ : ⊢ Γ) : LogRel Γ n :=
 
 private theorem LRS.PiDefEq.lift_aux
     {b : WShape n} {f : WShapeFun n} (le : n ≤ n') (htpi_a : WShape.HasTypePi f b true)
-    (IH1 : ∀ {M N : SExpr} {m : WShape n}, WShape.HasType m .type →
+    (IH1 : ∀ {M N : Term} {m : WShape n}, WShape.HasType m .type →
       ((LR Γ).TyDefEq M N (m.lift n') ↔ (LR Γ).TyDefEq M N m))
-    (IH2 : ∀ {M N A : SExpr} {m a : WShape n}, WShape.HasType m a →
+    (IH2 : ∀ {M N A : Term} {m a : WShape n}, WShape.HasType m a →
       ((LR Γ).DefEq M N A (m.lift n') (a.lift _) ↔ (LR Γ).DefEq M N A m a)) :
     LRS.PiDefEq (LR Γ) B F₁ F₂ (b.lift n') (f.lift n') ↔
     LRS.PiDefEq (LR Γ) B F₁ F₂ b f := by
@@ -662,7 +662,7 @@ private theorem LRS.PiDefEq.lift_aux
 
 private theorem LRS.LamDefEq.lift_aux
     {g : WShapeFun n} {a₁ a₂} (le : n ≤ n') (htm : WShape.HasTypeLam g a₁ a₂)
-    (IH : ∀ {M N A : SExpr} {m a : WShape n}, WShape.HasType m a →
+    (IH : ∀ {M N A : Term} {m a : WShape n}, WShape.HasType m a →
       ((LR Γ).DefEq M N A (m.lift n') (a.lift _) ↔ (LR Γ).DefEq M N A m a))
     (hEdge : LRS.PiDefEq (LR Γ) A₁ A₂ A₂ a₁ a₂) :
     LRS.LamDefEq (LR Γ) (n := n') M N A₁ A₂ (g.lift n') (a₁.lift n') (a₂.lift n') ↔
@@ -716,9 +716,9 @@ private theorem LRS.LamDefEq.lift_aux
     · exact go (hP.2 hqg ha v_lo)
 
 private theorem LR.lift_succ_aux :
-    (∀ {M N : SExpr} {m : WShape n}, WShape.HasType m .type →
+    (∀ {M N : Term} {m : WShape n}, WShape.HasType m .type →
       (LRS.TyDefEq (n := n) (LR Γ) M N (m.lift _) ↔ (LR Γ).TyDefEq M N m)) ∧
-    (∀ {M N A : SExpr} {m a : WShape n}, WShape.HasType m a →
+    (∀ {M N A : Term} {m a : WShape n}, WShape.HasType m a →
       (LRS.DefEq (n := n) (LR Γ) M N A (m.lift _) (a.lift _) ↔ (LR Γ).DefEq M N A m a)) := by
   induction n with
   | zero =>
