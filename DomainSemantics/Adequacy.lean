@@ -390,7 +390,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       have ⟨n', ab, _, le, le', iB, iv, hmb⟩ :=
         (LE_Interp.sound HB W'.fits).2 (hA.forallE_inv'.2 p) |>.out
       exact toValTy le le' (aty.2 _ hp).toType iv hmb ((ihB iB iv hmb).1 W').1
-    have beta {X Y t : Term} {σ} : Γ₀ ⊢ .app (.lam (X.subst σ) (Y.subst σ.lift)) t ⤳*
+    have beta {X Y t : Term} {σ} : .app (.lam (X.subst σ) (Y.subst σ.lift)) t ⤳*
         Y.subst (σ.cons t) := inst_lift_cons (x := t) ▸ .tail .rfl .beta
     refine ⟨fun x x' p hp ha hv => ?_, fun x p hp ha hv => ?_⟩
     all_goals
@@ -522,8 +522,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     exact .bot hmem.isType
 
 theorem forallE_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A₀ ≡ Term.forallE B₁ F₁ : .sort s) :
-    ∃ B₀ F₀, Γ ⊢ A₀ ⤳* .forallE B₀ F₀ ∧ ∃ u v,
-      Γ ⊢ B₀ ≡ B₁ : .sort u ∧ B₀::Γ ⊢ F₀ ≡ F₁ : .sort v := by
+    ∃ B₀ F₀, A₀ ⤳* .forallE B₀ F₀ ∧ ∃ u v, Γ ⊢ B₀ ≡ B₁ : .sort u ∧ B₀::Γ ⊢ F₀ ≡ F₁ : .sort v := by
   have hPi : LE_Interp .nil (WShape.T (n := 1) (.forallE .bot WShapeFun.bot)) (.forallE B₁ F₁) := by
     refine .forallE' .bot .bot (.bot <| .bot' .sort) fun _ h => ?_
     cases h.bot_r; exact WShapeFun.bot_app.symm ▸ .bot

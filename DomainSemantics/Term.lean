@@ -848,22 +848,22 @@ theorem IsDefEq.eta₀ {Γ e A B} (hΓ : ⊢ Γ) (he : Γ ⊢ e : .forallE A B) 
   rw [lift_cons_skip_inst_bvar0] at this
   exact .eta he (.lamDF hA hB this this)
 
-scoped notation:65 Γ " ⊢ " e1 " ⤳ " e2:36 => WHRed Γ e1 e2
+scoped notation:65 e1 " ⤳ " e2:36 => WHRed e1 e2
 /-- Single-step weak-head reduction `Γ ⊢ e ⤳ e'`. Only the head position is
 reduced: either β-reduce a `lam`-headed application, or recurse on the
 function side of an `app`. Right-context-indexed for uniformity with the
 typing judgment, although the rules never inspect `Γ`. -/
-inductive WHRed (Γ : List Term) : Term → Term → Prop where
-  | app : Γ ⊢ f ⤳ f' → Γ ⊢ .app f a ⤳ .app f' a
-  | beta : Γ ⊢ .app (.lam A e) a ⤳ e.inst a
+inductive WHRed : Term → Term → Prop where
+  | app : f ⤳ f' → .app f a ⤳ .app f' a
+  | beta : .app (.lam A e) a ⤳ e.inst a
 
-/-- `WHNF Γ e` says `e` is in weak head-normal form: no `⤳` step applies. -/
-def WHNF (Γ : List Term) (e : Term) := ∀ e', ¬Γ ⊢ e ⤳ e'
+/-- `WHNF e` says `e` is in weak head-normal form: no `⤳` step applies. -/
+def WHNF (e : Term) := ∀ e', ¬e ⤳ e'
 
-theorem WHNF.sort : WHNF Γ (.sort A) := nofun
-theorem WHNF.forallE : WHNF Γ (.forallE A B) := nofun
+theorem WHNF.sort : WHNF (.sort A) := nofun
+theorem WHNF.forallE : WHNF (.forallE A B) := nofun
 
-theorem WHRed.determ (H1 : Γ ⊢ e ⤳ e₁) (H2 : Γ ⊢ e ⤳ e₂) : e₁ = e₂ := by
+theorem WHRed.determ (H1 : e ⤳ e₁) (H2 : e ⤳ e₂) : e₁ = e₂ := by
   induction H1 generalizing e₂ with
   | app h1 ih =>
     cases H2 with
@@ -874,16 +874,16 @@ theorem WHRed.determ (H1 : Γ ⊢ e ⤳ e₁) (H2 : Γ ⊢ e ⤳ e₂) : e₁ = 
     | app h2 => cases h2
     | beta => rfl
 
-/-- Multi-step weak-head reduction: the reflexive-transitive closure of `WHRed Γ`. -/
-def WHRedS (Γ : List Term) : Term → Term → Prop := ReflTransGen (WHRed Γ)
-scoped notation:65 Γ " ⊢ " e1 " ⤳* " e2:36 => WHRedS Γ e1 e2
+/-- Multi-step weak-head reduction: the reflexive-transitive closure of `WHRed`. -/
+def WHRedS : Term → Term → Prop := ReflTransGen WHRed
+scoped notation:65 e1 " ⤳* " e2:36 => WHRedS e1 e2
 
-theorem WHRedS.app (H : Γ ⊢ e1 ⤳* e2) : Γ ⊢ e1.app a ⤳* e2.app a := by
+theorem WHRedS.app (H : e1 ⤳* e2) : e1.app a ⤳* e2.app a := by
   induction H with
   | rfl => exact .rfl
   | tail _ h2 ih => exact .tail ih h2.app
 
-theorem WHRedS.determ_l (H1 : Γ ⊢ e ⤳* e₁) (H2 : Γ ⊢ e ⤳* e₂) (W2 : WHNF Γ e₂) : Γ ⊢ e₁ ⤳* e₂ := by
+theorem WHRedS.determ_l (H1 : e ⤳* e₁) (H2 : e ⤳* e₂) (W2 : WHNF e₂) : e₁ ⤳* e₂ := by
   induction H1 using ReflTransGen.headIndOn generalizing e₂ with
   | rfl => exact H2
   | head l1 l2 ih =>
@@ -891,11 +891,11 @@ theorem WHRedS.determ_l (H1 : Γ ⊢ e ⤳* e₁) (H2 : Γ ⊢ e ⤳* e₂) (W2 
     | rfl => cases W2 _ l1
     | head r1 r2 => cases l1.determ r1; exact ih r2 W2
 
-theorem WHNF.whRedS (W : WHNF Γ e) (H : Γ ⊢ e ⤳* e') : e = e' := by
+theorem WHNF.whRedS (W : WHNF e) (H : e ⤳* e') : e = e' := by
   cases H using ReflTransGen.headIndOn with
   | rfl => rfl
   | head h1 => cases W _ h1
 
 theorem WHRedS.determ
-    (H1 : Γ ⊢ e ⤳* e₁) (W1 : WHNF Γ e₁)
-    (H2 : Γ ⊢ e ⤳* e₂) (W2 : WHNF Γ e₂) : e₁ = e₂ := W1.whRedS (H1.determ_l H2 W2)
+    (H1 : e ⤳* e₁) (W1 : WHNF e₁)
+    (H2 : e ⤳* e₂) (W2 : WHNF e₂) : e₁ = e₂ := W1.whRedS (H1.determ_l H2 W2)

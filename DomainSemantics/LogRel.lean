@@ -39,7 +39,7 @@ weak-head-reduction stability, …) needed to prove adequacy. Level-0
 (`LR0`) only sees `sort` and `bot` shapes; higher levels (`LRS IH`) add
 Π/λ data on top of an inductive hypothesis `IH : LogRel Γ n`. -/
 structure LogRel (Γ : List Term) (n : Nat) extends LogRelBase Γ n where
-  sort_iff : TmEq M N A (.sort r) (.sort r') ↔ ∃ u, Γ ⊢ M ⤳* .sort u ∧ Γ ⊢ N ⤳* .sort u
+  sort_iff : TmEq M N A (.sort r) (.sort r') ↔ ∃ u, M ⤳* .sort u ∧ N ⤳* .sort u
   bot : a.HasType .type → TmEq M N A .bot a
   toType : TmEq M N A m (.sort r) → TyEq M N m
   left : TmEq M N A m a → TmEq M M A m a
@@ -56,29 +56,29 @@ structure LogRel (Γ : List Term) (n : Nat) extends LogRelBase Γ n where
   mono_l : m ≤ m' → m.HasType a → m'.HasType a → TmEq M N A m' a → TmEq M N A m a
   join_ty : m₁.Compat m₂ → m₁.HasType .type → m₂.HasType .type →
     TyEq A B m₁ → TyEq A B m₂ → TyEq A B (m₁.join m₂)
-  whr : Γ ⊢ M ⤳* M' → Γ ⊢ N ⤳* N' → (TmEq M N A m a ↔ TmEq M' N' A m a)
+  whr : M ⤳* M' → N ⤳* N' → (TmEq M N A m a ↔ TmEq M' N' A m a)
 
 theorem LogRelBase.TyEq.sort {R : LogRel Γ n} : R.TyEq (.sort u) (.sort u) (.sort r) :=
   R.toType (A := default) (r := default) (R.sort_iff.2 ⟨_, .rfl, .rfl⟩)
 
 /-! #### Concrete definitions at level 0 -/
 
-def LR0.TyEq (Γ : List Term) (M N : Term) : WShape 0 → Prop
+def LR0.TyEq (M N : Term) : WShape 0 → Prop
   | ⟨.bot, _⟩ => True
-  | ⟨.sort _, _⟩ => ∃ u, Γ ⊢ M ⤳* .sort u ∧ Γ ⊢ N ⤳* .sort u
+  | ⟨.sort _, _⟩ => ∃ u, M ⤳* .sort u ∧ N ⤳* .sort u
 
-def LR0.TmEq (Γ : List Term) (M N : Term) (m a : WShape 0) : Prop :=
+def LR0.TmEq (M N : Term) (m a : WShape 0) : Prop :=
   match a.1 with
   | .bot => True
-  | .sort _ => LR0.TyEq Γ M N m
+  | .sort _ => LR0.TyEq M N m
 
 /-- The level-0 logical relation: `TmEq`/`TyEq` only see `bot` (trivially
 true) and `sort` (both sides whr-reduce to the same sort). All structural
 laws hold by case analysis on the type-shape. -/
 def LR0 (wf : ⊢ Γ) : LogRel Γ 0 where
   wf
-  TmEq M N _ := LR0.TmEq Γ M N
-  TyEq := LR0.TyEq Γ
+  TmEq M N _ := LR0.TmEq M N
+  TyEq := LR0.TyEq
   sort_iff := by simp [LR0.TmEq, LR0.TyEq, WShape.sort]
   bot {_ _ _ _} _ := by simp only [LR0.TmEq, LR0.TyEq, WShape.bot]; split <;> trivial
   toType := id
@@ -155,7 +155,7 @@ whose domains and codomains are `IH`-equal, and whose codomain-after-edge
 data satisfies `PiDefEq`. -/
 def LRS.ValTyPi2 (IH : LogRel Γ n) (M₁ M₂ : Term) (b : WShape n) (f : WShapeFun n) : Prop :=
   ∃ B₁ F₁ B₂ F₂ u v,
-    Γ ⊢ M₁ ⤳* .forallE B₁ F₁ ∧ Γ ⊢ M₂ ⤳* .forallE B₂ F₂ ∧
+    M₁ ⤳* .forallE B₁ F₁ ∧ M₂ ⤳* .forallE B₂ F₂ ∧
     Γ ⊢ B₁ ≡ B₂ : .sort u ∧ B₁::Γ ⊢ F₁ ≡ F₂ : .sort v ∧ IH.TyEq B₁ B₂ b ∧
     LRS.PiDefEq IH B₁ F₁ F₂ b f
 
@@ -202,12 +202,12 @@ theorem LRS.LamDefEq.mono_r_1 {IH : LogRel Γ n}
 Non-trivial at `.forallE` (Pi injectivity) and `.sort` (sort injectivity). -/
 def LRS.TyEq (IH : LogRel Γ n) (M N : Term) : WShape (n+1) → Prop
   | ⟨.bot, _⟩ | ⟨.lam _, _⟩ => True
-  | ⟨.sort _, _⟩ => ∃ u, Γ ⊢ M ⤳* .sort u ∧ Γ ⊢ N ⤳* .sort u
+  | ⟨.sort _, _⟩ => ∃ u, M ⤳* .sort u ∧ N ⤳* .sort u
   | ⟨.forallE b f, wf⟩ => LRS.ValTyPi2 IH M N ⟨b, wf.1⟩ ⟨f, wf.2⟩
 
 @[simp] theorem LRS.TyEq.bot : LRS.TyEq IH M N .bot := trivial
 @[simp] theorem LRS.TyEq.sort_iff :
-    LRS.TyEq (Γ := Γ) IH M N (.sort r) ↔ ∃ u, Γ ⊢ M ⤳* .sort u ∧ Γ ⊢ N ⤳* .sort u := .rfl
+    LRS.TyEq (Γ := Γ) IH M N (.sort r) ↔ ∃ u, M ⤳* .sort u ∧ N ⤳* .sort u := .rfl
 @[simp] theorem LRS.TyEq.forallE_iff :
     LRS.TyEq (Γ := Γ) IH M N (.forallE b f) ↔ LRS.ValTyPi2 (Γ := Γ) IH M N b f := .rfl
 
@@ -364,7 +364,7 @@ theorem LRS.PiDefEq.join {IH : LogRel Γ n}
 /-- Head reduction on M, N preserves `LamDefEq`. Uses `IH.whr` (with `WHRed.app`)
 to transport the inner `IH.TmEq` terms. HasType is preserved trivially (doesn't mention M, N). -/
 theorem LRS.LamDefEq.whr {IH : LogRel Γ n}
-    (hM : Γ ⊢ M ⤳* M') (hN : Γ ⊢ N ⤳* N') :
+    (hM : M ⤳* M') (hN : N ⤳* N') :
     LRS.LamDefEq IH M N A₁ A₂ m a₁ a₂ ↔ LRS.LamDefEq IH M' N' A₁ A₂ m a₁ a₂ := by
   constructor <;> intro ⟨pav, pae⟩ <;> refine ⟨fun _ _ _ hp ha a1 => ?_, fun _ _ hp ha a1 => ?_⟩
   · have ⟨d1, d2⟩ := pav hp ha a1
@@ -384,7 +384,7 @@ def LRS.TmEq (IH : LogRel Γ n) (M N A : Term) (m a : WShape (n+1)) : Prop :=
     match hm : m.1 with
     | .bot => True
     | .lam mg =>
-      ∃ A₁ A₂ u v, Γ ⊢ A ⤳* .forallE A₁ A₂ ∧
+      ∃ A₁ A₂ u v, A ⤳* .forallE A₁ A₂ ∧
       Γ ⊢ A₁ : .sort u ∧ IH.TyEq A₁ A₁ ⟨a₁, wfa1⟩ ∧ A₁::Γ ⊢ A₂ : .sort v ∧
       LRS.PiDefEq IH A₁ A₂ A₂ ⟨a₁, wfa1⟩ ⟨a₂, wfa2⟩ ∧
       LRS.LamDefEq IH M N A₁ A₂ ⟨mg, (hm ▸ m.2).1⟩ ⟨a₁, wfa1⟩ ⟨a₂, wfa2⟩
@@ -396,7 +396,7 @@ def LRS.TmEq (IH : LogRel Γ n) (M N A : Term) (m a : WShape (n+1)) : Prop :=
 @[simp] theorem LRS.TmEq.bot_m : LRS.TmEq IH M N A .bot (.forallE a₁ a₂) = True := rfl
 @[simp] theorem LRS.TmEq.lam_forallE (IH : LogRel Γ n) :
     LRS.TmEq IH M N A (.lam f hf) (.forallE a₁ a₂) ↔
-    (∃ A₁ A₂ u v, Γ ⊢ A ⤳* .forallE A₁ A₂ ∧
+    (∃ A₁ A₂ u v, A ⤳* .forallE A₁ A₂ ∧
       Γ ⊢ A₁ : .sort u ∧ IH.TyEq A₁ A₁ a₁ ∧ A₁::Γ ⊢ A₂ : .sort v ∧
       LRS.PiDefEq IH A₁ A₂ A₂ a₁ a₂ ∧
       LRS.LamDefEq IH M N A₁ A₂ f a₁ a₂) := by
