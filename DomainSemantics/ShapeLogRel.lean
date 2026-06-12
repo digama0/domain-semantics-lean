@@ -4,8 +4,6 @@ open Lean
 
 namespace DomainSemantics
 
-namespace SExpr
-
 private noncomputable instance : DecidableEq SLevel := fun a b => Classical.propDecidable (a = b)
 
 inductive Shape0 : Type where
@@ -1674,7 +1672,7 @@ theorem NonZero.not_iff {f : WShapeFun n} : ¬f.NonZero ↔ f ≤ .bot := by
     List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false, and_assoc, exists_and_left,
     exists_eq_left, Shape.bot_le, true_and]
 
-theorem NonZero.iff {f : WShapeFun n} : f.NonZero ↔ ¬f ≤ .bot :=
+theorem WShapeFun.NonZero.iff' {f : WShapeFun n} : f.NonZero ↔ ¬f ≤ .bot :=
   (Decidable.not_iff_comm.1 NonZero.not_iff).symm
 
 theorem WShapeFun.NonZero.join {f f' : WShapeFun n} (h : f.Compat f') :
@@ -1682,9 +1680,9 @@ theorem WShapeFun.NonZero.join {f f' : WShapeFun n} (h : f.Compat f') :
   refine ⟨fun hjoin => ?_, ?_⟩
   · by_cases h1 : f.NonZero <;> [exact .inl h1; skip]
     by_cases h2 : f'.NonZero <;> [exact .inr h2; skip]
-    refine (SExpr.NonZero.iff.1 hjoin ?_).elim
-    exact (WShapeFun.Join.mk h _).2 ⟨SExpr.NonZero.not_iff.1 h1, SExpr.NonZero.not_iff.1 h2⟩
-  · rintro (h1 | h1) <;> refine SExpr.NonZero.iff.2 fun hbot => SExpr.NonZero.iff.1 h1 ?_
+    refine (NonZero.iff'.1 hjoin ?_).elim
+    exact (WShapeFun.Join.mk h _).2 ⟨NonZero.not_iff.1 h1, NonZero.not_iff.1 h2⟩
+  · rintro (h1 | h1) <;> refine NonZero.iff'.2 fun hbot => NonZero.iff'.1 h1 ?_
     · exact ((WShapeFun.Join.mk h _).1 hbot).1
     · exact ((WShapeFun.Join.mk h _).1 hbot).2
 
@@ -2836,7 +2834,7 @@ theorem LE_Interp.unlift (le : m.1 ≤ n)
 theorem LE_Interp.lift (le : m.1 ≤ n)
     (H : LE_Interp ρ m M) : LE_Interp ρ (m.2.lift n).T M := H.mono (TShape.lift_eqv le).1
 
-theorem LE_Interp.closed (cl : ClosedN M k) (h : ∀ i < k, ρ i = ρ' i)
+theorem LE_Interp.closed (cl : M.ClosedN k) (h : ∀ i < k, ρ i = ρ' i)
     (H : LE_Interp ρ m M) : LE_Interp ρ' m M := by
   induction H generalizing k ρ' with
   | bot => exact .bot
@@ -2851,7 +2849,7 @@ theorem LE_Interp.closed (cl : ClosedN M k) (h : ∀ i < k, ρ i = ρ' i)
     refine .forallE (ih_b cl.1 h) (ih_b' cl.1 h) hdom (fun x hx => ih_body x hx cl.2 ?_) h1
     intro | 0, _ => rfl | i+1, hi => exact h i (Nat.lt_of_succ_lt_succ hi)
 
-theorem LE_Interp.closed_iff {M : SExpr} (cl : ClosedN M)
+theorem LE_Interp.closed_iff {M : SExpr} (cl : M.ClosedN)
     {ρ ρ' : Valuation} {m : TShape} : LE_Interp ρ m M ↔ LE_Interp ρ' m M :=
   ⟨closed cl nofun, closed cl nofun⟩
 
@@ -3196,7 +3194,7 @@ theorem LE_Interp.forallE_inv' {b} {f : WShapeFun n} {B F}
     LE_Interp ρ b.T B ∧ ∀ x, LE_Interp (ρ.push x.T) (f.app x).T F := by
   refine ⟨H.forallE_inv.1, fun x => ?_⟩
   have := (LE_Interp.weak (x := x.T) H).forallE_inv.2 .bvar0
-  rwa [SExpr.inst, SExpr.subst_lift', (?_ : Subst.lift_l _ _ = Subst.id), subst_id] at this
+  rwa [SExpr.inst, subst_lift', (?_ : Subst.lift_l _ _ = Subst.id), subst_id] at this
   funext i; cases i <;> rfl
 
 theorem LE_Interp.lam_inv {f : WShapeFun n} {B F}
@@ -3236,7 +3234,7 @@ theorem LE_Interp.lam_inv' {f : WShapeFun n} {hl : f.NonZero} {B F}
     (H : LE_Interp ρ (WShape.T (n := n+1) (WShape.lam f hl)) (.lam B F)) (x : WShape n) :
     LE_Interp (ρ.push x.T) (f.app x).T F := by
   have := (WShape.lam_eq_lam' ▸ LE_Interp.weak (x := x.T) H).lam_inv .bvar0
-  rwa [SExpr.inst, SExpr.subst_lift', (?_ : Subst.lift_l _ _ = Subst.id), subst_id] at this
+  rwa [SExpr.inst, subst_lift', (?_ : Subst.lift_l _ _ = Subst.id), subst_id] at this
   funext i; cases i <;> rfl
 
 inductive Valuation.Fits : (Γ Δ : List SExpr) → Valuation → Prop
@@ -4191,7 +4189,7 @@ def LRS.DefEq (IH : LogRel Γ n) (M N A : SExpr) (m a : WShape (n+1)) : Prop :=
     | .bot => True
     | .lam mg =>
       ∃ A₁ A₂ u v, Γ ⊢ A ⤳* .forallE A₁ A₂ ∧
-      Γ ⊢ A₁ : .sort u ∧ IH.TyDefEq A₁ A₁ ⟨a₁, wfa1⟩ ∧ A₁::Γ ⊢ A₂ : sort v ∧
+      Γ ⊢ A₁ : .sort u ∧ IH.TyDefEq A₁ A₁ ⟨a₁, wfa1⟩ ∧ A₁::Γ ⊢ A₂ : .sort v ∧
       LRS.PiDefEq IH A₁ A₂ A₂ ⟨a₁, wfa1⟩ ⟨a₂, wfa2⟩ ∧
       LRS.LamDefEq IH M N A₁ A₂ ⟨mg, (hm ▸ m.2).1⟩ ⟨a₁, wfa1⟩ ⟨a₂, wfa2⟩
     | _ => False
@@ -4203,7 +4201,7 @@ def LRS.DefEq (IH : LogRel Γ n) (M N A : SExpr) (m a : WShape (n+1)) : Prop :=
 @[simp] theorem LRS.DefEq.lam_forallE (IH : LogRel Γ n) :
     LRS.DefEq IH M N A (.lam f hf) (.forallE a₁ a₂) ↔
     (∃ A₁ A₂ u v, Γ ⊢ A ⤳* .forallE A₁ A₂ ∧
-      Γ ⊢ A₁ : .sort u ∧ IH.TyDefEq A₁ A₁ a₁ ∧ A₁::Γ ⊢ A₂ : sort v ∧
+      Γ ⊢ A₁ : .sort u ∧ IH.TyDefEq A₁ A₁ a₁ ∧ A₁::Γ ⊢ A₂ : .sort v ∧
       LRS.PiDefEq IH A₁ A₂ A₂ a₁ a₂ ∧
       LRS.LamDefEq IH M N A₁ A₂ f a₁ a₂) := by
   show (∃ A₁ A₂ u v, _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ LRS.LamDefEq IH _ _ _ _ ⟨_, _⟩ ⟨_, _⟩ ⟨_, _⟩) ↔ _

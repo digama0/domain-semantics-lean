@@ -10,8 +10,6 @@ prove type uniqueness up to defeq, without needing stratified judgments.
 From this we derive `uniq_sort` and admit a no-`trans'` variant `IsDefEq'`. -/
 
 namespace DomainSemantics
-open Params
-namespace SExpr
 
 section
 set_option hygiene false
@@ -100,7 +98,7 @@ theorem HasTypeS.uniq {Γ : List SExpr} {e A B : SExpr} {b₁ b₂ : Bool}
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
     let .app h_f' _ := H2_s
     obtain ⟨_, h_pi_eq⟩ := ih_f hΓ h_f'
-    obtain ⟨_, _, h_A_eq, h_B_eq⟩ := SExpr.forallE_inv hΓ h_pi_eq
+    obtain ⟨_, _, h_A_eq, h_B_eq⟩ := forallE_inv hΓ h_pi_eq
     have W : Ctx.SubstEq Γ' (.one a) (.one a) (A :: Γ') :=
       .cons (Ctx.SubstEq.id hΓ.strong) (h_A_eq.hasType.1.strong' hΓ.strong)
         (by simpa using h_a.hasType.strong' hΓ.strong)
@@ -117,8 +115,8 @@ theorem HasTypeS.uniq {Γ : List SExpr} {e A B : SExpr} {b₁ b₂ : Bool}
     have hΓ' : ⊢ (_::_) := ⟨hΓ, _, h_A.hasType⟩
     obtain ⟨_, h_A_eq⟩ := ih_A hΓ h_A'
     obtain ⟨_, h_b_eq⟩ := ih_b hΓ' h_b'
-    cases SExpr.sort_inv hΓ h_A_eq
-    cases SExpr.sort_inv hΓ' h_b_eq
+    cases sort_inv hΓ h_A_eq
+    cases sort_inv hΓ' h_b_eq
     exact transport .sort
   | base _ ih_s => exact ih_s hΓ H2
   | defeq d _ ihe =>
@@ -134,7 +132,7 @@ theorem IsDefEq.toHasTypeS {Γ : List SExpr} {e₁ e₂ A : SExpr}
   | trans _ _ ih1 ih2 => exact ⟨(ih1 hΓ).1, (ih2 hΓ).2⟩
   | trans' _ _ ih1 ih2 =>
     obtain ⟨_, eq⟩ := (ih1 hΓ).2.uniq hΓ (ih2 hΓ).1
-    cases SExpr.sort_inv hΓ eq
+    cases sort_inv hΓ eq
     exact ⟨(ih1 hΓ).1, (ih2 hΓ).2⟩
   | sort => exact ⟨.base .sort', .base .sort'⟩
   | appDF _ _ _ _ h_Ba _ _ ih_f ih_a ih_Ba =>
@@ -159,7 +157,7 @@ theorem IsDefEq.uniq_sort {Γ : List SExpr} {e₁ e₂ e₃ : SExpr} {u v : Bool
   have ⟨_, h_e2_u⟩ := h1.toHasTypeS hΓ
   have ⟨h_e2_v, _⟩ := h2.toHasTypeS hΓ
   obtain ⟨_, eq⟩ := h_e2_u.uniq hΓ h_e2_v
-  exact SExpr.sort_inv hΓ eq
+  exact sort_inv hΓ eq
 
 /-! ## `IsDefEq'`: defeq without heterogeneous `trans'`
 
@@ -257,6 +255,3 @@ theorem Ctx.WF.iff {Γ : List SExpr} : ⊢ Γ ↔ ⊢' Γ := ⟨toWF', WF'.toWF�
 theorem IsDefEq.iff_isDefEq' {Γ : List SExpr} {e₁ e₂ A : SExpr} (hΓ : ⊢' Γ) :
     Γ ⊢ e₁ ≡ e₂ : A ↔ Γ ⊢' e₁ ≡ e₂ : A :=
   ⟨IsDefEq.toIsDefEq' hΓ.toWF, IsDefEq'.toIsDefEq⟩
-
-end SExpr
-end DomainSemantics

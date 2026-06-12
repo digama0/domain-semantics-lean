@@ -2,13 +2,6 @@ import DomainSemantics.Lift
 
 namespace DomainSemantics
 
-
-class Params where
-  univs : Nat
-
-open Params
--- variable [Params]
-
 inductive SExpr where
   | bvar (i : Nat)
   | sort (u : Bool)
@@ -70,6 +63,8 @@ theorem ClosedN.instL : ∀ {e}, ClosedN e k → ClosedN (e.instL ls) k
   | .bvar .., h | .sort .., h => h
   | .app .., h | .lam .., h | .forallE .., h => ⟨h.1.instL, h.2.instL⟩
 
+end SExpr
+open SExpr
 
 def Subst := Nat → SExpr
 
@@ -158,7 +153,7 @@ theorem Subst.Depth.toSubst (ρ : Lift) : ρ.toSubst.Depth ρ.size ρ.dom := by
   intro i; simp [Lift.toSubst_apply]
   induction ρ <;> simp! [*] <;> omega
 
-def subst : SExpr → Subst → SExpr
+def SExpr.subst : SExpr → Subst → SExpr
   | .bvar i, σ => σ i
   | .sort u, _ => .sort u
   | .app fn arg, σ => .app (fn.subst σ) (arg.subst σ)
@@ -232,14 +227,14 @@ theorem ClosedN.subst_eq {e : SExpr} (self : ClosedN e k) (h : σ.Fixes k) : e.s
   | app _ _ ih1 ih2 => exact ⟨ih1 self.1 h, ih2 self.2 h⟩
   | lam _ _ ih1 ih2 | forallE _ _ ih1 ih2 => exact ⟨ih1 self.1 h, ih2 self.2 h.lift⟩
 
-def inst (e a : SExpr) : SExpr := e.subst (.one a)
+def SExpr.inst (e a : SExpr) : SExpr := e.subst (.one a)
 
-def Skips (e : SExpr) (ρ : Lift) : Prop := lift' (e.subst ρ.invS) ρ = e
+def SExpr.Skips (e : SExpr) (ρ : Lift) : Prop := lift' (e.subst ρ.invS) ρ = e
 
-theorem Skips.lift (e : SExpr) (ρ : Lift) : Skips (e.lift' ρ) ρ := by
+theorem SExpr.Skips.lift (e : SExpr) (ρ : Lift) : Skips (e.lift' ρ) ρ := by
   rw [Skips, subst_lift'_inv]
 
-def Skips' : SExpr → (ρ : Lift) → Prop
+def SExpr.Skips' : SExpr → (ρ : Lift) → Prop
   | .bvar i, ρ => ∃ j, ρ.liftVar j = i
   | .sort .., _ => True
   | .app fn arg, ρ => fn.Skips' ρ ∧ arg.Skips' ρ
@@ -453,7 +448,7 @@ theorem Lookup.weakU_inv (W : Ctx.Lift' ρ Γ Γ')
 theorem Lookup.weak'_inv (W : Ctx.Lift' ρ Γ Γ')
     (H : Lookup Γ' (ρ.liftVar i) (A.lift' ρ)) : Lookup Γ i A := by
   let ⟨_, h1, h2⟩ := H.weakU_inv W
-  exact SExpr.lift'_inj.1 h1 ▸ h2
+  exact lift'_inj.1 h1 ▸ h2
 
 theorem Lookup.uniq (hA : Lookup Γ i A) (hB : Lookup Γ i B) : A = B :=
   match hA, hB with
@@ -525,20 +520,20 @@ theorem IsDefEqStrong.weak' (W : Ctx.Lift' ρ Γ Γ') (H : IsDefEqStrong Γ e1 e
   | trans' _ _ ih1 ih2 => exact .trans' (ih1 W) (ih2 W)
   | sort => exact .sort
   | appDF _ _ _ _ _ ih1 ih2 ih3 ih4 ih5 =>
-    exact SExpr.lift'_inst_hi .. ▸ .appDF (ih1 W) (ih2 W.cons) (ih3 W) (ih4 W)
-      (SExpr.lift'_inst_hi .. ▸ SExpr.lift'_inst_hi .. ▸ ih5 W)
+    exact lift'_inst_hi .. ▸ .appDF (ih1 W) (ih2 W.cons) (ih3 W) (ih4 W)
+      (lift'_inst_hi .. ▸ lift'_inst_hi .. ▸ ih5 W)
   | lamDF _ _ _ _ ih1 ih2 ih3 ih4 =>
     exact .lamDF (ih1 W) (ih2 W.cons) (ih3 W.cons) (ih4 W.cons)
   | forallEDF _ _ _ ih1 ih2 ih3 => exact .forallEDF (ih1 W) (ih2 W.cons) (ih3 W.cons)
   | defeqDF _ _ ih1 ih2 => exact .defeqDF (ih1 W) (ih2 W)
   | beta _ _ _ _ _ ih1 ih2 ih3 ih4 ih5 =>
-    rw [SExpr.lift'_inst_hi, SExpr.lift'_inst_hi]
+    rw [lift'_inst_hi, lift'_inst_hi]
     refine .beta (ih1 W) (ih2 W.cons) (ih3 W) ?_ ?_
-    · rw [← SExpr.lift'_inst_hi]; exact ih4 W
-    · rw [← SExpr.lift'_inst_hi, ← SExpr.lift'_inst_hi]; exact ih5 W
+    · rw [← lift'_inst_hi]; exact ih4 W
+    · rw [← lift'_inst_hi, ← lift'_inst_hi]; exact ih5 W
   | eta _ _ ih1 ih2 =>
     refine cast ?_ (IsDefEqStrong.eta (ih1 W) (cast ?_ (ih2 W)))
-    all_goals simp [SExpr.lift', ← SExpr.lift'_comp]
+    all_goals simp [lift', ← lift'_comp]
   | proofIrrel _ _ _ ih1 ih2 ih3 => exact .proofIrrel (ih1 W) (ih2 W) (ih3 W)
 
 theorem IsDefEqStrong.defeq : IsDefEqStrong Γ e1 e2 A → Γ ⊢ e1 ≡ e2 : A := by
@@ -605,7 +600,7 @@ theorem Subst.lift_r_toSubst {ρ ρ' : Lift} :
 /-- Two-sided strong substitution structure. Each `.cons` entry carries
 `IsDefEqStrong` witnesses (sort proof in source `Γ` and head-equality in target
 `Γ₀`). The `.nil` constructor allows arbitrary `σ`, `σ'` for an empty source. -/
-inductive Ctx.SubstEq (Γ₀ : List SExpr) : SExpr.Subst → SExpr.Subst → List SExpr → Prop where
+inductive Ctx.SubstEq (Γ₀ : List SExpr) : Subst → Subst → List SExpr → Prop where
   | nil : Ctx.SubstEq Γ₀ σ σ' []
   | cons : Ctx.SubstEq Γ₀ σ.tail σ'.tail Γ →
     IsDefEqStrong Γ A A (.sort u) →
@@ -652,9 +647,9 @@ theorem Ctx.SubstEq.lift (W : Ctx.SubstEq Γ₀ σ σ' Γ)
     (hA' : IsDefEqStrong Γ₀ (A.subst σ) (A.subst σ) (.sort u)) :
     Ctx.SubstEq (A.subst σ :: Γ₀) σ.lift σ'.lift (A :: Γ) := by
   have htail : σ.lift.tail = σ.lift_r (.skip .refl) := by
-    funext i; simp [SExpr.Subst.tail, SExpr.Subst.lift, SExpr.Subst.lift_r]
+    funext i; simp [Subst.tail, Subst.lift, Subst.lift_r]
   have htail' : σ'.lift.tail = σ'.lift_r (.skip .refl) := by
-    funext i; simp [SExpr.Subst.tail, SExpr.Subst.lift, SExpr.Subst.lift_r]
+    funext i; simp [Subst.tail, Subst.lift, Subst.lift_r]
   refine .cons (htail ▸ htail' ▸ W.skip) hA ?_
   show IsDefEqStrong (A.subst σ :: Γ₀) (.bvar 0) (.bvar 0) (A.subst σ.lift.tail)
   rw [htail]
@@ -698,14 +693,14 @@ theorem IsDefEq.weak' (W : Ctx.Lift' ρ Γ Γ') (H : Γ ⊢ e1 ≡ e2 : A) :
   | trans _ _ ih1 ih2 => exact .trans (ih1 W) (ih2 W)
   | trans' _ _ ih1 ih2 => exact .trans' (ih1 W) (ih2 W)
   | sort => exact .sort
-  | appDF _ _ ih1 ih2 => exact SExpr.lift'_inst_hi .. ▸ .appDF (ih1 W) (ih2 W)
+  | appDF _ _ ih1 ih2 => exact lift'_inst_hi .. ▸ .appDF (ih1 W) (ih2 W)
   | lamDF _ _ ih1 ih2 => exact .lamDF (ih1 W) (ih2 W.cons)
   | forallEDF _ _ ih1 ih2 => exact .forallEDF (ih1 W) (ih2 W.cons)
   | defeqDF _ _ ih1 ih2 => exact .defeqDF (ih1 W) (ih2 W)
   | beta _ _ ih1 ih2 =>
-    rw [SExpr.lift'_inst_hi, SExpr.lift'_inst_hi]
+    rw [lift'_inst_hi, lift'_inst_hi]
     exact .beta (ih1 W.cons) (ih2 W)
-  | eta _ ih => refine cast ?_ (IsDefEq.eta (ih W)); congr 1; simp [← SExpr.lift'_comp]
+  | eta _ ih => refine cast ?_ (IsDefEq.eta (ih W)); congr 1; simp [← lift'_comp]
   | proofIrrel _ _ _ ih1 ih2 ih3 => exact .proofIrrel (ih1 W) (ih2 W) (ih3 W)
 
 /-- The source context of any `SubstEq` is strong (recoverable from the per-`cons`
@@ -730,9 +725,9 @@ private theorem Ctx.SubstEq.lift_dummy (W : Ctx.SubstEq Γ₀ σ σ' Γ)
     (hA' : IsDefEqStrong Γ₀ (A.subst σ) (A.subst σ) (.sort u)) :
     Ctx.SubstEq (A.subst σ :: Γ₀) σ.lift σ'.lift (A :: Γ) := by
   have htail : σ.lift.tail = σ.lift_r (.skip .refl) := by
-    funext i; simp [SExpr.Subst.tail, SExpr.Subst.lift, SExpr.Subst.lift_r]
+    funext i; simp [Subst.tail, Subst.lift, Subst.lift_r]
   have htail' : σ'.lift.tail = σ'.lift_r (.skip .refl) := by
-    funext i; simp [SExpr.Subst.tail, SExpr.Subst.lift, SExpr.Subst.lift_r]
+    funext i; simp [Subst.tail, Subst.lift, Subst.lift_r]
   refine .cons (htail ▸ htail' ▸ W.skip) hA ?_
   show IsDefEqStrong (A.subst σ :: Γ₀) (.bvar 0) (.bvar 0) (A.subst σ.lift.tail)
   rw [htail]
@@ -748,9 +743,9 @@ theorem Ctx.SubstEq.lift_at (W : Ctx.SubstEq Γ₀ σ σ' Γ)
     (hAX : IsDefEqStrong Γ₀ (A.subst σ) X (.sort u)) :
     Ctx.SubstEq (X :: Γ₀) σ.lift σ'.lift (A :: Γ) := by
   have htail : σ.lift.tail = σ.lift_r (.skip .refl) := by
-    funext i; simp [SExpr.Subst.tail, SExpr.Subst.lift, SExpr.Subst.lift_r]
+    funext i; simp [Subst.tail, Subst.lift, Subst.lift_r]
   have htail' : σ'.lift.tail = σ'.lift_r (.skip .refl) := by
-    funext i; simp [SExpr.Subst.tail, SExpr.Subst.lift, SExpr.Subst.lift_r]
+    funext i; simp [Subst.tail, Subst.lift, Subst.lift_r]
   refine .cons (htail ▸ htail' ▸ W.skip) hA ?_
   show IsDefEqStrong (X :: Γ₀) (.bvar 0) (.bvar 0) (A.subst σ.lift.tail)
   rw [htail,
@@ -1073,10 +1068,10 @@ theorem IsDefEqStrong.forallE_inv' (hΓ : CtxStrong Γ)
     | bvar i =>
       cases i with
       | zero =>
-        simp [SExpr.inst, SExpr.subst, SExpr.Subst.one, SExpr.Subst.cons] at eq
+        simp [SExpr.inst, SExpr.subst, Subst.one, Subst.cons] at eq
         exact ihe' hΓ (.inl eq)
       | succ n =>
-        simp [SExpr.inst, SExpr.subst, SExpr.Subst.one, SExpr.Subst.cons, SExpr.Subst.id] at eq
+        simp [SExpr.inst, SExpr.subst, Subst.one, Subst.cons, Subst.id] at eq
     | forallE A_e B_e =>
       cases eq
       have hΓ' : CtxStrong (A_c::Γ_c) := ⟨hΓ, _, hA⟩
@@ -1257,7 +1252,7 @@ inductive WHRed (Γ : List SExpr) : SExpr → SExpr → Prop where
 theorem WHRed.weak' (W : Ctx.Lift' ρ Γ Γ') :
     Γ ⊢ e1 ⤳ e2 → Γ' ⊢ e1.lift' ρ ⤳ e2.lift' ρ
   | .app h1 => .app (h1.weak' W)
-  | .beta => by rw [SExpr.lift'_inst_hi]; exact .beta
+  | .beta => by rw [lift'_inst_hi]; exact .beta
 
 theorem WHRed.weakU_inv (H : Γ' ⊢ e1.lift' ρ ⤳ e2') :
     ∃ e2, e2' = e2.lift' ρ ∧ Γ ⊢ e1 ⤳ e2 := by
@@ -1266,7 +1261,7 @@ theorem WHRed.weakU_inv (H : Γ' ⊢ e1.lift' ρ ⤳ e2') :
   | app h1 ih => let .app .. := e1; cases he; obtain ⟨_, rfl, a1⟩ := ih rfl; exact ⟨_, rfl, .app a1⟩
   | beta =>
     let .app e1 _ := e1; let .lam .. := e1; cases he
-    simp [← SExpr.lift'_inst_hi, SExpr.lift'_inj]; exact .beta
+    simp [← lift'_inst_hi, lift'_inj]; exact .beta
 
 def WHNF (Γ : List SExpr) (e : SExpr) := ∀ e', ¬Γ ⊢ e ⤳ e'
 

@@ -2,8 +2,6 @@ import DomainSemantics.ShapeLogRel
 
 namespace DomainSemantics
 
-namespace SExpr
-
 def LR.Adequate (Γ₀ Γ : List SExpr) (ρ : Valuation) (M N A : SExpr) (m a : WShape n) :=
   (∀ {{σ σ'}} (W : LR.SubstWF Γ₀ σ σ' Γ ρ),
     (LR W.wf₀).DefEq (M.subst σ) (M.subst σ') (A.subst σ) m a ∧
@@ -17,12 +15,10 @@ theorem LR.Adequate.fits
     (H : ρ.Fits Γ₀ Γ → Adequate Γ₀ Γ ρ M N A m a) : Adequate Γ₀ Γ ρ M N A m a :=
   ⟨fun _ _ W => (H W.fits).1 W, fun _ W => (H W.fits).2 W⟩
 
-theorem LR.Adequate.wf
-    (H : ⊢ Γ → Adequate Γ₀ Γ ρ M N A m a) : Adequate Γ₀ Γ ρ M N A m a :=
+theorem LR.Adequate.wf (H : ⊢ Γ → Adequate Γ₀ Γ ρ M N A m a) : Adequate Γ₀ Γ ρ M N A m a :=
   ⟨fun _ _ W => (H W.wf).1 W, fun _ W => (H W.wf).2 W⟩
 
-theorem LR.Adequate.wf₀
-    (H : ⊢ Γ₀ → Adequate Γ₀ Γ ρ M N A m a) : Adequate Γ₀ Γ ρ M N A m a :=
+theorem LR.Adequate.wf₀ (H : ⊢ Γ₀ → Adequate Γ₀ Γ ρ M N A m a) : Adequate Γ₀ Γ ρ M N A m a :=
   ⟨fun _ _ W => (H W.wf₀).1 W, fun _ W => (H W.wf₀).2 W⟩
 
 theorem LR.Adequate.refl
@@ -51,7 +47,7 @@ theorem LR.Adequate.trans' : Adequate Γ₀ Γ ρ A₁ A₂ (.sort u) a s →
 
 theorem LR.Adequate.cons {hΓ₀ : ⊢ Γ₀}
     (ihA : ∀ {ρ n} {m a : WShape n}, LE_Interp ρ m.T A → LE_Interp ρ a.T (.sort u) →
-      m.HasType a → Adequate Γ₀ Γ ρ A A' (sort u) m a)
+      m.HasType a → Adequate Γ₀ Γ ρ A A' (.sort u) m a)
     (HA : Γ ⊢ A ≡ A' : .sort u)
     {{k : Nat}} {{a₁ p : WShape k}} {{x x' σ σ' ρ}}
     (hp : p.HasType a₁) (hA₁ : LE_Interp ρ a₁.T A)
@@ -426,7 +422,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     · exact fun a b p hp ha hv => ⟨(vpi_M.1 hp ha hv).1, (vpi_N.1 hp ha hv).2⟩
     refine ((LR _).whr ?_ .rfl).2 (vpi_N.2 hp ha hv)
     rw [(?_ : (e0.subst σ).app a = _)]; · exact .tail .rfl .beta
-    rw [inst_lift_cons, subst, lift_subst_cons]; rfl
+    rw [inst_lift_cons, SExpr.subst, lift_subst_cons]; rfl
   | proofIrrel Hp =>
     refine .wf fun hΓ => .fits fun W => ?_
     have ⟨_, _, s, le_n, le_a, _, hSort, hmem'⟩ := (LE_Interp.sound hΓ Hp.defeq W).2 hA |>.out
