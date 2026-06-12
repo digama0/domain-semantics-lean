@@ -1401,75 +1401,6 @@ theorem WShapeFun.join_mem {f : WShapeFun n}
     join (.sort r : WShape n) (.sort r') = if r = r' then .sort r else .bot := by
   ext1; simp [join, WShape.Compat, sort, Shape.Compat.sort_sort]; split <;> rfl
 
-/-
-protected theorem Shape.WF.plift (x : WShape n) :
-    WF (n := m) x.1.plift.1 ∧ ∀ y : Shape m, x.1.plift.2 = some y → y.WF := by
-  induction m generalizing n with | zero => exact ⟨trivial, fun _ _ => trivial⟩ | succ m ih
-  cases n with | zero => obtain ⟨⟨⟩⟩ := x <;> simp [WF, plift] | succ n
-  specialize @ih n
-  let rec go (x : WShapeFun n) :
-      ShapeFun.WF (n := m) WF (ShapeFun.plift plift x.1).1 ∧
-      ∀ y : ShapeFun m, (ShapeFun.plift plift x.1).2 = some y → ShapeFun.WF WF y := by
-    obtain le | le := Nat.le_total n m
-    · simp [ShapeFun.plift_eq_lift le, ShapeFun.WF.lift le x.2]
-    simp [ShapeFun.plift, ShapeFun.WF, ShapeFun.WF', List.mapM_eq_some]
-    -- have ⟨⟨⟨_, a1⟩, a2⟩, a3⟩ := x.2
-    refine ⟨⟨⟨?_, ?_⟩, ?_⟩, fun _ h1 => ⟨⟨?_, ?_⟩, fun _ _ h2 => ?_⟩⟩
-    · have ⟨_, h⟩ := x.2.1.1; exact ⟨_, _, _, h, _, by cases n <;> rfl, rfl, rfl⟩
-    · intro _ _ _ _ h1 b₂ h2 rfl rfl _ _ _ _ h3 c₂ h4 rfl rfl; refine ⟨fun h => ?_, fun h => ?_⟩
-      · replace ⟨b1, _, h1⟩ := x.mem_val' h1; replace ⟨c1, _, h3⟩ := x.mem_val' h3
-        refine have hc := by exact Compat.plift.2 h2 h4 h
-          have ⟨⟨d, d'⟩, d1, d2, d3⟩ := x.join_mem h1 h3 hc; ?_
-        let b₂' : WShape _ := ⟨b₂, (ih ⟨_, b1⟩).2 _ h2⟩
-        let c₂' : WShape _ := ⟨c₂, (ih ⟨_, c1⟩).2 _ h4⟩
-        change b₂'.Compat c₂' at h
-        have jeq : (b₂'.join c₂').1 = b₂.join c₂ := by simp [b₂', c₂', WShape.join_val h]
-        have ⟨j1, j2⟩ := (WShape.Join.mk h).le
-        simp [WShape.LE.def, b₂', c₂', jeq] at j1 j2
-        have : d.1 ≤ ((b₂'.join c₂').lift n).1 := by
-          refine d3.trans <| (WShape.Join.mk hc _).2 ⟨?_, ?_⟩ <;>
-            simp [WShape.LE.def, WShape.lift_val le, jeq, ← plift_le le] <;> exact ⟨_, ‹_›, ‹_›⟩
-        have ⟨d₂, e1, e2⟩ := (plift_le le).2 (jeq ▸ WShape.lift_val le ▸ this :)
-        refine ⟨_, ⟨_, _, _, d1, _, e1, rfl, rfl⟩, jeq ▸ (?_ : _ ≤ d₂), e2⟩
-        have ⟨j3, j4⟩ := (WShape.Join.mk hc _).1 d2
-        have := (plift_le le).1 ⟨_, e1, .rfl⟩
-        refine (WShape.Join.mk h ⟨d₂, (ih _).2 _ e1⟩).2 ⟨?_, ?_⟩
-        · have ⟨_, f1, f2⟩ := (plift_le le).2 (j3.trans this); cases h2.symm.trans f1; exact f2
-        · have ⟨_, f1, f2⟩ := (plift_le le).2 (j4.trans this); cases h4.symm.trans f1; exact f2
-      · rename_i b b' c c'
-        refine plift_mono <| x.mem_mono (x.mem_val h1) (x.mem_val h3) ?_
-        sorry
-    stop
-    · intro _ _ _ _ h1 _ h2 rfl rfl; exact ⟨(ih (a3 _ h1).1).2 _ h2, (ih (a3 _ h1).2).1⟩
-    · have ⟨_, b1, _, _, rfl⟩ := h1.forall_exists_l _ a1; exact ⟨_, by simpa using b1⟩
-    · intro _ b₂ h2 _ c₂ h3
-      obtain ⟨⟨b, b'⟩, b1, _, b2, ⟨⟩⟩ := h1.forall_exists_r _ h2
-      obtain ⟨⟨c, c'⟩, c1, _, c2, ⟨⟩⟩ := h1.forall_exists_r _ h3; dsimp at *
-      refine ⟨fun h => ?_, fun h => ?_⟩
-      · sorry
-      · sorry
-    · obtain ⟨⟨b, b'⟩, b1, _, b2, ⟨⟩⟩ := h1.forall_exists_r _ h2
-      exact ⟨(ih (a3 _ b1).1).1, (ih (a3 _ b1).2).2 _ b2⟩
-  obtain ⟨x, wf⟩ := x
-  cases x with simp [WF] at wf <;> simp [plift, WF, List.mapM_eq_some, *]
-  | forallE =>
-    refine ⟨⟨(ih ⟨_, wf.1⟩).1, (go ⟨_, wf.2⟩).1⟩, ?_⟩
-    rintro _ _ h1 _ h2 rfl; exact ⟨(ih ⟨_, wf.1⟩).2 _ h1, (go ⟨_, wf.2⟩).2 _ h2⟩
-  | lam => exact ⟨⟨(go ⟨_, wf.1⟩).1, sorry⟩, fun _ h1 => ⟨(go ⟨_, wf.1⟩).2 _ h1, sorry⟩⟩
-  | ctor =>
-    refine ⟨⟨fun _ h1 => (ih ⟨_, wf.1 _ h1⟩).1, sorry⟩, fun _ h1 => ⟨fun _ h2 => ?_, sorry⟩⟩
-    have ⟨_, h3, h4⟩ := h1.forall_exists_r _ h2; exact (ih ⟨_, wf.1 _ h3⟩).2 _ h4
-
--- theorem ShapeFun.WF'.plift (h : WF (n := n) Shape.WF x) :
---     WF (n := m) Shape.WF (plift Shape.plift x).1 ∧
---     ∀ y : ShapeFun m, (plift Shape.plift x).2 = some y → WF Shape.WF y := by
---   sorry
-
--- theorem Shape.WF.plift (h : WF (n := n) x) : WF (n := m) x.plift.1 := sorry
--- theorem ShapeFun.WF.plift (h : WF (n := n) Shape.WF x) :
---     WF (n := m) Shape.WF (plift Shape.plift x).1 := sorry
--/
-
 theorem WShape.Join.lift {x y z : WShape n} (le : n ≤ m) :
     (x.lift m).Join (y.lift m) (z.lift m) ↔ x.Join y z := by
   constructor
@@ -3737,8 +3668,8 @@ theorem StrongSound.uniq : StrongSound Γ M A → StrongSound Γ M B → SoundEq
     simp only [SoundEq.sort]
     exact SoundEq.sort.1 (ihB a2 b2)
 
-theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A := by
-  replace H := H.strong
+theorem LE_Interp.strongSound (hΓ : ⊢ Γ) (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A := by
+  replace H := H.strong hΓ; clear hΓ
   induction H with
   | @bvar _ i A _ h h2 ih =>
     refine .rfl ⟨fun _ _ W _ h => ?_, .bvar h, .rfl⟩; clear h2 ih
@@ -3750,7 +3681,7 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
     | zero => exact ⟨_, _, a1, .bvar .rfl, h2.weak, h3⟩
     | succ h => have ⟨_, _, le, h1, h2, h3⟩ := ih h a1; exact ⟨_, _, le, h1.weak, h2.weak, h3⟩
   | symm _ ih => exact ih.symm
-  | trans H _ _ _ ih1 ih2 => exact ih1.trans ih2
+  | trans _ _ ih1 ih2 => exact ih1.trans ih2
   | trans' _ _ ih1 ih2 =>
     have ⟨a2, a3, a4, a6, a7⟩ := ih1; have ⟨b2, _, b5, b6, b7⟩ := ih2
     have := ih2.left.uniq ih1.right
@@ -3761,7 +3692,7 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
     induction h with cases eq
     | bot => exact .mk .rfl .bot .bot (.bot_T' <| .bot .sort)
     | sort h1 => exact .mk h1 (.sort .rfl) (.sort .rfl) (by simpa using .sort)
-  | appDF _ _ _ _ ihA ih1 ih2 ih3 =>
+  | appDF _ _ _ _ _ ihA _ ih1 ih2 ih3 =>
     refine .mk' (.app ihA.left.sound ih1.left ih2.left) .rfl
       (.app ihA.left.sound ih1.right ih2.right) ih3.sound.symm fun _ _ W m => ?_
     by_cases hm : m ≤ TShape.bot; · exact TShape.le_bot'.1 hm ▸ sound_bot
@@ -3803,7 +3734,7 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
     refine ⟨ih2.sound, ?_, ?_⟩
     · exact ⟨a2.defeq_r ih1.sound, a3, a4.trans ih1.sound⟩
     · exact ⟨ih2.right.sound.defeq_r ih1.sound, b3, b4.trans ih1.sound⟩
-  | beta _ _ _ _ ih1 ih2 ih3 ih4 =>
+  | beta _ _ _ _ _ _ ih1 ih2 ih3 ih4 =>
     refine ⟨fun _ _ W m => ?_, ih3.left, ih4.left⟩
     by_cases hm : m ≤ .bot; · exact TShape.le_bot'.1 hm ▸ (sound_bot (A := default)).1
     refine ⟨fun h => ?_, fun h => ?_⟩
@@ -3902,11 +3833,12 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
     have b4' := TShape.HasType.mono_r (by simpa using b3.le_sort) .sort b4
     exact a1.trans (b4'.proofIrrel (b4'.mono_r b1 a4))
 
-theorem LE_Interp.sound (H : Γ ⊢ M ≡ N : A) (W : Valuation.Fits Γ₀ Γ ρ) {m} :
+theorem LE_Interp.sound (hΓ : ⊢ Γ) (H : Γ ⊢ M ≡ N : A) (W : Valuation.Fits Γ₀ Γ ρ) {m} :
     (LE_Interp ρ m M ↔ LE_Interp ρ m N) ∧ (LE_Interp ρ m M → InterpTyped ρ m M A) :=
-  ⟨(strongSound H).sound W, (strongSound H).left.sound W⟩
+  ⟨(strongSound hΓ H).sound W, (strongSound hΓ H).left.sound W⟩
 
 structure LogRelBase (Γ : List SExpr) (n : Nat) where
+  wf : ⊢ Γ
   /-- Term validity: `M ≡ N : A` at element-shape `m` and type-shape `a`. -/
   DefEq (M N A : SExpr) (m a : WShape n) : Prop
   /-- Type validity: `A ≡ B` are valid types at type-shape `a`. -/
@@ -3948,7 +3880,8 @@ def LR0.DefEq (Γ : List SExpr) (M N : SExpr) (m a : WShape 0) : Prop :=
   | .bot => True
   | .sort _ => LR0.TyDefEq Γ M N m
 
-def LR0 : LogRel Γ 0 where
+def LR0 (wf : ⊢ Γ) : LogRel Γ 0 where
+  wf
   DefEq M N _ := LR0.DefEq Γ M N
   TyDefEq := LR0.TyDefEq Γ
   sort_iff := by simp [LR0.DefEq, LR0.TyDefEq, WShape.sort]
@@ -4084,20 +4017,18 @@ def LRS.TyDefEq (IH : LogRel Γ n) (M N : SExpr) : WShape (n+1) → Prop
 @[simp] theorem LRS.TyDefEq.forallE_iff :
     LRS.TyDefEq (Γ := Γ) IH M N (.forallE b f) ↔ LRS.ValTyPi2 (Γ := Γ) IH M N b f := .rfl
 
-theorem LRS.TyDefEq.left {IH : LogRel Γ n} :
-    LRS.TyDefEq IH M N m → LRS.TyDefEq IH M M m := by
+theorem LRS.TyDefEq.left {IH : LogRel Γ n} : LRS.TyDefEq IH M N m → LRS.TyDefEq IH M M m := by
   dsimp [LRS.TyDefEq]; split <;> try trivial
   · intro ⟨u, hM, _⟩; exact ⟨u, hM, hM⟩
   · intro ⟨B₁, F₁, _, _, u, v, rM, _, hB, hF, hValB, hE⟩
     exact ⟨B₁, F₁, B₁, F₁, u, v, rM, rM, hB.hasType.1, hF.hasType.1, IH.left_ty hValB, hE.left⟩
 
-theorem LRS.TyDefEq.symm {IH : LogRel Γ n} :
-    LRS.TyDefEq IH M N m → LRS.TyDefEq IH N M m := by
+theorem LRS.TyDefEq.symm {IH : LogRel Γ n} : LRS.TyDefEq IH M N m → LRS.TyDefEq IH N M m := by
   dsimp [LRS.TyDefEq]; split <;> try trivial
   · intro ⟨u, hM, hN⟩; exact ⟨u, hN, hM⟩
   · intro ⟨_, _, _, _, _, _, rM, rN, hB, hF, hValB, hE1, hE2⟩
     have hValB' := IH.symm_ty hValB
-    refine ⟨_, _, _, _, _, _, rN, rM, hB.symm, hB.defeqDF_l hF.symm,
+    refine ⟨_, _, _, _, _, _, rN, rM, hB.symm, hB.defeqDF_l IH.wf hF.symm,
       hValB', fun _ _ _ hp ha a1 => ?_, fun _ _ hp ha a1 => ?_⟩
     · exact (hE1 hp (hB.symm.defeqDF ha) (IH.conv hValB' a1)).symm
     · exact IH.symm_ty (hE2 hp (hB.symm.defeqDF ha) (IH.conv hValB' a1))
@@ -4110,7 +4041,7 @@ theorem LRS.TyDefEq.trans {IH : LogRel Γ n} :
   · intro ⟨B₁, F₁, B₂, F₂, u, v, rM₁, rM₂, hB₁₂, hF₁₂, hValB₁₂, hE1⟩
           ⟨_, _, B₃, F₃, u', v', rM₂', rM₃, hB₂₃, hF₂₃, hValB₂₃, hE2⟩
     cases rM₂.determ .forallE rM₂' .forallE
-    have hF₂₃' := hB₁₂.symm.defeqDF_l hF₂₃
+    have hF₂₃' := hB₁₂.symm.defeqDF_l IH.wf hF₂₃
     refine ⟨_, _, _, _, _, _, rM₁, rM₃, hB₁₂.trans' hB₂₃, hF₁₂.trans' hF₂₃',
       IH.trans_ty hValB₁₂ hValB₂₃, fun _ _ _ hp ha a1 => ?_, fun _ _ hp ha a1 => ?_⟩
     · exact ⟨(hE1.1 hp ha a1).1, (hE2.1 hp (hB₁₂.defeqDF ha) (IH.conv hValB₁₂ a1)).2⟩
@@ -4285,6 +4216,7 @@ def LRS.DefEq (IH : LogRel Γ n) (M N A : SExpr) (m a : WShape (n+1)) : Prop :=
 @[simp] theorem LRS.TyDefEq.lam_m : LRS.TyDefEq IH M N (.lam f hf) ↔ True := .rfl
 
 def LRS (IH : LogRel Γ n) : LogRel Γ (n+1) where
+  wf := IH.wf
   DefEq := LRS.DefEq IH
   TyDefEq := LRS.TyDefEq IH
   sort_iff := .rfl
@@ -4324,7 +4256,7 @@ def LRS (IH : LogRel Γ n) : LogRel Γ (n+1) where
     intro ⟨_, _, _, v', rA₁, hA1, hValA, hA₂, hEdge₁, hP⟩
     cases rA.determ .forallE rA₁ .forallE
     refine ⟨_, _, _, _, rA', hBB'.hasType.2, IH.left_ty (IH.symm_ty hValB),
-      hBB'.defeqDF_l hFF'.hasType.2, ?_, ?_⟩
+      hBB'.defeqDF_l IH.wf hFF'.hasType.2, ?_, ?_⟩
     · refine ⟨fun _ _ _ hp ha a1 => ?_, fun _ _ hp ha a1 => ?_⟩ <;>
         have ha' := hBB'.symm.defeqDF ha
       · exact and_self_iff.2 (hEdge.1 hp ha' (IH.conv (IH.symm_ty hValB) a1)).2
@@ -4509,13 +4441,13 @@ def LRS (IH : LogRel Γ n) : LogRel Γ (n+1) where
       · exact ⟨B₁, F₁, B₂, F₂, u, v, .trans hA rM, .trans hB rN, rest⟩
     | _ => rfl
 
-def LR (Γ : List SExpr) : LogRel Γ n :=
+def LR {Γ : List SExpr} (hΓ : ⊢ Γ) : LogRel Γ n :=
   match n with
-  | 0 => LR0
-  | _+1 => LRS (LR Γ)
+  | 0 => LR0 hΓ
+  | _+1 => LRS (LR hΓ)
 
-@[simp] theorem LR_zero : LR (n := 0) Γ = LR0 := rfl
-@[simp] theorem LR_succ : LR (n := n+1) Γ = LRS (LR Γ) := rfl
+@[simp] theorem LR_zero : LR (n := 0) hΓ = LR0 hΓ := rfl
+@[simp] theorem LR_succ : LR (n := n+1) hΓ = LRS (LR hΓ) := rfl
 
 private theorem LRS.PiDefEq.lift_aux
     {b : WShape n} {f : WShapeFun n} (le : n ≤ n') (htpi_a : WShape.HasTypePi f b true)
@@ -4673,14 +4605,13 @@ theorem LR.TyDefEq.lift {m : WShape n} (le : n ≤ n') (hmt : WShape.HasType m .
   simp [WShape.type] at this
   exact (LR.lift_succ_aux.1 this).trans ih
 
-
 def LR.Subst1 (Γ₀ : List SExpr) (x x' A₀ A A' : SExpr) (ρ : Valuation) (i := 0) : Prop :=
-  Γ₀ ⊢ x ≡ x' : A ∧ ∀ {{n}} (a : WShape n), LE_Interp ρ a.T A₀ →
-    (a.HasType .type → (∃ u, Γ₀ ⊢ A ≡ A' : .sort u) ∧ (LR Γ₀).TyDefEq A A' a) ∧
-    ∀ {{m : WShape n}}, LE_Interp ρ m.T (.bvar i) → m.HasType a → (LR Γ₀).DefEq x x' A m a
+  Γ₀ ⊢ x ≡ x' : A ∧ ∃ hΓ₀ : ⊢ Γ₀, ∀ {{n}} (a : WShape n), LE_Interp ρ a.T A₀ →
+    (a.HasType .type → (∃ u, Γ₀ ⊢ A ≡ A' : .sort u) ∧ (LR hΓ₀).TyDefEq A A' a) ∧
+    ∀ {{m : WShape n}}, LE_Interp ρ m.T (.bvar i) → m.HasType a → (LR hΓ₀).DefEq x x' A m a
 
 inductive LR.SubstWF (Γ₀ : List SExpr) : Subst → Subst → List SExpr → Valuation → Prop where
-  | id : LR.SubstWF Γ₀ .id .id Γ₀ .nil
+  | id : ⊢ Γ₀ → LR.SubstWF Γ₀ .id .id Γ₀ .nil
   | cons : LR.SubstWF Γ₀ σ.tail σ'.tail Γ ρ →
     (∀ {a}, LE_Interp ρ a A →
       ∃ a', a ≤ a' ∧ LE_Interp ρ a' A ∧ a'.HasType .type) →
@@ -4689,28 +4620,42 @@ inductive LR.SubstWF (Γ₀ : List SExpr) : Subst → Subst → List SExpr → V
     LR.SubstWF Γ₀ σ σ' (A :: Γ) (ρ.push x)
 
 theorem LR.SubstWF.fits : LR.SubstWF Γ₀ σ σ' Γ ρ → ρ.Fits Γ₀ Γ
-  | .id => .nil
+  | .id _ => .nil
   | .cons W h1 h2 h3 _ _ => .cons W.fits h1 h2 h3
 
-theorem LR.SubstWF.toSubstEq : LR.SubstWF Γ₀ σ σ' Γ ρ → Ctx.SubstEq Γ₀ σ σ' Γ
-  | .id => .nil
-  | .cons W _ _ _ hA h0 => .cons W.toSubstEq hA h0.1
+theorem LR.SubstWF.wf : LR.SubstWF Γ₀ σ σ' Γ ρ → ⊢ Γ
+  | .id hWF => hWF
+  | .cons W _ _ _ hA _ => ⟨W.wf, _, hA⟩
+
+theorem LR.SubstWF.wf₀ : LR.SubstWF Γ₀ σ σ' Γ ρ → ⊢ Γ₀
+  | .id hWF => hWF
+  | .cons W _ _ _ _ _ => W.wf₀
+
+theorem LR.SubstWF.toSubstEq (W : LR.SubstWF Γ₀ σ σ' Γ ρ) :
+    Ctx.SubstEq Γ₀ σ σ' Γ := by
+  induction W with
+  | id hWF => exact Ctx.SubstEq.id hWF.strong
+  | cons W h1 h2 h3 hA h0 ih =>
+    refine .cons ih (hA.strong' W.wf.strong) (h0.1.strong' W.wf₀.strong)
 
 theorem LR.SubstWF.left (W : LR.SubstWF Γ₀ σ σ' Γ ρ) : LR.SubstWF Γ₀ σ σ Γ ρ := by
   induction W with
-  | id => exact .id
+  | id hWF => exact .id hWF
   | cons _ h1 h2 h3 hA h0 ih =>
-    refine .cons ih h1 h2 h3 hA ⟨h0.1.hasType.1, fun _ a ha => ⟨fun ht => ?_, fun _ hM hmem => ?_⟩⟩
-    · have ⟨⟨_, h1⟩, h2⟩ := (h0.2 a ha).1 ht; exact ⟨⟨_, h1.hasType.1⟩, (LR _).left_ty h2⟩
-    · exact (LR _).left <| (h0.2 a ha).2 hM hmem
+    have ⟨a1, _, a2⟩ := h0
+    refine .cons ih h1 h2 h3 hA ⟨a1.hasType.1, ih.wf₀, fun _ a ha => ?_⟩
+    refine ⟨fun ht => ?_, fun _ hM hmem => ?_⟩
+    · have ⟨⟨_, h1⟩, h2⟩ := (a2 a ha).1 ht; exact ⟨⟨_, h1.hasType.1⟩, (LR _).left_ty h2⟩
+    · exact (LR _).left <| (a2 a ha).2 hM hmem
 
 theorem LR.SubstWF.symm (W : LR.SubstWF Γ₀ σ σ' Γ ρ) : LR.SubstWF Γ₀ σ' σ Γ ρ := by
   induction W with
-  | id => exact .id
+  | id hWF => exact .id hWF
   | cons _ h1 h2 h3 hA h0 ih =>
-    refine .cons ih h1 h2 h3 hA ⟨?_, fun _ a ha => ⟨fun ht => ?_, fun _ hM hmem => ?_⟩⟩
-    · have ⟨⟨_, h1⟩, _⟩ := (h0.2 (n := 0) _ .bot).1 (.bot .sort)
+    have ⟨a1, _, a2⟩ := h0
+    refine .cons ih h1 h2 h3 hA ⟨?_, ih.wf₀, fun _ a ha => ⟨fun ht => ?_, fun _ hM hmem => ?_⟩⟩
+    · have ⟨⟨_, h1⟩, _⟩ := (a2 (n := 0) _ .bot).1 (.bot .sort)
       exact h1.defeqDF h0.1.symm
-    · exact let ⟨⟨u, h1⟩, h2⟩ := (h0.2 a ha).1 ht; ⟨⟨u, h1.symm⟩, (LR _).symm_ty h2⟩
-    · let ⟨_, h2⟩ := (h0.2 a ha).1 hmem.isType
-      exact (LR _).conv h2 ((LR _).symm ((h0.2 a ha).2 hM hmem))
+    · exact let ⟨⟨u, h1⟩, h2⟩ := (a2 a ha).1 ht; ⟨⟨u, h1.symm⟩, (LR _).symm_ty h2⟩
+    · let ⟨_, h2⟩ := (a2 a ha).1 hmem.isType
+      exact (LR _).conv h2 ((LR _).symm ((a2 a ha).2 hM hmem))
