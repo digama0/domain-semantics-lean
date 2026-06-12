@@ -1,21 +1,54 @@
 import DomainSemantics.Basic
 
+/-! # The shape domain
+
+This file defines the semantic *shape* domain that the logical relation
+will interpret terms into.
+
+* `Shape n` is a level-graded inductive of "value-shape skeletons":
+  `Shape 0` is just `bot` and `sort`; each successor level adds
+  `forallE` / `lam` constructors whose function content is a finite graph
+  `ShapeFun n`.
+* `WShape n` carves out the well-formed shapes — those with compatible
+  domain entries, joinable codomains, etc. `WShapeFun n` does the same
+  for function graphs. These are the actual domain elements.
+* `TShape := Σ n, WShape n` packages a shape together with its level so
+  that operations across levels (`lift`, `Compat`, `join`, `app`) can be
+  stated uniformly. Order, compatibility and joins on `TShape` lift both
+  arguments to a common level first.
+* `Shape.HasType` (and its `WShape`/`TShape` variants) is a decidable
+  typing relation on shapes, including the `HasDom`/`HasTypePi`/
+  `HasTypeLam` flavors used to constrain Π- and λ-shapes' graphs. -/
+
 namespace DomainSemantics
 
+/-- Ground (level-0) shapes: just the bottom element and a sort indexed by
+`rel : Bool` (proof-relevant vs proof-irrelevant). All function-shape
+information lives at level ≥ 1. -/
 inductive Shape0 : Type where
   | bot : Shape0
   | sort (rel : Bool) : Shape0
 
+/-- One step of the level-graded shape constructor: extends a previous level
+`Shape` with Π- and λ-shapes whose function part is a finite graph
+(`List (Shape × Shape)`). The graph encodes the function as an explicit
+set of input/output samples. -/
 inductive ShapeS (Shape : Type) : Type where
   | bot : ShapeS Shape
   | sort (rel : Bool) : ShapeS Shape
   | forallE : Shape → List (Shape × Shape) → ShapeS Shape
   | lam : List (Shape × Shape) → ShapeS Shape
 
+/-- The graded shape domain: `Shape 0 = Shape0`, `Shape (n+1) = ShapeS (Shape n)`.
+Higher `n` allows nesting Π/λ shapes inside other Π/λ shapes. Most of the
+logical relation is parametric in this index. -/
 def Shape : Nat → Type
   | 0 => Shape0
   | n + 1 => ShapeS (Shape n)
 
+/-- A "function shape" at level `n`: a finite graph of input/output pairs
+between level-`n` shapes. Used to represent the function content of a
+Π-type or λ-abstraction at the next level. -/
 abbrev ShapeFun (n) := List (Shape n × Shape n)
 
 @[match_pattern] def Shape.bot : ∀ {n}, Shape n
@@ -36,6 +69,10 @@ def ShapeFun.Compat (R : α → β → Bool) (f : List (α × α)) (f' : List (�
 theorem ShapeFun.Compat.def : Compat R f f' ↔ ∀ x ∈ f, ∀ y ∈ f', R x.1 y.1 → R x.2 y.2 := by
   simp [ShapeFun.Compat, -decide_implies]
 
+/-- Decidable "compatibility" relation on shapes: two shapes are compatible
+when they agree on their constructor shape and, recursively, on shared
+function entries. `bot` is universally compatible. Used to characterise
+when two shapes can be joined. -/
 def Shape.Compat : ∀ {n}, Shape n → Shape n → Bool
   | 0, .bot, _ | 0, _, .bot | _+1, .bot, _ | _+1, _, .bot => true
   | 0, .sort r, .sort r' | _+1, .sort r, .sort r' => r = r'
@@ -63,6 +100,9 @@ theorem Shape.Compat.forallE_forallE {a a' : Shape n} {f f' : ShapeFun n} :
 def ShapeFun.ble (R : α → α → Bool) (f f' : List (α × α)) : Bool :=
   f.all fun (x, y) => f'.any fun (x', y') => R x' x && R y y'
 
+/-- Decidable order on shapes: `s ≤ s'` if both have matching head
+constructors and every entry of `s`'s function part is dominated by an
+entry of `s'`'s. `bot` is the least element. -/
 def Shape.ble : ∀ {n}, Shape n → Shape n → Bool
   | 0, .bot, _ | _+1, .bot, _ => true
   | 0, .sort r, .sort r' | _+1, .sort r, .sort r' => r = r'
@@ -70,7 +110,11 @@ def Shape.ble : ∀ {n}, Shape n → Shape n → Bool
   | _+1, .lam f, .lam f' => ShapeFun.ble ble f f'
   | _, _, _ => false
 
+/-- The order on `ShapeFun n` (function graphs): each entry of the smaller
+graph must be witnessed (in both coordinates) by a wider entry of the
+larger one. -/
 def ShapeFun.LE (s s' : ShapeFun n) : Prop := ShapeFun.ble Shape.ble s s'
+/-- The order on shapes, lifted to a `Prop` from the decidable `ble`. -/
 def Shape.LE (s s' : Shape n) : Prop := s.ble s'
 instance : LE (Shape n) := ⟨Shape.LE⟩
 instance : DecidableRel (α := Shape n) (· ≤ ·) := fun x y => inferInstanceAs (Decidable (x.ble y))
@@ -177,6 +221,10 @@ theorem Shape.Compat.mono {n} {s s' t t' : Shape n}
 def ShapeFun.lift (lift : α → β) (x : List (α × α)) : List (β × β) :=
   x.map fun (a, b) => (lift a, lift b)
 
+/-- Embed a `Shape n` into `Shape m` for any `m`. When `n ≤ m` this is the
+canonical inclusion that preserves order; when `n > m` it forgets
+structure (and `forallE`/`lam` shapes collapse to `.bot` once we hit
+level 0). -/
 def Shape.lift : ∀ {n} m, Shape n → Shape m
   | 0, _, .sort r | _+1, _, .sort r => .sort r
   | 0, _, .bot | _+1, _, .bot | _, 0, _ => .bot
@@ -492,7 +540,12 @@ protected theorem Shape.WF.sort : (Shape.sort (n := n) r).WF := by cases n <;> t
 protected theorem ShapeFun.WF.bot : (ShapeFun.bot (n := n)).WF Shape.WF := by
   simp [WF, bot, Shape.Compat.bot_l, Shape.bot_join, Shape.WF.bot]
 
+/-- Well-formed shapes — the actual semantic domain. `Shape n` permits
+ill-typed function graphs; `WShape n` carves out those that satisfy
+`Shape.WF` (compatible domain entries, joinable codomains, …). Everything
+the interpretation uses is built from `WShape`/`WShapeFun`. -/
 def WShape (n : Nat) := {s : Shape n // s.WF}
+/-- Well-formed function shapes. -/
 def WShapeFun (n : Nat) := {s : ShapeFun n // s.WF Shape.WF}
 
 instance : Membership (WShape n × WShape n) (WShapeFun n) := ⟨fun f a => (a.1.1, a.2.1) ∈ f.1⟩
@@ -583,7 +636,8 @@ abbrev WShapeFun.LE (a b : WShapeFun n) := a.1.LE b.1
 instance : LE (WShape n) := ⟨WShape.LE⟩
 instance : LE (WShapeFun n) := ⟨WShapeFun.LE⟩
 
-instance : DecidableRel (α := WShape n) (· ≤ ·) := fun a b => inferInstanceAs (Decidable (a.1 ≤ b.1))
+instance : DecidableRel (α := WShape n) (· ≤ ·) :=
+  fun a b => inferInstanceAs (Decidable (a.1 ≤ b.1))
 theorem WShape.LE.def {a b : WShape n} : a ≤ b ↔ a.1 ≤ b.1 := .rfl
 theorem WShapeFun.LE.def {a b : WShapeFun n} : a ≤ b ↔ a.1.LE b.1 := .rfl
 
@@ -954,7 +1008,8 @@ theorem ih_fun {f f' : WShapeFun n} :
         have ⟨c₁, c₂, c1, c2, c3⟩ := H ⟨_, Shape.join_bot ▸ x.2⟩ ⟨_, Shape.join_bot ▸ e1 ▸ e.2⟩
           ⟨_, hf, _, hf', Compat.bot_r, rfl⟩
         simp only [bot, Shape.join_bot] at c2 c3
-        exact ⟨_, _, c1, c2, .trans ((cf _ hf .rfl).trans (e1 ▸ (show _ ≤ e.1 from ((e2 _).1 .rfl).1) :)) c3⟩
+        refine ⟨_, _, c1, c2, .trans ?_ c3⟩
+        exact (cf _ hf .rfl).trans (e1 ▸ (show _ ≤ e.1 from ((e2 _).1 .rfl).1) :)
       · have ⟨_, hf⟩ := f.bot_mem
         have ⟨_, f1, f2, cf⟩ := app_core ih f x; have ⟨f3, f4, f2⟩ := f.mem_val' f2
         have ⟨_, g1, g2, dg⟩ := app_core ih f' x; have ⟨g3, g4, g2⟩ := f'.mem_val' g2
@@ -962,7 +1017,8 @@ theorem ih_fun {f f' : WShapeFun n} :
         have ⟨c₁, c₂, c1, c2, c3⟩ := H ⟨_, Shape.bot_join ▸ x.2⟩ ⟨_, Shape.bot_join ▸ e1 ▸ e.2⟩
           ⟨_, hf, _, hf', Compat.bot_l, rfl⟩
         simp only [bot, Shape.bot_join] at c2 c3
-        exact ⟨_, _, c1, c2, .trans ((dg _ hf' .rfl).trans (e1 ▸ (show _ ≤ e.1 from ((e2 _).1 .rfl).2) :)) c3⟩
+        refine ⟨_, _, c1, c2, .trans ?_ c3⟩
+        exact (dg _ hf' .rfl).trans (e1 ▸ (show _ ≤ e.1 from ((e2 _).1 .rfl).2) :)
     · rintro ⟨_, hx⟩ ⟨_, hy⟩ ⟨x, a3, y, b3, xy, ⟨⟩⟩
       have ⟨a1, a2, a3⟩ := f.mem_val' a3; have ⟨b1, b2, b3⟩ := f'.mem_val' b3
       have ⟨e, e1, e2⟩ := of_compat ih (x := ⟨_, a1⟩) (x' := ⟨_, b1⟩) xy
@@ -1110,7 +1166,11 @@ theorem WShapeFun.Join.iff :
   · exact ⟨((mk h.compat _).2 h.le), (h _).2 (mk h.compat).le⟩
   · exact ⟨fun h => (mk h1 _).1 (h2.trans h), fun h => h3.trans <| (mk h1 _).2 h⟩
 
+/-- The "total" shape domain: a dependent pair of a level `n` and a
+well-formed shape at that level. Order, compatibility and joins on
+`TShape` are defined by lifting both arguments to a common level. -/
 def TShape := Σ n, WShape n
+/-- Inject a `WShape n` into `TShape` by remembering its level. -/
 abbrev WShape.T : WShape n → TShape := Sigma.mk _
 
 def TShape.LE (a b : TShape) : Prop := a.2.lift (max a.1 b.1) ≤ b.2.lift _
@@ -1131,10 +1191,9 @@ theorem TShapeFun.LE.def {a : WShapeFun n} {b : WShapeFun m} (h1 : n ≤ k) (h2 
   rw [WShapeFun.lift_lift (.inl (Nat.le_max_left ..)),
     WShapeFun.lift_lift (.inl (Nat.le_max_right ..))]
 
-theorem TShape.LE.forallE_decomp {b : WShape n} {f : WShapeFun n} {b' : WShape n'} {f' : WShapeFun n'}
-    (le : (WShape.forallE b f).T ≤ (WShape.forallE b' f').T) :
-    b.lift (max n n') ≤ b'.lift (max n n') ∧
-      f.lift (max n n') ≤ f'.lift (max n n') := by
+theorem TShape.LE.forallE_decomp
+    (le : (WShape.forallE (n := n) b f).T ≤ (WShape.forallE (n := n') b' f').T) :
+    b.lift (max n n') ≤ b'.lift (max n n') ∧ f.lift (max n n') ≤ f'.lift (max n n') := by
   have le₁ := Nat.le_max_left n n'; have le₂ := Nat.le_max_right n n'
   have h := (TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂)).1 le
   have h_raw : ((WShape.forallE b f).lift _).1 ≤ ((WShape.forallE b' f').lift _).1 := h
@@ -1298,8 +1357,8 @@ def TShape.join (x y : TShape) : TShape := ⟨max x.1 y.1, (x.2.lift _).join (y.
 
 theorem TShape.lift_join {x y : TShape} (h1 : x.1 ≤ m) (h2 : y.1 ≤ m) :
     (x.join y).2.lift m = (x.2.lift m).join (y.2.lift m) := by
-  simp [join, WShape.lift_join (Nat.max_le.2 ⟨h1, h2⟩), WShape.lift_lift (.inl (Nat.le_max_left ..)),
-    WShape.lift_lift (.inl (Nat.le_max_right ..))]
+  simp [join, WShape.lift_join (Nat.max_le.2 ⟨h1, h2⟩),
+    WShape.lift_lift (.inl (Nat.le_max_left ..)), WShape.lift_lift (.inl (Nat.le_max_right ..))]
 
 def TShape.Join (x y z : TShape) := ∀ w, z ≤ w ↔ x ≤ w ∧ y ≤ w
 
@@ -1335,6 +1394,8 @@ def ShapeFun.WF.app {f : ShapeFun n} (wf : WF Shape.WF f) (wfa : a.WF) : (ShapeF
   have ⟨_, _, h, _⟩ := WShape.join_prop.app_core WShape.join_prop ⟨_, wf⟩ ⟨_, wfa⟩
   exact (wf.2 _ h).2
 
+/-- Semantic application of a function shape to an argument shape: looks up
+the join of all output samples whose input shape is below `a`. -/
 def WShapeFun.app (f : WShapeFun n) (a : WShape n) : WShape n :=
   ⟨ShapeFun.app f.1 a.1, f.2.app a.2⟩
 
@@ -1522,14 +1583,23 @@ def Shape.hasType : ∀ {n}, Shape n → Shape n → Bool
     hasType.core hasType b a (fun _ => .type) && hasType.core hasType f a (ShapeFun.app b)
   | _, _, _ => false
 
+/-- "Has a type": the propositional reflection of `hasType`. `m.HasType a`
+asserts that the shape `m` is a well-typed inhabitant of the type-shape
+`a`, in particular witnessing the dependent-function structure on Π/λ. -/
 def Shape.HasType : Shape n → Shape n → Prop := (hasType · ·)
 
+/-- A function shape's domain entries cover the argument-shape `a`:
+every `(x, y) ∈ f` is dominated by some `(x', y') ∈ f` with `x' : a`. -/
 def Shape.HasDom (f : ShapeFun n) (a : Shape n) :=
   ∀ x y, (x, y) ∈ f → ∃ x' y', (x', y') ∈ f ∧ x' ≤ x ∧ y ≤ y' ∧ x'.HasType a
 
+/-- A Π-type signature is well-formed at `(a, rel)` iff its codomain function
+has domain `a` and lands in `sort rel`. -/
 def Shape.HasTypePi (b : ShapeFun n) (a : Shape n) (rel : Bool) :=
   Shape.HasDom b a ∧ ∀ x y, (x, y) ∈ b → y.HasType (.sort rel)
 
+/-- A λ-abstraction shape is well-typed at `(a, b)` iff `b` is a `Π a Type`
+codomain spec and each `(x, y) ∈ f` lies in `b.app x`. -/
 def Shape.HasTypeLam (f : ShapeFun n) (a : Shape n) (b : ShapeFun n) :=
   Shape.HasTypePi b a true ∧ Shape.HasDom f a ∧ ∀ x y, (x, y) ∈ f → y.HasType (b.app x)
 
@@ -1574,13 +1644,12 @@ protected theorem Shape.HasType.lift (le : n ≤ n') :
   | succ n ih =>
     let n' + 1 := n'; replace le := Nat.le_of_succ_le_succ le
     replace ih {m a} := @ih _ m a le
-    have core {a : ShapeFun n} {a' : Shape n} {G G'}
-        (H : ∀ x, G' (lift n' x) = lift n' (G x)) :
+    have core {a : ShapeFun n} {a' : Shape n} {G G'} (H : ∀ {x}, G' (lift n' x) = lift n' (G x)) :
         hasType.core hasType (ShapeFun.lift (lift n') a) (lift n' a') G' =
         hasType.core hasType a a' G := by
       rw [Bool.eq_iff_iff]; simp [hasType.core, ShapeFun.lift, H, ih, lift_le_lift le]
-    cases m <;> cases a <;> simp only [lift, hasType, type] <;> try rw [core fun _ => lift_sort.symm]
-    · rw [core fun _ => (ShapeFun.lift_app le).symm]
+    cases m <;> cases a <;> simp only [lift, hasType, type] <;> try rw [core lift_sort.symm]
+    · rw [core (ShapeFun.lift_app le).symm]
 
 protected theorem Shape.HasDom.lift (le : n ≤ n') :
     HasDom (ShapeFun.lift (lift n') m) (a.lift n') ↔ HasDom (n := n) m a := by

@@ -1,13 +1,20 @@
 import DomainSemantics.Adequacy
 
-/-! # Unique typing over the Term weak defeq.
+/-! # Unique typing and a trans'-free variant
 
-We work over `Term.IsDefEq` (a.k.a. `=W`), which has a heterogeneous
-transitivity rule `trans'` allowing the middle term to live at a different
-sort. Using `sort_inv` and `forallE_inv` from `ShapeLogRelAdequacy`, we
-prove type uniqueness up to defeq, without needing stratified judgments.
+We work over `Term.IsDefEq`, which has a heterogeneous transitivity rule
+`trans'` whose middle term may live at a different sort. Using
+`sort_inv` and `forallE_inv` from `Adequacy.lean`, we prove type
+uniqueness up to defeq, without needing stratified judgments.
 
-From this we derive `uniq_sort` and admit a no-`trans'` variant `IsDefEq'`. -/
+* `HasTypeS Γ e A b` is a bundled typing judgment carrying sort proofs
+  at every constructor, used as the inductive scaffold for the type
+  uniqueness theorem `HasTypeS.uniq`.
+* From `uniq` we derive `IsDefEq.uniq_sort`: heterogeneous transitivity
+  on sort-typed equalities is in fact homogeneous.
+* `IsDefEq'` is the no-`trans'` variant of `IsDefEq`; `uniq_sort` makes
+  the heterogeneous rule admissible, so `IsDefEq.iff` exhibits an
+  equivalence on well-formed contexts. -/
 
 namespace DomainSemantics
 
@@ -123,6 +130,10 @@ theorem HasTypeS.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
     obtain ⟨_, eq⟩ := ihe hΓ H2
     exact ⟨_, d.symm.trans' eq⟩
 
+/-- Every `IsDefEq` derivation projects to a pair of `HasTypeS` derivations
+on the two sides. The `trans'` case is the only one that needs work: it
+uses `HasTypeS.uniq` on the middle term plus `sort_inv` to collapse the
+heterogeneous step. -/
 theorem IsDefEq.toHasTypeS {Γ : List Term} {e₁ e₂ A : Term}
     (hΓ : ⊢ Γ) (h : Γ ⊢ e₁ ≡ e₂ : A) : Γ ⊨ e₁ : A ∧ Γ ⊨ e₂ : A := by
   induction h with
@@ -222,24 +233,25 @@ theorem IsDefEq'.iff' {Γ : List Term} {e₁ e₂ A : Term}
     | trans' h1 h2 ih1 ih2 => cases h1.uniq_sort hΓ h2; exact .trans (ih1 hΓ) (ih2 hΓ)
     | sort => exact .sort
     | appDF _ _ _ _ _ _ _ ih2 ih3 _ => exact .appDF (ih2 hΓ) (ih3 hΓ)
-    | lamDF h1 _ _ _ ih1 _ ih2 _ =>
-      have hΓ' : ⊢ (_::_) := ⟨hΓ, _, h1.hasType.1⟩
-      exact .lamDF (ih1 hΓ) (ih2 hΓ')
-    | forallEDF h1 _ _ ih1 ih2 _ =>
-      have hΓ' : ⊢ (_::_) := ⟨hΓ, _, h1.hasType.1⟩
-      exact .forallEDF (ih1 hΓ) (ih2 hΓ')
+    | lamDF h1 _ _ _ ih1 _ ih2 _ => exact .lamDF (ih1 hΓ) (ih2 ⟨hΓ, _, h1.hasType.1⟩)
+    | forallEDF h1 _ _ ih1 ih2 _ => exact .forallEDF (ih1 hΓ) (ih2 ⟨hΓ, _, h1.hasType.1⟩)
     | defeqDF _ _ ih1 ih2 => exact .defeqDF (ih1 hΓ) (ih2 hΓ)
-    | beta h1 _ _ _ _ _ ih_he ih_he' _ =>
-      have hΓ' : ⊢ (_::_) := ⟨hΓ, _, h1⟩
-      exact .beta (ih_he hΓ') (ih_he' hΓ)
-    | eta _ _ ih _ => exact .eta (ih hΓ)
+    | beta h1 _ _ _ _ _ ih1 ih2 => exact .beta (ih1 ⟨hΓ, _, h1⟩) (ih2 hΓ)
+    | eta _ _ ih => exact .eta (ih hΓ)
     | proofIrrel _ _ _ ih1 ih2 ih3 => exact .proofIrrel (ih1 hΓ) (ih2 hΓ) (ih3 hΓ)
 
+/-- Well-formed context relative to `IsDefEq'`: each entry has a sort
+typing in the `trans'`-free judgment. Equivalent to `Ctx.WF` on
+well-formed contexts via `Ctx.WF.iff`. -/
 def Ctx.WF' : List Term → Prop
   | [] => True
   | A::Γ => WF' Γ ∧ ∃ u, Γ ⊢' A : .sort u
 scoped notation:65 "⊢' " Γ:36 => Ctx.WF' Γ
 
+/-- Well-formedness of contexts is invariant under the two judgment systems:
+`⊢ Γ` (using `IsDefEq` sort proofs) and `⊢' Γ` (using `IsDefEq'`) are
+mutually derivable, by induction on `Γ` calling `IsDefEq'.iff'` on the
+head sort proof. -/
 theorem Ctx.WF.iff : ∀ {Γ}, ⊢ Γ ↔ ⊢' Γ
   | [] => .rfl
   | _::_ => ⟨

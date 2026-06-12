@@ -1,8 +1,31 @@
 import DomainSemantics.Term
 import DomainSemantics.Shape
 
+/-! # The logical relation
+
+This file builds the level-graded logical relation `LR : ⊢ Γ → LogRel Γ n`.
+
+* `LogRelBase` packages the bare data of a logical relation: a
+  `TmEq M N A m a` predicate for term equality at element/type shapes
+  and a `TyEq A B a` predicate for type equality.
+* `LogRel` extends `LogRelBase` with all the closure properties needed
+  to prove adequacy: symmetry, transitivity, monotonicity in both
+  shapes, conversion, joinability, and stability under weak-head
+  reduction (`whr`).
+* `LR0` is the level-0 instance: types only see `bot` and `sort` shapes.
+* `LRS IH` is the successor-level instance, defined in terms of an
+  inductive hypothesis `IH : LogRel Γ n`. It adds Π/λ handling — see
+  `LRS.PiDefEq` for the Π-edge constraints and `LRS.LamDefEq` for the
+  extensional equality of λ-bodies.
+* `LR hΓ : LogRel Γ n` is the recursive combination, the object every
+  client lemma actually uses. -/
+
 namespace DomainSemantics
 
+/-- A "logical relation base": the underlying data of two indexed relations
+(`TmEq` for term equality at element/type shapes, `TyEq` for type
+equality at a type shape) over a fixed well-formed context. The full
+`LogRel` (below) adds all closure properties as fields. -/
 structure LogRelBase (Γ : List Term) (n : Nat) where
   wf : ⊢ Γ
   /-- Term validity: `M ≡ N : A` at element-shape `m` and type-shape `a`. -/
@@ -10,6 +33,11 @@ structure LogRelBase (Γ : List Term) (n : Nat) where
   /-- Type validity: `A ≡ B` are valid types at type-shape `a`. -/
   TyEq (A B : Term) (a : WShape n) : Prop
 
+/-- The logical relation at level `n`: a `LogRelBase` plus closure
+properties (symmetry, transitivity, conversion, monotonicity, joinability,
+weak-head-reduction stability, …) needed to prove adequacy. Level-0
+(`LR0`) only sees `sort` and `bot` shapes; higher levels (`LRS IH`) add
+Π/λ data on top of an inductive hypothesis `IH : LogRel Γ n`. -/
 structure LogRel (Γ : List Term) (n : Nat) extends LogRelBase Γ n where
   sort_iff : TmEq M N A (.sort r) (.sort r') ↔ ∃ u, Γ ⊢ M ⤳* .sort u ∧ Γ ⊢ N ⤳* .sort u
   bot : a.HasType .type → TmEq M N A .bot a
@@ -44,6 +72,9 @@ def LR0.TmEq (Γ : List Term) (M N : Term) (m a : WShape 0) : Prop :=
   | .bot => True
   | .sort _ => LR0.TyEq Γ M N m
 
+/-- The level-0 logical relation: `TmEq`/`TyEq` only see `bot` (trivially
+true) and `sort` (both sides whr-reduce to the same sort). All structural
+laws hold by case analysis on the type-shape. -/
 def LR0 (wf : ⊢ Γ) : LogRel Γ 0 where
   wf
   TmEq M N _ := LR0.TmEq Γ M N
@@ -119,12 +150,19 @@ theorem LRS.PiDefEq.left {IH : LogRel Γ n} :
     LRS.PiDefEq IH B F₁ F₂ b f → LRS.PiDefEq IH B F₁ F₁ b f := fun ⟨h1, _⟩ =>
   ⟨fun _ _ _ hp ha a1 => ⟨(h1 hp ha a1).1, (h1 hp ha a1).1⟩, fun _ _ hp ha a1 => (h1 hp ha a1).1⟩
 
+/-- "Pi-type validity at level `n+1`": `M₁`, `M₂` both whr-reduce to Π-types
+whose domains and codomains are `IH`-equal, and whose codomain-after-edge
+data satisfies `PiDefEq`. -/
 def LRS.ValTyPi2 (IH : LogRel Γ n) (M₁ M₂ : Term) (b : WShape n) (f : WShapeFun n) : Prop :=
   ∃ B₁ F₁ B₂ F₂ u v,
     Γ ⊢ M₁ ⤳* .forallE B₁ F₁ ∧ Γ ⊢ M₂ ⤳* .forallE B₂ F₂ ∧
     Γ ⊢ B₁ ≡ B₂ : .sort u ∧ B₁::Γ ⊢ F₁ ≡ F₂ : .sort v ∧ IH.TyEq B₁ B₂ b ∧
     LRS.PiDefEq IH B₁ F₁ F₂ b f
 
+/-- "λ-equality at level `n+1`": pointwise extensional equality of the two
+λ-bodies, separated into a "validity" half (each side stable under
+swapping the argument by an equal one) and an "equation" half (both
+sides agree on every common argument). Used by `LRS.TmEq` at `lam`-shape. -/
 def LRS.LamDefEq (IH : LogRel Γ n)
     (M N A₁ A₂ : Term) (m : WShapeFun n) (a₁ : WShape n) (a₂ : WShapeFun n) : Prop :=
   (∀ {{a b p}}, WShape.HasType p a₁ → Γ ⊢ a ≡ b : A₁ → IH.TmEq a b A₁ p a₁ →
@@ -370,6 +408,9 @@ def LRS.TmEq (IH : LogRel Γ n) (M N A : Term) (m a : WShape (n+1)) : Prop :=
     LRS.TmEq IH M N A (.forallE b g) (.forallE a₁ a₂) ↔ False := .rfl
 @[simp] theorem LRS.TyEq.lam_m : LRS.TyEq IH M N (.lam f hf) ↔ True := .rfl
 
+/-- The successor-level logical relation, defined in terms of `IH : LogRel Γ n`.
+Adds Π/λ handling on top of the level-0 `sort`/`bot` skeleton; all closure
+properties are proved by case analysis on the `WShape (n+1)` indices. -/
 def LRS (IH : LogRel Γ n) : LogRel Γ (n+1) where
   wf := IH.wf
   TmEq := LRS.TmEq IH
@@ -584,6 +625,9 @@ def LRS (IH : LogRel Γ n) : LogRel Γ (n+1) where
       · exact ⟨A₁, A₂, u, v, rA, hA1, hA2, hA₂, hE, (LRS.LamDefEq.whr hM hN).2 hP⟩
     | _ => rfl
 
+/-- The full logical relation at arbitrary level `n`, defined by recursion
+on `n` from `LR0` (base) and `LRS` (step). Use this in client lemmas;
+the level-specific definitions are an implementation detail. -/
 def LR {Γ : List Term} (hΓ : ⊢ Γ) : LogRel Γ n :=
   match n with
   | 0 => LR0 hΓ

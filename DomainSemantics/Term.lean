@@ -1,7 +1,39 @@
 import DomainSemantics.Lift
 
+/-! # Terms and the core typing/defeq judgments
+
+The syntactic core of the project.
+
+* `Term` is the untyped pre-syntax: de Bruijn variables, sorts indexed by
+  a `Bool` (proof-relevant vs proof-irrelevant), application, and the two
+  binders `lam` and `forallE`.
+* `Subst := Nat → Term` is the substitution monoid, with operations
+  `id`, `cons`, `one e`, `lift`, `comp`, `tail`, and the action
+  `Term.subst : Term → Subst → Term`. β-instantiation is the special
+  case `Term.inst e a = e.subst (Subst.one a)`.
+* `Lookup`, `Ctx.Lift'` and `Ctx.WF` formalise context membership,
+  context weakenings, and well-formedness.
+* `IsDefEq` (notation `Γ ⊢ e₁ ≡ e₂ : A`) is the central definitional-
+  equality judgment. Each congruence rule carries explicit sort proofs
+  for the subterms involved (so e.g. `appDF` premises include
+  `Γ ⊢ A : sort u` and `A::Γ ⊢ B : sort v`), and the system keeps a
+  heterogeneous transitivity rule `trans'` whose middle term may live
+  at a different sort. This permissive setup lets type uniqueness be
+  proven *after the fact* via Adequacy. The trans'-free variant
+  `IsDefEq'` in `UniqueTyping.lean` is equivalent on well-formed
+  contexts.
+* `Ctx.SubstEq` is the two-sided substitution judgment used to derive
+  the substitution lemma `IsDefEq.subst'`.
+* `WHRed` / `WHNF` / `WHRedS` set up weak-head reduction and its
+  reflexive-transitive closure, the workhorses of the logical relation. -/
+
 namespace DomainSemantics
 
+/-- Raw pre-terms of the dependent λ-calculus the project models. Variables
+are de Bruijn indices, sorts are indexed by a `Bool` (`true` ↦ proof-relevant
+universe `Type`, `false` ↦ proof-irrelevant universe `Prop`), and binders
+(`lam`, `forallE`) carry the domain type explicitly. Well-typed terms are
+carved out by `IsDefEq` below. -/
 inductive Term where
   | bvar (i : Nat)
   | sort (u : Bool)
@@ -13,6 +45,8 @@ instance : Inhabited Term := ⟨.sort false⟩
 
 namespace Term
 
+/-- Apply a `Lift` to every free variable of a term. Under each binder the
+lift is extended with `Lift.cons` so that the bound variable is pinned. -/
 @[simp] def lift' : Term → Lift → Term
   | .bvar i, k => .bvar (k.liftVar i)
   | .sort u, _ => .sort u
@@ -20,6 +54,8 @@ namespace Term
   | .lam ty body, k => .lam (ty.lift' k) (body.lift' k.cons)
   | .forallE ty body, k => .forallE (ty.lift' k) (body.lift' k.cons)
 
+/-- Shorthand for the single-skip lift `lift' e (skip refl)`, i.e. the
+weakening that bumps every free index by one. -/
 abbrev lift e := lift' e (.skip .refl)
 
 theorem lift'_comp {e : Term} : e.lift' (.comp l₁ l₂) = (e.lift' l₁).lift' l₂ := Eq.symm <| by
@@ -33,33 +69,53 @@ theorem lift'_depth_zero {e : Term} (H : l.depth = 0) : e.lift' l = e := by
 end Term
 open Term
 
+/-- A substitution is a function from de Bruijn indices to terms. -/
 def Subst := Nat → Term
 
+/-- `σ.Depth n n'` says `σ` shifts the suffix `[n', ∞)` by a constant offset:
+each index `i + n'` maps to the variable `i + n`. This characterises the
+"closed below `n'`, identity above" substitutions used by lifts and lifts
+restricted by truncation. -/
 def Subst.Depth (σ : Subst) (n n' : Nat) := ∀ i, σ (i + n') = .bvar (i + n)
 
+/-- Extend a substitution under a binder: variable `0` stays put, and
+indices `i+1` are mapped through `σ` and then weakened. -/
 def Subst.lift (σ : Subst) : Subst
   | 0 => .bvar 0
   | i+1 => (σ i).lift
 
+/-- The identity substitution `i ↦ bvar i`. -/
 def Subst.id : Subst := .bvar
+/-- First component of a substitution viewed as a stream. -/
 def Subst.head (σ : Subst) : Term := σ 0
+/-- Drop the head — `σ.tail i := σ (i+1)`. -/
 def Subst.tail (σ : Subst) : Subst := fun n => σ (n+1)
 
 theorem Subst.Depth.id : Subst.id.Depth 0 0 := fun _ => rfl
+/-- Prepend a term to a substitution. `(σ.cons e) 0 = e` and
+`(σ.cons e) (i+1) = σ i`. -/
 def Subst.cons (σ : Subst) (e : Term) : Subst
   | 0 => e
   | i+1 => σ i
 
+/-- The substitution that sends `bvar 0` to `e` and leaves the rest as the
+identity — used to encode β-reduction (`e.subst (.one a) = e.inst a`). -/
 abbrev Subst.one (e : Term) : Subst := .cons .id e
 
 theorem Subst.Depth.one : (Subst.one e).Depth 0 1 := .id
 
+/-- Truncate `σ` above index `n'`: indices `≥ n'` become a shifted identity
+landing at `n`, and indices `< n'` use the original `σ`. -/
 def Subst.trunc (σ : Subst) (n n' : Nat) : Subst :=
   fun i => if n' ≤ i then .bvar (i - n' + n) else σ i
 
 @[simp] theorem Subst.tail_cons : (cons σ e).tail = σ := rfl
 
+/-- Post-compose a substitution with a lift on the codomain (lift each
+output term by `ρ`). -/
 def Subst.lift_r (σ : Subst) (ρ : Lift) : Subst := fun x => (σ x).lift' ρ
+/-- Pre-compose a substitution with a lift on the domain (re-index the input
+through `ρ.liftVar`). -/
 def Subst.lift_l (ρ : Lift) (σ : Subst) : Subst := fun x => σ (ρ.liftVar x)
 
 theorem Subst.tail_eq_lift_l {σ : Subst} : σ.tail = σ.lift_l Lift.refl.skip := rfl
@@ -70,6 +126,8 @@ theorem Subst.lift_l_lift {σ : Subst} {ρ} : (σ.lift_l ρ).lift = σ.lift.lift
 theorem Subst.lift_r_lift {σ : Subst} {ρ} : (σ.lift_r ρ).lift = σ.lift.lift_r ρ.cons := by
   funext i; cases i <;> simp! [lift_r, ← lift'_comp]
 
+/-- Apply a substitution to every free variable of a term, extending `σ`
+under each binder with `Subst.lift`. -/
 def Term.subst : Term → Subst → Term
   | .bvar i, σ => σ i
   | .sort u, _ => .sort u
@@ -88,6 +146,8 @@ theorem subst_lift' {e : Term} : (e.lift' ρ).subst σ = subst e (.lift_l ρ σ)
 theorem lift'_subst {e : Term} : (e.subst σ).lift' ρ = subst e (.lift_r σ ρ) := by
   induction e generalizing ρ σ <;> simp! [*, Subst.lift_r, Subst.lift_r_lift]
 
+/-- Composition of substitutions: `(σ.comp σ') i = (σ i).subst σ'`. Together
+with `Subst.id` this makes `Subst` a monoid acting on `Term`. -/
 def Subst.comp (σ σ' : Subst) : Subst := fun x => (σ x).subst σ'
 
 theorem Subst.comp_lift {σ σ' : Subst} : (σ.comp σ').lift = σ.lift.comp σ'.lift := by
@@ -103,6 +163,8 @@ theorem lift_subst {e : Term} : e.lift.subst σ = e.subst σ.tail := by
 theorem lift_subst_cons {e : Term} : e.lift.subst (σ.cons t) = e.subst σ := by
   rw [lift_subst, Subst.tail_cons]
 
+/-- Instantiate the outermost bound variable of `e` with `a` — i.e. the
+β-redex substitution `e[a/0]`. Implemented as `e.subst (.one a)`. -/
 def Term.inst (e a : Term) : Term := e.subst (.one a)
 
 theorem Subst.lift_r_comm (σ : Subst) (ρ : Lift) (H : Subst.Depth σ 0 n) :
@@ -138,6 +200,10 @@ theorem inst_lift_cons {e : Term} {σ : Subst} :
   funext i; obtain _|i := i <;>
     simp [Subst.comp, Subst.lift, Term.subst, Subst.cons, lift_subst_cons]
 
+/-- Context weakening witness: `Ctx.Lift' l Γ Γ'` says `Γ'` is obtained from
+`Γ` by inserting fresh entries (per `skip`) and applying `l` to the kept
+ones (per `cons`). This is the source-of-truth for the weakening lemma
+`IsDefEq.weak'`. -/
 inductive Ctx.Lift' : Lift → List Term → List Term → Prop where
   | refl : Ctx.Lift' .refl Γ Γ
   | skip : Ctx.Lift' l Γ Γ' → Ctx.Lift' (.skip l) Γ (A :: Γ')
@@ -146,10 +212,17 @@ inductive Ctx.Lift' : Lift → List Term → List Term → Prop where
 section
 set_option hygiene false
 
+/-- de Bruijn lookup: `Lookup Γ i A` says the `i`th entry of `Γ` is `A`,
+already weakened over the binders crossed to reach it. The `.lift` in each
+constructor accounts for that crossing. -/
 inductive Lookup : List Term → Nat → Term → Prop where
   | zero : Lookup (ty::Γ) 0 ty.lift
   | succ : Lookup Γ n ty → Lookup (A::Γ) (n+1) ty.lift
 
+/-- Weakening for `Lookup`: applying a context weakening `Ctx.Lift' ρ Γ Γ'`
+to both the index and the type preserves the lookup. The de Bruijn index
+moves through `ρ.liftVar`, and the type is lifted by `ρ` to track the
+binders crossed. -/
 theorem Lookup.weak' (W : Ctx.Lift' ρ Γ Γ') (H : Lookup Γ i A) :
     Lookup Γ' (ρ.liftVar i) (A.lift' ρ) := by
   induction W generalizing i A with
@@ -173,6 +246,17 @@ theorem Lookup.determ (H1 : Lookup Γ i A) (H2 : Lookup Γ i A') : A = A' := by
 section
 local notation:65 (priority := high) Γ " ⊢ " e1 " : " A:36 => IsDefEq Γ e1 e1 A
 local notation:65 (priority := high) Γ " ⊢ " e1 " ≡ " e2 " : " A:36 => IsDefEq Γ e1 e2 A
+
+/-- The core definitional-equality judgment `Γ ⊢ e₁ ≡ e₂ : A`.
+
+Each congruence rule (`bvar`, `appDF`, `lamDF`, `forallEDF`, `beta`, `eta`)
+carries the sort-typing proofs of its subterms explicitly, so structural
+inversion is direct. Includes the usual β, η and proof-irrelevance
+rules, plus a heterogeneous transitivity `trans'` whose middle term may
+live at a different sort — a permissive system designed so that type
+uniqueness can be proven *after the fact* via Adequacy. The trans'-free
+variant `IsDefEq'` in `UniqueTyping.lean` is equivalent on well-formed
+contexts. -/
 inductive IsDefEq : List Term → Term → Term → Term → Prop where
   | bvar : Lookup Γ i A → Γ ⊢ A : .sort u → Γ ⊢ .bvar i : A
   | symm : Γ ⊢ e ≡ e' : A → Γ ⊢ e' ≡ e : A
@@ -201,6 +285,9 @@ end
 scoped notation:65 Γ " ⊢ " e1 " : " A:36 => IsDefEq Γ e1 e1 A
 scoped notation:65 Γ " ⊢ " e1 " ≡ " e2 " : " A:36 => IsDefEq Γ e1 e2 A
 
+/-- Weakening for `IsDefEq`: every definitional equality lifts along a
+context weakening. Proved by induction on the derivation, with each
+constructor preserving its sort proofs under the lift. -/
 theorem IsDefEq.weak' (W : Ctx.Lift' ρ Γ Γ') (H : Γ ⊢ e1 ≡ e2 : A) :
     Γ' ⊢ e1.lift' ρ ≡ e2.lift' ρ : A.lift' ρ := by
   induction H generalizing ρ Γ' with
@@ -226,8 +313,7 @@ theorem IsDefEq.weak' (W : Ctx.Lift' ρ Γ Γ') (H : Γ ⊢ e1 ≡ e2 : A) :
     all_goals simp [lift', ← lift'_comp]
   | proofIrrel _ _ _ ih1 ih2 ih3 => exact .proofIrrel (ih1 W) (ih2 W) (ih3 W)
 
-theorem IsDefEq.hasType (H : Γ ⊢ e1 ≡ e2 : A) :
-    Γ ⊢ e1 : A ∧ Γ ⊢ e2 : A :=
+theorem IsDefEq.hasType (H : Γ ⊢ e1 ≡ e2 : A) : Γ ⊢ e1 : A ∧ Γ ⊢ e2 : A :=
   ⟨H.trans H.symm, H.symm.trans H⟩
 
 /-- Each variable's type in the context has a sort-typing derivation in IsDefEq. -/
@@ -407,7 +493,8 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
     have he'_σ := (ih3 hΓ₀ hΓ W.left).1
     have happ_σ := (ih4 hΓ₀ hΓ W.left).1
     have heinst_σ := (ih5 hΓ₀ hΓ W.left).1
-    have H_σ : Γ₀ ⊢ (Term.app (Term.lam A e) e').subst σ ≡ (e.inst e').subst σ : (B.inst e').subst σ := by
+    have H_σ : Γ₀ ⊢ (Term.app (Term.lam A e) e').subst σ ≡ (e.inst e').subst σ :
+        (B.inst e').subst σ := by
       show Γ₀ ⊢ Term.app (Term.lam (A.subst σ) (e.subst σ.lift)) (e'.subst σ) ≡ _ : _
       rw [show ((e.inst e').subst σ) = (e.subst σ.lift).inst (e'.subst σ) from subst_inst,
           show ((B.inst e').subst σ) = (B.subst σ.lift).inst (e'.subst σ) from subst_inst]
@@ -445,8 +532,8 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
     · exact .appDF hA' hB' ihf_r iha_r (ih2_cons iha_r)
     · exact .appDF hA' hB' ihf_c iha_c (ih2_cons iha_c)
   | @lamDF Γ A A' u B v body body' h1 _ _ _ ih1 ih2 ih3 ih4 =>
-    -- h1 : A ≡ A' : sort u; h2 : A::Γ ⊢₀ B : sort v (diagonal);
-    -- h3 : A::Γ ⊢₀ body ≡ body' : B; h4 : A'::Γ ⊢₀ body ≡ body' : B.
+    -- h1 : A ≡ A' : sort u; h2 : A::Γ ⊢ B : sort v (diagonal);
+    -- h3 : A::Γ ⊢ body ≡ body' : B; h4 : A'::Γ ⊢ body ≡ body' : B.
     let ⟨ihA_l, ihA_r, ihA_c⟩ := ih1 hΓ₀ hΓ W
     have hA_in_Γ : Γ ⊢ A : .sort u := h1.hasType.1
     have hA'_in_Γ : Γ ⊢ A' : .sort u := h1.hasType.2
@@ -484,18 +571,13 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
     have ih3body_c_at_A'τ := (ih3 hΓ_A'_τ_subst hΓ_A W_A_to_A'τ).2.2
     let ⟨_, ih4body_r, _⟩ := ih4 hΓ_A'_subst hΓ_A' W_A'
     have ih4body_r_at_A'τ := (ih4 hΓ_A'_τ_subst hΓ_A' W_A'_τ).2.1
-    refine ⟨?_, ?_, ?_⟩
+    refine ⟨?_, .defeqDF (hAA'_σ.symm.forallEDF hB_at_A'σ ihB_l.hasType.1) ?_, ?_⟩
     · exact .lamDF ihA_l ihB_l.hasType.1 ih3body_l ih3body_l_at_Aτ
-    · have lamform :=
-        IsDefEq.lamDF ihA_r hB_at_A'σ ih4body_r ih4body_r_at_A'τ
-      have hforallE_eq :
-          Γ₀ ⊢ (A'.subst σ).forallE (B.subst σ.lift) ≡ (A.subst σ).forallE (B.subst σ.lift) : .sort v :=
-        .forallEDF hAA'_σ.symm hB_at_A'σ ihB_l.hasType.1
-      exact .defeqDF hforallE_eq lamform
+    · exact .lamDF ihA_r hB_at_A'σ ih4body_r ih4body_r_at_A'τ
     · exact .lamDF ihA_c ihB_l.hasType.1 ih3body_c ih3body_c_at_A'τ
   | @forallEDF Γ A A' u body body' v h1 h2 _ ih1 ih2 ih3 =>
-    -- h1 : Γ ⊢₀ A ≡ A' : sort u; h2 : A::Γ ⊢₀ body ≡ body' : sort v;
-    -- h3 : A'::Γ ⊢₀ body ≡ body' : sort v (3rd premise).
+    -- h1 : Γ ⊢ A ≡ A' : sort u; h2 : A::Γ ⊢ body ≡ body' : sort v;
+    -- h3 : A'::Γ ⊢ body ≡ body' : sort v (3rd premise).
     let ⟨ihA_l, ihA_r, ihA_c⟩ := ih1 hΓ₀ hΓ W
     have hA_in_Γ : Γ ⊢ A : .sort u := h1.hasType.1
     have hA'_in_Γ : Γ ⊢ A' : .sort u := h1.hasType.2
@@ -530,16 +612,19 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
             .forallEDF ihA_r ihB'_r ihB'_r_at_A'τ,
             .forallEDF ihA_c ihB_c ihB_c_at_A'τ⟩
 
-/-- Main substitution lemma for ``, ⊢ derived ≡ as : a corollary of the
-two-sided `substEq'`. Takes a diagonal `Ctx.SubstEq Γ₀ σ σ Γ`; the cross conjunct
-of `substEq'` at diagonal `W` gives `e1.subst σ ≡ e2.subst σ`. -/
+/-- Main substitution lemma: from `Γ ⊢ e₁ ≡ e₂ : A` and a diagonal
+two-sided substitution `Ctx.SubstEq Γ₀ σ σ Γ` we get
+`Γ₀ ⊢ e₁.subst σ ≡ e₂.subst σ : A.subst σ`. Derived as a corollary of the
+three-conjunct `substEq'` at diagonal `W`. -/
 theorem IsDefEq.subst (hΓ₀ : ⊢ Γ₀) (hΓ : ⊢ Γ)
     (W : Ctx.SubstEq Γ₀ σ σ Γ) (H : Γ ⊢ e1 ≡ e2 : A) :
     Γ₀ ⊢ e1.subst σ ≡ e2.subst σ : A.subst σ :=
   (H.substEq' hΓ₀ hΓ W).2.2
 
-/-- Non-diagonal substitution: takes a two-sided `SubstEq Γ₀ σ σ' Γ` and yields
-`e1.subst σ ≡ e2.subst σ'` (the cross conjunct of `substEq'`). -/
+/-- Non-diagonal substitution lemma: from `Γ ⊢ e₁ ≡ e₂ : A` and a two-sided
+`SubstEq Γ₀ σ σ' Γ` we get `Γ₀ ⊢ e₁.subst σ ≡ e₂.subst σ' : A.subst σ`
+(the cross conjunct of the three-conjunct `substEq'`). The diagonal
+version `IsDefEq.subst` falls out by taking `σ' = σ`. -/
 theorem IsDefEq.subst' (hΓ₀ : ⊢ Γ₀) (hΓ : ⊢ Γ)
     (W : Ctx.SubstEq Γ₀ σ σ' Γ) (H : Γ ⊢ e1 ≡ e2 : A) :
     Γ₀ ⊢ e1.subst σ ≡ e2.subst σ' : A.subst σ :=
@@ -704,10 +789,15 @@ theorem IsDefEq.eta₀ {Γ e A B} (hΓ : ⊢ Γ) (he : Γ ⊢ e : .forallE A B) 
   exact .eta he (.lamDF hA hB this this)
 
 scoped notation:65 Γ " ⊢ " e1 " ⤳ " e2:36 => WHRed Γ e1 e2
+/-- Single-step weak-head reduction `Γ ⊢ e ⤳ e'`. Only the head position is
+reduced: either β-reduce a `lam`-headed application, or recurse on the
+function side of an `app`. Right-context-indexed for uniformity with the
+typing judgment, although the rules never inspect `Γ`. -/
 inductive WHRed (Γ : List Term) : Term → Term → Prop where
   | app : Γ ⊢ f ⤳ f' → Γ ⊢ .app f a ⤳ .app f' a
   | beta : Γ ⊢ .app (.lam A e) a ⤳ e.inst a
 
+/-- `WHNF Γ e` says `e` is in weak head-normal form: no `⤳` step applies. -/
 def WHNF (Γ : List Term) (e : Term) := ∀ e', ¬Γ ⊢ e ⤳ e'
 
 theorem WHNF.sort : WHNF Γ (.sort A) := nofun
@@ -724,6 +814,7 @@ theorem WHRed.determ (H1 : Γ ⊢ e ⤳ e₁) (H2 : Γ ⊢ e ⤳ e₂) : e₁ = 
     | app h2 => cases h2
     | beta => rfl
 
+/-- Multi-step weak-head reduction: the reflexive-transitive closure of `WHRed Γ`. -/
 def WHRedS (Γ : List Term) : Term → Term → Prop := ReflTransGen (WHRed Γ)
 scoped notation:65 Γ " ⊢ " e1 " ⤳* " e2:36 => WHRedS Γ e1 e2
 

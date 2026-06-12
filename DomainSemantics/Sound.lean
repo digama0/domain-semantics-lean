@@ -1,15 +1,42 @@
 import DomainSemantics.Term
 import DomainSemantics.Shape
 
+/-! # Semantic interpretation and soundness
+
+This file bridges `Term` and `Shape`: it defines what it means for a
+shape to interpret a term, and packages the data needed to state the
+soundness theorem for `IsDefEq`.
+
+* `Valuation := Nat → TShape` assigns a shape to each free variable.
+* `LE_Interp ρ m M` is the *interpretation relation*: shape `m` is a
+  lower bound on an interpretation of term `M` under valuation `ρ`. It
+  is monotone in `m` and the structure of `M`.
+* `Valuation.Fits Γ Δ ρ` says `ρ` realises a semantic substitution from
+  `Δ` into `Γ`, with saturation hypotheses on each domain type.
+* `InterpTyped ρ m M A` is the saturated form: there are witnesses
+  `m'`, `a` interpreting `M`, `A` with `m ≤ m'` and `m'.HasType a`.
+* `SoundEq Γ M N` / `SoundTy Γ M A` collect these as predicates on
+  judgments; `StrongSound` and `StrongSoundEq` are the mutual fixed
+  point used to express soundness inductively over the term structure.
+
+The actual soundness theorem `LE_Interp.sound` (mid-file) is the main
+output: every `IsDefEq` derivation produces both an iff on `M`/`N` and a
+saturated `InterpTyped`. -/
+
 namespace DomainSemantics
 
+/-- A valuation assigns each de Bruijn index a `TShape`. Used to interpret
+the free variables of a term in the logical-relation domain. -/
 def Valuation := Nat → TShape
 
+/-- The empty valuation: every index maps to `(0, .bot)`. -/
 def Valuation.nil : Valuation := fun _ => ⟨0, .bot⟩
+/-- Push a new value onto the front of a valuation (under-binder extension). -/
 def Valuation.push (ρ : Valuation) (u : TShape) : Valuation
   | 0 => u
   | n+1 => ρ n
 
+/-- Pointwise order on valuations. -/
 def Valuation.LE (ρ ρ' : Valuation) : Prop := ∀ n, ρ n ≤ ρ' n
 
 theorem Valuation.LE.rfl {ρ : Valuation} : ρ.LE ρ := fun _ => .rfl
@@ -29,6 +56,12 @@ theorem Valuation.Compat.le_join {ρ₁ ρ₂ : Valuation}
     (hc : ρ₁.Compat ρ₂) : ρ₁.LE (ρ₁.join ρ₂) ∧ ρ₂.LE (ρ₁.join ρ₂) :=
   ⟨fun i => (TShape.Join.mk (hc i)).le.1, fun i => (TShape.Join.mk (hc i)).le.2⟩
 
+/-- The semantic interpretation relation: `LE_Interp ρ m M` says that the
+type-shape `m` is below an interpretation of the term `M` under valuation
+`ρ`. Reading `m` as a *lower bound* makes the relation monotone in `m`
+(see `LE_Interp.mono`). The five constructors mirror the term syntax
+(`bvar`, `sort`, `app`, `lam`, `forallE`) plus a `bot` rule that always
+succeeds at the bottom shape. -/
 inductive LE_Interp : Valuation → TShape → Term → Prop
   | bot : LE_Interp ρ (WShape.T (n := n) .bot) M
   | bvar : m ≤ ρ i → LE_Interp ρ m (.bvar i)
@@ -479,6 +512,11 @@ theorem LE_Interp.lam_inv' {f : WShapeFun n} {hl : f.NonZero} {B F}
   rwa [Term.inst, subst_lift', (?_ : Subst.lift_l _ _ = Subst.id), subst_id] at this
   funext i; cases i <;> rfl
 
+/-- "Fits" relation: `ρ.Fits Γ Δ` says the valuation `ρ` is a semantic
+substitution from the source context `Δ` into the target context `Γ`,
+with each cons step requiring (i) a saturation witness on `A`, (ii) an
+interpretation of the value, and (iii) a typing constraint
+`x.HasType a`. -/
 inductive Valuation.Fits : (Γ Δ : List Term) → Valuation → Prop
   | nil : Valuation.Fits Γ Γ .nil
   | cons : Valuation.Fits Γ Δ ρ →
@@ -486,6 +524,9 @@ inductive Valuation.Fits : (Γ Δ : List Term) → Valuation → Prop
     LE_Interp ρ a A → x.HasType a →
     Valuation.Fits Γ (A::Δ) (ρ.push x)
 
+/-- Typed interpretation: there exist witnesses `m'` and `a` interpreting
+`M` and `A` such that `m ≤ m'` and `m'.HasType a`. This is the
+"saturated" form of `LE_Interp` used in the soundness theorem statements. -/
 def InterpTyped (ρ : Valuation) (m : TShape) (M A : Term) :=
   ∃ m' a, m ≤ m' ∧ LE_Interp ρ m' M ∧ LE_Interp ρ a A ∧ m'.HasType a
 
@@ -763,16 +804,27 @@ theorem LE_Interp.sound_forallE
       · exact (TShape.HasType.def le₂ (Nat.zero_le k)).1 heb'
       · exact .bot' .sort
 
+/-- Semantic equality: `M` and `N` have the same interpretation under every
+fits valuation. -/
 def SoundEq (Γ : List Term) (M N : Term) : Prop :=
   ∀ {{Γ₀ ρ}}, Valuation.Fits Γ₀ Γ ρ → ∀ {m}, LE_Interp ρ m M ↔ LE_Interp ρ m N
+/-- Semantic typing: under every fits valuation, every `m ≤` `M` is saturated
+to an `InterpTyped` witness at `A`. -/
 def SoundTy (Γ : List Term) (M A : Term) : Prop :=
   ∀ {{Γ₀ ρ}}, Valuation.Fits Γ₀ Γ ρ → ∀ {m}, LE_Interp ρ m M → InterpTyped ρ m M A
 
 mutual
+/-- `StrongSound Γ M A`: `M` is semantically typed at `A` *and* there is a
+structural derivation at some `A'` related to `A` by `SoundEq`. The
+intermediate `A'` lets the structural rules use whatever Π/sort form is
+natural while still concluding at the desired `A`. -/
 inductive StrongSound : List Term → Term → Term → Prop where
   | mk : SoundTy Γ M A →
     StrongSoundCore Γ M A' → SoundEq Γ A' A → StrongSound Γ M A
 
+/-- Structural typing relation: one constructor per term former
+(`bvar`/`sort`/`lam`/`app`/`forallE`). Mutually recursive with
+`StrongSound`, which is what each sub-derivation actually produces. -/
 inductive StrongSoundCore : List Term → Term → Term → Prop where
   | bvar : Lookup Γ i A → StrongSoundCore Γ (.bvar i) A
   | sort : StrongSoundCore Γ (.sort l) (.sort true)
@@ -784,6 +836,8 @@ inductive StrongSoundCore : List Term → Term → Term → Prop where
   | forallE : StrongSound Γ A (.sort u) → StrongSound (A::Γ) B (.sort v) →
     StrongSoundCore Γ (.forallE A B) (.sort v)
 end
+/-- Strong soundness for an equality judgment: both sides are individually
+`StrongSound` at `A`, and they are semantically equal. -/
 structure StrongSoundEq (Γ : List Term) (M N A : Term) : Prop where
   sound : SoundEq Γ M N
   left : StrongSound Γ M A
@@ -1069,6 +1123,16 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
     have b4' := TShape.HasType.mono_r (by simpa using b3.le_sort) .sort b4
     exact a1.trans (b4'.proofIrrel (b4'.mono_r b1 a4))
 
+/-- **Soundness of the interpretation.** Every `IsDefEq` derivation yields,
+under any fitting valuation, both
+* a semantic iff `LE_Interp ρ m M ↔ LE_Interp ρ m N` (the two sides have
+  the same interpretation), and
+* a saturation `LE_Interp ρ m M → InterpTyped ρ m M A` (any lower bound
+  for `M` is realised at a well-typed shape).
+
+Proved by induction on `H` using the mutual `StrongSound` / `StrongSoundCore`
+scaffold (`strongSound`). This is the main output of `Sound.lean` and the
+entry point used by `Adequacy.lean` to derive `LR.adequacy`. -/
 theorem LE_Interp.sound (H : Γ ⊢ M ≡ N : A) (W : Valuation.Fits Γ₀ Γ ρ) {m} :
     (LE_Interp ρ m M ↔ LE_Interp ρ m N) ∧ (LE_Interp ρ m M → InterpTyped ρ m M A) :=
   ⟨(strongSound H).sound W, (strongSound H).left.sound W⟩

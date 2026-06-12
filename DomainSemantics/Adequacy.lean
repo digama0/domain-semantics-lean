@@ -1,13 +1,38 @@
 import DomainSemantics.Sound
 import DomainSemantics.LogRel
 
+/-! # Adequacy: the fundamental theorem of the logical relation
+
+This file proves the central theorem `LR.adequacy`: every `IsDefEq`
+derivation is realised by the logical relation under every well-formed
+substitution. From it we derive the principal inversion lemmas needed
+downstream — `forallE_inv`, `sort_inv`, `sort_forallE_inv` — which
+encode Pi and sort injectivity for the weak defeq judgment.
+
+The machinery:
+* `LR.Subst1` is the per-binding payload for a substitution: syntactic
+  equality plus a semantic realiser in the logical relation.
+* `LR.SubstWF Γ₀ σ σ' Γ ρ` is the two-sided substitution well-formedness
+  predicate, built up from `Subst1` witnesses.
+* `LR.Adequate` is the property the fundamental theorem proves by
+  induction on the derivation. -/
+
 namespace DomainSemantics
 
+/-- Per-binding substitution well-formedness: at the new variable, the two
+substituted terms (`x`, `x'`) are syntactically equal at type `A`, and
+semantically they realise the logical relation at type-shape `a`. Used
+as the per-step payload of `LR.SubstWF`. -/
 def LR.Subst1 (Γ₀ : List Term) (x x' A₀ A A' : Term) (ρ : Valuation) (i := 0) : Prop :=
   Γ₀ ⊢ x ≡ x' : A ∧ ∃ hΓ₀ : ⊢ Γ₀, ∀ {{n}} (a : WShape n), LE_Interp ρ a.T A₀ →
     (a.HasType .type → (∃ u, Γ₀ ⊢ A ≡ A' : .sort u) ∧ (LR hΓ₀).TyEq A A' a) ∧
     ∀ {{m : WShape n}}, LE_Interp ρ m.T (.bvar i) → m.HasType a → (LR hΓ₀).TmEq x x' A m a
 
+/-- A two-sided substitution `σ, σ'` from `Γ₀` into `Γ` whose semantic
+content is realised by the valuation `ρ`. Each `cons` step bundles a
+`Subst1` witness for the new variable; `id` is the identity substitution
+at any well-formed context. This is the substitution domain of the
+fundamental theorem. -/
 inductive LR.SubstWF (Γ₀ : List Term) : Subst → Subst → List Term → Valuation → Prop where
   | id : ⊢ Γ₀ → LR.SubstWF Γ₀ .id .id Γ₀ .nil
   | cons : LR.SubstWF Γ₀ σ.tail σ'.tail Γ ρ →
@@ -57,6 +82,11 @@ theorem LR.SubstWF.symm (W : LR.SubstWF Γ₀ σ σ' Γ ρ) : LR.SubstWF Γ₀ �
     · let ⟨_, h2⟩ := (a2 a ha).1 hmem.isType
       exact (LR _).conv h2 ((LR _).symm ((a2 a ha).2 hM hmem))
 
+/-- Adequacy at `(M, N, A, m, a)`: for every two-sided `SubstWF`, both
+substituted sides satisfy `TmEq` at the substituted type; and for every
+diagonal `SubstWF`, the two substituted forms agree. This is the
+property the fundamental theorem (`LR.adequacy`) proves by induction on
+the IsDefEq derivation. -/
 def LR.Adequate (Γ₀ Γ : List Term) (ρ : Valuation) (M N A : Term) (m a : WShape n) :=
   (∀ {{σ σ'}} (W : LR.SubstWF Γ₀ σ σ' Γ ρ),
     (LR W.wf₀).TmEq (M.subst σ) (M.subst σ') (A.subst σ) m a ∧
@@ -160,7 +190,14 @@ theorem LR.toValTy {m : WShape n'} {b : WShape n} (le_n : n ≤ n') (le_a : b.T 
   exact (LR _).toType <| (LR _).mono_r_1 hle hmem'
     (.mono_r hle .sort hmem') .sort H
 
-/-- Main adequacy theorem for the logical relation. -/
+/-- **The fundamental theorem of the logical relation.** Given a derivation
+`Γ ⊢ M ≡ N : A` and a semantic realisation `(m, a)` of `(M, A)`, the
+defeq is mirrored on every substitution `LR.SubstWF`: both substituted
+sides satisfy `TmEq` at shape `(m, a)`, and the diagonal case yields
+`TmEq` between the two. Proof: induction on `H`, calling
+`LE_Interp.sound` on each premise and applying the appropriate
+`LogRel` closure property at each constructor. Corollaries are the
+inversion lemmas at the bottom of this file. -/
 theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     (hM : LE_Interp ρ m.T M) (hA : LE_Interp ρ a.T A) (hmem : m.HasType a) :
     Adequate (n := n) Γ₀ Γ ρ M N A m a := by
@@ -507,6 +544,9 @@ theorem forallE_inv (hΓ : ⊢ Γ)
   have ⟨_, _, red, H⟩ := forallE_whRed_l hΓ H
   cases WHNF.forallE.whRedS red; exact H
 
+/-- Sort/Pi disjointness: a sort is never definitionally equal to a Pi-type.
+A consequence of weak-head determinacy and the fact that `.sort u` is
+already in WHNF. -/
 theorem sort_forallE_inv (hΓ : ⊢ Γ) : ¬Γ ⊢ .sort u ≡ Term.forallE A₁ B₁ : .sort s :=
   fun H => have ⟨_, _, H⟩ := forallE_whRed_l hΓ H; nomatch WHNF.sort.whRedS H.1
 
