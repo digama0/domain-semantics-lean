@@ -46,7 +46,7 @@ scoped notation:65 Γ " ⊨ " e " : " A:36 => HasTypeS Γ e A true
 scoped notation:65 Γ " ⊨ " e " :! " A:36 => HasTypeS Γ e A false
 
 /-- A bundled `HasTypeS` derivation can be projected back to a plain
-`IsDefEqStrong` derivation of reflexivity at the given type. -/
+`IsDefEq` derivation of reflexivity at the given type. -/
 theorem HasTypeS.hasType : HasTypeS Γ e A b → Γ ⊢ e : A
   | .bvar h hA => .bvar h hA
   | .sort' => .sort
@@ -123,7 +123,7 @@ theorem HasTypeS.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
     obtain ⟨_, eq⟩ := ihe hΓ H2
     exact ⟨_, d.symm.trans' eq⟩
 
-theorem IsDefEqStrong.toHasTypeS {Γ : List Term} {e₁ e₂ A : Term}
+theorem IsDefEq.toHasTypeS {Γ : List Term} {e₁ e₂ A : Term}
     (hΓ : ⊢ Γ) (h : Γ ⊢ e₁ ≡ e₂ : A) : Γ ⊨ e₁ : A ∧ Γ ⊨ e₂ : A := by
   induction h with
   | bvar h_l h_t => exact and_self_iff.2 <| .base <| .bvar h_l h_t
@@ -155,7 +155,7 @@ theorem IsDefEqStrong.toHasTypeS {Γ : List Term} {e₁ e₂ A : Term}
 
 /-- Sort uniqueness: if a middle term has two `sort`-types via defeq witnesses,
 the two sort levels coincide. -/
-theorem IsDefEqStrong.uniq_sort {Γ : List Term} {e₁ e₂ e₃ : Term} {u v : Bool}
+theorem IsDefEq.uniq_sort {Γ : List Term} {e₁ e₂ e₃ : Term} {u v : Bool}
     (hΓ : ⊢ Γ) (h1 : Γ ⊢ e₁ ≡ e₂ : .sort u) (h2 : Γ ⊢ e₂ ≡ e₃ : .sort v) : u = v := by
   have ⟨_, h_e2_u⟩ := h1.toHasTypeS hΓ
   have ⟨h_e2_v, _⟩ := h2.toHasTypeS hΓ
@@ -199,7 +199,7 @@ end
 scoped notation:65 Γ " ⊢' " e " : " A:36 => IsDefEq' Γ e e A
 scoped notation:65 Γ " ⊢' " e1 " ≡ " e2 " : " A:36 => IsDefEq' Γ e1 e2 A
 
-/-- Forward direction: every `IsDefEq'` derivation embeds into `IsDefEqStrong`. -/
+/-- Forward direction: every `IsDefEq'` derivation embeds into `IsDefEq`. -/
 theorem IsDefEq'.iff' {Γ : List Term} {e₁ e₂ A : Term}
     (hΓ : ⊢ Γ) : Γ ⊢' e₁ ≡ e₂ : A ↔ Γ ⊢ e₁ ≡ e₂ : A := by
   refine ⟨fun h => ?_, fun h => ?_⟩
@@ -240,12 +240,12 @@ def Ctx.WF' : List Term → Prop
   | A::Γ => WF' Γ ∧ ∃ u, Γ ⊢' A : .sort u
 scoped notation:65 "⊢' " Γ:36 => Ctx.WF' Γ
 
-theorem CtxStrong.iff : ∀ {Γ}, ⊢ Γ ↔ ⊢' Γ
+theorem Ctx.WF.iff : ∀ {Γ}, ⊢ Γ ↔ ⊢' Γ
   | [] => .rfl
   | _::_ => ⟨
     fun ⟨hΓ, _, hA⟩ => ⟨iff.1 hΓ, _, (IsDefEq'.iff' hΓ).2 hA⟩,
     fun ⟨hΓ, _, hA⟩ => ⟨iff.2 hΓ, _, (IsDefEq'.iff' (iff.2 hΓ)).1 hA⟩⟩
 
-/-- `IsDefEqStrong` and `IsDefEq'` are equivalent. -/
-theorem IsDefEqStrong.iff {Γ : List Term} {e₁ e₂ A : Term} (hΓ : ⊢' Γ) :
-    Γ ⊢ e₁ ≡ e₂ : A ↔ Γ ⊢' e₁ ≡ e₂ : A := (IsDefEq'.iff' (CtxStrong.iff.2 hΓ)).symm
+/-- `IsDefEq` and `IsDefEq'` are equivalent. -/
+theorem IsDefEq.iff {Γ : List Term} {e₁ e₂ A : Term} (hΓ : ⊢' Γ) :
+    Γ ⊢ e₁ ≡ e₂ : A ↔ Γ ⊢' e₁ ≡ e₂ : A := (IsDefEq'.iff' (Ctx.WF.iff.2 hΓ)).symm

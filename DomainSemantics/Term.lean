@@ -461,9 +461,9 @@ theorem Lookup.determ (H1 : Lookup Γ i A) (H2 : Lookup Γ i A') : A = A' := by
   | succ _ ih => cases ih r1; rfl
 
 section
-local notation:65 (priority := high) Γ " ⊢ " e1 " : " A:36 => IsDefEqStrong Γ e1 e1 A
-local notation:65 (priority := high) Γ " ⊢ " e1 " ≡ " e2 " : " A:36 => IsDefEqStrong Γ e1 e2 A
-inductive IsDefEqStrong : List Term → Term → Term → Term → Prop where
+local notation:65 (priority := high) Γ " ⊢ " e1 " : " A:36 => IsDefEq Γ e1 e1 A
+local notation:65 (priority := high) Γ " ⊢ " e1 " ≡ " e2 " : " A:36 => IsDefEq Γ e1 e2 A
+inductive IsDefEq : List Term → Term → Term → Term → Prop where
   | bvar : Lookup Γ i A → Γ ⊢ A : .sort u → Γ ⊢ .bvar i : A
   | symm : Γ ⊢ e ≡ e' : A → Γ ⊢ e' ≡ e : A
   | trans : Γ ⊢ e₁ ≡ e₂ : A → Γ ⊢ e₂ ≡ e₃ : A → Γ ⊢ e₁ ≡ e₃ : A
@@ -488,10 +488,10 @@ inductive IsDefEqStrong : List Term → Term → Term → Term → Prop where
     Γ ⊢ .lam A (.app e.lift (.bvar 0)) ≡ e : .forallE A B
   | proofIrrel : Γ ⊢ p : .sort false → Γ ⊢ h : p → Γ ⊢ h' : p → Γ ⊢ h ≡ h' : p
 end
-scoped notation:65 Γ " ⊢ " e1 " : " A:36 => IsDefEqStrong Γ e1 e1 A
-scoped notation:65 Γ " ⊢ " e1 " ≡ " e2 " : " A:36 => IsDefEqStrong Γ e1 e2 A
+scoped notation:65 Γ " ⊢ " e1 " : " A:36 => IsDefEq Γ e1 e1 A
+scoped notation:65 Γ " ⊢ " e1 " ≡ " e2 " : " A:36 => IsDefEq Γ e1 e2 A
 
-theorem IsDefEqStrong.weak' (W : Ctx.Lift' ρ Γ Γ') (H : Γ ⊢ e1 ≡ e2 : A) :
+theorem IsDefEq.weak' (W : Ctx.Lift' ρ Γ Γ') (H : Γ ⊢ e1 ≡ e2 : A) :
     Γ' ⊢ e1.lift' ρ ≡ e2.lift' ρ : A.lift' ρ := by
   induction H generalizing ρ Γ' with
   | bvar h1 _ ih => refine .bvar (h1.weak' W) (ih W)
@@ -512,21 +512,21 @@ theorem IsDefEqStrong.weak' (W : Ctx.Lift' ρ Γ Γ') (H : Γ ⊢ e1 ≡ e2 : A)
     · rw [← lift'_inst_hi]; exact ih4 W
     · rw [← lift'_inst_hi, ← lift'_inst_hi]; exact ih5 W
   | eta _ _ ih1 ih2 =>
-    refine cast ?_ (IsDefEqStrong.eta (ih1 W) (cast ?_ (ih2 W)))
+    refine cast ?_ (IsDefEq.eta (ih1 W) (cast ?_ (ih2 W)))
     all_goals simp [lift', ← lift'_comp]
   | proofIrrel _ _ _ ih1 ih2 ih3 => exact .proofIrrel (ih1 W) (ih2 W) (ih3 W)
 
-theorem IsDefEqStrong.hasType (H : Γ ⊢ e1 ≡ e2 : A) :
+theorem IsDefEq.hasType (H : Γ ⊢ e1 ≡ e2 : A) :
     Γ ⊢ e1 : A ∧ Γ ⊢ e2 : A :=
   ⟨H.trans H.symm, H.symm.trans H⟩
 
-/-- Each variable's type in the context has a sort-typing derivation in IsDefEqStrong. -/
-def CtxStrong : List Term → Prop
+/-- Each variable's type in the context has a sort-typing derivation in IsDefEq. -/
+def Ctx.WF : List Term → Prop
   | [] => True
-  | A :: Γ => CtxStrong Γ ∧ ∃ u, Γ ⊢ A : .sort u
-scoped notation:65 "⊢ " Γ:36 => CtxStrong Γ
+  | A :: Γ => Ctx.WF Γ ∧ ∃ u, Γ ⊢ A : .sort u
+scoped notation:65 "⊢ " Γ:36 => Ctx.WF Γ
 
-theorem CtxStrong.lookup {Γ} (H : ⊢ Γ) (h : Lookup Γ i A) :
+theorem Ctx.WF.lookup {Γ} (H : ⊢ Γ) (h : Lookup Γ i A) :
     ∃ u, Γ ⊢ A : .sort u := by
   induction h with
   | zero => let ⟨_, _, hA⟩ := H; exact ⟨_, hA.weak' (.skip .refl)⟩
@@ -535,7 +535,7 @@ theorem CtxStrong.lookup {Γ} (H : ⊢ Γ) (h : Lookup Γ i A) :
     let ⟨_, hA⟩ := ih H'
     exact ⟨_, hA.weak' (.skip .refl)⟩
 
-theorem IsDefEqStrong.isType (hΓ : ⊢ Γ) (H : Γ ⊢ e1 ≡ e2 : A) : ∃ u, Γ ⊢ A : .sort u := by
+theorem IsDefEq.isType (hΓ : ⊢ Γ) (H : Γ ⊢ e1 ≡ e2 : A) : ∃ u, Γ ⊢ A : .sort u := by
   induction H with
   | bvar h _ => exact hΓ.lookup h
   | symm _ ih => exact ih hΓ
@@ -601,7 +601,7 @@ theorem Ctx.SubstEq.skip (W : Ctx.SubstEq Γ₀ σ σ' Γ) :
   | @cons _ _ _ _ _ _ hA' hhead ih =>
     refine .cons (Subst.lift_r_tail ▸ ih) hA' ?_
     rw [Subst.lift_r_tail]
-    have := IsDefEqStrong.weak' (Ctx.Lift'.skip (A := B) .refl) hhead
+    have := IsDefEq.weak' (Ctx.Lift'.skip (A := B) .refl) hhead
     rw [lift'_subst] at this
     exact this
 
@@ -661,7 +661,7 @@ theorem Ctx.SubstEq.lift_at (W : Ctx.SubstEq Γ₀ σ σ' Γ)
   exact .defeqDF (hAX.symm.weak' (.skip .refl))
     (.bvar .zero (hX.weak' (.skip .refl)))
 
-theorem IsDefEqStrong.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
+theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
     (hΓ₀ : ⊢ Γ₀) (hΓ : ⊢ Γ)
     (W : Ctx.SubstEq Γ₀ σ τ Γ) (H : Γ ⊢ e1 ≡ e2 : A) :
     Γ₀ ⊢ e1.subst σ ≡ e1.subst τ : A.subst σ ∧
@@ -794,7 +794,7 @@ theorem IsDefEqStrong.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A :
     refine ⟨?_, ?_, ?_⟩
     · exact .lamDF ihA_l ihB_l.hasType.1 ih3body_l ih3body_l_at_Aτ
     · have lamform :=
-        IsDefEqStrong.lamDF ihA_r hB_at_A'σ ih4body_r ih4body_r_at_A'τ
+        IsDefEq.lamDF ihA_r hB_at_A'σ ih4body_r ih4body_r_at_A'τ
       have hforallE_eq :
           Γ₀ ⊢ (A'.subst σ).forallE (B.subst σ.lift) ≡ (A.subst σ).forallE (B.subst σ.lift) : .sort v :=
         .forallEDF hAA'_σ.symm hB_at_A'σ ihB_l.hasType.1
@@ -840,14 +840,14 @@ theorem IsDefEqStrong.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A :
 /-- Main substitution lemma for ``, ⊢ derived ≡ as : a corollary of the
 two-sided `substEq'`. Takes a diagonal `Ctx.SubstEq Γ₀ σ σ Γ`; the cross conjunct
 of `substEq'` at diagonal `W` gives `e1.subst σ ≡ e2.subst σ`. -/
-theorem IsDefEqStrong.subst (hΓ₀ : ⊢ Γ₀) (hΓ : ⊢ Γ)
+theorem IsDefEq.subst (hΓ₀ : ⊢ Γ₀) (hΓ : ⊢ Γ)
     (W : Ctx.SubstEq Γ₀ σ σ Γ) (H : Γ ⊢ e1 ≡ e2 : A) :
     Γ₀ ⊢ e1.subst σ ≡ e2.subst σ : A.subst σ :=
   (H.substEq' hΓ₀ hΓ W).2.2
 
 /-- Non-diagonal substitution: takes a two-sided `SubstEq Γ₀ σ σ' Γ` and yields
 `e1.subst σ ≡ e2.subst σ'` (the cross conjunct of `substEq'`). -/
-theorem IsDefEqStrong.subst' (hΓ₀ : ⊢ Γ₀) (hΓ : ⊢ Γ)
+theorem IsDefEq.subst' (hΓ₀ : ⊢ Γ₀) (hΓ : ⊢ Γ)
     (W : Ctx.SubstEq Γ₀ σ σ' Γ) (H : Γ ⊢ e1 ≡ e2 : A) :
     Γ₀ ⊢ e1.subst σ ≡ e2.subst σ' : A.subst σ :=
   (H.substEq' hΓ₀ hΓ W).2.2
@@ -873,9 +873,9 @@ theorem Ctx.SubstEq.right (hΓ₀ : ⊢ Γ₀) (W : Ctx.SubstEq Γ₀ σ σ' Γ)
       (.defeqDF (hA.substEq' hΓ₀ inner.ctxStrong inner).2.2 hhead.hasType.2)
 
 /-- Substitution at position 0 (single-variable instantiation), derived from
-the general `IsDefEqStrong.subst` lemma using
+the general `IsDefEq.subst` lemma using
 `SubstS.cons (SubstS.weak .refl) hA₀ h₀`. -/
-theorem IsDefEqStrong.inst0 (hΓ : ⊢ Γ)
+theorem IsDefEq.inst0 (hΓ : ⊢ Γ)
     (h₀ : Γ ⊢ e₀ : A₀)
     (H : A₀::Γ ⊢ e1 ≡ e2 : A) :
     Γ ⊢ e1.inst e₀ ≡ e2.inst e₀ : A.inst e₀ := by
@@ -892,7 +892,7 @@ theorem IsDefEqStrong.inst0 (hΓ : ⊢ Γ)
     rw [htail]; exact W₀
   exact H.subst hΓ hΓ' W
 
-theorem IsDefEqStrong.instDF (hΓ : ⊢ Γ)
+theorem IsDefEq.instDF (hΓ : ⊢ Γ)
     (hA : Γ ⊢ A : .sort u)
     (hB : A::Γ ⊢ B : .sort v)
     (hf : A::Γ ⊢ f ≡ f' : B)
@@ -925,7 +925,7 @@ theorem lift_cons_skip_inst_bvar0 {X : Term} :
   show (X.lift' (.cons (.skip .refl))).subst (.one (.bvar 0)) = X
   rw [subst_lift', hsub, subst_id]
 
-theorem IsDefEqStrong.defeqDF_l (hΓ : ⊢ Γ)
+theorem IsDefEq.defeqDF_l (hΓ : ⊢ Γ)
     (h1 : Γ ⊢ A ≡ A' : .sort u)
     (h2 : A::Γ ⊢ e1 ≡ e2 : B) : A'::Γ ⊢ e1 ≡ e2 : B := by
   have hΓ_A' : ⊢ A' :: Γ := ⟨hΓ, _, h1.hasType.2⟩
@@ -934,10 +934,10 @@ theorem IsDefEqStrong.defeqDF_l (hΓ : ⊢ Γ)
     .defeqDF h1w.symm (.bvar .zero (h1.hasType.2.weak' (.skip .refl)))
   have h2w : A.lift :: A' :: Γ ⊢ e1.lift' (.cons (.skip .refl)) ≡ e2.lift' (.cons (.skip .refl)) : B.lift' (.cons (.skip .refl)) :=
     h2.weak' (.cons (.skip .refl))
-  have := IsDefEqStrong.inst0 hΓ_A' hbvar h2w
+  have := IsDefEq.inst0 hΓ_A' hbvar h2w
   rwa [lift_cons_skip_inst_bvar0, lift_cons_skip_inst_bvar0, lift_cons_skip_inst_bvar0] at this
 
-theorem IsDefEqStrong.forallE_inv' (hΓ : ⊢ Γ)
+theorem IsDefEq.forallE_inv' (hΓ : ⊢ Γ)
     (H : Γ ⊢ e1 ≡ e2 : V) (eq : e1 = A.forallE B ∨ e2 = A.forallE B) :
     (∃ u, Γ ⊢ A : .sort u) ∧
     ∃ v, A::Γ ⊢ B : .sort v := by
@@ -992,34 +992,34 @@ theorem IsDefEqStrong.forallE_inv' (hΓ : ⊢ Γ)
     exact ih hΓ (.inr eq)
   | _ => nomatch eq
 
-theorem IsDefEqStrong.bvar₀ (hΓ : ⊢ Γ) (h : Lookup Γ i A) : Γ ⊢ .bvar i : A :=
+theorem IsDefEq.bvar₀ (hΓ : ⊢ Γ) (h : Lookup Γ i A) : Γ ⊢ .bvar i : A :=
   let ⟨_, hA⟩ := hΓ.lookup h; .bvar h hA
 
-theorem IsDefEqStrong.appDF₀ (hΓ : ⊢ Γ)
+theorem IsDefEq.appDF₀ (hΓ : ⊢ Γ)
     (hf : Γ ⊢ f ≡ f' : .forallE A B) (ha : Γ ⊢ a ≡ a' : A) :
     Γ ⊢ .app f a ≡ .app f' a' : B.inst a :=
   let ⟨_, h3⟩ := hf.isType hΓ
   let ⟨⟨_, hA⟩, _, hB⟩ := h3.forallE_inv' hΓ (.inl rfl)
   .appDF hA hB hf ha (.instDF hΓ hA .sort hB ha)
 
-theorem IsDefEqStrong.lamDF₀ (hΓ : ⊢ Γ)
+theorem IsDefEq.lamDF₀ (hΓ : ⊢ Γ)
     (hA : Γ ⊢ A ≡ A' : .sort u) (hbody : A::Γ ⊢ body ≡ body' : B) :
     Γ ⊢ .lam A body ≡ .lam A' body' : .forallE A B :=
   let ⟨_, hB⟩ := hbody.isType (Γ := _::_) ⟨hΓ, _, hA.hasType.1⟩
   .lamDF hA hB hbody (hA.defeqDF_l hΓ hbody)
 
-theorem IsDefEqStrong.forallEDF₀ (hΓ : ⊢ Γ)
+theorem IsDefEq.forallEDF₀ (hΓ : ⊢ Γ)
     (hA : Γ ⊢ A ≡ A' : .sort u) (hbody : A::Γ ⊢ body ≡ body' : .sort v) :
     Γ ⊢ .forallE A body ≡ .forallE A' body' : .sort v :=
   .forallEDF hA hbody (hA.defeqDF_l hΓ hbody)
 
-theorem IsDefEqStrong.beta₀ (hΓ : ⊢ Γ) (he : A::Γ ⊢ e : B) (he' : Γ ⊢ e' : A) :
+theorem IsDefEq.beta₀ (hΓ : ⊢ Γ) (he : A::Γ ⊢ e : B) (he' : Γ ⊢ e' : A) :
     Γ ⊢ .app (.lam A e) e' ≡ e.inst e' : B.inst e' :=
   have ⟨_, hA⟩ := he'.isType hΓ
   have ⟨_, hB⟩ := he.isType (Γ := _::_) ⟨hΓ, _, hA⟩
   .beta hA he he' (.appDF hA hB (.lamDF hA hB he he) he' (he'.inst0 hΓ hB)) (he'.inst0 hΓ he)
 
-theorem IsDefEqStrong.eta₀ {Γ e A B} (hΓ : ⊢ Γ) (he : Γ ⊢ e : .forallE A B) :
+theorem IsDefEq.eta₀ {Γ e A B} (hΓ : ⊢ Γ) (he : Γ ⊢ e : .forallE A B) :
     Γ ⊢ .lam A (.app e.lift (.bvar 0)) ≡ e : .forallE A B := by
   let ⟨_, hAB⟩ := he.isType hΓ
   let ⟨⟨_, hA⟩, v, hB⟩ := hAB.forallE_inv' hΓ (.inl rfl)
@@ -1033,8 +1033,8 @@ theorem IsDefEqStrong.eta₀ {Γ e A B} (hΓ : ⊢ Γ) (he : Γ ⊢ e : .forallE
 
 /-- Context-conversion at arbitrary depth: convert `Δ++A::Γ` to `Δ++A'::Γ` given
 `A ≡ A'`. Proved by constructing a `SubstEq (Δ++A'::Γ) Subst.id Subst.id (Δ++A::Γ)`
-inductively on `Δ`, then applying `IsDefEqStrong.subst`. -/
-theorem IsDefEqStrong.defeqDF_l' (hΓ : ⊢ Γ) (h1 : Γ ⊢ A ≡ A' : .sort u)
+inductively on `Δ`, then applying `IsDefEq.subst`. -/
+theorem IsDefEq.defeqDF_l' (hΓ : ⊢ Γ) (h1 : Γ ⊢ A ≡ A' : .sort u)
     (hΔ : ⊢ Δ++A::Γ) (h2 : Δ++A::Γ ⊢ e1 ≡ e2 : B) :
     Δ++A'::Γ ⊢ e1 ≡ e2 : B := by
   suffices h : ⊢ Δ++A'::Γ ∧ Ctx.SubstEq (Δ++A'::Γ) Subst.id Subst.id (Δ++A::Γ) by
@@ -1074,7 +1074,7 @@ theorem IsDefEqCtx.wf₁ : IsDefEqCtx Γ₀ Γ₁ Γ₂ → ⊢ Γ₁
 
 /-- Wellformedness conversion: `⊢ Δ++A::Γ` and `Γ ⊢ A ≡ A' : sort u` give
 `⊢ Δ++A'::Γ`. Inductive on `Δ`; uses `defeqDF_l'` on each level's sort proof. -/
-theorem CtxStrong.defeqSwap (hΓ : ⊢ Γ) (h1 : Γ ⊢ A ≡ A' : .sort u) :
+theorem Ctx.WF.defeqSwap (hΓ : ⊢ Γ) (h1 : Γ ⊢ A ≡ A' : .sort u) :
     ∀ {Δ}, ⊢ Δ++A::Γ → ⊢ Δ++A'::Γ
   | [], _ => ⟨hΓ, _, h1.hasType.2⟩
   | _::Δ', h =>
@@ -1082,17 +1082,17 @@ theorem CtxStrong.defeqSwap (hΓ : ⊢ Γ) (h1 : Γ ⊢ A ≡ A' : .sort u) :
     have h_inner' : ⊢ Δ'++A'::Γ := defeqSwap hΓ h1 h_inner
     ⟨h_inner', u, h1.defeqDF_l' (Δ := Δ') hΓ h_inner hX⟩
 
-theorem IsDefEqStrong.defeqDFC' {Γ₀ Γ₁ Γ₂ Δ e₁ e₂ A} (h1 : IsDefEqCtx Γ₀ Γ₁ Γ₂)
+theorem IsDefEq.defeqDFC' {Γ₀ Γ₁ Γ₂ Δ e₁ e₂ A} (h1 : IsDefEqCtx Γ₀ Γ₁ Γ₂)
     (hΓΔ : ⊢ Δ ++ Γ₁) (h2 : Δ ++ Γ₁ ⊢ e₁ ≡ e₂ : A) : Δ ++ Γ₂ ⊢ e₁ ≡ e₂ : A := by
   induction h1 generalizing e₁ e₂ A Δ with
   | zero _ => exact h2
   | @succ Γ₁_inner _ _ A₂ _ inner AA ih =>
     have hΓ_inner : ⊢ Γ₁_inner := inner.wf₁
     have h2' : Δ ++ A₂ :: Γ₁_inner ⊢ e₁ ≡ e₂ : A := AA.defeqDF_l' hΓ_inner hΓΔ h2
-    have hΓΔ' : ⊢ Δ ++ A₂ :: Γ₁_inner := CtxStrong.defeqSwap hΓ_inner AA hΓΔ
+    have hΓΔ' : ⊢ Δ ++ A₂ :: Γ₁_inner := Ctx.WF.defeqSwap hΓ_inner AA hΓΔ
     simpa using ih (Δ := Δ ++ [A₂]) (by simpa using hΓΔ') (by simpa using h2')
 
-theorem IsDefEqStrong.defeqDFC (h1 : IsDefEqCtx Γ₀ Γ₁ Γ₂)
+theorem IsDefEq.defeqDFC (h1 : IsDefEqCtx Γ₀ Γ₁ Γ₂)
     (h2 : Γ₁ ⊢ e₁ ≡ e₂ : A) : Γ₂ ⊢ e₁ ≡ e₂ : A :=
   .defeqDFC' (Δ := []) h1 h1.wf₁ h2
 
