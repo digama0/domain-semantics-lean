@@ -2,7 +2,7 @@ import DomainSemantics.Adequacy
 
 /-! # Unique typing, and discharging the `IsDefEq` scaffolding
 
-The "real" defeq judgment for the project is `IsDefEq'`, defined in
+The "real" defeq judgment for the project is `IsDefEq₀`, defined in
 `Term.lean`. Internally we work with the instrumented variant `IsDefEq`,
 which carries explicit sort-typing premises at every congruence rule
 and has a heterogeneous transitivity rule `trans'` whose middle term
@@ -19,9 +19,9 @@ is equivalent to the standard one.
 * `IsDefEq.uniq_sort` derives sort uniqueness from `uniq`: heterogeneous
   transitivity on sort-typed equalities is in fact homogeneous.
 * `IsDefEq.iff` is the headline result: on well-formed contexts the
-  scaffolded `IsDefEq` and the standard `IsDefEq'` derive the same
+  scaffolded `IsDefEq` and the standard `IsDefEq₀` derive the same
   equalities. After this point clients are free to think of `IsDefEq`
-  as `IsDefEq'`. -/
+  as `IsDefEq₀`. -/
 
 namespace DomainSemantics
 
@@ -180,16 +180,16 @@ theorem IsDefEq.uniq_sort {Γ : List Term} {e₁ e₂ e₃ : Term} {u v : Bool}
   exact sort_inv hΓ eq
 
 /-- The instrumented judgment `IsDefEq` proves exactly the same equalities
-as the standard judgment `IsDefEq'` on well-formed contexts.
+as the standard judgment `IsDefEq₀` on well-formed contexts.
 
-Forward: every `IsDefEq'` derivation lifts to `IsDefEq` by inserting the
+Forward: every `IsDefEq₀` derivation lifts to `IsDefEq` by inserting the
 missing sort proofs (recovered from `⊢ Γ` via `.bvar₀`, `.appDF₀`,
 `.lamDF₀`, …). Backward: every `IsDefEq` derivation collapses to
-`IsDefEq'` by dropping the sort premises and discharging `trans'` via
+`IsDefEq₀` by dropping the sort premises and discharging `trans'` via
 `IsDefEq.uniq_sort` (the two sort levels coincide, so heterogeneous
 transitivity is in fact homogeneous). -/
-theorem IsDefEq'.iff' {Γ : List Term} {e₁ e₂ A : Term}
-    (hΓ : ⊢ Γ) : Γ ⊢' e₁ ≡ e₂ : A ↔ Γ ⊢ e₁ ≡ e₂ : A := by
+theorem IsDefEq₀.iff' {Γ : List Term} {e₁ e₂ A : Term}
+    (hΓ : ⊢ Γ) : Γ ⊢₀ e₁ ≡ e₂ : A ↔ Γ ⊢ e₁ ≡ e₂ : A := by
   refine ⟨fun h => ?_, fun h => ?_⟩
   · induction h with
     | bvar h => exact .bvar₀ hΓ h
@@ -217,50 +217,50 @@ theorem IsDefEq'.iff' {Γ : List Term} {e₁ e₂ A : Term}
     | eta _ _ ih => exact .eta (ih hΓ)
     | proofIrrel _ _ _ ih1 ih2 ih3 => exact .proofIrrel (ih1 hΓ) (ih2 hΓ) (ih3 hΓ)
 
-/-- Well-formed context relative to `IsDefEq'`: each entry has a sort
+/-- Well-formed context relative to `IsDefEq₀`: each entry has a sort
 typing in the `trans'`-free judgment. Equivalent to `Ctx.WF` on
 well-formed contexts via `Ctx.WF.iff`. -/
 def Ctx.WF' : List Term → Prop
   | [] => True
-  | A::Γ => WF' Γ ∧ ∃ u, Γ ⊢' A : .sort u
-scoped notation:65 "⊢' " Γ:36 => Ctx.WF' Γ
+  | A::Γ => WF' Γ ∧ ∃ u, Γ ⊢₀ A : .sort u
+scoped notation:65 "⊢₀ " Γ:36 => Ctx.WF' Γ
 
 /-- Well-formedness of contexts is invariant under the two judgment systems:
-`⊢ Γ` (using `IsDefEq` sort proofs) and `⊢' Γ` (using `IsDefEq'`) are
-mutually derivable, by induction on `Γ` calling `IsDefEq'.iff'` on the
+`⊢ Γ` (using `IsDefEq` sort proofs) and `⊢₀ Γ` (using `IsDefEq₀`) are
+mutually derivable, by induction on `Γ` calling `IsDefEq₀.iff'` on the
 head sort proof. -/
-theorem Ctx.WF.iff : ∀ {Γ}, ⊢ Γ ↔ ⊢' Γ
+theorem Ctx.WF.iff : ∀ {Γ}, ⊢ Γ ↔ ⊢₀ Γ
   | [] => .rfl
   | _::_ => ⟨
-    fun ⟨hΓ, _, hA⟩ => ⟨iff.1 hΓ, _, (IsDefEq'.iff' hΓ).2 hA⟩,
-    fun ⟨hΓ, _, hA⟩ => ⟨iff.2 hΓ, _, (IsDefEq'.iff' (iff.2 hΓ)).1 hA⟩⟩
+    fun ⟨hΓ, _, hA⟩ => ⟨iff.1 hΓ, _, (IsDefEq₀.iff' hΓ).2 hA⟩,
+    fun ⟨hΓ, _, hA⟩ => ⟨iff.2 hΓ, _, (IsDefEq₀.iff' (iff.2 hΓ)).1 hA⟩⟩
 
 /-! ### Discharging the scaffolding -/
 
 /-- On any well-formed context (in either formulation, via `Ctx.WF.iff`),
-the instrumented `IsDefEq` proves the same equalities as the standard `IsDefEq'`.
+the instrumented `IsDefEq` proves the same equalities as the standard `IsDefEq₀`.
 After this point clients are free to treat the two notations as interchangeable,
-and the choice of `IsDefEq` over `IsDefEq'` inside the project
+and the choice of `IsDefEq` over `IsDefEq₀` inside the project
 is purely a matter of proof ergonomics. -/
-theorem IsDefEq.iff {Γ : List Term} {e₁ e₂ A : Term} (hΓ : ⊢' Γ) :
-    Γ ⊢ e₁ ≡ e₂ : A ↔ Γ ⊢' e₁ ≡ e₂ : A := (IsDefEq'.iff' (Ctx.WF.iff.2 hΓ)).symm
+theorem IsDefEq.iff {Γ : List Term} {e₁ e₂ A : Term} (hΓ : ⊢₀ Γ) :
+    Γ ⊢ e₁ ≡ e₂ : A ↔ Γ ⊢₀ e₁ ≡ e₂ : A := (IsDefEq₀.iff' (Ctx.WF.iff.2 hΓ)).symm
 
 /-- Pi–Pi injectivity: if two Pi types are definitionally equal,
 their domains and codomains are each definitionally equal. -/
-theorem forallE_inv' (hΓ : ⊢' Γ)
-    (H : Γ ⊢' Term.forallE A₀ B₀ ≡ Term.forallE A₁ B₁ : .sort s) :
-    ∃ u v, Γ ⊢' A₀ ≡ A₁ : .sort u ∧ A₀::Γ ⊢' B₀ ≡ B₁ : .sort v := by
+theorem forallE_inv' (hΓ : ⊢₀ Γ)
+    (H : Γ ⊢₀ Term.forallE A₀ B₀ ≡ Term.forallE A₁ B₁ : .sort s) :
+    ∃ u v, Γ ⊢₀ A₀ ≡ A₁ : .sort u ∧ A₀::Γ ⊢₀ B₀ ≡ B₁ : .sort v := by
   have hΓs : ⊢ Γ := Ctx.WF.iff.2 hΓ
   have ⟨u, v, hA, hB⟩ := forallE_inv hΓs ((IsDefEq.iff hΓ).2 H)
-  have hΓA : ⊢' A₀ :: Γ := Ctx.WF.iff.1 ⟨hΓs, _, hA.hasType.1⟩
+  have hΓA : ⊢₀ A₀ :: Γ := Ctx.WF.iff.1 ⟨hΓs, _, hA.hasType.1⟩
   exact ⟨u, v, (IsDefEq.iff hΓ).1 hA, (IsDefEq.iff hΓA).1 hB⟩
 
 /-- Sort/Pi disjointness: a sort is never definitionally equal to a Pi-type.
 A consequence of weak-head determinacy and the fact that `.sort u` is
 already in WHNF. -/
-theorem sort_forallE_inv' (hΓ : ⊢' Γ) : ¬Γ ⊢' .sort u ≡ Term.forallE A₁ B₁ : .sort s :=
+theorem sort_forallE_inv' (hΓ : ⊢₀ Γ) : ¬Γ ⊢₀ .sort u ≡ Term.forallE A₁ B₁ : .sort s :=
   fun H => sort_forallE_inv (Ctx.WF.iff.2 hΓ) ((IsDefEq.iff hΓ).2 H)
 
 /-- Sort injectivity: if two sorts are definitionally equal, their levels are equal. -/
-theorem sort_inv' (hΓ : ⊢' Γ) (d : Γ ⊢' Term.sort u ≡ Term.sort v : V) : u = v :=
+theorem sort_inv' (hΓ : ⊢₀ Γ) (d : Γ ⊢₀ Term.sort u ≡ Term.sort v : V) : u = v :=
   sort_inv (Ctx.WF.iff.2 hΓ) ((IsDefEq.iff hΓ).2 d)
