@@ -37,7 +37,7 @@ inductive HasTypeS : List Term → Term → Term → Bool → Prop where
     Γ ⊨ .forallE A body :! .sort v
   | base : Γ ⊨ e :! A → Γ ⊨ e : A
   | defeq :
-    Γ ⊢ A ≡ B : .sort u → Γ ⊨ e : A → Γ ⊨ e : B
+    Γ ⊢₀ A ≡ B : .sort u → Γ ⊨ e : A → Γ ⊨ e : B
 
 end
 
@@ -46,7 +46,7 @@ scoped notation:65 Γ " ⊨ " e " :! " A:36 => HasTypeS Γ e A false
 
 /-- A bundled `HasTypeS` derivation can be projected back to a plain
 `IsDefEq` derivation of reflexivity at the given type. -/
-theorem HasTypeS.hasType : HasTypeS Γ e A b → Γ ⊢ e : A := by
+theorem HasTypeS.hasType : HasTypeS Γ e A b → Γ ⊢₀ e : A := by
   intro h
   induction h with
   | bvar h _ _ => exact .bvar h
@@ -62,7 +62,7 @@ together with a transport: any defeq involving the structural type can be
 re-targeted at the original type. -/
 theorem HasTypeS.unfold (h : Γ ⊨ e : A) :
     ∃ A', (Γ ⊨ e :! A') ∧
-      ∀ {C u}, Γ ⊢ C ≡ A' : .sort u → ∃ u', Γ ⊢ C ≡ A : .sort u' := by
+      ∀ {C u}, Γ ⊢₀ C ≡ A' : .sort u → ∃ u', Γ ⊢₀ C ≡ A : .sort u' := by
   generalize hb : true = b at h
   induction h with cases hb
   | base h_s => exact ⟨_, h_s, fun input => ⟨_, input⟩⟩
@@ -74,7 +74,7 @@ theorem HasTypeS.unfold (h : Γ ⊨ e : A) :
 a transport function. -/
 theorem HasTypeS.toStructural (h : HasTypeS Γ e A b) :
     ∃ A', (Γ ⊨ e :! A') ∧
-      ∀ {C u}, Γ ⊢ C ≡ A' : .sort u → ∃ u', Γ ⊢ C ≡ A : .sort u' := by
+      ∀ {C u}, Γ ⊢₀ C ≡ A' : .sort u → ∃ u', Γ ⊢₀ C ≡ A : .sort u' := by
   cases b
   · exact ⟨_, h, fun input => ⟨_, input⟩⟩
   · exact h.unfold
@@ -82,8 +82,8 @@ theorem HasTypeS.toStructural (h : HasTypeS Γ e A b) :
 /-- Type uniqueness up to defeq: any two derivations of `e` give defeq-equivalent
 types. The middle `b` parameters are arbitrary. -/
 theorem HasTypeS.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
-    (hΓ : ⊢ Γ) (H1 : HasTypeS Γ e A b₁) (H2 : HasTypeS Γ e B b₂) :
-    ∃ u, Γ ⊢ A ≡ B : .sort u := by
+    (hΓ : ⊢₀ Γ) (H1 : HasTypeS Γ e A b₁) (H2 : HasTypeS Γ e B b₂) :
+    ∃ u, Γ ⊢₀ A ≡ B : .sort u := by
   induction H1 generalizing B b₂ with
   | bvar h_l h_t _ =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
@@ -106,13 +106,13 @@ theorem HasTypeS.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
   | @lam _ _ _ _ body h_A _ _ ih_body =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
     let .lam _ h_body' := H2_s
-    have hΓ' : ⊢ (_::_) := ⟨hΓ, _, h_A.hasType⟩
+    have hΓ' : ⊢₀ (_::_) := ⟨hΓ, _, h_A.hasType⟩
     obtain ⟨_, h_B_eq⟩ := ih_body hΓ' h_body'
     exact transport (.forallEDF h_A.hasType h_B_eq)
   | forallE h_A h_b ih_A ih_b =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
     let .forallE h_A' h_b' := H2_s
-    have hΓ' : ⊢ (_::_) := ⟨hΓ, _, h_A.hasType⟩
+    have hΓ' : ⊢₀ (_::_) := ⟨hΓ, _, h_A.hasType⟩
     obtain ⟨_, h_A_eq⟩ := ih_A hΓ h_A'
     obtain ⟨_, h_b_eq⟩ := ih_b hΓ' h_b'
     cases sort_inv hΓ h_A_eq
@@ -124,7 +124,7 @@ theorem HasTypeS.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
     exact ⟨_, d.symm.trans' eq⟩
 
 theorem IsDefEq.toHasTypeS {Γ : List Term} {e₁ e₂ A : Term}
-    (hΓ : ⊢ Γ) (h : Γ ⊢ e₁ ≡ e₂ : A) : Γ ⊨ e₁ : A ∧ Γ ⊨ e₂ : A := by
+    (hΓ : ⊢₀ Γ) (h : Γ ⊢₀ e₁ ≡ e₂ : A) : Γ ⊨ e₁ : A ∧ Γ ⊨ e₂ : A := by
   replace h := h.strong hΓ
   induction h with
   | bvar h_l _ ih_A => exact and_self_iff.2 <| .base <| .bvar h_l (ih_A hΓ).1
@@ -153,7 +153,7 @@ theorem IsDefEq.toHasTypeS {Γ : List Term} {e₁ e₂ A : Term}
 /-- Sort uniqueness: if a middle term has two `sort`-types via defeq witnesses,
 the two sort levels coincide. -/
 theorem IsDefEq.uniq_sort {Γ : List Term} {e₁ e₂ e₃ : Term} {u v : Bool}
-    (hΓ : ⊢ Γ) (h1 : Γ ⊢ e₁ ≡ e₂ : .sort u) (h2 : Γ ⊢ e₂ ≡ e₃ : .sort v) : u = v := by
+    (hΓ : ⊢₀ Γ) (h1 : Γ ⊢₀ e₁ ≡ e₂ : .sort u) (h2 : Γ ⊢₀ e₂ ≡ e₃ : .sort v) : u = v := by
   have ⟨_, h_e2_u⟩ := h1.toHasTypeS hΓ
   have ⟨h_e2_v, _⟩ := h2.toHasTypeS hΓ
   obtain ⟨_, eq⟩ := h_e2_u.uniq hΓ h_e2_v
@@ -198,7 +198,7 @@ scoped notation:65 Γ " ⊢' " e1 " ≡ " e2 " : " A:36 => IsDefEq' Γ e1 e2 A
 
 /-- Forward direction: every `IsDefEq'` derivation embeds into `IsDefEq`. -/
 theorem IsDefEq'.toIsDefEq {Γ : List Term} {e₁ e₂ A : Term}
-    (h : Γ ⊢' e₁ ≡ e₂ : A) : Γ ⊢ e₁ ≡ e₂ : A := by
+    (h : Γ ⊢' e₁ ≡ e₂ : A) : Γ ⊢₀ e₁ ≡ e₂ : A := by
   induction h with
   | bvar h => exact .bvar h
   | symm _ ih => exact .symm ih
@@ -213,7 +213,7 @@ theorem IsDefEq'.toIsDefEq {Γ : List Term} {e₁ e₂ A : Term}
   | proofIrrel _ _ _ ih1 ih2 ih3 => exact .proofIrrel ih1 ih2 ih3
 
 theorem IsDefEq.toIsDefEq' {Γ : List Term} {e₁ e₂ A : Term}
-    (hΓ : ⊢ Γ) (h : Γ ⊢ e₁ ≡ e₂ : A) : Γ ⊢' e₁ ≡ e₂ : A := by
+    (hΓ : ⊢₀ Γ) (h : Γ ⊢₀ e₁ ≡ e₂ : A) : Γ ⊢' e₁ ≡ e₂ : A := by
   replace h := h.strong hΓ
   induction h with
   | bvar h _ _ => exact .bvar h
@@ -224,14 +224,14 @@ theorem IsDefEq.toIsDefEq' {Γ : List Term} {e₁ e₂ A : Term}
   | sort => exact .sort
   | appDF _ _ _ _ _ _ _ ih2 ih3 _ => exact .appDF (ih2 hΓ) (ih3 hΓ)
   | lamDF h1 _ _ _ ih1 _ ih2 _ =>
-    have hΓ' : ⊢ (_::_) := ⟨hΓ, _, h1.hasType.1.defeq⟩
+    have hΓ' : ⊢₀ (_::_) := ⟨hΓ, _, h1.hasType.1.defeq⟩
     exact .lamDF (ih1 hΓ) (ih2 hΓ')
   | forallEDF h1 _ _ ih1 ih2 _ =>
-    have hΓ' : ⊢ (_::_) := ⟨hΓ, _, h1.hasType.1.defeq⟩
+    have hΓ' : ⊢₀ (_::_) := ⟨hΓ, _, h1.hasType.1.defeq⟩
     exact .forallEDF (ih1 hΓ) (ih2 hΓ')
   | defeqDF _ _ ih1 ih2 => exact .defeqDF (ih1 hΓ) (ih2 hΓ)
   | beta h1 _ _ _ _ _ ih2 ih3 _ _ =>
-    have hΓ' : ⊢ (_::_) := ⟨hΓ, _, h1.defeq⟩
+    have hΓ' : ⊢₀ (_::_) := ⟨hΓ, _, h1.defeq⟩
     exact .beta (ih2 hΓ') (ih3 hΓ)
   | eta _ _ ih _ => exact .eta (ih hΓ)
   | proofIrrel _ _ _ ih1 ih2 ih3 => exact .proofIrrel (ih1 hΓ) (ih2 hΓ) (ih3 hΓ)
@@ -241,17 +241,17 @@ def Ctx.WF' : List Term → Prop
   | A::Γ => WF' Γ ∧ ∃ u, Γ ⊢' A : .sort u
 scoped notation:65 "⊢' " Γ:36 => Ctx.WF' Γ
 
-theorem Ctx.WF.toWF' : ∀ {Γ}, ⊢ Γ → ⊢' Γ
+theorem Ctx.WF.toWF' : ∀ {Γ}, ⊢₀ Γ → ⊢' Γ
   | [], _ => trivial
   | _::_, ⟨hΓ, _, hA⟩ => ⟨hΓ.toWF', _, hA.toIsDefEq' hΓ⟩
 
-theorem Ctx.WF'.toWF : ∀ {Γ}, ⊢' Γ → ⊢ Γ
+theorem Ctx.WF'.toWF : ∀ {Γ}, ⊢' Γ → ⊢₀ Γ
   | [], _ => trivial
   | _::_, ⟨hΓ, _, hA⟩ => ⟨hΓ.toWF, _, hA.toIsDefEq⟩
 
-theorem Ctx.WF.iff {Γ : List Term} : ⊢ Γ ↔ ⊢' Γ := ⟨toWF', WF'.toWF⟩
+theorem Ctx.WF.iff {Γ : List Term} : ⊢₀ Γ ↔ ⊢' Γ := ⟨toWF', WF'.toWF⟩
 
 /-- `IsDefEq` and `IsDefEq'` are equivalent. -/
 theorem IsDefEq.iff_isDefEq' {Γ : List Term} {e₁ e₂ A : Term} (hΓ : ⊢' Γ) :
-    Γ ⊢ e₁ ≡ e₂ : A ↔ Γ ⊢' e₁ ≡ e₂ : A :=
+    Γ ⊢₀ e₁ ≡ e₂ : A ↔ Γ ⊢' e₁ ≡ e₂ : A :=
   ⟨IsDefEq.toIsDefEq' hΓ.toWF, IsDefEq'.toIsDefEq⟩

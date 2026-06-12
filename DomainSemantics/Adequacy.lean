@@ -4,16 +4,16 @@ import DomainSemantics.LogRel
 namespace DomainSemantics
 
 def LR.Subst1 (Γ₀ : List Term) (x x' A₀ A A' : Term) (ρ : Valuation) (i := 0) : Prop :=
-  Γ₀ ⊢ x ≡ x' : A ∧ ∃ hΓ₀ : ⊢ Γ₀, ∀ {{n}} (a : WShape n), LE_Interp ρ a.T A₀ →
-    (a.HasType .type → (∃ u, Γ₀ ⊢ A ≡ A' : .sort u) ∧ (LR hΓ₀).TyEq A A' a) ∧
+  Γ₀ ⊢₀ x ≡ x' : A ∧ ∃ hΓ₀ : ⊢₀ Γ₀, ∀ {{n}} (a : WShape n), LE_Interp ρ a.T A₀ →
+    (a.HasType .type → (∃ u, Γ₀ ⊢₀ A ≡ A' : .sort u) ∧ (LR hΓ₀).TyEq A A' a) ∧
     ∀ {{m : WShape n}}, LE_Interp ρ m.T (.bvar i) → m.HasType a → (LR hΓ₀).TmEq x x' A m a
 
 inductive LR.SubstWF (Γ₀ : List Term) : Subst → Subst → List Term → Valuation → Prop where
-  | id : ⊢ Γ₀ → LR.SubstWF Γ₀ .id .id Γ₀ .nil
+  | id : ⊢₀ Γ₀ → LR.SubstWF Γ₀ .id .id Γ₀ .nil
   | cons : LR.SubstWF Γ₀ σ.tail σ'.tail Γ ρ →
     (∀ {a}, LE_Interp ρ a A →
       ∃ a', a ≤ a' ∧ LE_Interp ρ a' A ∧ a'.HasType .type) →
-    LE_Interp ρ a A → x.HasType a → Γ ⊢ A : .sort u →
+    LE_Interp ρ a A → x.HasType a → Γ ⊢₀ A : .sort u →
     LR.Subst1 Γ₀ σ.head σ'.head A.lift (A.subst σ.tail) (A.subst σ'.tail) (ρ.push x) →
     LR.SubstWF Γ₀ σ σ' (A :: Γ) (ρ.push x)
 
@@ -21,11 +21,11 @@ theorem LR.SubstWF.fits : LR.SubstWF Γ₀ σ σ' Γ ρ → ρ.Fits Γ₀ Γ
   | .id _ => .nil
   | .cons W h1 h2 h3 _ _ => .cons W.fits h1 h2 h3
 
-theorem LR.SubstWF.wf : LR.SubstWF Γ₀ σ σ' Γ ρ → ⊢ Γ
+theorem LR.SubstWF.wf : LR.SubstWF Γ₀ σ σ' Γ ρ → ⊢₀ Γ
   | .id hWF => hWF
   | .cons W _ _ _ hA _ => ⟨W.wf, _, hA⟩
 
-theorem LR.SubstWF.wf₀ : LR.SubstWF Γ₀ σ σ' Γ ρ → ⊢ Γ₀
+theorem LR.SubstWF.wf₀ : LR.SubstWF Γ₀ σ σ' Γ ρ → ⊢₀ Γ₀
   | .id hWF => hWF
   | .cons W _ _ _ _ _ => W.wf₀
 
@@ -71,10 +71,10 @@ theorem LR.Adequate.fits
     (H : ρ.Fits Γ₀ Γ → Adequate Γ₀ Γ ρ M N A m a) : Adequate Γ₀ Γ ρ M N A m a :=
   ⟨fun _ _ W => (H W.fits).1 W, fun _ W => (H W.fits).2 W⟩
 
-theorem LR.Adequate.wf (H : ⊢ Γ → Adequate Γ₀ Γ ρ M N A m a) : Adequate Γ₀ Γ ρ M N A m a :=
+theorem LR.Adequate.wf (H : ⊢₀ Γ → Adequate Γ₀ Γ ρ M N A m a) : Adequate Γ₀ Γ ρ M N A m a :=
   ⟨fun _ _ W => (H W.wf).1 W, fun _ W => (H W.wf).2 W⟩
 
-theorem LR.Adequate.wf₀ (H : ⊢ Γ₀ → Adequate Γ₀ Γ ρ M N A m a) : Adequate Γ₀ Γ ρ M N A m a :=
+theorem LR.Adequate.wf₀ (H : ⊢₀ Γ₀ → Adequate Γ₀ Γ ρ M N A m a) : Adequate Γ₀ Γ ρ M N A m a :=
   ⟨fun _ _ W => (H W.wf₀).1 W, fun _ W => (H W.wf₀).2 W⟩
 
 theorem LR.Adequate.refl
@@ -101,13 +101,13 @@ theorem LR.Adequate.trans' : Adequate Γ₀ Γ ρ A₁ A₂ (.sort u) a s →
     have h2 := (LR _).trans' (a1 W.symm.left).2 (b2 W.symm.left)
     exact (LR _).trans ((LR _).symm h1) <| (LR _).trans (a1 W).2 h2
 
-theorem LR.Adequate.cons {hΓ₀ : ⊢ Γ₀}
+theorem LR.Adequate.cons {hΓ₀ : ⊢₀ Γ₀}
     (ihA : ∀ {ρ n} {m a : WShape n}, LE_Interp ρ m.T A → LE_Interp ρ a.T (.sort u) →
       m.HasType a → Adequate Γ₀ Γ ρ A A' (.sort u) m a)
-    (HA : Γ ⊢ A ≡ A' : .sort u)
+    (HA : Γ ⊢₀ A ≡ A' : .sort u)
     {{k : Nat}} {{a₁ p : WShape k}} {{x x' σ σ' ρ}}
     (hp : p.HasType a₁) (hA₁ : LE_Interp ρ a₁.T A)
-    (hx : Γ₀ ⊢ x ≡ x' : A.subst σ) (hv : (LR hΓ₀).TmEq x x' (A.subst σ) p a₁)
+    (hx : Γ₀ ⊢₀ x ≡ x' : A.subst σ) (hv : (LR hΓ₀).TmEq x x' (A.subst σ) p a₁)
     (W : SubstWF Γ₀ σ σ' Γ ρ) : SubstWF Γ₀ (σ.cons x) (σ'.cons x') (A :: Γ) (ρ.push p.T) := by
   refine W.cons (fun hA => ?_) hA₁ hp.T HA.hasType.1 ⟨hx, hΓ₀, fun n a' ha' => ?_⟩
   · have ⟨_, _, le_a, hA', hSort, hmem'⟩ := (LE_Interp.sound W.wf HA W.fits).2 hA
@@ -162,7 +162,7 @@ theorem LR.toValTy {m : WShape n'} {b : WShape n} (le_n : n ≤ n') (le_a : b.T 
     (.mono_r hle .sort hmem') .sort H
 
 /-- Main adequacy theorem for the logical relation. -/
-theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
+theorem LR.adequacy (H : Γ ⊢₀ M ≡ N : A)
     (hM : LE_Interp ρ m.T M) (hA : LE_Interp ρ a.T A) (hmem : m.HasType a) :
     Adequate (n := n) Γ₀ Γ ρ M N A m a := by
   refine .wf fun hΓ => ?_; replace H := H.strong hΓ; clear hΓ
@@ -212,7 +212,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     cases hM with | bot => exact .bot hmem.isType | @app _ nf_app f _ _ _ x hif hia le_m
     refine .wf₀ fun hΓ₀ => ?_
     suffices ∀ {F F' X X' σ σ'}, SubstWF Γ₀ σ σ' Γ ρ →
-        Γ ⊢ F ≡ F' : A.forallE B → Γ ⊢ X ≡ X' : A → Γ ⊢ B.inst X ≡ B.inst X' : .sort v →
+        Γ ⊢₀ F ≡ F' : A.forallE B → Γ ⊢₀ X ≡ X' : A → Γ ⊢₀ B.inst X ≡ B.inst X' : .sort v →
         LE_Interp ρ f.T F → LE_Interp ρ x.T X → LE_Interp ρ a.T (B.inst X) →
         (∀ {n'} {mf af : WShape n'}, LE_Interp ρ mf.T F → LE_Interp ρ af.T (.forallE A B) →
           mf.HasType af → Adequate Γ₀ Γ ρ F F' (.forallE A B) mf af) →
@@ -329,11 +329,11 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       | lam => exact this _ _ _ rfl .rfl
     rintro k a₁ a₂ rfl ⟨⟩
     have ⟨_, aty, _⟩ := WShape.HasType.forallE_l.1 hmem.isType
-    have hTypA : Γ₀ ⊢ A.subst σ : .sort u :=
+    have hTypA : Γ₀ ⊢₀ A.subst σ : .sort u :=
       HA.defeq.hasType.1.subst W.left.wf₀ W.left.toSubstEq
-    have hΓS : ⊢ A.subst σ :: Γ₀ :=
+    have hΓS : ⊢₀ A.subst σ :: Γ₀ :=
       ⟨W.left.wf₀, _, hTypA⟩
-    have hTypB : A.subst σ :: Γ₀ ⊢ B.subst σ.lift : .sort v :=
+    have hTypB : A.subst σ :: Γ₀ ⊢₀ B.subst σ.lift : .sort v :=
       HB.defeq.subst (Γ₀ := _::_) ⟨W.wf₀, _, hTypA⟩ <|
         W.left.toSubstEq.lift (HA.defeq.hasType.1.strong W.wf) (hTypA.strong W.wf₀)
     have hA1 := hA.forallE_inv.1
@@ -355,7 +355,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       have ⟨n', ab, _, le, le', iB, iv, hmb⟩ :=
         (LE_Interp.sound W'.wf HB.defeq W'.fits).2 (hA.forallE_inv'.2 p) |>.out
       exact toValTy le le' (aty.2 _ hp).toType iv hmb ((ihB iB iv hmb).1 W').1
-    have beta {X Y t : Term} {σ} : Γ₀ ⊢ .app (.lam (X.subst σ) (Y.subst σ.lift)) t ⤳*
+    have beta {X Y t : Term} {σ} : Γ₀ ⊢₀ .app (.lam (X.subst σ) (Y.subst σ.lift)) t ⤳*
         Y.subst (σ.cons t) := inst_lift_cons (x := t) ▸ .tail .rfl .beta
     refine ⟨fun x x' p hp ha hv => ?_, fun x p hp ha hv => ?_⟩
     all_goals
@@ -399,7 +399,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       have S' := W.toSubstEq.lift
         (HA.defeq.hasType.1.strong' W.wf.strong)
         (HAAσ.hasType.1.strong' W.wf₀.strong)
-      have hΓS : ⊢ A.subst σ :: Γ₀ := ⟨W.wf₀, _, HAAσ.hasType.1⟩)
+      have hΓS : ⊢₀ A.subst σ :: Γ₀ := ⟨W.wf₀, _, HAAσ.hasType.1⟩)
     · have HAσ := HA.defeq.hasType.1.subst W.wf₀ W.toSubstEq
       have HA'σ := HA.defeq.hasType.2.subst W.wf₀ W.toSubstEq
       constructor
@@ -487,9 +487,9 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     cases (WShape.lift_eq_bot le_n).1 (hS.proofIrrel ha')
     exact .bot hmem.isType
 
-theorem forallE_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A₀ ≡ Term.forallE B₁ F₁ : .sort s) :
-    ∃ B₀ F₀, Γ ⊢ A₀ ⤳* .forallE B₀ F₀ ∧ ∃ u v,
-      Γ ⊢ B₀ ≡ B₁ : .sort u ∧ B₀::Γ ⊢ F₀ ≡ F₁ : .sort v := by
+theorem forallE_whRed_l (hΓ : ⊢₀ Γ) (d : Γ ⊢₀ A₀ ≡ Term.forallE B₁ F₁ : .sort s) :
+    ∃ B₀ F₀, Γ ⊢₀ A₀ ⤳* .forallE B₀ F₀ ∧ ∃ u v,
+      Γ ⊢₀ B₀ ≡ B₁ : .sort u ∧ B₀::Γ ⊢₀ F₀ ≡ F₁ : .sort v := by
   have hPi : LE_Interp .nil (WShape.T (n := 1) (.forallE .bot WShapeFun.bot)) (.forallE B₁ F₁) := by
     refine .forallE' .bot .bot (.bot <| .bot' .sort) fun _ h => ?_
     cases h.bot_r; exact WShapeFun.bot_app.symm ▸ .bot
@@ -504,17 +504,17 @@ theorem forallE_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A₀ ≡ Term.forallE B₁ F�
 
 /-- Pi–Pi injectivity: if two Pi types are definitionally equal,
 their domains and codomains are each definitionally equal. -/
-theorem forallE_inv (hΓ : ⊢ Γ)
-    (H : Γ ⊢ Term.forallE A₀ B₀ ≡ Term.forallE A₁ B₁ : .sort s) :
-    ∃ u v, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ A₀::Γ ⊢ B₀ ≡ B₁ : .sort v := by
+theorem forallE_inv (hΓ : ⊢₀ Γ)
+    (H : Γ ⊢₀ Term.forallE A₀ B₀ ≡ Term.forallE A₁ B₁ : .sort s) :
+    ∃ u v, Γ ⊢₀ A₀ ≡ A₁ : .sort u ∧ A₀::Γ ⊢₀ B₀ ≡ B₁ : .sort v := by
   have ⟨_, _, red, H⟩ := forallE_whRed_l hΓ H
   cases WHNF.forallE.whRedS red; exact H
 
-theorem sort_forallE_inv (hΓ : ⊢ Γ) : ¬Γ ⊢ .sort u ≡ Term.forallE A₁ B₁ : .sort s :=
+theorem sort_forallE_inv (hΓ : ⊢₀ Γ) : ¬Γ ⊢₀ .sort u ≡ Term.forallE A₁ B₁ : .sort s :=
   fun H => have ⟨_, _, H⟩ := forallE_whRed_l hΓ H; nomatch WHNF.sort.whRedS H.1
 
 /-- Sort injectivity: if two sorts are definitionally equal, their levels are equal. -/
-theorem sort_inv (hΓ : ⊢ Γ) (d : Γ ⊢ Term.sort u ≡ Term.sort v : V) : u = v := by
+theorem sort_inv (hΓ : ⊢₀ Γ) (d : Γ ⊢₀ Term.sort u ≡ Term.sort v : V) : u = v := by
   have hM : LE_Interp .nil (WShape.T (n := 1) (.sort u)) (.sort u) :=
     .sort TShape.sort_eqv.1
   have ⟨n, mU, mV, h1, h2, h3, hA, h5⟩ := (LE_Interp.sound hΓ d .nil).2 hM |>.out
