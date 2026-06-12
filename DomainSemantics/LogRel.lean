@@ -3,7 +3,7 @@ import DomainSemantics.Shape
 
 /-! # The logical relation
 
-This file builds the level-graded logical relation `LR : ⊢ Γ → LogRel Γ n`.
+This file builds the level-graded logical relation `LR : LogRel Γ n`.
 
 * `LogRelBase` packages the bare data of a logical relation: a
   `TmEq M N A m a` predicate for term equality at element/type shapes
