@@ -927,8 +927,7 @@ theorem StrongSound.uniq : StrongSound Γ M A → StrongSound Γ M B → SoundEq
     simp only [SoundEq.sort]
     exact SoundEq.sort.1 (ihB a2 b2)
 
-theorem LE_Interp.strongSound (hΓ : ⊢₀ Γ) (H : Γ ⊢₀ M ≡ N : A) : StrongSoundEq Γ M N A := by
-  replace H := H.strong hΓ; clear hΓ
+theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A := by
   induction H with
   | @bvar _ i A _ h h2 ih =>
     refine .rfl ⟨fun _ _ W _ h => ?_, .bvar h, .rfl⟩; clear h2 ih
@@ -1092,6 +1091,6 @@ theorem LE_Interp.strongSound (hΓ : ⊢₀ Γ) (H : Γ ⊢₀ M ≡ N : A) : St
     have b4' := TShape.HasType.mono_r (by simpa using b3.le_sort) .sort b4
     exact a1.trans (b4'.proofIrrel (b4'.mono_r b1 a4))
 
-theorem LE_Interp.sound (hΓ : ⊢₀ Γ) (H : Γ ⊢₀ M ≡ N : A) (W : Valuation.Fits Γ₀ Γ ρ) {m} :
+theorem LE_Interp.sound (H : Γ ⊢ M ≡ N : A) (W : Valuation.Fits Γ₀ Γ ρ) {m} :
     (LE_Interp ρ m M ↔ LE_Interp ρ m N) ∧ (LE_Interp ρ m M → InterpTyped ρ m M A) :=
-  ⟨(strongSound hΓ H).sound W, (strongSound hΓ H).left.sound W⟩
+  ⟨(strongSound H).sound W, (strongSound H).left.sound W⟩
