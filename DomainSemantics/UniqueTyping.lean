@@ -66,6 +66,7 @@ theorem HasType.hasType : HasType Γ e A b → Γ ⊢ e : A
   | .sort' => .sort
   | .app hA hB hBa ihf iha => .appDF hA hB ihf.hasType iha.hasType hBa
   | .lam ihA hB ihbody => .lamDF ihA.hasType hB ihbody.hasType ihbody.hasType
+      (.forallEDF ihA.hasType hB hB)
   | .forallE ihA ihbody => .forallEDF ihA.hasType ihbody.hasType ihbody.hasType
   | .base ih => ih.hasType
   | .defeq d ihe => d.defeqDF ihe.hasType
@@ -111,11 +112,10 @@ theorem HasType.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
     let .app _ _ _ h_f' _ := H2_s
     obtain ⟨_, h_pi_eq⟩ := ih_f hΓ h_f'
     obtain ⟨_, _, h_A_eq, h_B_eq⟩ := forallE_inv hΓ h_pi_eq
-    have hΓA : ⊢ A :: Γ' := ⟨hΓ, _, h_A_eq.hasType.1⟩
     have W : Ctx.SubstEq Γ' (.one a) (.one a) (A :: Γ') :=
       .cons (Ctx.SubstEq.id hΓ) h_A_eq.hasType.1
         (by simpa using h_a.hasType)
-    exact transport (h_B_eq.subst hΓ hΓA W)
+    exact transport (h_B_eq.subst hΓ W)
   | lam h_A _ h_body ih_A ih_body =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
     let .lam _ _ h_body' := H2_s
@@ -155,7 +155,7 @@ theorem IsDefEq.toHasType {Γ : List Term} {e₁ e₂ A : Term}
     exact ⟨.base (.app hA hB h_Ba.hasType.1 (ih_f hΓ).1 (ih_a hΓ).1),
       .defeq h_Ba.symm
         (.base (.app hA hB h_Ba.hasType.2 (ih_f hΓ).2 (ih_a hΓ).2))⟩
-  | lamDF h_A hB hbody hbody' ih_A _ ih_body ih_body' =>
+  | lamDF h_A hB hbody hbody' _ ih_A _ ih_body ih_body' =>
     have hB' := h_A.defeqDF_l hΓ hB
     have hΓ' : ⊢ _ :: _ := ⟨hΓ, _, h_A.hasType.1⟩
     have hΓ_A' : ⊢ _ :: _ := ⟨hΓ, _, h_A.hasType.2⟩
@@ -209,9 +209,9 @@ theorem IsDefEq₀.iff' {Γ : List Term} {e₁ e₂ A : Term}
     | trans _ _ ih1 ih2 => exact .trans (ih1 hΓ) (ih2 hΓ)
     | trans' h1 h2 ih1 ih2 => cases h1.uniq_sort hΓ h2; exact .trans (ih1 hΓ) (ih2 hΓ)
     | sort => exact .sort
-    | appDF _ _ _ _ _ _ _ ih2 ih3 _ => exact .appDF (ih2 hΓ) (ih3 hΓ)
-    | lamDF h1 _ _ _ ih1 _ ih2 _ => exact .lamDF (ih1 hΓ) (ih2 ⟨hΓ, _, h1.hasType.1⟩)
-    | forallEDF h1 _ _ ih1 ih2 _ => exact .forallEDF (ih1 hΓ) (ih2 ⟨hΓ, _, h1.hasType.1⟩)
+    | appDF _ _ _ _ _ _ _ ih2 ih3 => exact .appDF (ih2 hΓ) (ih3 hΓ)
+    | lamDF h1 _ _ _ _ ih1 _ ih2 => exact .lamDF (ih1 hΓ) (ih2 ⟨hΓ, _, h1.hasType.1⟩)
+    | forallEDF h1 _ _ ih1 ih2 => exact .forallEDF (ih1 hΓ) (ih2 ⟨hΓ, _, h1.hasType.1⟩)
     | defeqDF _ _ ih1 ih2 => exact .defeqDF (ih1 hΓ) (ih2 hΓ)
     | beta h1 _ _ _ _ _ ih1 ih2 => exact .beta (ih1 ⟨hΓ, _, h1⟩) (ih2 hΓ)
     | eta _ _ ih => exact .eta (ih hΓ)

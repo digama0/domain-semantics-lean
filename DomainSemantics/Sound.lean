@@ -992,7 +992,7 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
       cases h with | bot => cases hm TShape.bot_le' | app h1 h2 h3
     · exact .app ((ih1.sound W).1 h1) ((ih2.sound W).1 h2) h3
     · exact .app ((ih1.sound W).2 h1) ((ih2.sound W).2 h2) h3
-  | lamDF _ _ _ _ ih1 _ ih2 ih3 =>
+  | lamDF _ _ _ _ _ ih1 _ ih2 ih3 =>
     refine .mk' (.lam ih1.left.sound ih2.left) .rfl (.lam ih1.right.sound ih3.right)
       (.symm <| .forallE ih1.left.sound ih1.sound .rfl) fun _ _ W m => ?_
     by_cases hm : m ≤ TShape.bot; · exact TShape.le_bot'.1 hm ▸ sound_bot

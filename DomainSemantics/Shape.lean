@@ -130,7 +130,7 @@ theorem Shape.LE.def {s s' : Shape (n + 1)} : s ≤ s' ↔
     | .sort r, .sort r' => r = r' --j ≤ i
     | .forallE s f, .forallE s' f' => s ≤ s' ∧ ShapeFun.LE f f'
     | .lam f, .lam f' => ShapeFun.LE f f'
-        | _, _ => False := by
+    | _, _ => False := by
   dsimp only [(· ≤ ·), LE, ShapeFun.LE]
   rw [Shape.ble.eq_def]; cases s <;> cases s' <;> simp
 
@@ -1414,7 +1414,7 @@ def Shape.app : Shape (n + 1) → Shape n → Shape n
   | .lam f, x => ShapeFun.app f x
   | _, _ => .bot
 
-@[simp] theorem Shape.bot_app : (@Shape.bot (n+1)).app x = .bot := rfl
+@[simp] theorem Shape.bot_app : (@bot (n+1)).app x = .bot := rfl
 
 @[simp] theorem Shape.lift_app (le : n ≤ m) :
     (app f a : Shape n).lift m = app (f.lift _) (a.lift _) := by
@@ -1425,7 +1425,7 @@ def WShape.app (f : WShape (n+1)) (a : WShape n) : WShape n := by
   obtain ⟨⟨⟩, wf⟩ := f <;> try exact .bot
   exact (WShapeFun.app ⟨_, wf.1⟩ _).2
 
-@[simp] theorem WShape.bot_app {x : WShape n} : WShape.app (WShape.bot (n := n+1)) x = .bot :=
+@[simp] theorem WShape.bot_app {x : WShape n} : app (bot (n := n+1)) x = .bot :=
   WShape.ext (Shape.bot_app (x := x.1))
 
 @[simp] theorem WShape.lam_app {f : WShapeFun n} {hl} {x : WShape n} :
@@ -1719,7 +1719,7 @@ theorem WShape.HasDom.def : HasDom f a ↔
   ⟨fun H _ _ h => have ⟨_, _, h1, h2⟩ := H _ _ h; ⟨_, _, f.mem_val h1, h2⟩,
    fun H _ _ h => have ⟨_, _, h1, h2⟩ := H _ _ (f.mem_val h); ⟨_, _, h1, h2⟩⟩
 
-def WShape.HasTypePi.def {b : WShapeFun n} :
+theorem WShape.HasTypePi.def {b : WShapeFun n} :
     HasTypePi b a rel ↔ HasDom b a ∧ ∀ x y, (x, y) ∈ b → y.HasType (.sort rel) :=
   and_congr_right' ⟨fun H _ _ h => H _ _ h, fun H _ _ h => H _ _ (b.mem_val h)⟩
 
