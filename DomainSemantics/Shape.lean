@@ -1336,6 +1336,23 @@ theorem Shape.Compat.sigma_sigma {a a' : Shape n} {f f' : ShapeFun n} :
   have hc := Compat.sigma_sigma.2 ⟨hc1, hc2⟩
   ext1; rw [join_val hc]; simp [sigma, Shape.join, join_val hc1, WShapeFun.join_val hc2]
 
+@[simp] theorem WShape.Compat.pair_pair {s s' t t' : WShape n} {h h'} :
+    (WShape.pair s t h).Compat (.pair s' t' h') ↔ s.Compat s' ∧ t.Compat t' := by
+  simp only [WShape.Compat, WShape.pair, Shape.Compat, Bool.and_eq_true]
+
+@[simp] theorem WShape.pair_join_pair {s s' t t' : WShape n} {h h' h_join}
+    (hc1 : s.Compat s') (hc2 : t.Compat t') :
+    (WShape.pair s t h).join (.pair s' t' h') = .pair (s.join s') (t.join t') h_join := by
+  have hc : (WShape.pair s t h).Compat (.pair s' t' h') := Compat.pair_pair.2 ⟨hc1, hc2⟩
+  ext1; rw [join_val hc]; simp [pair, Shape.join, join_val hc1, join_val hc2]
+
+@[simp] theorem WShape.Compat.lam_lam {f f' : WShapeFun n} {h h'} :
+    (WShape.lam f h).Compat (.lam f' h') ↔ f.Compat f' := .rfl
+
+@[simp] theorem WShape.lam_join_lam {f f' : WShapeFun n} {h h' h_join} (hc : f.Compat f') :
+    (WShape.lam f h).join (.lam f' h') = .lam (f.join f') h_join := by
+  ext1; rw [join_val (Compat.lam_lam.2 hc)]; simp [lam, Shape.join, WShapeFun.join_val hc]
+
 theorem WShapeFun.Join.mk (H : WShapeFun.Compat x y) : WShapeFun.Join x y (x.join y) := by
   simp [Join, WShapeFun.LE.def, join_val H]
   have ⟨_, h⟩ := (WShape.join_prop.ih_fun WShape.join_prop).2 H; exact h
@@ -2514,14 +2531,11 @@ theorem WShape.HasTypePi.toType (H : HasTypePi (n := n) b a r) : HasTypePi (n :=
 theorem WShape.HasType.lam_isType {f : WShapeFun n} {hf} :
     ¬HasType (WShape.lam f hf) (.sort r) := nofun
 
-theorem WShape.HasType.pair_r {m : WShape (n+1)} {a b : WShape n} {h} :
-    ¬HasType m (.pair a b h) := by
-  intro H; obtain ⟨m, mw⟩ := m
-  simp [HasType, WShape.pair] at H
-  cases m <;> simp [Shape.hasType, Shape.HasType] at H
-
 theorem WShape.HasType.pair_isType {a b : WShape n} {h} :
     ¬HasType (WShape.pair a b h) (.sort r) := nofun
+
+theorem WShape.HasType.pair_r {m : WShape (n+1)} {a b : WShape n} {h} :
+    ¬HasType m (.pair a b h) := mt (·.isType) pair_isType
 
 theorem WShape.HasType.bot : HasType (n := n) x (.sort r) → HasType .bot x := (.bot' ·.toType)
 

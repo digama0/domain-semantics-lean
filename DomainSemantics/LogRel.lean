@@ -77,6 +77,8 @@ structure LogRel (Γ : List Term) (n : Nat) extends LogRelBase Γ n where
   mono_l : m ≤ m' → m.HasType a → m'.HasType a → TmEq M N A m' a → TmEq M N A m a
   join_ty : m₁.Compat m₂ → m₁.HasType .type → m₂.HasType .type →
     TyEq A B m₁ → TyEq A B m₂ → TyEq A B (m₁.join m₂)
+  join {m m' a : WShape n} : m.Compat m' → m.HasType a → m'.HasType a →
+    TmEq M N A m a → TmEq M N A m' a → TmEq M N A (m.join m') a
   whr : Γ ⊢ M ⤳* M' : A → Γ ⊢ N ⤳* N' : A → Γ ⊢ M ≡ N : A →
     (TmEq M N A m a ↔ TmEq M' N' A m a)
 
@@ -170,6 +172,15 @@ def LR0 (wf : ⊢ Γ) : LogRel Γ 0 where
     cases m₁ using WShape.casesOn with | bot => simp | sort
     cases m₂ using WShape.casesOn with | bot => simp +contextual | sort
     cases WShape.Compat.sort_sort.1 compat; simp
+  join {M N A m m' a} compat _ _ := by
+    cases a using WShape.casesOn with | bot => intro; intro; trivial | sort
+    rintro ⟨u, hA, hTy1⟩ ⟨_, _, hTy2⟩
+    refine ⟨u, hA, ?_⟩
+    cases m using WShape.casesOn with | bot => rw [WShape.bot_join]; exact hTy2 | sort
+    cases m' using WShape.casesOn with | bot => rw [WShape.join_bot]; exact hTy1 | sort
+    cases WShape.Compat.sort_sort.1 compat
+    rw [WShape.sort_join_sort]
+    simp_all
   whr {M M' A N N' m a} hM hN _ := by
     cases m using WShape.casesOn with | bot => rfl | sort
     cases a using WShape.casesOn with | bot => rfl | sort
@@ -333,6 +344,26 @@ theorem LRS.PairDefEq.mono_l {IH : LogRel Γ n}
     have hg1 := IH.mono_l let_ ht_at_s' ht' hg
     have hg2 := IH.mono_r_2 le_app ht htapp_s' hg1
     ⟨hf', hg2⟩
+
+theorem LRS.PairDefEq.join {IH : LogRel Γ n}
+    {s₁ s₂ t₁ t₂ a₁ : WShape n} {a₂ : WShapeFun n}
+    (htp₁ : WShape.HasTypePair s₁ t₁ a₁ a₂) (htp₂ : WShape.HasTypePair s₂ t₂ a₁ a₂)
+    (hC_s : s₁.Compat s₂) (hC_t : t₁.Compat t₂)
+    (hSelfTy : IH.TyEq (A₂.inst (.fst M)) (A₂.inst (.fst M)) (a₂.app (s₁.join s₂)))
+    (hP₁ : LRS.PairDefEq IH M N A₁ A₂ s₁ t₁ a₁ a₂)
+    (hP₂ : LRS.PairDefEq IH M N A₁ A₂ s₂ t₂ a₁ a₂) :
+    LRS.PairDefEq IH M N A₁ A₂ (s₁.join s₂) (t₁.join t₂) a₁ a₂ := by
+  let ⟨hf₁, hg₁⟩ := hP₁
+  let ⟨hf₂, hg₂⟩ := hP₂
+  rw [WShape.HasTypePair.def] at htp₁ htp₂
+  have htJ := (WShape.HasTypePi.iff.1 htp₁.1).2 _ (htp₁.2.1.join hC_s htp₂.2.1)
+  have hsJ1 := WShapeFun.app_mono_r (f := a₂) (WShape.Join.mk hC_s).le.1
+  have hsJ2 := WShapeFun.app_mono_r (f := a₂) (WShape.Join.mk hC_s).le.2
+  have ht₁' := htJ.mono_r hsJ1 htp₁.2.2
+  have ht₂' := htJ.mono_r hsJ2 htp₂.2.2
+  refine ⟨IH.join hC_s htp₁.2.1 htp₂.2.1 hf₁ hf₂, IH.join hC_t ht₁' ht₂' ?_ ?_⟩
+  · exact IH.mono_r_1 hsJ1 htp₁.2.2 ht₁' hSelfTy hg₁
+  · exact IH.mono_r_1 hsJ2 htp₂.2.2 ht₂' hSelfTy hg₂
 
 /-- Monotonicity of `LamDefEq` in the type-shape: increase. -/
 theorem LRS.LamDefEq.mono_r_1 {IH : LogRel Γ n}
@@ -507,6 +538,32 @@ theorem LRS.LamDefEq.mono_l {IH : LogRel Γ n}
            IH.mono_l (WShapeFun.app_mono_l le _) hm_tgt hm_src d2⟩
   · have q := pae hp ha a1
     exact IH.mono_l (WShapeFun.app_mono_l le _) hm_tgt hm_src q
+
+theorem LRS.LamDefEq.join {IH : LogRel Γ n}
+    (htm₁ : WShape.HasTypeLam m₁ a₁ a₂) (htm₂ : WShape.HasTypeLam m₂ a₁ a₂)
+    (hC : WShapeFun.Compat m₁ m₂)
+    (hE₁ : LRS.LamDefEq IH M N A₁ A₂ m₁ a₁ a₂)
+    (hE₂ : LRS.LamDefEq IH M N A₁ A₂ m₂ a₁ a₂) :
+    LRS.LamDefEq IH M N A₁ A₂ (m₁.join m₂) a₁ a₂ := by
+  have htm₁_w := WShape.HasTypeLam.iff.1 htm₁
+  have htm₂_w := WShape.HasTypeLam.iff.1 htm₂
+  obtain ⟨pav₁, pae₁⟩ := hE₁
+  obtain ⟨pav₂, pae₂⟩ := hE₂
+  refine ⟨fun _ _ p hp ha a1 => ?_, fun _ p hp ha a1 => ?_⟩
+  all_goals
+    have ht_m₁p := htm₁_w.2.2 _ hp
+    have ht_m₂p := htm₂_w.2.2 _ hp
+    have hC_app : (m₁.app p).Compat (m₂.app p) := hC.app_l p
+    have hJ_outer := WShapeFun.Join.app_l (WShapeFun.Join.mk hC) p
+    have ⟨_, hLE1, hLE2⟩ := WShape.Join.iff.1 hJ_outer
+    have ht_app_inner := ht_m₁p.join hC_app ht_m₂p
+    have ht_outer : ((m₁.join m₂).app p).HasType (a₂.app p) :=
+      WShape.HasType.mono_l hLE1 hLE2 ht_app_inner
+  · have ⟨d₁M, d₁N⟩ := pav₁ hp ha a1; have ⟨d₂M, d₂N⟩ := pav₂ hp ha a1
+    exact ⟨IH.mono_l hLE2 ht_outer ht_app_inner (IH.join hC_app ht_m₁p ht_m₂p d₁M d₂M),
+           IH.mono_l hLE2 ht_outer ht_app_inner (IH.join hC_app ht_m₁p ht_m₂p d₁N d₂N)⟩
+  · have q₁ := pae₁ hp ha a1; have q₂ := pae₂ hp ha a1
+    exact IH.mono_l hLE2 ht_outer ht_app_inner (IH.join hC_app ht_m₁p ht_m₂p q₁ q₂)
 
 /-- Join of `PiDefEq`: given edge validity at `(b₁, f₁)` and `(b₂, f₂)`,
 produce edge validity at `(b₁.join b₂, f₁.join f₂)`.
@@ -685,6 +742,51 @@ theorem LRS.TmEq.isType {IH : LogRel Γ n} :
       exact ⟨A₁, A₂, A₁, A₂, u, v, rA, rA, hA1, hA₂, IH.left_ty hValA, hE.left⟩
     | _ => intro; trivial
   | _ => intro; trivial
+
+theorem LRS.TyEq.join {IH : LogRel Γ n} {A B : Term} {m₁ m₂ : WShape (n+1)}
+    (hC : m₁.Compat m₂) (hm₁ : m₁.HasType .type) (hm₂ : m₂.HasType .type)
+    (h1 : LRS.TyEq IH A B m₁) (h2 : LRS.TyEq IH A B m₂) :
+    LRS.TyEq IH A B (m₁.join m₂) := by
+  cases hm₁.unfold with
+  | bot _ => rwa [WShape.bot_join]
+  | sort =>
+    cases hm₂.unfold with
+    | bot => rwa [WShape.join_bot]
+    | sort =>
+      simp only [WShape.sort_join_sort] at h1 h2 ⊢
+      split <;> simp_all only [LRS.TyEq.sort_iff, WShape.Compat.sort_sort]
+    | _ => cases hC
+  | forallE hp₁ =>
+    cases hm₂.unfold with | bot => rwa [WShape.join_bot] | forallE hp₂ => ?_ | _ => cases hC
+    simp only [LRS.TyEq.forallE_iff] at h1 h2
+    simp [WShape.Compat, WShape.forallE, Shape.Compat] at hC
+    let ⟨B₁, F₁, B₂, F₂, u, v, rA, rB, hBB, hFF, hValB₁, hEdge₁⟩ := h1
+    let ⟨_, _, _, _, u', v', rA', rB', hBB', hFF', hValB₂, hEdge₂⟩ := h2
+    cases rA.2.determ .forallE rA'.2 .forallE
+    cases rB.2.determ .forallE rB'.2 .forallE
+    simp only [LRS.TyEq.forallE_iff, WShape.forallE_join_forallE hC.1 hC.2]
+    have ht₁ := (WShape.HasTypePi.iff.1 hp₁).1.isType
+    have ht₂ := (WShape.HasTypePi.iff.1 hp₂).1.isType
+    refine ⟨B₁, F₁, B₂, F₂, u, v, rA, rB, hBB, hFF, IH.join_ty hC.1 ht₁ ht₂ hValB₁ hValB₂, ?_⟩
+    exact .join ht₁ ht₂ hC.1 hp₁ hp₂ hC.2 hEdge₁ hEdge₂
+  | sigma hp₁ =>
+    cases hm₂.unfold with | bot => rwa [WShape.join_bot] | sigma hp₂ => ?_ | _ => cases hC
+    simp only [WShape.Compat.sigma_sigma] at hC
+    simp only [LRS.TyEq.sigma_iff] at h1 h2
+    let ⟨B₁, F₁, B₂, F₂, u, v, rA, rB, hBB, hFF, hValB₁, hEdge₁⟩ := h1
+    let ⟨_, _, _, _, u', v', rA', rB', hBB', hFF', hValB₂, hEdge₂⟩ := h2
+    cases rA.2.determ .sigma rA'.2 .sigma
+    cases rB.2.determ .sigma rB'.2 .sigma
+    simp only [WShape.sigma_join_sigma hC.1 hC.2, LRS.TyEq.sigma_iff]
+    have hpi₁ : WShape.HasTypePi _ _ true :=
+      ⟨hp₁.1, fun _ _ hh => (hp₁.2 _ _ hh).toType⟩
+    have hpi₂ : WShape.HasTypePi _ _ true :=
+      ⟨hp₂.1, fun _ _ hh => (hp₂.2 _ _ hh).toType⟩
+    have ht₁ := WShape.HasDom.isType hp₁.1
+    have ht₂ := WShape.HasDom.isType hp₂.1
+    refine ⟨B₁, F₁, B₂, F₂, u, v, rA, rB, hBB, hFF,
+      IH.join_ty hC.1 ht₁ ht₂ hValB₁ hValB₂, ?_⟩
+    exact .join ht₁ ht₂ hC.1 hpi₁ hpi₂ hC.2 hEdge₁ hEdge₂
 
 /-- The successor-level logical relation, defined in terms of `IH : LogRel Γ n`.
 Adds Π/λ handling on top of the level-0 `sort`/`bot` skeleton; all closure
@@ -1072,47 +1174,70 @@ def LRS (IH : LogRel Γ n) : LogRel Γ (n+1) where
           hP.mono_l hpair_le.1 hpair_le.2 htpair htpair'⟩
       | _ => cases hm'
     | _ => cases hm.isType
-  join_ty {A B m₁ m₂} hC hm₁ hm₂ h1 h2 := by
-    cases hm₁.unfold with
-    | bot h₁ => rwa [WShape.bot_join]
-    | sort =>
-      cases hm₂.unfold with
-      | bot => rwa [WShape.join_bot]
-      | sort =>
-        simp only [WShape.sort_join_sort] at h1 h2 ⊢
-        split <;> simp_all only [LRS.TyEq.sort_iff, WShape.Compat.sort_sort]
-      | _ => cases hC
-    | forallE hp₁ =>
-      cases hm₂.unfold with | bot => rwa [WShape.join_bot] | forallE hp₂ => ?_ | _ => cases hC
-      simp only [LRS.TyEq.forallE_iff] at h1 h2
-      simp [WShape.Compat, WShape.forallE, Shape.Compat] at hC
-      let ⟨B₁, F₁, B₂, F₂, u, v, rA, rB, hBB, hFF, hValB₁, hEdge₁⟩ := h1
-      let ⟨_, _, _, _, u', v', rA', rB', hBB', hFF', hValB₂, hEdge₂⟩ := h2
+  join_ty := .join
+  join {M N A m m' a} compat hm hm' h1 h2 := by
+    cases a using WShape.casesOn' with
+    | bot => trivial
+    | sort _ =>
+      obtain ⟨u, hA, hTy1⟩ := h1
+      obtain ⟨_, _, hTy2⟩ := h2
+      exact ⟨u, hA, hTy1.join compat hm.toType hm'.toType hTy2⟩
+    | forallE a₁ a₂ =>
+      cases m using WShape.casesOn' with
+      | bot => rw [WShape.bot_join]; exact h2 | lam f hf => ?_ | _ => cases hm
+      cases m' using WShape.casesOn' with
+      | bot => rw [WShape.join_bot]; exact h1 | lam f' hf' => ?_ | _ => cases hm'
+      simp only [LRS.TmEq.lam_forallE] at h1 h2
+      obtain ⟨A₁, A₂, u, v, rA, hA1, hValA, hA₂, hEdge₁, hP₁⟩ := h1
+      obtain ⟨_, _, _, _, rA', _, _, _, hEdge₂, hP₂⟩ := h2
       cases rA.2.determ .forallE rA'.2 .forallE
-      cases rB.2.determ .forallE rB'.2 .forallE
-      simp only [LRS.TyEq.forallE_iff, WShape.forallE_join_forallE hC.1 hC.2]
-      have ht₁ := (WShape.HasTypePi.iff.1 hp₁).1.isType
-      have ht₂ := (WShape.HasTypePi.iff.1 hp₂).1.isType
-      refine ⟨B₁, F₁, B₂, F₂, u, v, rA, rB, hBB, hFF, IH.join_ty hC.1 ht₁ ht₂ hValB₁ hValB₂, ?_⟩
-      exact .join ht₁ ht₂ hC.1 hp₁ hp₂ hC.2 hEdge₁ hEdge₂
-    | sigma hp₁ =>
-      cases hm₂.unfold with | bot => rwa [WShape.join_bot] | sigma hp₂ => ?_ | _ => cases hC
-      simp only [WShape.Compat.sigma_sigma] at hC
-      simp only [LRS.TyEq.sigma_iff] at h1 h2
-      let ⟨B₁, F₁, B₂, F₂, u, v, rA, rB, hBB, hFF, hValB₁, hEdge₁⟩ := h1
-      let ⟨_, _, _, _, u', v', rA', rB', hBB', hFF', hValB₂, hEdge₂⟩ := h2
+      obtain ⟨g, hg, hm_lam⟩ := WShape.HasType.forallE_inv hm
+      have heq_g : (WShape.lam f hf).1 = (WShape.lam' g).1 := congrArg (·.1) hg
+      simp only [WShape.lam, WShape.lam'] at heq_g
+      split at heq_g <;> [skip; cases heq_g]
+      injection heq_g with heq_g
+      cases WShapeFun.ext heq_g
+      obtain ⟨g', hg', hm'_lam⟩ := WShape.HasType.forallE_inv hm'
+      have heq_g' : (WShape.lam f' hf').1 = (WShape.lam' g').1 := congrArg (·.1) hg'
+      simp only [WShape.lam, WShape.lam'] at heq_g'
+      split at heq_g' <;> [skip; cases heq_g']
+      injection heq_g' with heq_g'
+      cases WShapeFun.ext heq_g'
+      have hC_f := WShape.Compat.lam_lam.1 compat
+      rw [WShape.lam_join_lam (h_join := hf.mono (WShapeFun.Join.mk hC_f).le.1) hC_f]
+      simp only [LRS.TmEq.lam_forallE]
+      exact ⟨A₁, A₂, u, v, rA, hA1, hValA, hA₂, hEdge₁, hP₁.join hm_lam hm'_lam hC_f hP₂⟩
+    | sigma a₁ a₂ =>
+      cases m using WShape.casesOn' with
+      | bot => rw [WShape.bot_join]; exact h2 | pair s t mh => ?_ | _ => cases hm
+      cases m' using WShape.casesOn' with
+      | bot => rw [WShape.join_bot]; exact h1 | pair s' t' mh' => ?_ | _ => cases hm'
+      simp only [LRS.TmEq.pair_sigma] at h1 h2
+      obtain ⟨A₁, A₂, u, v, rA, hA1, hValA, hA₂, hFstM, hFstN, htpair, hEdge₁, hP₁⟩ := h1
+      obtain ⟨_, _, _, _, rA', _, _, _, _, _, htpair', hEdge₂, hP₂⟩ := h2
       cases rA.2.determ .sigma rA'.2 .sigma
-      cases rB.2.determ .sigma rB'.2 .sigma
-      simp only [WShape.sigma_join_sigma hC.1 hC.2, LRS.TyEq.sigma_iff]
-      have hpi₁ : WShape.HasTypePi _ _ true :=
-        ⟨hp₁.1, fun _ _ hh => (hp₁.2 _ _ hh).toType⟩
-      have hpi₂ : WShape.HasTypePi _ _ true :=
-        ⟨hp₂.1, fun _ _ hh => (hp₂.2 _ _ hh).toType⟩
-      have ht₁ := WShape.HasDom.isType hp₁.1
-      have ht₂ := WShape.HasDom.isType hp₂.1
-      refine ⟨B₁, F₁, B₂, F₂, u, v, rA, rB, hBB, hFF,
-        IH.join_ty hC.1 ht₁ ht₂ hValB₁ hValB₂, ?_⟩
-      exact .join ht₁ ht₂ hC.1 hpi₁ hpi₂ hC.2 hEdge₁ hEdge₂
+      have ⟨hC_s, hC_t⟩ : s.Compat s' ∧ t.Compat t' := by
+        simpa only [WShape.Compat, WShape.pair, Shape.Compat, Bool.and_eq_true] using compat
+      rw [WShape.HasTypePair.def] at htpair htpair'
+      have hsJ_type := htpair.2.1.join hC_s htpair'.2.1
+      have htApp := (WShape.HasTypePi.iff.1 htpair.1).2 _ hsJ_type
+      have hSelfTy := hEdge₁.2 hsJ_type hFstM <|
+        IH.join hC_s htpair.2.1 htpair'.2.1 (IH.left hP₁.1) (IH.left hP₂.1)
+      have ⟨hsJ_le, hsJ_le'⟩ := (WShape.Join.mk hC_s).le
+      have htpair_joined : WShape.HasTypePair (s.join s') (t.join t') a₁ a₂ :=
+        ⟨htpair.1, hsJ_type, htApp.mono_r (WShapeFun.app_mono_r hsJ_le) htpair.2.2
+          |>.join hC_t <| htApp.mono_r (WShapeFun.app_mono_r hsJ_le') htpair'.2.2⟩
+      have htJ_le : t ≤ t.join t' := (WShape.Join.mk hC_t).le.1
+      have mh_join : ¬(s.join s').1 ≤ .bot ∨ ¬(t.join t').1 ≤ .bot :=
+        mh.imp (mt (WShape.LE.def.1 hsJ_le).trans) (mt (WShape.LE.def.1 htJ_le).trans)
+      rw [WShape.pair_join_pair (h_join := mh_join) hC_s hC_t]
+      simp only [LRS.TmEq.pair_sigma]
+      refine ⟨A₁, A₂, u, v, rA, hA1, hValA, hA₂, hFstM, hFstN, ⟨htpair.1, hsJ_type, ?_⟩, hEdge₁, ?_⟩
+      · exact htApp.mono_r (WShapeFun.app_mono_r hsJ_le) htpair.2.2 |>.join hC_t <|
+          htApp.mono_r (WShapeFun.app_mono_r hsJ_le') htpair'.2.2
+      · exact LRS.PairDefEq.join htpair htpair' hC_s hC_t hSelfTy hP₁ hP₂
+    | lam => cases hm.isType.lam_isType
+    | pair => cases hm.pair_r
   whr {M M' A N N' m a} hM hN hMN := by
     cases a using WShape.casesOn' with
     | sort =>
