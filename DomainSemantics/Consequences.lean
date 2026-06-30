@@ -264,3 +264,116 @@ theorem sort_forallE_inv' (hΓ : ⊢₀ Γ) : ¬Γ ⊢₀ .sort u ≡ Term.foral
 /-- Sort injectivity: if two sorts are definitionally equal, their levels are equal. -/
 theorem sort_inv' (hΓ : ⊢₀ Γ) (d : Γ ⊢₀ Term.sort u ≡ Term.sort v : V) : u = v :=
   sort_inv (Ctx.WF.iff.2 hΓ) ((IsDefEq.iff hΓ).2 d)
+
+/-! ### Subject reduction (subject conversion)
+
+A single weak-head reduction step is a definitional equality *at the
+reducing term's type*: if `Γ ⊢ M : A` and `M ⤳ N` then `Γ ⊢ M ≡ N : A`.
+This mirrors the Agda `subject-conv1` / `subject-red1` development. The
+only nontrivial step is β: there we invert the `lam` typing through
+type uniqueness (`HasType.uniq`) and Pi-injectivity (`forallE_inv`) to
+recover the body typing at the function's actual domain, then build the
+β-equation with `IsDefEq.beta₀`. Ordinary subject reduction
+(`Γ ⊢ N : A`) is the immediate corollary, since `Γ ⊢ N : A` is just
+reflexive defeq `Γ ⊢ N ≡ N : A`. -/
+
+/-- Subject conversion for instrumented `IsDefEq`: one weak-head step is
+a definitional equality at the term's type. -/
+theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) :
+    ∀ {A}, Γ ⊢ M : A → Γ ⊢ M ≡ N : A := by
+  induction hr with
+  | @app f f' a hf ih =>
+    intro A hM
+    obtain ⟨H, _⟩ := hM.toHasType hΓ
+    obtain ⟨_, Hs, transport⟩ := H.toStructural
+    let .app _ _ hBa h_f h_a := Hs
+    obtain ⟨_, eqA⟩ := transport hBa
+    exact eqA.defeqDF (.appDF₀ hΓ (ih h_f.hasType) h_a.hasType)
+  | @beta Al e a =>
+    intro A hM
+    obtain ⟨H, _⟩ := hM.toHasType hΓ
+    obtain ⟨_, Hs, transport⟩ := H.toStructural
+    let .app _ _ hBa h_f h_a := Hs
+    -- invert the `lam` typing: extract its native codomain `B'` and body typing
+    obtain ⟨_, hfs, _⟩ := h_f.toStructural
+    let .lam ihA hB' hbody := hfs
+    obtain ⟨_, hpi⟩ := h_f.uniq hΓ (.base (.lam ihA hB' hbody))
+    obtain ⟨_, _, hAeq, hBeq⟩ := forallE_inv hΓ hpi
+    -- `a` typed at the lam's annotation domain `Al`, and the β-equation there
+    have betaConv := IsDefEq.beta₀ hΓ hbody.hasType (hAeq.defeqDF h_a.hasType)
+    -- re-target the codomain `B'.inst a` back to the app's type `B.inst a`, then `A`
+    have hBeqInst := h_a.hasType.inst0 hΓ hBeq.symm
+    obtain ⟨_, eqA⟩ := transport hBa
+    exact eqA.defeqDF (hBeqInst.defeqDF betaConv)
+
+/-- Subject reduction for instrumented `IsDefEq`: a weak-head step
+preserves the type. -/
+theorem WHRed.subject_red (hΓ : ⊢ Γ) (hr : M ⤳ N) (hM : Γ ⊢ M : A) : Γ ⊢ N : A :=
+  (subject_conv hΓ hr hM).hasType.2
+
+/-- Subject conversion for the standard judgment `IsDefEq₀`. -/
+theorem WHRed.subject_conv' (hΓ : ⊢₀ Γ) (hr : M ⤳ N) (hM : Γ ⊢₀ M : A) : Γ ⊢₀ M ≡ N : A :=
+  (IsDefEq.iff hΓ).1 (subject_conv (Ctx.WF.iff.2 hΓ) hr ((IsDefEq.iff hΓ).2 hM))
+
+/-- Subject reduction for the standard judgment `IsDefEq₀`. -/
+theorem WHRed.subject_red' (hΓ : ⊢₀ Γ) (hr : M ⤳ N) (hM : Γ ⊢₀ M : A) : Γ ⊢₀ N : A :=
+  have := subject_conv' hΓ hr hM; this.symm.trans this
+
+/-! ### Progress
+
+A *value* is a weak-head-canonical form: a sort, a `lam`, or a `forallE`.
+These are exactly the closed weak-head normal forms — the only other
+heads (`bvar`, `app`) are respectively untypable in the empty context
+and always reducible there. Progress states that a closed well-typed
+term is either a value or takes a weak-head step; equivalently, no
+closed well-typed term is stuck. The crux is the canonical-forms lemma
+`Value.forallE_r`: a value of function type must be a `lam` (a sort or
+`forallE` would have a sort type, contradicting `sort_forallE_inv`), so
+a closed application always β-reduces. -/
+
+/-- Weak-head canonical forms: the closed normal forms of the core theory. -/
+inductive Value : Term → Prop where
+  | sort : Value (.sort u)
+  | lam : Value (.lam A e)
+  | forallE : Value (.forallE A B)
+
+/-- Canonical forms at function type: a value typed by a `forallE` is a `lam`.
+A sort or a `forallE` would be typed by a `sort`, which is never
+definitionally equal to a function type. -/
+theorem Value.forallE_r (hΓ : ⊢ Γ) (hv : Value f) (h : Γ ⊢ f : .forallE A B) :
+    ∃ A' e, f = .lam A' e := by
+  cases hv with
+  | lam => exact ⟨_, _, rfl⟩
+  | sort =>
+    obtain ⟨_, eq⟩ := (h.toHasType hΓ).1.uniq hΓ (.base .sort')
+    exact absurd eq.symm (sort_forallE_inv hΓ)
+  | forallE =>
+    obtain ⟨_, hfs, _⟩ := (h.toHasType hΓ).1.toStructural
+    let .forallE hC hD := hfs
+    obtain ⟨_, eq⟩ := (h.toHasType hΓ).1.uniq hΓ (.base (.forallE hC hD))
+    exact absurd eq.symm (sort_forallE_inv hΓ)
+
+/-- Progress for instrumented `IsDefEq`: a closed well-typed term is either a
+value or takes a weak-head step. -/
+theorem progress {e : Term} : ∀ {A}, [] ⊢ e : A → Value e ∨ ∃ e', e ⤳ e' := by
+  induction e with
+  | bvar =>
+    intro A h
+    obtain ⟨_, Hs, _⟩ := (h.toHasType (Γ := []) trivial).1.toStructural
+    let .bvar h_l _ := Hs
+    nomatch h_l
+  | sort => intro A _; exact .inl .sort
+  | app _ _ ih_f =>
+    intro A h
+    obtain ⟨_, Hs, _⟩ := (h.toHasType (Γ := []) trivial).1.toStructural
+    let .app _ _ _ h_f _ := Hs
+    rcases ih_f h_f.hasType with hv | ⟨f', hstep⟩
+    · obtain ⟨_, _, rfl⟩ := hv.forallE_r (Γ := []) trivial h_f.hasType
+      exact .inr ⟨_, .beta⟩
+    · exact .inr ⟨_, .app hstep⟩
+  | lam => intro A _; exact .inl .lam
+  | forallE => intro A _; exact .inl .forallE
+
+/-- Progress for the standard judgment `IsDefEq₀`. -/
+theorem progress' {e A : Term} (h : [] ⊢₀ e : A) : Value e ∨ ∃ e', e ⤳ e' :=
+  progress ((IsDefEq.iff (Γ := []) trivial).2 h)
