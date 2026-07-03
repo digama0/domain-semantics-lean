@@ -86,6 +86,8 @@ inductive LE_Interp : Valuation → TShape → Term → Prop
     m ≤ (WShape.fst s).T → LE_Interp ρ m (.fst P)
   | snd {s : WShape (n+1)} : LE_Interp ρ s.T P →
     m ≤ (WShape.snd s).T → LE_Interp ρ m (.snd P)
+  | protected Y {s : TShape} : LE_Interp (ρ.push s) m b → LE_Interp ρ s (.Y A b) →
+    LE_Interp ρ m (.Y A b)
 
 theorem LE_Interp.bvar' : LE_Interp ρ (ρ i) (.bvar i) := .bvar .rfl
 theorem LE_Interp.bvar0 : LE_Interp (.push ρ x) x (.bvar 0) := .bvar' (ρ := ρ.push x) (i := 0)
@@ -137,6 +139,7 @@ theorem LE_Interp.mono (h : m ≤ m') (H : LE_Interp ρ m' M) : LE_Interp ρ m M
   | pair hX hY h1 => exact .pair hX hY (h.trans h1)
   | fst hP h1 => exact .fst hP (h.trans h1)
   | snd hP h1 => exact .snd hP (h.trans h1)
+  | Y ih_body ih_self ihb ihs => exact .Y (ihb h) ih_self
 
 theorem LE_Interp.mono_l (hρ : ρ.LE ρ') (H : LE_Interp ρ m M) : LE_Interp ρ' m M := by
   induction H generalizing ρ' with
@@ -155,6 +158,7 @@ theorem LE_Interp.mono_l (hρ : ρ.LE ρ') (H : LE_Interp ρ m M) : LE_Interp ρ
   | pair _ _ h1 ih_X ih_Y => exact .pair (ih_X hρ) (ih_Y hρ) h1
   | fst _ h1 ih => exact .fst (ih hρ) h1
   | snd _ h1 ih => exact .snd (ih hρ) h1
+  | Y ih_body ih_self ihb ihs => exact .Y (ihb (Valuation.LE.push.2 ⟨hρ, .rfl⟩)) (ihs hρ)
 
 theorem LE_Interp.unlift (le : m.1 ≤ n)
     (H : LE_Interp ρ (m.2.lift n).T M) : LE_Interp ρ m M := H.mono (TShape.lift_eqv le).2
@@ -185,6 +189,7 @@ theorem LE_Interp.weak'_iff (l : Lift) (h : ∀ i, ρ i = ρ' (l.liftVar i)) :
       exact .pair (ih_X _ h rfl) (ih_Y _ h rfl) h1
     | fst _ h1 ih => exact .fst (ih _ h rfl) h1
     | snd _ h1 ih => exact .snd (ih _ h rfl) h1
+    | Y ih_body ih_self ihb ihs => exact .Y (ihb l.cons (fun i => by cases i <;> simp [Valuation.push, h]) rfl) (ihs l h rfl)
   · induction H generalizing ρ' l with
     | bot => exact .bot
     | sort h1 => exact .sort h1
@@ -203,6 +208,7 @@ theorem LE_Interp.weak'_iff (l : Lift) (h : ∀ i, ρ i = ρ' (l.liftVar i)) :
       exact .pair (ih_X l h) (ih_Y l h) h1
     | fst _ h1 ih => exact .fst (ih l h) h1
     | snd _ h1 ih => exact .snd (ih l h) h1
+    | Y ih_body ih_self ihb ihs => exact .Y (ihb l.cons (fun i => by cases i <;> simp [Valuation.push, h])) (ihs l h)
 
 theorem LE_Interp.weak_iff : LE_Interp (ρ.push x) m M.lift ↔ LE_Interp ρ m M :=
   LE_Interp.weak'_iff (.skip .refl) (fun _ => rfl)
@@ -406,6 +412,12 @@ theorem LE_Interp.compat_join {m₁ m₂ : TShape}
     refine mk (h1.trans ?_) (h12.trans ?_) (.snd' iP')
     · exact TShape.snd_mono (hJ.le.1.trans (TShape.lift_eqv hLvl).2)
     · exact TShape.snd_mono (hJ.le.2.trans (TShape.lift_eqv hLvl).2)
+  | Y ih_body ih_self ihb ihs =>
+    cases H2 with | bot => exact bot_r hρ (.Y ih_body ih_self) | Y hb2 hs2
+    have ⟨cs, is⟩ := ihs hρ hs2
+    have ⟨cm, im⟩ := ihb (Valuation.LE.push.2 ⟨hρ, (TShape.Join.mk cs).le.1⟩)
+      (hb2.mono_l (Valuation.LE.push.2 ⟨.rfl, (TShape.Join.mk cs).le.2⟩))
+    exact ⟨cm, .Y im is⟩
 
 theorem LE_Interp.compat (H1 : LE_Interp ρ m₁ M) (H2 : LE_Interp ρ m₂ M) : m₁.Compat m₂ :=
   (compat_join .rfl H1 H2).1
@@ -611,6 +623,18 @@ theorem LE_Interp.subst : LE_Interp ρ m (M.subst σ) ↔
       cases eq
       have ⟨ρ', hP', h'⟩ := ih_P P' σ rfl
       exact ⟨ρ', .snd hP' h1, h'⟩
+    | Y ih_body ih_self ihb ihs =>
+      cases M with | bvar => exact bvar eq (.Y ih_body ih_self) | Y A' b' => ?_ | _ => cases eq
+      cases eq
+      have ⟨ρ_b, hb, hρ_b⟩ := ihb b' σ.lift rfl
+      have ⟨ρ_s, hs, hρ_s⟩ := ihs (A'.Y b') σ rfl
+      let ρ_b' : Valuation := fun i => ρ_b (i + 1)
+      have hρ_b' i := weak_iff.1 (hρ_b (i + 1))
+      have hc : ρ_b'.Compat ρ_s := fun i => (hρ_b' i).compat (hρ_s i)
+      have ⟨hj_b, hj_s⟩ := hc.le_join
+      refine ⟨ρ_b'.join ρ_s, .Y (hb.mono_l ?_) (hs.mono_l hj_s), fun i => (hρ_b' i).join' (hρ_s i)⟩
+      rw [← (show ρ_b'.push (ρ_b 0) = ρ_b by funext i; cases i <;> rfl)]
+      exact Valuation.LE.push.2 ⟨hj_b, bvar_iff.1 (hρ_b 0)⟩
   · rintro ⟨ρ', H, h⟩
     induction H generalizing ρ σ with
     | bot => exact .bot
@@ -629,6 +653,7 @@ theorem LE_Interp.subst : LE_Interp ρ m (M.subst σ) ↔
     | pair _ _ h1 ih_X ih_Y => exact .pair (ih_X h) (ih_Y h) h1
     | fst hP h1 ih => exact .fst (ih h) h1
     | snd hP h1 ih => exact .snd (ih h) h1
+    | Y ih_body ih_self ihb ihs => exact .Y (ihb (fun | 0 => .bvar0 | i+1 => (h i).weak)) (ihs h)
 
 theorem LE_Interp.inst : LE_Interp ρ f (F.inst A) ↔
     ∃ a, LE_Interp (ρ.push a) f F ∧ LE_Interp ρ a A := by
@@ -637,6 +662,10 @@ theorem LE_Interp.inst : LE_Interp ρ f (F.inst A) ↔
     refine ⟨_, hF.mono_l ?_, hσ 0⟩
     intro | 0 => exact .rfl | i+1 => exact (bvar_iff.1 (hσ (i+1)) :)
   · exact (LE_Interp.subst (σ := .one A)).2 ⟨_, hF, fun | 0 => hA | _+1 => .bvar'⟩
+
+theorem LE_Interp.Y_iff : LE_Interp ρ m (.Y A b) ↔ LE_Interp ρ m (b.inst (.Y A b)) := by
+  refine .trans ⟨fun H => ?_, fun ⟨s, hb, hs⟩ => .Y hb hs⟩ LE_Interp.inst.symm
+  cases H with | bot => exact ⟨.bot, .bot, .bot⟩ | Y hb hs => exact ⟨_, hb, hs⟩
 
 theorem LE_Interp.forallE_inv {b} {f : WShapeFun n} {B F}
     (H : LE_Interp ρ (WShape.T (n := n+1) (.forallE b f)) (.forallE B F)) :
@@ -1279,6 +1308,40 @@ to an `InterpTyped` witness at `A`. -/
 def SoundTy (Γ : List Term) (M A : Term) : Prop :=
   ∀ {{Γ₀ ρ}}, Valuation.Fits Γ₀ Γ ρ → ∀ {m}, LE_Interp ρ m M → InterpTyped ρ m M A
 
+theorem LE_Interp.sound_Y {Γ : List Term} {A b : Term} {u} {Γ₀ ρ}
+    (hA : ∀ {a}, LE_Interp ρ a A → InterpTyped ρ a A (.sort u))
+    (hb : SoundTy (A::Γ) b A.lift)
+    (W : Valuation.Fits Γ₀ Γ ρ)
+    {m} (h : LE_Interp ρ m (.Y A b)) : InterpTyped ρ m (.Y A b) A := by
+  generalize eqM : Term.Y A b = M at h
+  induction h with cases eqM
+  | bot => exact InterpTyped.bot
+  | Y hbody hself ihbody ihself =>
+    obtain ⟨_, _, sle, hsY, haA, htyp⟩ := ihself hA W rfl
+    have Wc := W.cons (InterpTyped.hsort hA) haA htyp
+    have hbody' := hbody.mono_l (Valuation.LE.push.2 ⟨.rfl, sle⟩)
+    obtain ⟨m', a', mle, hm'b, ha'A, hm'ty⟩ := hb Wc hbody'
+    exact InterpTyped.mk mle (.Y hm'b hsY) (LE_Interp.weak_iff.1 ha'A) hm'ty
+
+theorem LE_Interp.Y_cong {Γ : List Term} {A A' b b' : Term} {u} {Γ₀ ρ}
+    (hA : ∀ {a}, LE_Interp ρ a A → InterpTyped ρ a A (.sort u))
+    (hbTy : SoundTy (A::Γ) b A.lift) (hbEq : SoundEq (A::Γ) b b')
+    (W : Valuation.Fits Γ₀ Γ ρ) {m} (h : LE_Interp ρ m (.Y A b)) : LE_Interp ρ m (.Y A' b') := by
+  suffices ∀ {m}, LE_Interp ρ m (.Y A b) →
+      ∃ m'' a, m ≤ m'' ∧ LE_Interp ρ a A ∧ m''.HasType a ∧ LE_Interp ρ m'' (.Y A' b') by
+    obtain ⟨_, _, hle, _, _, hY'⟩ := this h; exact hY'.mono hle
+  clear h m; intro m h; generalize eqM : Term.Y A b = M at h
+  induction h with cases eqM
+  | bot =>
+    refine ⟨WShape.T (n := 0) .bot, WShape.T (n := 0) .bot, TShape.bot_le', .bot, ?_, .bot⟩
+    exact WShape.HasType.T_iff.2 (.bot' (.bot' .sort))
+  | Y hbody hself ihbody ihself
+  obtain ⟨_, _, sle, ha_s, hs_ty, hsY'⟩ := ihself hA W rfl
+  have Wc := W.cons (fun h => InterpTyped.hsort hA h) ha_s hs_ty
+  have hbody' := hbody.mono_l (Valuation.LE.push.2 ⟨.rfl, sle⟩)
+  obtain ⟨m'', a'', mle, hm''b, ha''A, hm''ty⟩ := hbTy Wc hbody'
+  exact ⟨m'', a'', mle, LE_Interp.weak_iff.1 ha''A, hm''ty, .Y ((hbEq Wc).1 hm''b) hsY'⟩
+
 mutual
 /-- `StrongSound Γ M A`: `M` is semantically typed at `A` *and* there is a
 structural derivation at some `A'` related to `A` by `SoundEq`. The
@@ -1312,6 +1375,7 @@ inductive StrongSoundCore : List Term → Term → Term → Prop where
   | snd : SoundTy Γ A (.sort u) → SoundTy (A::Γ) B (.sort v) →
     StrongSound Γ p (.sigma A B) →
     StrongSoundCore Γ (.snd p) (B.inst (.fst p))
+  | Y : SoundTy Γ A (.sort u) → StrongSound (A::Γ) b A.lift → StrongSoundCore Γ (.Y A b) A
 end
 /-- Strong soundness for an equality judgment: both sides are individually
 `StrongSound` at `A`, and they are semantically equal. -/
@@ -1560,6 +1624,7 @@ theorem StrongSound.uniq : StrongSound Γ M A → StrongSound Γ M B → SoundEq
     let .snd a1 a2 a3 := H1; let .snd b1 b2 b3 := H2
     have ⟨_, c2⟩ := (ihP a3 b3).sigma_inv a1 b1
     exact .inst (SoundTy.fstsnd a3.sound).1 a1 c2
+  | Y _ _ => let .Y _ _ := H1; let .Y _ _ := H2; exact .rfl
 
 theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A := by
   induction H with
@@ -2056,6 +2121,15 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
     have ⟨_, _, b1, b2, b3, b4⟩ := ih1.left.sound W a3
     have b4' := TShape.HasType.mono_r (by simpa using b3.le_sort) .sort b4
     exact a1.trans (b4'.proofIrrel (b4'.mono_r b1 a4))
+  | YDF _ _ _ ihA ihb ihb' =>
+    refine ⟨fun _ _ W _ => ⟨fun h => ?_, fun h => ?_⟩, ?_, ?_⟩
+    · exact .Y_cong (ihA.left.sound W) ihb.left.sound ihb.sound W h
+    · exact .Y_cong (ihA.right.sound W) ihb'.right.sound ihb'.sound.symm W h
+    · refine ⟨?_, .Y ihA.left.sound ihb.left, .rfl⟩
+      exact fun _ _ W _ h => LE_Interp.sound_Y (ihA.left.sound W) ihb.left.sound W h
+    · refine ⟨.defeq_r ihA.sound.symm ?_, .Y ihA.right.sound ihb'.right, ihA.sound.symm⟩
+      exact fun _ _ W _ h => LE_Interp.sound_Y (ihA.right.sound W) ihb'.right.sound W h
+  | Y_unfold _ _ _ _ ih1 ih2 ih3 ih4 => exact ⟨fun _ _ _ _ => LE_Interp.Y_iff, ih3.left, ih4.left⟩
 
 /-- **Soundness of the interpretation.** Every `IsDefEq` derivation yields,
 under any fitting valuation, both

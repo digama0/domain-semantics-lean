@@ -208,6 +208,144 @@ theorem LR.Adequate.bot' {Γ₀ Γ : List Term} {ρ : Valuation} {M N A : Term}
   have ⟨_, _, _, le_n, le_a, hA', hSort, hmem'⟩ := (LE_Interp.sound HtypeA W.fits).2 hA |>.out
   exact LR.toValTy le_n le_a ha hSort hmem' ((IH hA' hSort hmem').2 W)
 
+/-- Lower an `Adequate` from a witness `(m', a')` to a smaller one `(m, a)` — used to
+consume the saturated invariant returned by `adequacy_Y`. `le : m.T ≤ m'.T` lowers the
+term-witness; the two type-witnesses `a, a'` (both interpreting `A`, hence compatible)
+are reconciled through their join. -/
+theorem LR.Adequate.mono {Γ₀ Γ : List Term} {ρ : Valuation} {M N A : Term}
+    {n n' : Nat} {m a : WShape n} {m' a' : WShape n'}
+    (le : m.T ≤ m'.T) (hmem : m.HasType a) (hmem' : m'.HasType a')
+    (hc : a.T.Compat a'.T)
+    (hAty : ∀ {{σ σ'}} (W : LR.SubstWF Γ₀ σ σ' Γ ρ), (LR W.wf₀).TyEq (A.subst σ) (A.subst σ) a)
+    (H : Adequate Γ₀ Γ ρ M N A m' a') : Adequate Γ₀ Γ ρ M N A m a := by
+  -- Join the two type-witnesses (both interpret `A`, so compatible via `hc`); work at `k = max n n'`.
+  have hJ := TShape.Join.mk hc
+  have ⟨hJ1, hJ2⟩ := (hJ _).1 .rfl          -- a.T ≤ a.T⊔a'.T,  a'.T ≤ a.T⊔a'.T
+  have hkn : n ≤ max n n' := Nat.le_max_left ..
+  have hkn' : n' ≤ max n n' := Nat.le_max_right ..
+  have hjk : (a.T.join a'.T).1 ≤ max n n' := Nat.max_le.2 ⟨hkn, hkn'⟩
+  have hJ1' := (TShape.LE.def hkn hjk).1 hJ1
+  have hJ2' := (TShape.LE.def hkn' hjk).1 hJ2
+  have hJ_t := (TShape.HasType.sort_r.2 hmem.isType).join' hJ (TShape.HasType.sort_r.2 hmem'.isType)
+  have hmem_k := (WShape.HasType.lift hkn).2 hmem
+  have hmem'_k := (WShape.HasType.lift hkn').2 hmem'
+  have hJ_t' := TShape.HasType.sort_r.1 <| hJ_t.mono_l (TShape.lift_eqv hjk).2 (TShape.lift_eqv hjk).1
+  -- Per component: lift to `k`, `mono_r_1` (a'→join, needs `TyEq A A join` from `hAty` ⊔ base),
+  -- `mono_l` (m'→m via `le`), `mono_r_2` (join→a), unlift. (appDF template, ~441–455.)
+  have lower : ∀ {M0 N0 : Term} {{σ σ'}} (W : LR.SubstWF Γ₀ σ σ' Γ ρ),
+      (LR W.wf₀).TmEq M0 N0 (A.subst σ) m' a' → (LR W.wf₀).TmEq M0 N0 (A.subst σ) m a := by
+    intro M0 N0 σ σ' W hv
+    have ha_kty : (WShape.lift (max n n') a).HasType .type := by
+      simpa using (WShape.HasType.lift hkn).2 hmem.isType
+    have ha'_kty : (WShape.lift (max n n') a').HasType .type := by
+      simpa using (WShape.HasType.lift hkn').2 hmem'.isType
+    have tyJ := (LR _).join_ty ((TShape.Compat.def hkn hkn').2 hc) ha_kty ha'_kty
+      ((TyEq.lift hkn hmem.isType).2 (hAty W)) ((TyEq.lift hkn' hmem'.isType).2 ((LR W.wf₀).isType hv))
+    have tyJ' : (LR W.wf₀).TyEq (A.subst σ) (A.subst σ) ((a.T.join a'.T).snd.lift (max n n')) :=
+      WShape.lift_self ▸ tyJ
+    refine (LR.TmEq.lift hkn hmem).1 <| (LR _).mono_r_2 hJ1' hmem_k hJ_t' <|
+      (LR _).mono_l ((TShape.LE.def hkn hkn').1 le) (.mono_r hJ1' hJ_t' hmem_k)
+        (.mono_r hJ2' hJ_t' hmem'_k) <|
+      (LR _).mono_r_1 hJ2' hmem'_k (.mono_r hJ2' hJ_t' hmem'_k) tyJ' <|
+        (LR.TmEq.lift hkn' hmem').2 hv
+  exact ⟨fun σ σ' W => ⟨lower W (H.1 W).1, lower W (H.1 W).2⟩, fun σ W => lower W (H.2 W)⟩
+
+/-- Dedicated recursion for the `YDF` (fixed-point congruence) case of
+`LR.adequacy`. Separated out because the `.Y` witness `m.T` is not a variable,
+so the finite `LE_Interp`-tower recursion cannot be run inline; here the witness
+is generalised (`w`) so `induction hM` fires on the `bot`/`.Y` constructors.
+
+The `bot` leaf (`w ≤ ⊥ ⇒ m = ⊥`) gives `Adequate.bot`. The `.Y` step
+head-expands both sides one unfold to `b.inst (.Y A b) ≡ b'.inst (.Y A' b')`,
+discharges it with the body IH `ihb`, and feeds the recursive self-adequacy of
+`.Y A b ≡ .Y A' b'` from the structurally-smaller self-witness (`ih_self`).
+
+The three `ih*` arguments are the `LR.adequacy` IHs for the `YDF` premises. -/
+theorem LR.adequacy_Y (W : ρ.Fits Γ₀ Γ)
+    (HA : Γ ⊢ A ≡ A' : .sort u) (Hb : A::Γ ⊢ b ≡ b' : A.lift)
+    (Hb' : A'::Γ ⊢ b ≡ b' : A'.lift)
+    (ihA : ∀ {ρ : Valuation} {n} {m a : WShape n},
+      LE_Interp ρ m.T A → LE_Interp ρ a.T (.sort u) → m.HasType a →
+      Adequate Γ₀ Γ ρ A A' (.sort u) m a)
+    (ihb : ∀ {ρ : Valuation} {n} {m a : WShape n},
+      LE_Interp ρ m.T b → LE_Interp ρ a.T A.lift → m.HasType a →
+      Adequate Γ₀ (A::Γ) ρ b b' A.lift m a)
+    (hM : LE_Interp ρ m (.Y A b)) :
+    ∃ n m' a, m ≤ m'.T ∧ LE_Interp ρ m'.T (.Y A b) ∧ LE_Interp ρ a.T A ∧ m'.HasType (n := n) a ∧
+      Adequate Γ₀ Γ ρ (.Y A b) (.Y A' b') A m' a := by
+  generalize eq : Term.Y A b = M at hM
+  induction hM with cases eq
+  | bot => exact ⟨_, _, _, .rfl, .bot, .bot, .bot' (.bot' .sort),
+    .bot' HA.hasType.1 .bot (.bot' .sort) fun h1 h2 h3 => (ihA h1 h2 h3).left⟩
+  | Y hbody hself ihbody ihself
+  rename_i m' ρ' s
+  have ⟨n, s', a', a1, a2, a3, a4, a5⟩ := ihself W rfl
+  have Wc := W.cons (InterpTyped.hsort (LE_Interp.sound HA W).2) a3 a4.T
+  have ⟨m'', a'', b1, b2, b3, b4⟩ := (LE_Interp.sound Hb Wc).2
+    (hbody.mono_l (Valuation.LE.push.2 ⟨.rfl, a1⟩))
+  have hAdq := ihb (b2.lift (Nat.le_max_left ..)) (b3.lift (Nat.le_max_right ..)) b4
+  refine ⟨_, _, _, b1.trans (TShape.lift_eqv (Nat.le_max_left ..)).2,
+    .lift (Nat.le_max_left ..) (.Y b2 a2), (LE_Interp.weak_iff.1 b3).lift (Nat.le_max_right ..),
+    b4, fun σ σ' W => ⟨?_, ?_⟩, fun σ W => ?_⟩
+  · -- (1) reflexive LHS: `A.Y b` across `σ`/`σ'`, discharged by `(hAdq.1 W_LL).1` with the
+    -- reflexive self `(a5.1 W).1` threaded via `Adequate.cons`.
+    have redY : ∀ {C c : Term} {τ : Subst}, (Term.Y C c).subst τ ⤳* c.subst (τ.cons ((Term.Y C c).subst τ)) :=
+      fun {C c τ} => inst_lift_cons ▸ .tail .rfl .Y
+    have hYYL := ((IsDefEq.YDF HA Hb Hb').hasType.1).subst' W.wf₀ W.toSubstEq
+    have hAss : Γ₀ ⊢ A.subst σ ≡ A.subst σ' : .sort u := (HA.hasType.1).subst' W.wf₀ W.toSubstEq
+    have unfoldL1 : Γ₀ ⊢ (Term.Y A b).subst σ ≡ b.subst (σ.cons ((Term.Y A b).subst σ)) : A.subst σ := by
+      have h := (IsDefEq.Y_unfold₀ W.wf HA.hasType.1 Hb.hasType.1).subst' W.wf₀ W.left.toSubstEq
+      rwa [subst_inst, inst_lift_cons] at h
+    have unfoldL2 : Γ₀ ⊢ (Term.Y A b).subst σ' ≡ b.subst (σ'.cons ((Term.Y A b).subst σ')) : A.subst σ := by
+      have h := (IsDefEq.Y_unfold₀ W.wf HA.hasType.1 Hb.hasType.1).subst' W.wf₀ W.symm.left.toSubstEq
+      rw [subst_inst, inst_lift_cons] at h
+      exact hAss.symm.defeqDF h
+    refine ((LR _).whr ⟨unfoldL1, redY⟩ ⟨unfoldL2, redY⟩ hYYL).2 ?_
+    have W_LL := LR.Adequate.cons ihA HA a4 a3 hYYL (a5.1 W).1 W
+    exact (lift_subst_cons (e := A)) ▸ (hAdq.1 W_LL).1
+  · -- (2) reflexive RHS: `A'.Y b'` across `σ`/`σ'`, via `hAdq`'s `b'` component + the reflexive
+    -- self `(a5.1 W).2` threaded via `Adequate.cons` (head `A'.Y b'`).
+    have redY : ∀ {C c : Term} {τ : Subst}, (Term.Y C c).subst τ ⤳* c.subst (τ.cons ((Term.Y C c).subst τ)) :=
+      fun {C c τ} => inst_lift_cons ▸ .tail .rfl .Y
+    have hYYR := ((IsDefEq.YDF HA Hb Hb').hasType.2).subst' W.wf₀ W.toSubstEq
+    have hAss : Γ₀ ⊢ A.subst σ ≡ A.subst σ' : .sort u := (HA.hasType.1).subst' W.wf₀ W.toSubstEq
+    have unfoldR1 : Γ₀ ⊢ (Term.Y A' b').subst σ ≡ b'.subst (σ.cons ((Term.Y A' b').subst σ)) : A.subst σ := by
+      have h := (IsDefEq.Y_unfold₀ W.wf HA.hasType.2 Hb'.hasType.2).subst' W.wf₀ W.left.toSubstEq
+      rw [subst_inst, inst_lift_cons] at h
+      exact (HA.subst' W.wf₀ W.left.toSubstEq).symm.defeqDF h
+    have unfoldR2 : Γ₀ ⊢ (Term.Y A' b').subst σ' ≡ b'.subst (σ'.cons ((Term.Y A' b').subst σ')) : A.subst σ := by
+      have h := (IsDefEq.Y_unfold₀ W.wf HA.hasType.2 Hb'.hasType.2).subst' W.wf₀ W.symm.left.toSubstEq
+      rw [subst_inst, inst_lift_cons] at h
+      exact hAss.symm.defeqDF ((HA.subst' W.wf₀ W.symm.left.toSubstEq).symm.defeqDF h)
+    refine ((LR _).whr ⟨unfoldR1, redY⟩ ⟨unfoldR2, redY⟩ hYYR).2 ?_
+    have W_R' := LR.Adequate.cons ihA HA a4 a3 hYYR (a5.1 W).2 W
+    exact (lift_subst_cons (e := A)) ▸ (hAdq.1 W_R').2
+  · -- (3) diagonal: `whr`-expand both `.Y` sides, then transitivity through `b.σR`
+    -- using `hAdq` (b ≡ b'), with the self-diagonal `a5.2 W` threaded via `Adequate.cons`.
+    have redY : ∀ {C c : Term}, (Term.Y C c).subst σ ⤳* c.subst (σ.cons ((Term.Y C c).subst σ)) :=
+      fun {C c} => inst_lift_cons ▸ .tail .rfl .Y
+    have hYY := (IsDefEq.YDF HA Hb Hb').subst' W.wf₀ W.toSubstEq
+    have unfoldL : Γ₀ ⊢ (Term.Y A b).subst σ ≡ b.subst (σ.cons ((Term.Y A b).subst σ)) : A.subst σ := by
+      have h := (IsDefEq.Y_unfold₀ W.wf HA.hasType.1 Hb.hasType.1).subst' W.wf₀ W.toSubstEq
+      rwa [subst_inst, inst_lift_cons] at h
+    have unfoldR : Γ₀ ⊢ (Term.Y A' b').subst σ ≡ b'.subst (σ.cons ((Term.Y A' b').subst σ)) : A.subst σ := by
+      have h := (IsDefEq.Y_unfold₀ W.wf HA.hasType.2 Hb'.hasType.2).subst' W.wf₀ W.toSubstEq
+      rw [subst_inst, inst_lift_cons] at h
+      exact (HA.subst' W.wf₀ W.toSubstEq).symm.defeqDF h
+    refine ((LR _).whr ⟨unfoldL, redY⟩ ⟨unfoldR, redY⟩ hYY).2 ?_
+    have W_LR := LR.Adequate.cons ihA HA a4 a3 hYY (a5.2 W) W
+    have W_RR := LR.Adequate.cons ihA HA a4 a3 hYY.hasType.2 (a5.1 W).2 W
+    refine (LR _).trans ?d1 ?d2
+      ((lift_subst_cons (e := A)) ▸ (hAdq.1 W_LR).1) ((lift_subst_cons (e := A)) ▸ (hAdq.2 W_RR))
+    · have := (Hb.hasType.1).subst' W.wf₀ (Ctx.SubstEq.cons
+        (σ := σ.cons ((Term.Y A b).subst σ)) (σ' := σ.cons ((Term.Y A' b').subst σ))
+        W.toSubstEq HA.hasType.1 hYY)
+      rwa [lift_subst_cons] at this
+    · have := Hb.subst' W.wf₀ (Ctx.SubstEq.cons
+        (σ := σ.cons ((Term.Y A' b').subst σ)) (σ' := σ.cons ((Term.Y A' b').subst σ))
+        W.toSubstEq HA.hasType.1 hYY.hasType.2)
+      rwa [lift_subst_cons] at this
+
 /-- **The fundamental theorem of the logical relation.** Given a derivation
 `Γ ⊢ M ≡ N : A` and a semantic realisation `(m, a)` of `(M, A)`, the
 defeq is mirrored on every substitution `LR.SubstWF`: both substituted
@@ -1545,12 +1683,23 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
             (LR W.wf₀).TmEq M' p' type m_s a_s by
           refine ⟨A.subst σ, B.subst σ.lift, u, v, whr_t, htA₁, vtyA₁, htA₂,
               hΓfM, hΓfN, htpair, edge, ?_, ?_⟩
-          · -- fst-discharge
-            exact fst_snd_whr hSelfFstM_σ HfstRule_σ (.tail .rfl .pair_fst) vpair_M.1
-          · -- snd-discharge
-            exact fst_snd_whr hSelfSndM_σ HsndRule_σ (.tail .rfl .pair_snd) vpair_M.2
+          · exact fst_snd_whr hSelfFstM_σ HfstRule_σ (.tail .rfl .pair_fst) vpair_M.1
+          · exact fst_snd_whr hSelfSndM_σ HsndRule_σ (.tail .rfl .pair_snd) vpair_M.2
         intro M' p' type _ _ _ self rule whr_seq input
         exact ((LR _).whr ⟨self, .rfl⟩ ⟨rule, whr_seq⟩ self).1 input
+  | @YDF _ A A' u b b' HA Hb Hb' ihA ihb ihb' =>
+    refine .fits fun W => ?_
+    obtain ⟨_, m', a', le, _, ha', hmem', adq⟩ := LR.adequacy_Y W HA Hb Hb' ihA ihb hM
+    refine adq.mono le hmem hmem' (hA.compat ha') (fun {σ σ'} W' => ?_)
+    have ⟨_, _, _, le_n, le_a, hA0, hSort, hmem0⟩ := (LE_Interp.sound HA.hasType.1 W'.fits).2 hA |>.out
+    exact LR.toValTy le_n le_a hmem.isType hSort hmem0 ((ihA hA0 hSort hmem0).1 W'.left).1
+  | Y_unfold HyA Hyb Hyy Hyr ihA ihb ihy ihred =>
+    refine ⟨fun _ _ W => ⟨?_, ?_⟩, fun σ W => ?_⟩
+    · exact ((ihy hM hA hmem).1 W).1
+    · exact ((ihred (LE_Interp.Y_iff.1 hM) hA hmem).1 W).1
+    · have H := Hyy.subst' W.wf₀ W.toSubstEq
+      refine ((LR _).whr ⟨H, .rfl⟩ ⟨?_, subst_inst ▸ .tail .rfl .Y⟩ H).1 ((ihy hM hA hmem).2 W)
+      exact (IsDefEq.Y_unfold HyA Hyb Hyy Hyr).subst' W.wf₀ W.toSubstEq
 
 theorem forallE_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A₀ ≡ Term.forallE B₁ F₁ : .sort s) :
     ∃ B₀ F₀, A₀ ⤳* .forallE B₀ F₀ ∧ ∃ u v, Γ ⊢ B₀ ≡ B₁ : .sort u ∧ B₀::Γ ⊢ F₀ ≡ F₁ : .sort v := by

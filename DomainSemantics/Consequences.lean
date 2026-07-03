@@ -67,9 +67,9 @@ inductive HasType : List Term → Term → Term → Bool → Prop where
     Γ ⊢ B.inst (.fst p) : .sort v →
     Γ ⊨ p : .sigma A B →
     Γ ⊨ .snd p :! B.inst (.fst p)
+  | Y : Γ ⊨ A : .sort u → A::Γ ⊨ body : A.lift → Γ ⊨ .Y A body :! A
   | base : Γ ⊨ e :! A → Γ ⊨ e : A
-  | defeq :
-    Γ ⊢ A ≡ B : .sort u → Γ ⊨ e : A → Γ ⊨ e : B
+  | defeq : Γ ⊢ A ≡ B : .sort u → Γ ⊨ e : A → Γ ⊨ e : B
 
 end
 
@@ -89,6 +89,7 @@ theorem HasType.hasType : HasType Γ e A b → Γ ⊢ e : A
   | .pair hA hB hBa iha ihb => .pairDF hA hB hB iha.hasType ihb.hasType hBa (.sigmaDF hA hB hB)
   | .fst hA hB ihp => .fstDF hA hB ihp.hasType
   | .snd hA hB hBfst ihp => .sndDF hA hB ihp.hasType hBfst
+  | .Y ihA ihbody => .YDF ihA.hasType ihbody.hasType ihbody.hasType
   | .base ih => ih.hasType
   | .defeq d ihe => d.defeqDF ihe.hasType
 
@@ -177,6 +178,10 @@ theorem HasType.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
   | defeq d _ ihe =>
     obtain ⟨_, eq⟩ := ihe hΓ H2
     exact ⟨_, d.symm.trans' eq⟩
+  | Y h_A _ =>
+    obtain ⟨_, H2_s, transport⟩ := H2.toStructural
+    let .Y _ _ := H2_s
+    exact transport h_A.hasType
 
 /-- Every `IsDefEq` derivation projects to a pair of `HasType` derivations
 on the two sides. The `trans'` case is the only one that needs work: it
@@ -240,6 +245,10 @@ theorem IsDefEq.toHasType {Γ : List Term} {e₁ e₂ A : Term}
       (.base (.pair h_A h_B h_Bin (ih_a hΓ).1 (ih_b hΓ).1)))
   | fst_snd _ _ ih_p ih_pair => exact ⟨(ih_pair hΓ).1, (ih_p hΓ).1⟩
   | proofIrrel _ _ _ _ ih_h ih_h' => exact ⟨(ih_h hΓ).1, (ih_h' hΓ).1⟩
+  | YDF h_A h_b h_b' ih_A ih_b ih_b' =>
+    refine ⟨.base (.Y (ih_A hΓ).1 (ih_b ⟨hΓ, _, h_A.hasType.1⟩).1), ?_⟩
+    exact .defeq h_A.symm (.base (.Y (ih_A hΓ).2 (ih_b' ⟨hΓ, _, h_A.hasType.2⟩).2))
+  | Y_unfold _ _ _ _ _ _ ih_y ih_binst => exact ⟨(ih_y hΓ).1, (ih_binst hΓ).1⟩
 
 /-- Sort uniqueness: if a middle term has two `sort`-types via defeq witnesses,
 the two sort levels coincide. -/
@@ -286,6 +295,8 @@ theorem IsDefEq₀.iff' {Γ : List Term} {e₁ e₂ A : Term}
       exact .pair_snd₀ hΓ (ihB ⟨hΓ, _, hA⟩) (ih1 hΓ) (ih2 hΓ)
     | fst_snd _ ih_p => exact .fst_snd₀ hΓ (ih_p hΓ)
     | proofIrrel _ _ _ ih1 ih2 ih3 => exact .proofIrrel (ih1 hΓ) (ih2 hΓ) (ih3 hΓ)
+    | YDF _ _ ih1 ih2 => exact .YDF₀ hΓ (ih1 hΓ) (ih2 ⟨hΓ, _, (ih1 hΓ).hasType.1⟩)
+    | Y_unfold _ _ ih1 ih2 => exact .Y_unfold₀ hΓ (ih1 hΓ) (ih2 ⟨hΓ, _, (ih1 hΓ).hasType.1⟩)
   · induction h with
     | bvar h _ => exact .bvar h
     | symm _ ih => exact .symm (ih hΓ)
@@ -310,6 +321,8 @@ theorem IsDefEq₀.iff' {Γ : List Term} {e₁ e₂ A : Term}
       exact .pair_snd (ih_B ⟨hΓ, _, h_A.hasType.1⟩) (ih_a hΓ) (ih_b hΓ)
     | fst_snd _ _ ih_p _ => exact .fst_snd (ih_p hΓ)
     | proofIrrel _ _ _ ih1 ih2 ih3 => exact .proofIrrel (ih1 hΓ) (ih2 hΓ) (ih3 hΓ)
+    | YDF h1 _ _ ih1 ih2 ih3 => exact .YDF (ih1 hΓ) (ih2 ⟨hΓ, _, h1.hasType.1⟩)
+    | Y_unfold h1 _ _ _ ih1 ih2 => exact .Y_unfold (ih1 hΓ) (ih2 ⟨hΓ, _, h1.hasType.1⟩)
 
 /-- Well-formed context relative to `IsDefEq₀`: each entry has a sort
 typing in the `trans'`-free judgment. Equivalent to `Ctx.WF` on
@@ -373,18 +386,15 @@ reflexive defeq `Γ ⊢ N ≡ N : A`. -/
 
 /-- Subject conversion for instrumented `IsDefEq`: one weak-head step is
 a definitional equality at the term's type. -/
-theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) :
-    ∀ {A}, Γ ⊢ M : A → Γ ⊢ M ≡ N : A := by
-  induction hr with
+theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) {A} (hM : Γ ⊢ M : A) : Γ ⊢ M ≡ N : A := by
+  induction hr generalizing A with
   | @app f f' a hf ih =>
-    intro A hM
     obtain ⟨H, _⟩ := hM.toHasType hΓ
     obtain ⟨_, Hs, transport⟩ := H.toStructural
     let .app _ _ hBa h_f h_a := Hs
     obtain ⟨_, eqA⟩ := transport hBa
     exact eqA.defeqDF (.appDF₀ hΓ (ih h_f.hasType) h_a.hasType)
   | @beta Al e a =>
-    intro A hM
     obtain ⟨H, _⟩ := hM.toHasType hΓ
     obtain ⟨_, Hs, transport⟩ := H.toStructural
     let .app _ _ hBa h_f h_a := Hs
@@ -400,7 +410,6 @@ theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) :
     obtain ⟨_, eqA⟩ := transport hBa
     exact eqA.defeqDF (hBeqInst.defeqDF betaConv)
   | @fst p p' hp ih =>
-    intro A hM
     obtain ⟨H, _⟩ := hM.toHasType hΓ
     obtain ⟨_, Hs, _⟩ := H.toStructural
     let .fst _ _ h_p := Hs
@@ -408,7 +417,6 @@ theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) :
     obtain ⟨_, hTe⟩ := H.uniq hΓ (fConv.toHasType hΓ).1
     exact hTe.symm.defeqDF fConv
   | @snd p p' hp ih =>
-    intro A hM
     obtain ⟨H, _⟩ := hM.toHasType hΓ
     obtain ⟨_, Hs, _⟩ := H.toStructural
     let .snd _ _ _ h_p := Hs
@@ -416,7 +424,6 @@ theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) :
     obtain ⟨_, hTe⟩ := H.uniq hΓ (sConv.toHasType hΓ).1
     exact hTe.symm.defeqDF sConv
   | @pair_fst A B a b =>
-    intro T hM
     obtain ⟨H, _⟩ := hM.toHasType hΓ
     obtain ⟨_, Hs, _⟩ := H.toStructural
     let .fst _ _ h_p := Hs
@@ -426,7 +433,6 @@ theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) :
     obtain ⟨_, hTe⟩ := H.uniq hΓ (pfConv.toHasType hΓ).1
     exact hTe.symm.defeqDF pfConv
   | @pair_snd A B a b =>
-    intro T hM
     obtain ⟨H, _⟩ := hM.toHasType hΓ
     obtain ⟨_, Hs, _⟩ := H.toStructural
     let .snd _ _ _ h_p := Hs
@@ -435,6 +441,12 @@ theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) :
     have psConv := IsDefEq.pair_snd₀ hΓ hB iha.hasType ihb.hasType
     obtain ⟨_, hTe⟩ := H.uniq hΓ (psConv.toHasType hΓ).1
     exact hTe.symm.defeqDF psConv
+  | @Y B b =>
+    obtain ⟨H, _⟩ := hM.toHasType hΓ
+    obtain ⟨_, Hs, transport⟩ := H.toStructural
+    let .Y hB hb := Hs
+    have ⟨_, eq⟩ := transport hB.hasType
+    exact eq.defeqDF <| .Y_unfold₀ hΓ hB.hasType hb.hasType
 
 /-- Subject reduction for instrumented `IsDefEq`: a weak-head step
 preserves the type. -/
@@ -568,6 +580,7 @@ theorem progress {e : Term} : ∀ {A}, [] ⊢ e : A → Value e ∨ ∃ e', e �
     · obtain ⟨_, _, _, _, rfl⟩ := hv.sigma_r (Γ := []) trivial h_p.hasType
       exact .inr ⟨_, .pair_snd⟩
     · exact .inr ⟨_, .snd hstep⟩
+  | Y => intro A _; exact .inr ⟨_, .Y⟩
 
 /-- Progress for the standard judgment `IsDefEq₀`. -/
 theorem progress' {e A : Term} (h : [] ⊢₀ e : A) : Value e ∨ ∃ e', e ⤳ e' :=
