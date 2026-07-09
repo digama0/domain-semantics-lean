@@ -1319,212 +1319,150 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
         Hx.hasType.1 HBxx'.hasType.1 HBxx'
         ihTyAA_diag ihTmx_diag ihTm_x_to_xL_diag ihTmy_diag
   | @fstDF Γ A u B v p p' hA_typ hB_typ hP ihA_typ ihB_typ ihP =>
-    cases hM with
-    | bot => exact LR.Adequate.bot' hA_typ hA hmem.isType ihA_typ
-    | fst hP_interp le_m =>
-      rename_i n_s s
-      refine .wf₀ fun hΓ₀ => ?_
-      suffices ∀ {p p' σ σ'}, SubstWF Γ₀ σ σ' Γ ρ →
-          Γ ⊢ p ≡ p' : .sigma A B →
-          LE_Interp ρ (WShape.T s) p →
-          (∀ {n'} {mp ap : WShape n'}, LE_Interp ρ mp.T p → LE_Interp ρ ap.T (.sigma A B) →
-            mp.HasType ap → Adequate Γ₀ Γ ρ p p' (.sigma A B) mp ap) →
-          (LR hΓ₀).TmEq ((Term.fst p).subst σ) ((Term.fst p').subst σ') (A.subst σ) m a by
-        refine ⟨fun σ σ' W => ⟨?_, ?_⟩, fun σ W => ?_⟩
-        · exact this W hP.hasType.1 hP_interp (fun hp hsig hT => (ihP hp hsig hT).left)
-        · refine this W hP.hasType.2 ((LE_Interp.sound hP W.fits).1.1 hP_interp) ?_
-          exact fun hp hsig hT => ((ihP ((LE_Interp.sound hP W.left.fits).1.2 hp) hsig hT).symm hP).left
-        · exact this W hP hP_interp (fun hp hsig hT => ihP hp hsig hT)
-      intro p p' σ σ' W hP_eq hP_in ihP_inner
-      -- Extract saturated witness from soundness
-      have ⟨_, mp, _, le_np, le_mp, hp', hsigmaT, hmp⟩ :=
-        (LE_Interp.sound hP_eq W.left.fits).2 hP_in |>.out
-      have AdP := ihP_inner hp' hsigmaT hmp
-      -- Bot subcase: mp = .bot → m = .bot via le-chain (using fst_mono)
-      by_cases hm0 : mp = .bot
-      · simp only [hm0] at le_mp hmp
-        refine (?_ : m = .bot) ▸ (LR _).bot hmem.isType ?_
-        · cases show s = .bot from TShape.le_bot.1 (le_mp.trans TShape.bot_le')
-          exact TShape.le_bot.1 ((WShape.bot_fst ▸ le_m).trans TShape.bot_eqv.1)
-        · have ⟨_, _, _, le, le', iA, iv, hmA⟩ :=
-            (LE_Interp.sound hA_typ W.left.fits).2 hA |>.out
-          exact (LR _).left_ty <| toValTy le le' hmem.isType iv hmA
-            ((ihA_typ iA iv hmA).2 W.left)
-      -- Sigma decomposition (mp's HasType-shape must be `.pair`; others contradict)
-      cases hsigmaT with | bot => cases hm0 hmp.bot_r | sigma hb1 hb2 hd hF le
-      cases hmp.unfold with
-      | bot => cases hm0 rfl
-      | sort | sigma _ | forallE _ => exact (TShape.sort_not_le_sigma le).elim
-      | lam _ => exact (TShape.forallE_not_le_sigma le).elim
-      | pair hpair =>
-        -- Main pair case (parallel to appDF's lam case)
-        rename_i n_pair x_p y_p at_ bt_ wh_p
-        -- σ→σ' "diagonal" TmEq via trans of σ→σ M-validity + σ→σ' N-validity
-        have hAdP := (LR _).trans
-          (hP_eq.subst' W.left.wf₀ W.left.toSubstEq)
-          (hP_eq.hasType.2.subst' W.wf₀ W.toSubstEq)
-          (AdP.2 W.left) (AdP.1 W).2
-        -- Unfold LRS.TmEq.pair_sigma to extract PairDefEq
-        dsimp only [LR, LRS] at hAdP
-        rw [LRS.TmEq.pair_sigma] at hAdP
-        obtain ⟨A₁, A₂, _, _, redA, _, _, _, _, _, _, _, hPair⟩ := hAdP
-        -- (.sigma A B).σ = .sigma A.σ B.σ.lift is WHNF; force A₁ = A.σ, A₂ = B.σ.lift
-        cases WHNF.sigma.whRedS redA.2
-        -- hPair.1 : (LR _).TmEq (.fst p.σ) (.fst p'.σ') A.σ x_p at_ at level n_pair
-        -- Shape and level alignment: lift everything to k = max n n_pair and join hA, hx_A
-        have hm_x : m.T ≤ x_p.T := le_m.trans (TShape.fst_mono le_mp)
-        have hx_A : LE_Interp ρ at_.T A := by
-          refine hb1.mono ?_
-          have ⟨hx_b, _⟩ := TShape.LE.sigma_decomp le
-          exact (TShape.LE.def (Nat.le_max_left _ _) (Nat.le_max_right _ _)).2 hx_b
-        let k := max n n_pair
-        have hk : n ≤ k ∧ n_pair ≤ k := Nat.max_le.1 (Nat.le_refl k)
-        have hJ := TShape.Join.mk (hA.compat hx_A)
-        have ⟨hJa, hJat⟩ := hJ.le
-        have hmem_k := (WShape.HasType.lift hk.1).2 hmem
-        have hxp_HT_k := (WShape.HasType.lift hk.2).2 hpair.2.1
-        have hJ_LE := hA.join' hx_A
-        have hJa_w := (TShape.LE.def hk.1 (Nat.le_refl _)).1 hJa
-        have hJat_w := (TShape.LE.def hk.2 (Nat.le_refl _)).1 hJat
-        have hm_x_w := (TShape.LE.def hk.1 hk.2).1 hm_x
-        have hat_HT : at_.HasType .type := hpair.2.1.isType
-        have hJ_t_T : (a.T.join at_.T).HasType .type :=
-          TShape.HasType.join' hJ
-            (TShape.HasType.sort_r.2 hmem.isType) (TShape.HasType.sort_r.2 hat_HT)
-        have hJ_t_W : (a.T.join at_.T).snd.HasType .type := TShape.HasType.sort_r.1 hJ_t_T
-        have hJa_w' : a.lift k ≤ (a.T.join at_.T).snd := by
-          simpa [WShape.lift_self] using hJa_w
-        have hJat_w' : at_.lift k ≤ (a.T.join at_.T).snd := by
-          simpa [WShape.lift_self] using hJat_w
-        have hmx_HT_joined : (m.lift k).HasType (a.T.join at_.T).snd :=
-          WShape.HasType.mono_r hJa_w' hJ_t_W hmem_k
-        have hxp_HT_joined : (x_p.lift k).HasType (a.T.join at_.T).snd :=
-          WShape.HasType.mono_r hJat_w' hJ_t_W hxp_HT_k
-        -- Final mono chain: TmEq.lift + mono_r_2 + mono_l + mono_r_1 + lifted hPair.1
-        refine (LR.TmEq.lift hk.1 hmem).1 <|
-          (LR _).mono_r_2 hJa_w' hmem_k hJ_t_W <|
-            (LR _).mono_l hm_x_w hmx_HT_joined hxp_HT_joined <|
-              (LR _).mono_r_1 hJat_w' hxp_HT_k hxp_HT_joined ?_ <|
-                (LR.TmEq.lift hk.2 hpair.2.1).2 hPair.1
-        -- Inner goal: TyEq A.σ A.σ (a.T.join at_.T).snd
-        have ⟨_, _, _, le_j, le_j', hAj, hSj, hmj⟩ :=
-          (LE_Interp.sound hA_typ W.left.fits).2 hJ_LE |>.out
-        exact (LR _).left_ty <| toValTy le_j le_j' hJ_t_W hSj hmj
-          ((ihA_typ hAj hSj hmj).2 W.left)
+    cases hM with | bot => exact .bot' hA_typ hA hmem.isType ihA_typ | fst hP_interp le_m
+    rename_i n_s s
+    refine .wf₀ fun hΓ₀ => ?_
+    suffices ∀ {p p' σ σ'}, SubstWF Γ₀ σ σ' Γ ρ →
+        Γ ⊢ p ≡ p' : .sigma A B →
+        LE_Interp ρ (WShape.T s) p →
+        (∀ {n'} {mp ap : WShape n'}, LE_Interp ρ mp.T p → LE_Interp ρ ap.T (.sigma A B) →
+          mp.HasType ap → Adequate Γ₀ Γ ρ p p' (.sigma A B) mp ap) →
+        (LR hΓ₀).TmEq ((Term.fst p).subst σ) ((Term.fst p').subst σ') (A.subst σ) m a by
+      refine ⟨fun σ σ' W => ⟨?_, ?_⟩, fun σ W => ?_⟩
+      · exact this W hP.hasType.1 hP_interp (fun hp hsig hT => (ihP hp hsig hT).left)
+      · refine this W hP.hasType.2 ((LE_Interp.sound hP W.fits).1.1 hP_interp) ?_
+        exact fun hp hsig hT => ((ihP ((LE_Interp.sound hP W.left.fits).1.2 hp) hsig hT).symm hP).left
+      · exact this W hP hP_interp (fun hp hsig hT => ihP hp hsig hT)
+    intro p p' σ σ' W hP_eq hP_in ihP_inner
+    have ⟨_, mp, _, le_np, le_mp, hp', hsigmaT, hmp⟩ :=
+      (LE_Interp.sound hP_eq W.left.fits).2 hP_in |>.out
+    have AdP := ihP_inner hp' hsigmaT hmp
+    by_cases hm0 : mp = .bot
+    · simp only [hm0] at le_mp hmp
+      cases show s = .bot from TShape.le_bot.1 (le_mp.trans TShape.bot_le')
+      refine (TShape.le_bot.1 ((WShape.bot_fst ▸ le_m).trans TShape.bot_eqv.1) : m = .bot) ▸
+        (LR _).bot hmem.isType ?_
+      have ⟨_, _, _, le, le', iA, iv, hmA⟩ := (LE_Interp.sound hA_typ W.left.fits).2 hA |>.out
+      exact (LR _).left_ty <| toValTy le le' hmem.isType iv hmA ((ihA_typ iA iv hmA).2 W.left)
+    cases hsigmaT with | bot => cases hm0 hmp.bot_r | sigma hb1 hb2 hd hF le
+    cases hmp.unfold with
+    | bot => cases hm0 rfl
+    | sort | sigma | forallE => exact (TShape.sort_not_le_sigma le).elim
+    | lam _ => exact (TShape.forallE_not_le_sigma le).elim
+    | pair hpair
+    rename_i n_pair x_p y_p at_ bt_ wh_p
+    have hAdP := (LR _).trans
+      (hP_eq.subst' W.left.wf₀ W.left.toSubstEq)
+      (hP_eq.hasType.2.subst' W.wf₀ W.toSubstEq)
+      (AdP.2 W.left) (AdP.1 W).2
+    dsimp only [LR, LRS] at hAdP
+    rw [LRS.TmEq.pair_sigma] at hAdP
+    obtain ⟨A₁, A₂, _, _, redA, _, _, _, _, _, _, _, hPair⟩ := hAdP
+    cases WHNF.sigma.whRedS redA.2
+    have hx_A : LE_Interp ρ at_.T A := hb1.mono <|
+      (TShape.LE.def (Nat.le_max_left _ _) (Nat.le_max_right _ _)).2 (TShape.LE.sigma_decomp le).1
+    let k := max n n_pair; have hk := Nat.max_le.1 (Nat.le_refl k)
+    have hJ := TShape.Join.mk (hA.compat hx_A)
+    have ⟨hJa, hJat⟩ := hJ.le
+    have hmem_k := (WShape.HasType.lift hk.1).2 hmem
+    have hxp_HT_k := (WShape.HasType.lift hk.2).2 hpair.2.1
+    have hJat_w := (TShape.LE.def hk.2 (Nat.le_refl _)).1 hJat
+    have hJ_t_W := TShape.HasType.sort_r.1 <|
+      (TShape.HasType.sort_r.2 hmem.isType).join' hJ (TShape.HasType.sort_r.2 hpair.2.1.isType)
+    have hJa_w' : a.lift k ≤ (a.T.join at_.T).snd := by
+      simpa [WShape.lift_self] using (TShape.LE.def hk.1 (Nat.le_refl _)).1 hJa
+    have hJat_w' : at_.lift k ≤ (a.T.join at_.T).snd := by simpa [WShape.lift_self] using hJat_w
+    have hxp_HT_joined := hJ_t_W.mono_r hJat_w' hxp_HT_k
+    refine (LR.TmEq.lift hk.1 hmem).1 <|
+      (LR _).mono_r_2 hJa_w' hmem_k hJ_t_W <|
+      (LR _).mono_l ((TShape.LE.def hk.1 hk.2).1 (le_m.trans (TShape.fst_mono le_mp)))
+        (hJ_t_W.mono_r hJa_w' hmem_k) hxp_HT_joined <|
+      (LR _).mono_r_1 hJat_w' hxp_HT_k hxp_HT_joined ?_ <|
+      (LR.TmEq.lift hk.2 hpair.2.1).2 hPair.1
+    have ⟨_, _, _, le_j, le_j', hAj, hSj, hmj⟩ :=
+      (LE_Interp.sound hA_typ W.left.fits).2 (hA.join' hx_A) |>.out
+    exact (LR _).left_ty <| toValTy le_j le_j' hJ_t_W hSj hmj ((ihA_typ hAj hSj hmj).2 W.left)
   | @sndDF Γ A u B v p p' hA_typ hB_typ hP hBfst ihA_typ ihB_typ ihP ihBfst =>
     cases hM with
-    | bot => exact LR.Adequate.bot' hBfst.hasType.1 hA hmem.isType (fun h h' hm => (ihBfst h h' hm).left)
-    | snd hP_interp le_m =>
-      rename_i n_s s
-      refine .wf₀ fun hΓ₀ => ?_
-      suffices ∀ {p p' σ σ'}, SubstWF Γ₀ σ σ' Γ ρ →
-          Γ ⊢ p ≡ p' : .sigma A B →
-          Γ ⊢ B.inst (.fst p) ≡ B.inst (.fst p') : .sort v →
-          LE_Interp ρ (WShape.T s) p →
-          LE_Interp ρ a.T (B.inst (.fst p)) →
-          (∀ {n'} {mp ap : WShape n'}, LE_Interp ρ mp.T p → LE_Interp ρ ap.T (.sigma A B) →
-            mp.HasType ap → Adequate Γ₀ Γ ρ p p' (.sigma A B) mp ap) →
-          (∀ {n'} {mb av : WShape n'}, LE_Interp ρ mb.T (B.inst (.fst p)) →
-            LE_Interp ρ av.T (.sort v) → mb.HasType av →
-            Adequate Γ₀ Γ ρ (B.inst (.fst p)) (B.inst (.fst p')) (.sort v) mb av) →
-          (LR hΓ₀).TmEq ((Term.snd p).subst σ) ((Term.snd p').subst σ')
-            ((B.inst (.fst p)).subst σ) m a by
-        refine ⟨fun σ σ' W => ⟨?_, ?_⟩, fun σ W => ?_⟩
-        · refine this W hP.hasType.1 hBfst.hasType.1 hP_interp hA ?_ ?_
-          · exact fun hp hsig hT => (ihP hp hsig hT).left
-          · exact fun hB hv hmb => (ihBfst hB hv hmb).left
-        · refine (LR _).conv ((LR _).symm_ty ?_) <| this W hP.hasType.2 hBfst.hasType.2
-            ((LE_Interp.sound hP W.fits).1.1 hP_interp)
-            ((LE_Interp.sound hBfst W.fits).1.1 hA) ?_ ?_
-          · -- TyEq B.inst (.fst p) ≡ B.inst (.fst p') at LR level via ihBfst
-            have ⟨_, _, _, le, le', iB, iv, hmb⟩ :=
-              (LE_Interp.sound hBfst W.fits).2 hA |>.out
-            exact toValTy le le' hmem.isType iv hmb ((ihBfst iB iv hmb).2 W.left)
-          · exact fun hp hsig hT =>
-              ((ihP ((LE_Interp.sound hP W.left.fits).1.2 hp) hsig hT).symm hP).left
-          · exact fun hB hv hmb =>
-              ((ihBfst ((LE_Interp.sound hBfst W.left.fits).1.2 hB) hv hmb).symm hBfst).left
-        · exact this W hP hBfst hP_interp hA
-            (fun hp hsig hT => ihP hp hsig hT) (fun hB hv hmb => ihBfst hB hv hmb)
-      intro p p' σ σ' W hP_eq hBfst_eq hP_in hA' ihP_inner ihBfst_inner
-      -- Main body parallel to fstDF
-      have ⟨_, mp, _, le_np, le_mp, hp', hsigmaT, hmp⟩ :=
-        (LE_Interp.sound hP_eq W.left.fits).2 hP_in |>.out
-      have AdP := ihP_inner hp' hsigmaT hmp
-      -- Bot subcase: mp = .bot → m = .bot via le-chain (using snd_mono)
-      by_cases hm0 : mp = .bot
-      · simp only [hm0] at le_mp hmp
-        refine (?_ : m = .bot) ▸ (LR _).bot hmem.isType ?_
-        · cases show s = .bot from TShape.le_bot.1 (le_mp.trans TShape.bot_le')
-          exact TShape.le_bot.1 ((WShape.bot_snd ▸ le_m).trans TShape.bot_eqv.1)
+    | bot => exact .bot' hBfst.hasType.1 hA hmem.isType fun h h' hm => (ihBfst h h' hm).left
+    | snd hP_interp le_m
+    rename_i n_s s
+    refine .wf₀ fun hΓ₀ => ?_
+    suffices ∀ {p p' σ σ'}, SubstWF Γ₀ σ σ' Γ ρ →
+        Γ ⊢ p ≡ p' : .sigma A B →
+        Γ ⊢ B.inst (.fst p) ≡ B.inst (.fst p') : .sort v →
+        LE_Interp ρ (WShape.T s) p →
+        LE_Interp ρ a.T (B.inst (.fst p)) →
+        (∀ {n'} {mp ap : WShape n'}, LE_Interp ρ mp.T p → LE_Interp ρ ap.T (.sigma A B) →
+          mp.HasType ap → Adequate Γ₀ Γ ρ p p' (.sigma A B) mp ap) →
+        (∀ {n'} {mb av : WShape n'}, LE_Interp ρ mb.T (B.inst (.fst p)) →
+          LE_Interp ρ av.T (.sort v) → mb.HasType av →
+          Adequate Γ₀ Γ ρ (B.inst (.fst p)) (B.inst (.fst p')) (.sort v) mb av) →
+        (LR hΓ₀).TmEq ((Term.snd p).subst σ) ((Term.snd p').subst σ')
+          ((B.inst (.fst p)).subst σ) m a by
+      refine ⟨fun σ σ' W => ⟨?_, ?_⟩, fun σ W => ?_⟩
+      · refine this W hP.hasType.1 hBfst.hasType.1 hP_interp hA ?_ ?_
+        · exact fun hp hsig hT => (ihP hp hsig hT).left
+        · exact fun hB hv hmb => (ihBfst hB hv hmb).left
+      · refine (LR _).conv ((LR _).symm_ty ?_) <| this W hP.hasType.2 hBfst.hasType.2
+          ((LE_Interp.sound hP W.fits).1.1 hP_interp)
+          ((LE_Interp.sound hBfst W.fits).1.1 hA) (fun hp hsig hT => ?_) (fun hB hv hmb => ?_)
         · have ⟨_, _, _, le, le', iB, iv, hmb⟩ :=
-            (LE_Interp.sound hBfst_eq W.left.fits).2 hA' |>.out
-          exact (LR _).left_ty <| toValTy le le' hmem.isType iv hmb
-            ((ihBfst_inner iB iv hmb).2 W.left)
-      -- Sigma decomposition (mp's HasType-shape must be `.pair`; others contradict)
-      cases hsigmaT with | bot => cases hm0 hmp.bot_r | sigma hb1 hb2 hd hF le
-      cases hmp.unfold with
-      | bot => cases hm0 rfl
-      | sort | sigma _ | forallE _ => exact (TShape.sort_not_le_sigma le).elim
-      | lam _ => exact (TShape.forallE_not_le_sigma le).elim
-      | pair hpair =>
-        rename_i n_pair x_p y_p at_ bt_ wh_p
-        -- σ→σ' "diagonal" TmEq via trans + unfold to extract PairDefEq
-        have hAdP := (LR _).trans
-          (hP_eq.subst' W.left.wf₀ W.left.toSubstEq)
-          (hP_eq.hasType.2.subst' W.wf₀ W.toSubstEq)
-          (AdP.2 W.left) (AdP.1 W).2
-        dsimp only [LR, LRS] at hAdP
-        rw [LRS.TmEq.pair_sigma] at hAdP
-        obtain ⟨A₁, A₂, _, _, redA, _, _, _, _, _, _, _, hPair⟩ := hAdP
-        cases WHNF.sigma.whRedS redA.2
-        -- hPair.2 : TmEq (.snd p.σ) (.snd p'.σ') ((B.σ.lift).inst (.fst p.σ)) y_p (bt_.app x_p)
-        -- LE_Interp for B.inst (.fst p) at shape (bt_.app x_p) via sigma_inv
-        have hm_y : m.T ≤ y_p.T := le_m.trans (TShape.snd_mono le_mp)
-        have hsigmaT' : LE_Interp ρ (at_.sigma bt_).T (A.sigma B) :=
-          (LE_Interp.sigma' hb1 hb2 hd hF).mono le
-        have hB_inst_LE : LE_Interp ρ (bt_.app x_p).T (B.inst (.fst p)) :=
-          hsigmaT'.sigma_inv.2 (LE_Interp.fst' hp')
-        -- Shape and level alignment: lift everything to k = max n n_pair and join hA', hB_inst_LE
-        let k := max n n_pair
-        have hk : n ≤ k ∧ n_pair ≤ k := Nat.max_le.1 (Nat.le_refl k)
-        have hJ := TShape.Join.mk (hA'.compat hB_inst_LE)
-        have ⟨hJa, hJat⟩ := hJ.le
-        have hmem_k := (WShape.HasType.lift hk.1).2 hmem
-        have hpair_W := WShape.HasTypePair.def.1 hpair
-        have hyp_HT_k := (WShape.HasType.lift hk.2).2 hpair_W.2.2
-        have hJ_LE := hA'.join' hB_inst_LE
-        have hJa_w := (TShape.LE.def hk.1 (Nat.le_refl _)).1 hJa
-        have hJat_w := (TShape.LE.def hk.2 (Nat.le_refl _)).1 hJat
-        have hm_y_w := (TShape.LE.def hk.1 hk.2).1 hm_y
-        have hbt_HT : (bt_.app x_p).HasType .type := hpair_W.2.2.isType
-        have hJ_t_T : (a.T.join (bt_.app x_p).T).HasType .type :=
-          TShape.HasType.join' hJ
-            (TShape.HasType.sort_r.2 hmem.isType) (TShape.HasType.sort_r.2 hbt_HT)
-        have hJ_t_W : (a.T.join (bt_.app x_p).T).snd.HasType .type :=
-          TShape.HasType.sort_r.1 hJ_t_T
-        have hJa_w' : a.lift k ≤ (a.T.join (bt_.app x_p).T).snd := by
-          simpa [WShape.lift_self] using hJa_w
-        have hJat_w' : (bt_.app x_p).lift k ≤ (a.T.join (bt_.app x_p).T).snd := by
-          simpa [WShape.lift_self] using hJat_w
-        have hmy_HT_joined : (m.lift k).HasType (a.T.join (bt_.app x_p).T).snd :=
-          WShape.HasType.mono_r hJa_w' hJ_t_W hmem_k
-        have hyp_HT_joined : (y_p.lift k).HasType (a.T.join (bt_.app x_p).T).snd :=
-          WShape.HasType.mono_r hJat_w' hJ_t_W hyp_HT_k
-        -- Target type alignment: (B.inst (.fst p)).σ = (B.σ.lift).inst (.fst p.σ)
-        rw [show ((B.inst (.fst p)).subst σ) = (B.subst σ.lift).inst (.fst (p.subst σ)) from
-          subst_inst]
-        -- Final mono chain (parallel to fstDF, using PairDefEq.2 = hPair.2)
-        refine (LR.TmEq.lift hk.1 hmem).1 <|
-          (LR _).mono_r_2 hJa_w' hmem_k hJ_t_W <|
-            (LR _).mono_l hm_y_w hmy_HT_joined hyp_HT_joined <|
-              (LR _).mono_r_1 hJat_w' hyp_HT_k hyp_HT_joined ?_ <|
-                (LR.TmEq.lift hk.2 hpair_W.2.2).2 hPair.2
-        -- Inner goal: TyEq ((B.σ.lift).inst (.fst p.σ)) ((B.σ.lift).inst (.fst p.σ)) joined.snd
-        have ⟨_, _, _, le_j, le_j', hAj, hSj, hmj⟩ :=
-          (LE_Interp.sound hBfst_eq W.left.fits).2 hJ_LE |>.out
-        exact (LR _).left_ty <| subst_inst ▸ toValTy le_j le_j' hJ_t_W hSj hmj
-          ((ihBfst_inner hAj hSj hmj).2 W.left)
+            (LE_Interp.sound hBfst W.fits).2 hA |>.out
+          exact toValTy le le' hmem.isType iv hmb ((ihBfst iB iv hmb).2 W.left)
+        · exact ((ihP ((LE_Interp.sound hP W.left.fits).1.2 hp) hsig hT).symm hP).left
+        · exact ((ihBfst ((LE_Interp.sound hBfst W.left.fits).1.2 hB) hv hmb).symm hBfst).left
+      · exact this W hP hBfst hP_interp hA
+          (fun hp hsig hT => ihP hp hsig hT) (fun hB hv hmb => ihBfst hB hv hmb)
+    intro p p' σ σ' W hP_eq hBfst_eq hP_in hA' ihP_inner ihBfst_inner
+    have ⟨_, mp, _, le_np, le_mp, hp', hsigmaT, hmp⟩ :=
+      (LE_Interp.sound hP_eq W.left.fits).2 hP_in |>.out
+    have AdP := ihP_inner hp' hsigmaT hmp
+    by_cases hm0 : mp = .bot
+    · simp only [hm0] at le_mp hmp
+      cases show s = .bot from TShape.le_bot.1 (le_mp.trans TShape.bot_le')
+      refine (TShape.le_bot.1 ((WShape.bot_snd ▸ le_m).trans TShape.bot_eqv.1) : m = .bot) ▸
+        (LR _).bot hmem.isType ?_
+      have ⟨_, _, _, le, le', iB, iv, hmb⟩ := (LE_Interp.sound hBfst_eq W.left.fits).2 hA' |>.out
+      exact (LR _).left_ty <| toValTy le le' hmem.isType iv hmb ((ihBfst_inner iB iv hmb).2 W.left)
+    cases hsigmaT with | bot => cases hm0 hmp.bot_r | sigma hb1 hb2 hd hF le
+    cases hmp.unfold with
+    | bot => cases hm0 rfl
+    | sort | sigma | forallE => exact (TShape.sort_not_le_sigma le).elim
+    | lam _ => exact (TShape.forallE_not_le_sigma le).elim
+    | pair hpair
+    rename_i n_pair x_p y_p at_ bt_ wh_p
+    have hAdP := (LR _).trans (hP_eq.subst' W.left.wf₀ W.left.toSubstEq)
+      (hP_eq.hasType.2.subst' W.wf₀ W.toSubstEq) (AdP.2 W.left) (AdP.1 W).2
+    dsimp only [LR, LRS] at hAdP; rw [LRS.TmEq.pair_sigma] at hAdP
+    obtain ⟨A₁, A₂, _, _, redA, _, _, _, _, _, _, _, hPair⟩ := hAdP
+    cases WHNF.sigma.whRedS redA.2
+    have hB_inst_LE := (LE_Interp.sigma' hb1 hb2 hd hF).mono le |>.sigma_inv.2 (LE_Interp.fst' hp')
+    let k := max n n_pair; have hk := Nat.max_le.1 (Nat.le_refl k)
+    have hJ := TShape.Join.mk (hA'.compat hB_inst_LE)
+    have ⟨hJa, hJat⟩ := hJ.le
+    have hmem_k := (WShape.HasType.lift hk.1).2 hmem
+    have hpair_W := WShape.HasTypePair.def.1 hpair
+    have hyp_HT_k := (WShape.HasType.lift hk.2).2 hpair_W.2.2
+    have hJat_w := (TShape.LE.def hk.2 (Nat.le_refl _)).1 hJat
+    have hJ_t_W := TShape.HasType.sort_r.1 <|
+      (TShape.HasType.sort_r.2 hmem.isType).join' hJ (TShape.HasType.sort_r.2 hpair_W.2.2.isType)
+    have hJa_w' : a.lift k ≤ (a.T.join (bt_.app x_p).T).snd := by
+      simpa [WShape.lift_self] using (TShape.LE.def hk.1 (Nat.le_refl _)).1 hJa
+    have hJat_w' : (bt_.app x_p).lift k ≤ (a.T.join (bt_.app x_p).T).snd := by
+      simpa [WShape.lift_self] using hJat_w
+    have hJj := hJ_t_W.mono_r hJat_w' hyp_HT_k
+    rw [subst_inst]
+    refine (LR.TmEq.lift hk.1 hmem).1 <|
+      (LR _).mono_r_2 hJa_w' hmem_k hJ_t_W <|
+      (LR _).mono_l ((TShape.LE.def hk.1 hk.2).1 (le_m.trans (TShape.snd_mono le_mp)))
+        (hJ_t_W.mono_r hJa_w' hmem_k) hJj <|
+      (LR _).mono_r_1 hJat_w' hyp_HT_k hJj ?_ <|
+      (LR.TmEq.lift hk.2 hpair_W.2.2).2 hPair.2
+    have ⟨_, _, _, le_j, le_j', hAj, hSj, hmj⟩ :=
+      (LE_Interp.sound hBfst_eq W.left.fits).2 (hA'.join' hB_inst_LE) |>.out
+    exact (LR _).left_ty <| subst_inst ▸ toValTy le_j le_j' hJ_t_W hSj hmj
+      ((ihBfst_inner hAj hSj hmj).2 W.left)
   | @pair_fst Γ A u B v pa pb HA HB Ha Hb Hfst ihA ihB iha ihb ih_fst =>
     refine .wf fun hΓ => ?_
     have hRule : Γ ⊢ Term.fst (Term.pair A B pa pb) ≡ pa : A := .pair_fst₀ hΓ HB Ha Hb
@@ -1608,85 +1546,29 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
   | @fst_snd Γ p A B Hp Hpair ihp ihpair =>
     -- η-rule for pairs: .pair A B (.fst p) (.snd p) ≡ p : .sigma A B
     refine ⟨fun σ σ' W => ⟨?_, ?_⟩, fun σ W => ?_⟩
-    · -- M-validity (LHS = .pair (.fst p) (.snd p))
-      exact ((ihpair hM hA hmem).1 W).1
-    · -- N-validity (RHS = p): convert LE_Interp via fst_snd
-      exact ((ihp ((LE_Interp.sound (Hp.fst_snd₀ W.wf) W.fits).1.1 hM) hA hmem).1 W).2
-    · -- equation: η-rule, parallel to eta but for pair_sigma
-      have hM' := (LE_Interp.sound (Hp.fst_snd₀ W.wf) W.fits).1.1 hM
-      have hTyEq := (LR _).isType ((ihpair hM hA hmem).2 W)
-      cases hmem.unfold with
-      | bot hm => exact (LR _).bot hm hTyEq
-      | sort => cases n <;> have .pair _ _ h := hM <;> cases TShape.sort_not_le_pair' h
-      | forallE _ => have .pair _ _ h := hM; cases TShape.forallE_not_le_pair' h
-      | lam _ =>
-        revert hM; unfold WShape.lam'; split <;> [skip; exact fun _ => (LR _).bot hmem.isType hTyEq]
-        intro | .pair _ _ h => cases TShape.lam_not_le_pair' h
-      | sigma _ => have .pair _ _ h := hM; cases TShape.sigma_not_le_pair' h
-      | pair hpair =>
-        -- Get the pair_sigma existential from M-self and N-self at σ→σ equation
-        have ⟨A₁, A₂, u, v, whr_t, htA₁, vtyA₁, htA₂, hΓfM, _, htpair, edge, vpair_M⟩ :=
-          (ihpair hM hA hmem).2 W
-        have ⟨_, _, _, _, whr_N, _, _, _, hΓfN, _, _, _, _⟩ :=
-          (ihp hM' hA hmem).2 W
-        -- Force A₁_M = A₁_N and A₂_M = A₂_N via determinism of WHRedS to sigma
-        cases whr_t.2.determ .sigma whr_N.2 .sigma
-        cases WHNF.sigma.whRedS whr_t.2
-        -- Extract HA, HB via sigma type inversion on p's type
-        have ⟨_, Hsigma⟩ := Hp.isType W.wf
-        have ⟨⟨_, HA⟩, _, HB⟩ := Hsigma.sigma_inv' W.wf (.inl rfl)
-        -- Substitute HA, HB, fst_snd rule to σ-level
-        have HAσ : Γ₀ ⊢ A.subst σ : .sort _ :=
-          (HA.subst' W.wf₀ W.toSubstEq).hasType.1
-        have hΓAS : ⊢ A.subst σ :: Γ₀ := ⟨W.wf₀, _, HAσ⟩
-        have hΓA : ⊢ A :: Γ := ⟨W.wf, _, HA⟩
-        have HBσ : A.subst σ :: Γ₀ ⊢ B.subst σ.lift : .sort _ :=
-          (HB.subst' hΓAS (W.toSubstEq.lift HA HAσ)).hasType.1
-        have HfstSndRule_σ : Γ₀ ⊢
-            (Term.pair A B (Term.fst p) (Term.snd p)).subst σ ≡ p.subst σ :
-            (A.sigma B).subst σ :=
-          (Hp.fst_snd₀ W.wf).subst' W.wf₀ W.toSubstEq
-        -- Build .fst and .snd rule equations + self-typings via fstDF/sndDF
-        have HfstRule_σ : Γ₀ ⊢
-            ((Term.pair A B (Term.fst p) (Term.snd p)).subst σ).fst ≡
-            (p.subst σ).fst : A.subst σ :=
-          HfstSndRule_σ.fstDF₀ W.wf₀
-        have hSelfFstM_σ : Γ₀ ⊢
-            ((Term.pair A B (Term.fst p) (Term.snd p)).subst σ).fst ≡
-            ((Term.pair A B (Term.fst p) (Term.snd p)).subst σ).fst : A.subst σ :=
-          HfstRule_σ.hasType.1
-        have hBinstFstM_σ : Γ₀ ⊢
-            (B.subst σ.lift).inst ((Term.pair A B (Term.fst p) (Term.snd p)).subst σ).fst ≡
-            (B.subst σ.lift).inst ((Term.pair A B (Term.fst p) (Term.snd p)).subst σ).fst :
-            .sort _ :=
-          IsDefEq.instDF W.wf₀ HAσ .sort HBσ hSelfFstM_σ
-        have hBinstFstMpEq_σ : Γ₀ ⊢
-            (B.subst σ.lift).inst ((Term.pair A B (Term.fst p) (Term.snd p)).subst σ).fst ≡
-            (B.subst σ.lift).inst (p.subst σ).fst : .sort _ :=
-          IsDefEq.instDF W.wf₀ HAσ .sort HBσ HfstRule_σ
-        have HsndRule_σ : Γ₀ ⊢
-            ((Term.pair A B (Term.fst p) (Term.snd p)).subst σ).snd ≡
-            (p.subst σ).snd :
-            (B.subst σ.lift).inst ((Term.pair A B (Term.fst p) (Term.snd p)).subst σ).fst :=
-          HfstSndRule_σ.sndDF₀ W.wf₀
-        have hSelfSndM_σ : Γ₀ ⊢
-            ((Term.pair A B (Term.fst p) (Term.snd p)).subst σ).snd ≡
-            ((Term.pair A B (Term.fst p) (Term.snd p)).subst σ).snd :
-            (B.subst σ.lift).inst ((Term.pair A B (Term.fst p) (Term.snd p)).subst σ).fst :=
-          HsndRule_σ.hasType.1
-        -- Single whr-stability lemma applied 2x (for .fst and .snd component discharges)
-        suffices fst_snd_whr : ∀ {M' p' type : Term} {n' : Nat} {m_s a_s : WShape n'}
-            (self : Γ₀ ⊢ M' ≡ M' : type)
-            (rule : Γ₀ ⊢ M' ≡ p' : type)
-            (whr_seq : M' ⤳* p')
-            (input : (LR W.wf₀).TmEq M' M' type m_s a_s),
-            (LR W.wf₀).TmEq M' p' type m_s a_s by
-          refine ⟨A.subst σ, B.subst σ.lift, u, v, whr_t, htA₁, vtyA₁, htA₂,
-              hΓfM, hΓfN, htpair, edge, ?_, ?_⟩
-          · exact fst_snd_whr hSelfFstM_σ HfstRule_σ (.tail .rfl .pair_fst) vpair_M.1
-          · exact fst_snd_whr hSelfSndM_σ HsndRule_σ (.tail .rfl .pair_snd) vpair_M.2
-        intro M' p' type _ _ _ self rule whr_seq input
-        exact ((LR _).whr ⟨self, .rfl⟩ ⟨rule, whr_seq⟩ self).1 input
+    · exact ((ihpair hM hA hmem).1 W).1
+    · exact ((ihp ((LE_Interp.sound (Hp.fst_snd₀ W.wf) W.fits).1.1 hM) hA hmem).1 W).2
+    have hM' := (LE_Interp.sound (Hp.fst_snd₀ W.wf) W.fits).1.1 hM
+    have hTyEq := (LR _).isType ((ihpair hM hA hmem).2 W)
+    cases hmem.unfold with
+    | bot hm => exact (LR _).bot hm hTyEq
+    | sort => cases n <;> have .pair _ _ h := hM <;> cases TShape.sort_not_le_pair' h
+    | forallE _ => have .pair _ _ h := hM; cases TShape.forallE_not_le_pair' h
+    | lam _ =>
+      revert hM; unfold WShape.lam'; split <;> [skip; exact fun _ => (LR _).bot hmem.isType hTyEq]
+      intro | .pair _ _ h => cases TShape.lam_not_le_pair' h
+    | sigma _ => have .pair _ _ h := hM; cases TShape.sigma_not_le_pair' h
+    | pair hpair
+    have ⟨A₁, A₂, u, v, whr_t, htA₁, vtyA₁, htA₂, hΓfM, _, htpair, edge, vpair_M⟩ :=
+      (ihpair hM hA hmem).2 W
+    cases WHNF.sigma.whRedS whr_t.2
+    have ⟨_, _, _, _, whr_N, _, _, _, hΓfN, _, _, _, _⟩ := (ihp hM' hA hmem).2 W
+    cases whr_t.2.determ .sigma whr_N.2 .sigma
+    have := (Hp.fst_snd₀ W.wf).subst' W.wf₀ W.toSubstEq
+    have H1 := this.fstDF₀ W.wf₀; have H2 := this.sndDF₀ W.wf₀
+    exact ⟨A.subst σ, B.subst σ.lift, u, v, whr_t, htA₁, vtyA₁, htA₂, hΓfM, hΓfN, htpair, edge,
+      ((LR _).whr ⟨H1.hasType.1, .rfl⟩ ⟨H1, .tail .rfl .pair_fst⟩ H1.hasType.1).1 vpair_M.1,
+      ((LR _).whr ⟨H2.hasType.1, .rfl⟩ ⟨H2, .tail .rfl .pair_snd⟩ H2.hasType.1).1 vpair_M.2⟩
   | @YDF _ A A' u b b' HA Hb Hb' ihA ihb ihb' =>
     refine .fits fun W => ?_
     obtain ⟨_, m', a', le, _, ha', hmem', adq⟩ := LR.adequacy_Y W HA Hb Hb' ihA ihb hM
