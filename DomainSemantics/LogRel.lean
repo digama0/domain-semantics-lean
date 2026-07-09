@@ -1723,30 +1723,8 @@ private theorem LR.lift_succ_aux :
         constructor <;> rintro ⟨u, whA, h⟩
         · exact ⟨u, whA, (h1 hma.toType).1 h⟩
         · exact ⟨u, whA, (h1 hma.toType).2 h⟩
-      | forallE a₁ a₂ => ?_
-      | sigma s f => ?_
-      | pair => exact absurd hma WShape.HasType.pair_r
-      | nat =>
-        rw [WShape.lift_nat (Nat.le_succ k)]
-        cases m using WShape.casesOn' with
-        | bot => rw [WShape.lift_bot]; rfl
-        | zero => rw [WShape.lift_zero (Nat.le_succ k)]; rfl
-        | succ v =>
-          rw [WShape.lift_succ (Nat.le_succ k)]
-          simp only [LRS.TmEq.succ_nat]
-          have hsv : WShape.HasTypeSucc v := by
-            obtain ⟨⟨⟩⟩ | ⟨⟨⟩⟩ | ⟨w, heq, hs⟩ := WShape.HasType.nat_r hma
-            exact WShape.ext (by injection congrArg (·.1) heq) ▸ hs
-          refine and_congr_right' <| exists_congr fun M' => exists_congr fun N' =>
-            and_congr_right' <| and_congr_right' <| and_congr_right' ?_
-          cases k with
-          | zero =>
-            cases show v = .bot from WShape.ext hsv
-            exact iff_true_intro ⟨⟨.nat, .rfl⟩, trivial⟩
-          | succ j => exact (@ih.2) (a := .nat) hsv
-        | _ => cases hma
-      | _ => cases hma.isType
-      · have ⟨_, htpi_a, rfl⟩ := WShape.HasType.forallE_l.1 hma.isType
+      | forallE a₁ a₂ =>
+        have ⟨_, htpi_a, rfl⟩ := WShape.HasType.forallE_l.1 hma.isType
         obtain ⟨g, rfl, htm⟩ := WShape.HasType.forallE_inv hma
         unfold WShape.lam'; split
         · rw [WShape.lift_lam (Nat.le_succ k), WShape.lift_forallE (Nat.le_succ k)]
@@ -1767,7 +1745,8 @@ private theorem LR.lift_succ_aux :
           · exact (LRS.PiDefEq.lift_aux (Nat.le_succ k) htpi_a ih.1 ih.2).1 hEdge
           · exact (ih.1 (WShape.HasTypePi.iff.1 htpi_a).1.isType).2 hValB
           · exact (LRS.PiDefEq.lift_aux (Nat.le_succ k) htpi_a ih.1 ih.2).2 hEdge
-      · rw [WShape.lift_sigma (Nat.le_succ k)]
+      | sigma s f =>
+        rw [WShape.lift_sigma (Nat.le_succ k)]
         have ⟨htsigma, _⟩ := WShape.HasType.sigma_l.1 hma.isType
         have htpi_a : WShape.HasTypePi f s true :=
           ⟨htsigma.1, fun _ _ hh => (htsigma.2 _ _ hh).toType⟩
@@ -1811,6 +1790,27 @@ private theorem LR.lift_succ_aux :
             · apply hne
               have := (WShape.lift_le_bot (Nat.le_succ k)).1 hmt_b
               rw [this]; exact Shape.bot_le
+      | pair => exact absurd hma WShape.HasType.pair_r
+      | nat =>
+        rw [WShape.lift_nat (Nat.le_succ k)]
+        cases m using WShape.casesOn' with
+        | bot => rw [WShape.lift_bot]; rfl
+        | zero => rw [WShape.lift_zero (Nat.le_succ k)]; rfl
+        | succ v =>
+          rw [WShape.lift_succ (Nat.le_succ k)]
+          simp only [LRS.TmEq.succ_nat]
+          have hsv : WShape.HasTypeSucc v := by
+            obtain ⟨⟨⟩⟩ | ⟨⟨⟩⟩ | ⟨w, heq, hs⟩ := WShape.HasType.nat_r hma
+            exact WShape.ext (by injection congrArg (·.1) heq) ▸ hs
+          refine and_congr_right' <| exists_congr fun M' => exists_congr fun N' =>
+            and_congr_right' <| and_congr_right' <| and_congr_right' ?_
+          cases k with
+          | zero =>
+            cases show v = .bot from WShape.ext hsv
+            exact iff_true_intro ⟨⟨.nat, .rfl⟩, trivial⟩
+          | succ j => exact (@ih.2) (a := .nat) hsv
+        | _ => cases hma
+      | _ => cases hma.isType
 
 theorem LR.TmEq.lift {m a : WShape n} (le : n ≤ n') (hma : WShape.HasType m a) :
     (LR Γ).TmEq M N A (m.lift n') (a.lift _) ↔ (LR Γ).TmEq M N A m a := by
