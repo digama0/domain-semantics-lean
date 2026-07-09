@@ -86,6 +86,13 @@ inductive LE_Interp : Valuation → TShape → Term → Prop
     m ≤ (WShape.fst s).T → LE_Interp ρ m (.fst P)
   | snd {s : WShape (n+1)} : LE_Interp ρ s.T P →
     m ≤ (WShape.snd s).T → LE_Interp ρ m (.snd P)
+  | nat : m ≤ (.nat : WShape (n+1)).T → LE_Interp ρ m .nat
+  | zero : m ≤ (.zero : WShape (n+1)).T → LE_Interp ρ m .zero
+  | succ : LE_Interp ρ v.T N → m ≤ (.succ v : WShape (n+1)).T → LE_Interp ρ m (.succ N)
+  | natCase_zero : LE_Interp ρ (.zero : WShape (n+1)).T M →
+    LE_Interp ρ m a → LE_Interp ρ m (.natCase C M a b)
+  | natCase_succ : LE_Interp ρ (.succ v : WShape (n+1)).T M →
+    LE_Interp (ρ.push v.T) m b → LE_Interp ρ m (.natCase C M a b)
   | protected Y {s : TShape} : LE_Interp (ρ.push s) m b → LE_Interp ρ s (.Y A b) →
     LE_Interp ρ m (.Y A b)
 
@@ -114,6 +121,10 @@ theorem LE_Interp.fst' {s : WShape (n+1)} (h : LE_Interp ρ s.T P) :
     LE_Interp ρ (WShape.fst s).T (.fst P) := .fst h .rfl
 theorem LE_Interp.snd' {s : WShape (n+1)} (h : LE_Interp ρ s.T P) :
     LE_Interp ρ (WShape.snd s).T (.snd P) := .snd h .rfl
+theorem LE_Interp.nat' : LE_Interp ρ (WShape.nat : WShape (n+1)).T .nat := .nat .rfl
+theorem LE_Interp.zero' : LE_Interp ρ (WShape.zero : WShape (n+1)).T .zero := .zero .rfl
+theorem LE_Interp.succ' {v : WShape n} (h : LE_Interp ρ v.T N) :
+    LE_Interp ρ (WShape.succ v : WShape (n+1)).T (.succ N) := .succ h .rfl
 
 theorem LE_Interp.bvar_iff : LE_Interp ρ m (.bvar i) ↔ m ≤ ρ i :=
   ⟨fun | .bot => TShape.bot_le' | .bvar h => h, .bvar⟩
@@ -123,6 +134,18 @@ theorem LE_Interp.le_sort (H : LE_Interp ρ m (.sort u)) : m ≤ .sort u := by
   induction H with cases eq
   | bot => exact TShape.bot_le'
   | sort h => exact h.trans TShape.sort_eqv.1
+
+theorem LE_Interp.le_nat (H : LE_Interp ρ m .nat) :
+    ∃ n, m ≤ (WShape.nat : WShape (n+1)).T := by
+  cases H with | bot => exact ⟨0, TShape.bot_le'⟩ | nat h => exact ⟨_, h⟩
+
+theorem LE_Interp.le_zero (H : LE_Interp ρ m .zero) :
+    ∃ n, m ≤ (WShape.zero : WShape (n+1)).T := by
+  cases H with | bot => exact ⟨0, TShape.bot_le'⟩ | zero h => exact ⟨_, h⟩
+
+theorem LE_Interp.le_succ (H : LE_Interp ρ m (.succ N)) :
+    ∃ n, ∃ v : WShape n, LE_Interp ρ v.T N ∧ m ≤ (WShape.succ v : WShape (n+1)).T := by
+  cases H with | bot => exact ⟨0, .bot, .bot, TShape.bot_le'⟩ | succ hv h1 => exact ⟨_, _, hv, h1⟩
 
 theorem LE_Interp.le_sort' (H : LE_Interp ρ m (.sort u)) : m.2 ≤ .sort u :=
   (TShape.LE.lift_r (Nat.zero_le _)).1 H.le_sort
@@ -139,6 +162,11 @@ theorem LE_Interp.mono (h : m ≤ m') (H : LE_Interp ρ m' M) : LE_Interp ρ m M
   | pair hX hY h1 => exact .pair hX hY (h.trans h1)
   | fst hP h1 => exact .fst hP (h.trans h1)
   | snd hP h1 => exact .snd hP (h.trans h1)
+  | nat h1 => exact .nat (h.trans h1)
+  | zero h1 => exact .zero (h.trans h1)
+  | succ hv h1 => exact .succ hv (h.trans h1)
+  | natCase_zero hM ha _ iha => exact .natCase_zero hM (iha h)
+  | natCase_succ hM hb _ ihb => exact .natCase_succ hM (ihb h)
   | Y ih_body ih_self ihb ihs => exact .Y (ihb h) ih_self
 
 theorem LE_Interp.mono_l (hρ : ρ.LE ρ') (H : LE_Interp ρ m M) : LE_Interp ρ' m M := by
@@ -158,6 +186,11 @@ theorem LE_Interp.mono_l (hρ : ρ.LE ρ') (H : LE_Interp ρ m M) : LE_Interp ρ
   | pair _ _ h1 ih_X ih_Y => exact .pair (ih_X hρ) (ih_Y hρ) h1
   | fst _ h1 ih => exact .fst (ih hρ) h1
   | snd _ h1 ih => exact .snd (ih hρ) h1
+  | nat h1 => exact .nat h1
+  | zero h1 => exact .zero h1
+  | succ _ h1 ihv => exact .succ (ihv hρ) h1
+  | natCase_zero hM ha ihM iha => exact .natCase_zero (ihM hρ) (iha hρ)
+  | natCase_succ hM hb ihM ihb => exact .natCase_succ (ihM hρ) (ihb (Valuation.LE.push.2 ⟨hρ, .rfl⟩))
   | Y ih_body ih_self ihb ihs => exact .Y (ihb (Valuation.LE.push.2 ⟨hρ, .rfl⟩)) (ihs hρ)
 
 theorem LE_Interp.unlift (le : m.1 ≤ n)
@@ -189,6 +222,13 @@ theorem LE_Interp.weak'_iff (l : Lift) (h : ∀ i, ρ i = ρ' (l.liftVar i)) :
       exact .pair (ih_X _ h rfl) (ih_Y _ h rfl) h1
     | fst _ h1 ih => exact .fst (ih _ h rfl) h1
     | snd _ h1 ih => exact .snd (ih _ h rfl) h1
+    | nat h1 => exact .nat h1
+    | zero h1 => exact .zero h1
+    | succ _ h1 ihv => exact .succ (ihv _ h rfl) h1
+    | natCase_zero hM ha ihM iha => exact .natCase_zero (ihM _ h rfl) (iha _ h rfl)
+    | natCase_succ hM hb ihM ihb =>
+      refine .natCase_succ (ihM _ h rfl) <| ihb _ ?_ rfl
+      rintro ⟨⟩ <;> simp [Valuation.push, h]
     | Y ih_body ih_self ihb ihs => exact .Y (ihb l.cons (fun i => by cases i <;> simp [Valuation.push, h]) rfl) (ihs l h rfl)
   · induction H generalizing ρ' l with
     | bot => exact .bot
@@ -208,6 +248,13 @@ theorem LE_Interp.weak'_iff (l : Lift) (h : ∀ i, ρ i = ρ' (l.liftVar i)) :
       exact .pair (ih_X l h) (ih_Y l h) h1
     | fst _ h1 ih => exact .fst (ih l h) h1
     | snd _ h1 ih => exact .snd (ih l h) h1
+    | nat h1 => exact .nat h1
+    | zero h1 => exact .zero h1
+    | succ _ h1 ihv => exact .succ (ihv l h) h1
+    | natCase_zero hM ha ihM iha => exact .natCase_zero (ihM l h) (iha l h)
+    | natCase_succ hM hb ihM ihb =>
+      refine .natCase_succ (ihM l h) <| ihb l.cons ?_
+      rintro ⟨⟩ <;> simp [Valuation.push, h]
     | Y ih_body ih_self ihb ihs => exact .Y (ihb l.cons (fun i => by cases i <;> simp [Valuation.push, h])) (ihs l h)
 
 theorem LE_Interp.weak_iff : LE_Interp (ρ.push x) m M.lift ↔ LE_Interp ρ m M :=
@@ -412,6 +459,37 @@ theorem LE_Interp.compat_join {m₁ m₂ : TShape}
     refine mk (h1.trans ?_) (h12.trans ?_) (.snd' iP')
     · exact TShape.snd_mono (hJ.le.1.trans (TShape.lift_eqv hLvl).2)
     · exact TShape.snd_mono (hJ.le.2.trans (TShape.lift_eqv hLvl).2)
+  | @nat _ n₁ _ h1 =>
+    cases H2 with | bot => exact bot_r hρ (.nat h1) | @nat _ n₂ _ h2
+    exact mk (h1.trans TShape.nat_eqv) (h2.trans TShape.nat_eqv) (.nat' (n := 0))
+  | @zero _ n₁ _ h1 =>
+    cases H2 with | bot => exact bot_r hρ (.zero h1) | @zero _ n₂ _ h2
+    exact mk (h1.trans TShape.zero_eqv) (h2.trans TShape.zero_eqv) (.zero' (n := 0))
+  | succ hv h1 ih_v =>
+    cases H2 with | bot => exact bot_r hρ (.succ hv h1) | succ hv2 h12
+    have ⟨cv, jv⟩ := ih_v hρ hv2
+    have hJ := TShape.Join.mk cv |>.le
+    exact mk (h1.trans (TShape.succ_le_succ.2 hJ.1))
+      (h12.trans (TShape.succ_le_succ.2 hJ.2)) (.succ' jv)
+  | natCase_zero hM₁ ha₁ ihM iha =>
+    cases H2 with
+    | bot => exact bot_r hρ (.natCase_zero hM₁ ha₁)
+    | natCase_succ hM₂ => cases TShape.zero_compat_succ_false (ihM hρ hM₂).1
+    | natCase_zero hM₂ ha₂
+    have ⟨ca, ja⟩ := iha hρ ha₂
+    exact ⟨ca, .natCase_zero (hM₁.mono_l hρ) ja⟩
+  | @natCase_succ _ n₁ v Mtm _ btm _ _ hM₁ hb₁ ihM ihb =>
+    cases H2 with
+    | bot => exact bot_r hρ (.natCase_succ hM₁ hb₁)
+    | natCase_zero hM₂ => cases TShape.succ_compat_zero_false (ihM hρ hM₂).1
+    | @natCase_succ _ n₂ v' _ _ _ _ _ hM₂ hb₂
+    have ⟨cs, jsM⟩ := ihM hρ hM₂
+    have hcv := TShape.succ_compat_succ_decomp cs
+    have hjv := TShape.Join.mk hcv |>.le
+    have ⟨cb, jb⟩ := ihb (Valuation.LE.push.2 ⟨hρ, hjv.1⟩) <|
+      hb₂.mono_l (Valuation.LE.push.2 ⟨.rfl, hjv.2⟩)
+    refine ⟨cb, .natCase_succ ?_ jb⟩
+    exact jsM.mono <| (TShape.Join.succ_succ hcv _).2 (TShape.Join.mk cs).le
   | Y ih_body ih_self ihb ihs =>
     cases H2 with | bot => exact bot_r hρ (.Y ih_body ih_self) | Y hb2 hs2
     have ⟨cs, is⟩ := ihs hρ hs2
@@ -623,6 +701,46 @@ theorem LE_Interp.subst : LE_Interp ρ m (M.subst σ) ↔
       cases eq
       have ⟨ρ', hP', h'⟩ := ih_P P' σ rfl
       exact ⟨ρ', .snd hP' h1, h'⟩
+    | nat h1 =>
+      cases M with | bvar => exact bvar eq (.nat h1) | nat => ?_ | _ => cases eq
+      exact ⟨.nil, .nat h1, fun _ => .bot⟩
+    | zero h1 =>
+      cases M with | bvar => exact bvar eq (.zero h1) | zero => ?_ | _ => cases eq
+      exact ⟨.nil, .zero h1, fun _ => .bot⟩
+    | succ hv h1 ih_v =>
+      cases M with | bvar => exact bvar eq (.succ hv h1) | succ N' => ?_ | _ => cases eq
+      cases eq
+      have ⟨ρ', hv', h'⟩ := ih_v N' σ rfl
+      exact ⟨ρ', .succ hv' h1, h'⟩
+    | natCase_zero hM ha ihM iha =>
+      cases M with
+      | bvar => exact bvar eq (.natCase_zero hM ha)
+      | natCase C' M' a' b' => ?_
+      | _ => cases eq
+      cases eq
+      have ⟨ρ₁, hM', h₁⟩ := ihM M' σ rfl
+      have ⟨ρ₂, ha', h₂⟩ := iha a' σ rfl
+      have hc : ρ₁.Compat ρ₂ := fun i => (h₁ i).compat (h₂ i)
+      have ⟨hj1, hj2⟩ := hc.le_join
+      refine ⟨ρ₁.join ρ₂, .natCase_zero (hM'.mono_l hj1) (ha'.mono_l hj2), fun i => ?_⟩
+      exact (h₁ i).join' (h₂ i)
+    | @natCase_succ ρ_c m_c C_c M_c a_c b_c n v hM hb ihM ihb =>
+      cases M with
+      | bvar => exact bvar eq (.natCase_succ hM hb)
+      | natCase C' M' a' b' => ?_
+      | _ => cases eq
+      cases eq
+      have ⟨ρ₁, hM', h₁⟩ := ihM M' σ rfl
+      have ⟨ρ₂, hb', h₂⟩ := ihb b' σ.lift rfl
+      have hρ₂' i : LE_Interp ρ_c (ρ₂ (i + 1)) (σ i) := weak_iff.1 (h₂ (i + 1))
+      let ρ₂' : Valuation := fun i => ρ₂ (i + 1)
+      have hc : ρ₁.Compat ρ₂' := fun i => (h₁ i).compat (hρ₂' i)
+      have ⟨hj1, hj2⟩ := hc.le_join
+      refine ⟨ρ₁.join ρ₂', .natCase_succ (hM'.mono_l hj1) (hb'.mono_l ?_), fun i => ?_⟩
+      · rw [← (show ρ₂'.push (ρ₂ 0) = ρ₂ by funext i; cases i <;> rfl)]
+        refine Valuation.LE.push.2 ⟨hj2, ?_⟩
+        exact bvar_iff.1 (h₂ 0)
+      · exact (h₁ i).join' (hρ₂' i)
     | Y ih_body ih_self ihb ihs =>
       cases M with | bvar => exact bvar eq (.Y ih_body ih_self) | Y A' b' => ?_ | _ => cases eq
       cases eq
@@ -653,6 +771,13 @@ theorem LE_Interp.subst : LE_Interp ρ m (M.subst σ) ↔
     | pair _ _ h1 ih_X ih_Y => exact .pair (ih_X h) (ih_Y h) h1
     | fst hP h1 ih => exact .fst (ih h) h1
     | snd hP h1 ih => exact .snd (ih h) h1
+    | nat h1 => exact .nat h1
+    | zero h1 => exact .zero h1
+    | succ _ h1 ih_v => exact .succ (ih_v h) h1
+    | natCase_zero hM ha ihM iha => exact .natCase_zero (ihM h) (iha h)
+    | natCase_succ hM hb ihM ihb =>
+      refine .natCase_succ (ihM h) (ihb fun i => ?_)
+      cases i <;> [exact .bvar0; exact (h _).weak]
     | Y ih_body ih_self ihb ihs => exact .Y (ihb (fun | 0 => .bvar0 | i+1 => (h i).weak)) (ihs h)
 
 theorem LE_Interp.inst : LE_Interp ρ f (F.inst A) ↔
@@ -802,6 +927,19 @@ inductive Valuation.Fits : (Γ Δ : List Term) → Valuation → Prop
     (∀ {a}, LE_Interp ρ a A → ∃ a', a ≤ a' ∧ LE_Interp ρ a' A ∧ a'.HasType .type) →
     LE_Interp ρ a A → x.HasType a →
     Valuation.Fits Γ (A::Δ) (ρ.push x)
+
+theorem Valuation.Fits.lift (hL : Ctx.Lift' l Γ Δ) (W : Valuation.Fits Γ₀ Δ ρ') :
+    ∃ Γ₀' ρ, Valuation.Fits Γ₀' Γ ρ ∧ ∀ i, ρ i = ρ' (l.liftVar i) := by
+  induction hL generalizing Γ₀ ρ' with
+  | refl => exact ⟨_, _, W, fun _ => rfl⟩
+  | skip _ ih => cases W with | nil => exact ⟨_, _, .nil, fun _ => rfl⟩ | cons W => exact ih W
+  | @cons l' _ _ A _ ih =>
+    cases W with | nil => exact ⟨_, _, .nil, fun _ => rfl⟩ | cons W hsat ha hty
+    obtain ⟨_, _, W', h⟩ := ih W
+    have h_iff {m} := LE_Interp.weak'_iff (m := m) (M := A) l' h
+    refine ⟨_, _, W'.cons (fun h => ?_) (h_iff.1 ha) hty, (·.casesOn rfl h)⟩
+    obtain ⟨_, h1, h2, h3⟩ := hsat (h_iff.2 h)
+    exact ⟨_, h1, h_iff.1 h2, h3⟩
 
 /-- Typed interpretation: there exist witnesses `m'` and `a` interpreting
 `M` and `A` such that `m ≤ m'` and `m'.HasType a`. This is the
@@ -1375,6 +1513,14 @@ inductive StrongSoundCore : List Term → Term → Term → Prop where
   | snd : SoundTy Γ A (.sort u) → SoundTy (A::Γ) B (.sort v) →
     StrongSound Γ p (.sigma A B) →
     StrongSoundCore Γ (.snd p) (B.inst (.fst p))
+  | nat : StrongSoundCore Γ .nat (.sort true)
+  | zero : StrongSoundCore Γ .zero .nat
+  | succ : StrongSound Γ n .nat → StrongSoundCore Γ (.succ n) .nat
+  | natCase : StrongSound (.nat::Γ) C (.sort v) →
+    StrongSound Γ M .nat →
+    StrongSound Γ a (C.inst .zero) →
+    StrongSound (.nat::Γ) b ((C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0))) →
+    StrongSoundCore Γ (.natCase C M a b) (C.inst M)
   | Y : SoundTy Γ A (.sort u) → StrongSound (A::Γ) b A.lift → StrongSoundCore Γ (.Y A b) A
 end
 /-- Strong soundness for an equality judgment: both sides are individually
@@ -1423,6 +1569,36 @@ theorem SoundEq.inst (ht : SoundTy Γ X A) (hA : SoundTy Γ A (.sort u))
   have ⟨x', a, a1, a2, a3, a4⟩ := ht W h2
   refine ⟨_, (H (W.cons (InterpTyped.hsort (hA W)) a3 a4)).1 ?_, a2⟩
   exact h1.mono_l <| Valuation.LE.push.2 ⟨.rfl, a1⟩
+
+theorem SoundTy.bvar (H : Lookup Γ i A) : SoundTy Γ (.bvar i) A := fun _ _ W _ h => by
+  cases h with | bot => exact .bot | bvar a1
+  induction W generalizing i A with | nil => exact TShape.le_bot'.1 a1 ▸ .bot | cons _ h1 h2 h3 ih
+  cases H with | zero => exact ⟨_, _, a1, .bvar .rfl, h2.weak, h3⟩ | succ h
+  have ⟨_, _, le, h1, h2, h3⟩ := ih h a1; exact ⟨_, _, le, h1.weak, h2.weak, h3⟩
+
+theorem SoundTy.nat : SoundTy Γ .nat (.sort true) := fun _ _ _ _ h => by
+  cases h with | bot => exact .bot | nat h1
+  exact .mk h1 .nat' .sort' (.mono_r TShape.sort_eqv.1 .sort WShape.HasType.nat.T)
+
+theorem SoundTy.zero : SoundTy Γ .zero .nat := fun _ _ _ _ h => by
+  cases h with | bot => exact .bot | zero h1
+  exact .mk h1 .zero' .nat' WShape.HasType.zero.T
+
+theorem SoundTy.succ (H : SoundTy Γ n .nat) : SoundTy Γ (.succ n) .nat := fun _ ρ W m h => by
+  cases h with | bot => exact .bot | @succ _ _ _ n v hv h1
+  have ⟨nk, v_w, a_w, hle_nk, hv_le, hv_w_li, ha_w_li, hv_w_ty⟩ := (H W hv).out
+  obtain ⟨n_a, ha_nat⟩ := ha_w_li.le_nat
+  let k := max nk n_a; have ⟨le₁, le₂⟩ := Nat.max_le.1 (Nat.le_refl k)
+  have le₁' : nk ≤ k+1 := Nat.le_succ_of_le le₁
+  refine .mk ?_ (.succ' (hv_w_li.lift le₁')) .nat' (WShape.HasType.succ (n := _+1)
+    (WShape.HasType.mono_r ?_ .nat ((WShape.HasType.lift le₁').2 hv_w_ty))).T
+  · exact h1.trans <| TShape.succ_le_succ.2 <| hv_le.trans (TShape.lift_eqv (a := v_w.T) le₁').2
+  · exact WShape.lift_nat le₂ ▸ (TShape.LE.def le₁' (Nat.succ_le_succ le₂)).1 ha_nat
+
+theorem SoundEq.lift' (hL : Ctx.Lift' l Γ Δ) (H : SoundEq Γ M N) :
+    SoundEq Δ (M.lift' l) (N.lift' l) := fun _ _ W _ =>
+  have ⟨_, _, W', h⟩ := W.lift hL
+  (LE_Interp.weak'_iff l h).trans <| (H W').trans (LE_Interp.weak'_iff l h).symm
 
 theorem SoundEq.sort : SoundEq Γ (.sort u) (.sort v) ↔ u = v := by
   refine ⟨fun H => ?_, fun H => ?_⟩
@@ -1624,19 +1800,15 @@ theorem StrongSound.uniq : StrongSound Γ M A → StrongSound Γ M B → SoundEq
     let .snd a1 a2 a3 := H1; let .snd b1 b2 b3 := H2
     have ⟨_, c2⟩ := (ihP a3 b3).sigma_inv a1 b1
     exact .inst (SoundTy.fstsnd a3.sound).1 a1 c2
+  | nat => let .nat := H1; let .nat := H2; exact .rfl
+  | zero => let .zero := H1; let .zero := H2; exact .rfl
+  | succ => let .succ .. := H1; let .succ .. := H2; exact .rfl
+  | natCase => let .natCase .. := H1; let .natCase .. := H2; exact .rfl
   | Y _ _ => let .Y _ _ := H1; let .Y _ _ := H2; exact .rfl
 
 theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A := by
   induction H with
-  | @bvar _ i A _ h h2 ih =>
-    refine .rfl ⟨fun _ _ W _ h => ?_, .bvar h, .rfl⟩; clear h2 ih
-    generalize eq : Term.bvar i = M at h
-    induction h with cases eq | bot => exact .mk .rfl .bot .bot (.bot_T' <| .bot .sort) | bvar a1
-    induction W generalizing i A with | cons _ h1 h2 h3 ih => ?_ | nil =>
-      exact TShape.le_bot'.1 a1 ▸ .mk .rfl .bot .bot (.bot_T' <| .bot .sort)
-    cases h with simp [Valuation.push] at a1
-    | zero => exact ⟨_, _, a1, .bvar .rfl, h2.weak, h3⟩
-    | succ h => have ⟨_, _, le, h1, h2, h3⟩ := ih h a1; exact ⟨_, _, le, h1.weak, h2.weak, h3⟩
+  | @bvar _ i A _ h h2 ih => exact .rfl ⟨.bvar h, .bvar h, .rfl⟩
   | symm _ ih => exact ih.symm
   | trans _ _ ih1 ih2 => exact ih1.trans ih2
   | trans' _ _ ih1 ih2 =>
@@ -2121,6 +2293,116 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
     have ⟨_, _, b1, b2, b3, b4⟩ := ih1.left.sound W a3
     have b4' := TShape.HasType.mono_r (by simpa using b3.le_sort) .sort b4
     exact a1.trans (b4'.proofIrrel (b4'.mono_r b1 a4))
+  | nat => exact .rfl ⟨.nat, .nat, .rfl⟩
+  | zero => exact .rfl ⟨.zero, .zero, .rfl⟩
+  | succDF _ ih2 =>
+    refine .mk' (.succ ih2.left) .rfl (.succ ih2.right) .rfl fun _ _ W m => ?_
+    by_cases hm : m ≤ TShape.bot; · exact TShape.le_bot'.1 hm ▸ sound_bot
+    refine ⟨⟨fun h => ?_, fun h => ?_⟩, fun h => ?_⟩ <;>
+      cases h with | bot => cases hm TShape.bot_le' | succ hv h1
+    · exact .succ ((ih2.sound W).1 hv) h1
+    · exact .succ ((ih2.sound W).2 hv) h1
+    · exact ih2.left.sound.succ W (.succ hv h1)
+  | @natCaseDF Γ C C' v M M' a a' b b' _ _ _ _ _ ihC ihM iha ihb ihCM =>
+    refine .mk' (.natCase ihC.left ihM.left iha.left ihb.left) .rfl
+      (.natCase ihC.right ihM.right ?_ ?_) ihCM.sound.symm fun _ ρ W m => ?_
+    · exact iha.right.defeq_r <| ihC.sound.inst .zero .nat
+    · exact ihb.right.defeq_r <| ihC.sound.lift' (.cons (.skip .refl))
+        |>.inst (.succ <| .bvar (.zero (ty := .nat))) .nat
+    by_cases hm : m ≤ TShape.bot; · exact TShape.le_bot'.1 hm ▸ sound_bot
+    refine ⟨?_, fun h => ?_⟩
+    · suffices ∀ {C₁ C₂ M₁ M₂ a₁ a₂ b₁ b₂},
+          StrongSoundEq Γ M₁ M₂ .nat → StrongSoundEq Γ a₁ a₂ (C.inst .zero) →
+          StrongSoundEq (.nat :: Γ) b₁ b₂ ((C.lift' Lift.refl.skip.cons).inst (.succ (.bvar 0))) →
+          LE_Interp ρ m (.natCase C₁ M₁ a₁ b₁) → LE_Interp ρ m (.natCase C₂ M₂ a₂ b₂) from
+        ⟨this ihM iha ihb, this ihM.symm iha.symm ihb.symm⟩
+      intro C₁ C₂ M₁ M₂ a₁ a₂ b₁ b₂ ihM iha ihb h
+      cases h with
+      | bot => cases hm TShape.bot_le'
+      | natCase_zero hM ha => exact .natCase_zero ((ihM.sound W).1 hM) ((iha.sound W).1 ha)
+      | @natCase_succ _ n_v v _ _ _ _ _ hM hb =>
+        have ⟨nk, m'_w, a_w, _, hle_sv_mw, hM_sat, ha_w_li, hM_ty⟩ := ihM.left.sound W hM |>.out
+        obtain ⟨n_a, ha_nat⟩ := ha_w_li.le_nat
+        let k := max nk n_a
+        have hnk_k2 : nk ≤ k+2 := Nat.le_add_right_of_le (Nat.le_max_left ..)
+        have hna_k1 : n_a ≤ k+1 := Nat.le_succ_of_le (Nat.le_max_right ..)
+        have hM'_nat : (m'_w.lift (k+2)).HasType .nat := by
+          refine .mono_r (WShape.lift_nat hna_k1 ▸ ?_) .nat <| (WShape.HasType.lift hnk_k2).2 hM_ty
+          exact (TShape.LE.def hnk_k2 (Nat.succ_le_succ hna_k1)).1 ha_nat
+        have hle_sv_lifted := hle_sv_mw.trans (TShape.lift_eqv (a := m'_w.T) hnk_k2).2
+        obtain h_bot | h_zero | ⟨v_w, h_eq_succ, h_v_w_ty : v_w.HasType .nat⟩ := hM'_nat.nat_r
+        · exact (TShape.succ_not_le_bot (h_bot ▸ hle_sv_lifted)).elim
+        · exact (TShape.succ_not_le_zero (h_zero ▸ hle_sv_lifted)).elim
+        refine .natCase_succ ((ihM.sound W).1 (h_eq_succ ▸ hM_sat.lift hnk_k2)) ?_
+        refine (ihb.sound (W.cons (InterpTyped.hsort (SoundTy.nat W)) .nat' h_v_w_ty.T)).1 ?_
+        refine hb.mono_l (Valuation.LE.push.2 ⟨.rfl, ?_⟩)
+        exact TShape.succ_le_succ.1 (h_eq_succ ▸ hle_sv_lifted)
+    · cases h with
+      | bot => cases hm TShape.bot_le'
+      | @natCase_zero _ n_h _ _ _ _ _ hM ha =>
+        obtain ⟨m_a, a_ty, hle_m_ma, hma_a, ha_ty_Cz, hty_a⟩ := iha.left.sound W ha
+        obtain ⟨a_zero, hCa_zero, hazero_zero⟩ := LE_Interp.inst.1 ha_ty_Cz
+        obtain ⟨n_z, hazero_le⟩ := hazero_zero.le_zero
+        refine ⟨m_a, a_ty, hle_m_ma, .natCase_zero hM hma_a, ?_, hty_a⟩
+        exact LE_Interp.inst.2 ⟨a_zero, hCa_zero, hM.mono (hazero_le.trans TShape.zero_eqv)⟩
+      | @natCase_succ _ n_v v _ _ _ _ _ hM hb =>
+        have ⟨nk, m'_w, a_w, _, hle_sv_mw, hM_sat, ha_w_li, hM_ty⟩ := ihM.left.sound W hM |>.out
+        obtain ⟨n_a, ha_nat⟩ := ha_w_li.le_nat
+        let k := max nk n_a
+        have hnk_k2 : nk ≤ k+2 := Nat.le_add_right_of_le (Nat.le_max_left ..)
+        have hna_k1 : n_a ≤ k+1 := Nat.le_succ_of_le (Nat.le_max_right ..)
+        have hM'_nat : (m'_w.lift (k+2)).HasType .nat := by
+          refine .mono_r (WShape.lift_nat hna_k1 ▸ ?_) .nat <| (WShape.HasType.lift hnk_k2).2 hM_ty
+          exact (TShape.LE.def hnk_k2 (Nat.succ_le_succ hna_k1)).1 ha_nat
+        have hle_sv_lifted := hle_sv_mw.trans (TShape.lift_eqv hnk_k2).2
+        obtain h_bot | h_zero | ⟨v_w, h_eq_succ, h_v_w_ty⟩ := hM'_nat.nat_r
+        · exact (TShape.succ_not_le_bot (h_bot ▸ hle_sv_lifted)).elim
+        · exact (TShape.succ_not_le_zero (h_zero ▸ hle_sv_lifted)).elim
+        have hle_v : v.T ≤ v_w.T := TShape.succ_le_succ.1 (h_eq_succ ▸ hle_sv_lifted)
+        have hv_w_nat : (v_w : WShape (k+1)).HasType (WShape.nat : WShape (k+1)) := h_v_w_ty
+        have W' := W.cons (InterpTyped.hsort (SoundTy.nat W)) .nat' hv_w_nat.T
+        have hb_pushed :=
+          hb.mono_l (Valuation.LE.push.2 ⟨.rfl, TShape.succ_le_succ.1 (h_eq_succ ▸ hle_sv_lifted)⟩)
+        obtain ⟨m_b, b_ty, hle_m_mb, hmb_b, hb_ty_C_succ, hty_b⟩ := ihb.left.sound W' hb_pushed
+        refine ⟨m_b, b_ty, hle_m_mb, .natCase_succ ?_ hmb_b, ?_, hty_b⟩
+        · exact h_eq_succ ▸ hM_sat.lift hnk_k2
+        obtain ⟨a_succ, hCb_succ, hasucc_succ⟩ := LE_Interp.inst.1 hb_ty_C_succ
+        refine LE_Interp.inst.2 ⟨a_succ, ?_, ?_⟩
+        · refine (LE_Interp.weak'_iff (.cons (.skip .refl)) ?_).1 hCb_succ; rintro ⟨⟩ <;> rfl
+        obtain ⟨n_a_pred, v_pred, hv_pred_interp, ha_succ_le⟩ := hasucc_succ.le_succ
+        refine (h_eq_succ ▸ hM_sat.lift hnk_k2).mono (ha_succ_le.trans ?_)
+        have lm₁ := Nat.le_max_left n_a_pred (k+1)
+        have lm₂ := Nat.le_max_right n_a_pred (k+1)
+        rw [TShape.LE.def (Nat.succ_le_succ lm₁) (Nat.succ_le_succ lm₂),
+          WShape.lift_succ lm₁, WShape.lift_succ lm₂, WShape.LE.def, ← Shape.succ_le_succ]
+        exact (TShape.LE.def lm₁ lm₂).1 (LE_Interp.bvar_iff.1 hv_pred_interp)
+  | natCase_zero _ _ _ _ ihC iha ihb ihLHS =>
+    refine ⟨fun _ _ W m => ?_, ihLHS.left, iha.left⟩
+    by_cases hm : m ≤ TShape.bot; · exact TShape.le_bot'.1 hm ▸ (sound_bot (A := default)).1
+    refine ⟨fun h => ?_, .natCase_zero (n := 0) .zero'⟩
+    cases h with
+    | bot => cases hm TShape.bot_le'
+    | natCase_zero _ ha => exact ha
+    | natCase_succ hM => obtain ⟨_, hle⟩ := hM.le_zero; cases TShape.succ_not_le_zero hle
+  | @natCase_succ _ C v n a b _ _ _ _ _ _ ihC ihn iha ihb ihLHS ihb_inst =>
+    refine ⟨fun _ ρ W m => ?_, ihLHS.left, ihb_inst.left⟩
+    by_cases hm : m ≤ TShape.bot; · exact TShape.le_bot'.1 hm ▸ (sound_bot (A := default)).1
+    refine ⟨fun h => ?_, fun h => ?_⟩
+    · cases h with
+      | bot => cases hm TShape.bot_le'
+      | natCase_zero hM => let ⟨_, _, _, hle⟩ := hM.le_succ; cases TShape.zero_not_le_succ hle
+      | natCase_succ hM hb =>
+        let ⟨_, _, hv_hi, hle_sv⟩ := hM.le_succ
+        exact LE_Interp.inst.2 ⟨_, hb, hv_hi.mono (TShape.succ_le_succ.1 hle_sv)⟩
+    · have ⟨a_val, h_m_b, h_a_n⟩ := LE_Interp.inst.1 h
+      have ⟨nk, v_w, a_w, _, hv_le_a, hv_w_li, ha_w_li, hv_w_ty⟩ := ihn.left.sound W h_a_n |>.out
+      let ⟨n_a, ha_nat⟩ := ha_w_li.le_nat
+      let k := max nk n_a
+      have ⟨le₁, le₂⟩ := Nat.max_le.1 (Nat.le_refl k)
+      have hk1nk := Nat.le_succ_of_le le₁
+      refine .natCase_succ (v := v_w.lift (k+1)) (.succ' (hv_w_li.lift hk1nk)) ?_
+      refine h_m_b.mono_l (Valuation.LE.push.2 ⟨.rfl, ?_⟩)
+      exact hv_le_a.trans (TShape.lift_eqv (a := v_w.T) hk1nk).2
   | YDF _ _ _ ihA ihb ihb' =>
     refine ⟨fun _ _ W _ => ⟨fun h => ?_, fun h => ?_⟩, ?_, ?_⟩
     · exact .Y_cong (ihA.left.sound W) ihb.left.sound ihb.sound W h

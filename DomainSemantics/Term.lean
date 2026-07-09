@@ -42,8 +42,10 @@ are de Bruijn indices, sorts are indexed by a `Bool` (`true` ↦ proof-relevant
 universe `Type`, `false` ↦ proof-irrelevant universe `Prop`), and binders
 (`lam`, `forallE`, `sigma`, `pair`) carry the domain type explicitly.
 Σ-types come with the fully type-annotated introduction `pair A B a b` and
-the eliminators `fst`/`snd`. Well-typed terms are carved out by `IsDefEq`
-below. -/
+the eliminators `fst`/`snd`. The natural numbers `nat` come with constructors
+`zero` and `succ` and a dependent eliminator `natCase C M a b` whose motive `C`
+and succ-branch `b` are binders (single-variable abstractions, not functions).
+Well-typed terms are carved out by `IsDefEq` below. -/
 inductive Term where
   | bvar (i : Nat)
   | sort (u : Bool)
@@ -54,6 +56,10 @@ inductive Term where
   | pair (A B a b : Term)
   | fst (p : Term)
   | snd (p : Term)
+  | nat
+  | zero
+  | succ (n : Term)
+  | natCase (C M a b : Term)
   | Y (A b : Term)
 
 instance : Inhabited Term := ⟨.sort false⟩
@@ -73,6 +79,10 @@ lift is extended with `Lift.cons` so that the bound variable is pinned. -/
     .pair (ty.lift' k) (body.lift' k.cons) (a.lift' k) (b.lift' k)
   | .fst p, k => .fst (p.lift' k)
   | .snd p, k => .snd (p.lift' k)
+  | .nat, _ => .nat
+  | .zero, _ => .zero
+  | .succ n, k => .succ (n.lift' k)
+  | .natCase C M a b, k => .natCase (C.lift' k.cons) (M.lift' k) (a.lift' k) (b.lift' k.cons)
   | .Y ty body, k => .Y (ty.lift' k) (body.lift' k.cons)
 
 /-- Shorthand for the single-skip lift `lift' e (skip refl)`, i.e. the
@@ -160,6 +170,10 @@ def Term.subst : Term → Subst → Term
     .pair (ty.subst σ) (body.subst σ.lift) (a.subst σ) (b.subst σ)
   | .fst p, σ => .fst (p.subst σ)
   | .snd p, σ => .snd (p.subst σ)
+  | .nat, _ => .nat
+  | .zero, _ => .zero
+  | .succ n, σ => .succ (n.subst σ)
+  | .natCase C M a b, σ => .natCase (C.subst σ.lift) (M.subst σ) (a.subst σ) (b.subst σ.lift)
   | .Y ty body, σ => .Y (ty.subst σ) (body.subst σ.lift)
 
 @[simp] theorem id_lift : Subst.id.lift = Subst.id := by funext i; cases i <;> rfl
@@ -215,6 +229,11 @@ theorem lift'_inst_hi (e1 e2 : Term) (ρ : Lift) :
     lift' (e1.inst e2) ρ = (lift' e1 ρ.cons).inst (lift' e2 ρ) := by
   simp [inst, subst_lift', lift'_subst, lift_r_one]
 
+theorem lift'_succ_branch_swap (C : Term) (ρ : Lift) :
+    ((C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0))).lift' ρ.cons =
+    ((C.lift' ρ.cons).lift' (.cons (.skip .refl))).inst (.succ (.bvar 0)) := by
+  rw [lift'_inst_hi, ← lift'_comp, ← lift'_comp]; congr 1; simp
+
 theorem lift_lift' {A : Term} {l : Lift} : A.lift.lift' l.cons = (A.lift' l).lift := by
   show (A.lift' (.skip .refl)).lift' l.cons = (A.lift' l).lift' (.skip .refl)
   rw [← lift'_comp, ← lift'_comp]; simp
@@ -228,6 +247,16 @@ theorem subst_inst {e : Term} : (e.inst a).subst σ = (e.subst σ.lift).inst (a.
   funext i; obtain _|i := i <;> simp [Subst.comp, Subst.lift, Term.subst]
   · simp [Subst.one, Subst.cons]
   · rw [← Term.inst, lift_inst]; rfl
+
+theorem subst_succ_branch_swap (C : Term) (σ : Subst) :
+    ((C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0))).subst σ.lift =
+    ((C.subst σ.lift).lift' (.cons (.skip .refl))).inst (.succ (.bvar 0)) := by
+  rw [subst_inst]; congr 1
+  rw [subst_lift', lift'_subst]; congr 1
+  funext i; cases i with | zero => rfl | succ n
+  show ((σ n).lift' (.skip .refl)).lift' (.skip .refl) =
+    ((σ n).lift' (.skip .refl)).lift' (.cons (.skip .refl))
+  rw [← lift'_comp, ← lift'_comp]; rfl
 
 theorem inst_lift_cons {e : Term} {σ : Subst} :
     (e.subst σ.lift).inst x = e.subst (σ.cons x) := by
@@ -332,6 +361,26 @@ inductive IsDefEq₀ : List Term → Term → Term → Term → Prop where
     Γ ⊢₀ .snd (.pair A B a b) ≡ b : B.inst a
   | fst_snd : Γ ⊢₀ p : .sigma A B →
     Γ ⊢₀ .pair A B (.fst p) (.snd p) ≡ p : .sigma A B
+  | nat : Γ ⊢₀ .nat : .sort true
+  | zero : Γ ⊢₀ .zero : .nat
+  | succDF : Γ ⊢₀ n ≡ n' : .nat → Γ ⊢₀ .succ n ≡ .succ n' : .nat
+  | natCaseDF :
+    .nat::Γ ⊢₀ C ≡ C' : .sort v →
+    Γ ⊢₀ M ≡ M' : .nat →
+    Γ ⊢₀ a ≡ a' : C.inst .zero →
+    .nat::Γ ⊢₀ b ≡ b' : (C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0)) →
+    Γ ⊢₀ .natCase C M a b ≡ .natCase C' M' a' b' : C.inst M
+  | natCase_zero :
+    .nat::Γ ⊢₀ C : .sort v →
+    Γ ⊢₀ a : C.inst .zero →
+    .nat::Γ ⊢₀ b : (C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0)) →
+    Γ ⊢₀ .natCase C .zero a b ≡ a : C.inst .zero
+  | natCase_succ :
+    .nat::Γ ⊢₀ C : .sort v →
+    Γ ⊢₀ n : .nat →
+    Γ ⊢₀ a : C.inst .zero →
+    .nat::Γ ⊢₀ b : (C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0)) →
+    Γ ⊢₀ .natCase C (.succ n) a b ≡ b.inst n : C.inst (.succ n)
   | YDF : Γ ⊢₀ A ≡ A' : .sort u → A::Γ ⊢₀ b ≡ b' : A.lift →
     Γ ⊢₀ .Y A b ≡ .Y A' b' : A
   | Y_unfold : Γ ⊢₀ A : .sort u → A::Γ ⊢₀ b : A.lift →
@@ -415,6 +464,30 @@ inductive IsDefEq : List Term → Term → Term → Term → Prop where
   | fst_snd : Γ ⊢ p : .sigma A B →
     Γ ⊢ .pair A B (.fst p) (.snd p) : .sigma A B →
     Γ ⊢ .pair A B (.fst p) (.snd p) ≡ p : .sigma A B
+  | nat : Γ ⊢ .nat : .sort true
+  | zero : Γ ⊢ .zero : .nat
+  | succDF : Γ ⊢ n ≡ n' : .nat → Γ ⊢ .succ n ≡ .succ n' : .nat
+  | natCaseDF :
+    .nat::Γ ⊢ C ≡ C' : .sort v →
+    Γ ⊢ M ≡ M' : .nat →
+    Γ ⊢ a ≡ a' : C.inst .zero →
+    .nat::Γ ⊢ b ≡ b' : (C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0)) →
+    Γ ⊢ C.inst M ≡ C'.inst M' : .sort v →
+    Γ ⊢ .natCase C M a b ≡ .natCase C' M' a' b' : C.inst M
+  | natCase_zero :
+    .nat::Γ ⊢ C : .sort v →
+    Γ ⊢ a : C.inst .zero →
+    .nat::Γ ⊢ b : (C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0)) →
+    Γ ⊢ .natCase C .zero a b : C.inst .zero →
+    Γ ⊢ .natCase C .zero a b ≡ a : C.inst .zero
+  | natCase_succ :
+    .nat::Γ ⊢ C : .sort v →
+    Γ ⊢ n : .nat →
+    Γ ⊢ a : C.inst .zero →
+    .nat::Γ ⊢ b : (C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0)) →
+    Γ ⊢ .natCase C (.succ n) a b : C.inst (.succ n) →
+    Γ ⊢ b.inst n : C.inst (.succ n) →
+    Γ ⊢ .natCase C (.succ n) a b ≡ b.inst n : C.inst (.succ n)
   | YDF : Γ ⊢ A ≡ A' : .sort u →
     A::Γ ⊢ b ≡ b' : A.lift → A'::Γ ⊢ b ≡ b' : A'.lift →
     Γ ⊢ .Y A b ≡ .Y A' b' : A
@@ -469,6 +542,26 @@ theorem IsDefEq.weak' (W : Ctx.Lift' ρ Γ Γ') (H : Γ ⊢ e1 ≡ e2 : A) :
     · exact lift'_inst_hi B a ρ ▸ ih4 W
     · exact lift'_inst_hi B a ρ ▸ ih5 W
   | fst_snd _ _ ih1 ih2 => exact .fst_snd (ih1 W) (ih2 W)
+  | nat => exact .nat
+  | zero => exact .zero
+  | succDF _ ih1 => exact .succDF (ih1 W)
+  | @natCaseDF _ C C' v M M' a a' b b' _ _ _ _ _ ih1 ih2 ih3 ih4 ih5 =>
+    refine lift'_inst_hi C M ρ ▸ .natCaseDF (ih1 W.cons) (ih2 W) ?_ ?_ ?_
+    · exact lift'_inst_hi C .zero ρ ▸ ih3 W
+    · exact lift'_succ_branch_swap C ρ ▸ ih4 W.cons
+    · exact lift'_inst_hi C M ρ ▸ lift'_inst_hi C' M' ρ ▸ ih5 W
+  | @natCase_zero _ C v a b _ _ _ _ ih1 ih2 ih3 ih4 =>
+    refine lift'_inst_hi C .zero ρ ▸ .natCase_zero (ih1 W.cons) ?_ ?_ ?_
+    · exact lift'_inst_hi C .zero ρ ▸ ih2 W
+    · exact lift'_succ_branch_swap C ρ ▸ ih3 W.cons
+    · exact lift'_inst_hi C .zero ρ ▸ ih4 W
+  | @natCase_succ _ C v n a b _ _ _ _ _ _ ih1 ih2 ih3 ih4 ih5 ih6 =>
+    refine lift'_inst_hi b n ρ ▸ lift'_inst_hi C (.succ n) ρ ▸
+      .natCase_succ (ih1 W.cons) (ih2 W) ?_ ?_ ?_ ?_
+    · exact lift'_inst_hi C .zero ρ ▸ ih3 W
+    · exact lift'_succ_branch_swap C ρ ▸ ih4 W.cons
+    · exact lift'_inst_hi C (.succ n) ρ ▸ ih5 W
+    · exact lift'_inst_hi C (.succ n) ρ ▸ lift'_inst_hi b n ρ ▸ ih6 W
   | YDF _ _ _ ih1 ih2 ih3 =>
     exact .YDF (ih1 W) (lift_lift' ▸ ih2 W.cons) (lift_lift' ▸ ih3 W.cons)
   | @Y_unfold _ A _ b _ _ _ _ ih1 ih2 ih3 ih4 =>
@@ -515,6 +608,12 @@ theorem IsDefEq.isType (hΓ : ⊢ Γ) (H : Γ ⊢ e1 ≡ e2 : A) : ∃ u, Γ ⊢
   | pair_fst h1 _ _ _ _ _ _ _ _ _ => exact ⟨_, h1⟩
   | pair_snd _ _ _ _ _ _ _ _ _ ih5 => exact ih5 hΓ
   | fst_snd _ _ ih1 _ => exact ih1 hΓ
+  | nat => exact ⟨_, .sort⟩
+  | zero => exact ⟨_, .nat⟩
+  | succDF _ _ => exact ⟨_, .nat⟩
+  | natCaseDF _ _ _ _ h5 _ _ _ _ _ => exact ⟨_, h5.hasType.1⟩
+  | natCase_zero _ _ _ _ _ ih2 _ _ => exact ih2 hΓ
+  | natCase_succ _ _ _ _ _ _ _ _ _ _ _ ih6 => exact ih6 hΓ
   | YDF hA _ _ _ _ _ => exact ⟨_, hA.hasType.1⟩
   | Y_unfold hA _ _ _ _ _ _ _ => exact ⟨_, hA⟩
   | proofIrrel h1 _ _ _ _ _ => exact ⟨_, h1⟩
@@ -1020,6 +1119,52 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
           p.subst σ : Term.sigma (A.subst σ) (B.subst σ.lift) from
       .fst_snd hp_σ hLHS_σ
     exact ⟨ih2_l, ih1_l, H_σ.trans ih1_l⟩
+  | nat => exact ⟨.nat, .nat, .nat⟩
+  | zero => exact ⟨.zero, .zero, .zero⟩
+  | succDF _ ih1 => let ⟨l, r, c⟩ := ih1 hΓ₀ W; exact ⟨.succDF l, .succDF r, .succDF c⟩
+  | @natCaseDF Γ C C' v M M' a a' b b' _ _ _ _ _ ih1 ih2 ih3 ih4 ih5 =>
+    have hΓ_Nat : ⊢ .nat :: Γ₀ := ⟨hΓ₀, _, .nat⟩
+    have Wl := W.lift .nat .nat
+    let ⟨ihC_l, _, ihC_c⟩ := ih1 hΓ_Nat Wl
+    have ihC_cleft := (ih1 hΓ_Nat Wl.left).2.2
+    let ⟨ihM_l, _, ihM_c⟩ := ih2 hΓ₀ W
+    have ihM_cleft := (ih2 hΓ₀ W.left).2.2
+    have iha_l := subst_inst ▸ (ih3 hΓ₀ W).1
+    have iha_c := subst_inst ▸ (ih3 hΓ₀ W).2.2
+    have iha_cleft := subst_inst ▸ (ih3 hΓ₀ W.left).2.2
+    have ihb_l := subst_succ_branch_swap C σ ▸ (ih4 hΓ_Nat Wl).1
+    have ihb_c := subst_succ_branch_swap C σ ▸ (ih4 hΓ_Nat Wl).2.2
+    have ihb_cleft := subst_succ_branch_swap C σ ▸ (ih4 hΓ_Nat Wl.left).2.2
+    have ⟨ihCM_l, _, ihCM_c⟩ := ih5 hΓ₀ W; have ihCM_cleft := (ih5 hΓ₀ W.left).2.2
+    rw [subst_inst, subst_inst] at ihCM_l ihCM_c ihCM_cleft
+    have res_l : Γ₀ ⊢ (Term.natCase C M a b).subst σ ≡
+        (Term.natCase C M a b).subst τ : (C.inst M).subst σ := by
+      rw [subst_inst]; exact .natCaseDF ihC_l ihM_l iha_l ihb_l ihCM_l
+    have res_c : Γ₀ ⊢ (Term.natCase C M a b).subst σ ≡
+        (Term.natCase C' M' a' b').subst τ : (C.inst M).subst σ := by
+      rw [subst_inst]; exact .natCaseDF ihC_c ihM_c iha_c ihb_c ihCM_c
+    have res_c' : Γ₀ ⊢ (Term.natCase C M a b).subst σ ≡
+        (Term.natCase C' M' a' b').subst σ : (C.inst M).subst σ := by
+      rw [subst_inst]; exact .natCaseDF ihC_cleft ihM_cleft iha_cleft ihb_cleft ihCM_cleft
+    exact ⟨res_l, res_c'.symm.trans res_c, res_c⟩
+  | @natCase_zero Γ C v a b _ _ _ _ ih1 ih2 ih3 ih4 =>
+    have hΓ_Nat : ⊢ .nat :: Γ₀ := ⟨hΓ₀, _, .nat⟩
+    have Wl := W.lift .nat .nat |>.left
+    refine ⟨(ih4 hΓ₀ W).1, (ih2 hΓ₀ W).1, .trans ?_ (ih2 hΓ₀ W).1⟩
+    refine subst_inst.symm ▸ .natCase_zero (ih1 hΓ_Nat Wl).1
+      (subst_inst ▸ (ih2 hΓ₀ W.left).1 :)
+      (subst_succ_branch_swap C σ ▸ (ih3 hΓ_Nat Wl).1 :)
+      (subst_inst ▸ (ih4 hΓ₀ W.left).1 :)
+  | @natCase_succ Γ C v n a b _ _ _ _ _ _ ih1 ih2 ih3 ih4 ih5 ih6 =>
+    have hΓ_Nat : ⊢ .nat :: Γ₀ := ⟨hΓ₀, _, .nat⟩
+    have Wl := W.lift .nat .nat |>.left
+    refine ⟨(ih5 hΓ₀ W).1, (ih6 hΓ₀ W).1, .trans ?_ (ih6 hΓ₀ W).1⟩
+    rw [subst_inst, subst_inst]
+    refine .natCase_succ (ih1 hΓ_Nat Wl).1 (ih2 hΓ₀ W.left).1
+      (subst_inst ▸ (ih3 hΓ₀ W.left).1 :)
+      (subst_succ_branch_swap C σ ▸ (ih4 hΓ_Nat Wl).1 :)
+      (subst_inst ▸ (ih5 hΓ₀ W.left).1 :) ?_
+    have := (ih6 hΓ₀ W.left).1; rwa [subst_inst, subst_inst] at this
   | @YDF Γ A A' u b b' h1 _ _ ih1 ih2 ih3 =>
     let ⟨ihA_l, ihA_r, ihA_c⟩ := ih1 hΓ₀ W
     have hA_in_Γ : Γ ⊢ A : .sort u := h1.hasType.1
@@ -1230,6 +1375,12 @@ theorem IsDefEq.sigma_inv' (hΓ : ⊢ Γ)
   | fst_snd _ _ ih1 _ =>
     obtain ⟨⟨⟩⟩ | eq := eq
     exact ih1 hΓ (.inr eq)
+  | natCase_zero _ _ _ _ _ ih2 _ _ =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih2 hΓ (.inl eq)
+  | natCase_succ _ _ _ _ _ _ _ _ _ _ _ ih6 =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih6 hΓ (.inl eq)
   | Y_unfold _ _ _ _ _ _ _ ihred =>
     obtain ⟨⟨⟩⟩ | eq := eq
     exact ihred hΓ (.inl eq)
@@ -1294,6 +1445,12 @@ theorem IsDefEq.forallE_inv' (hΓ : ⊢ Γ)
   | fst_snd _ _ ih1 _ =>
     obtain ⟨⟨⟩⟩ | eq := eq
     exact ih1 hΓ (.inr eq)
+  | natCase_zero _ _ _ _ _ ih2 _ _ =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih2 hΓ (.inl eq)
+  | natCase_succ _ _ _ _ _ _ _ _ _ _ _ ih6 =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih6 hΓ (.inl eq)
   | Y_unfold _ _ _ _ _ _ _ ihred =>
     obtain ⟨⟨⟩⟩ | eq := eq
     exact ihred hΓ (.inl eq)
@@ -1381,6 +1538,35 @@ theorem IsDefEq.fst_snd₀ (hΓ : ⊢ Γ)
   let ⟨⟨_, hA⟩, _, hB⟩ := hAB.sigma_inv' hΓ (.inl rfl)
   .fst_snd hp (.pairDF₀ hΓ hA hB (.fstDF₀ hΓ hp) (.sndDF₀ hΓ hp))
 
+theorem lift_cons_skip_inst_succ_inst {X n : Term} :
+    ((X.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0))).inst n = X.inst (.succ n) := by
+  rw [inst, inst, subst_lift', subst_subst]; congr 1; funext i; obtain _|_|_ := i <;> rfl
+
+theorem IsDefEq.natCaseDF₀ (hΓ : ⊢ Γ)
+    (hC : .nat::Γ ⊢ C ≡ C' : .sort v)
+    (hM : Γ ⊢ M ≡ M' : .nat)
+    (ha : Γ ⊢ a ≡ a' : C.inst .zero)
+    (hb : .nat::Γ ⊢ b ≡ b' : (C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0))) :
+    Γ ⊢ .natCase C M a b ≡ .natCase C' M' a' b' : C.inst M :=
+  .natCaseDF hC hM ha hb (.instDF hΓ .nat .sort hC hM)
+
+theorem IsDefEq.natCase_zero₀ (hΓ : ⊢ Γ)
+    (hC : .nat::Γ ⊢ C : .sort v)
+    (ha : Γ ⊢ a : C.inst .zero)
+    (hb : .nat::Γ ⊢ b : (C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0))) :
+    Γ ⊢ .natCase C .zero a b ≡ a : C.inst .zero :=
+  .natCase_zero hC ha hb (.natCaseDF₀ hΓ hC .zero ha hb)
+
+theorem IsDefEq.natCase_succ₀ (hΓ : ⊢ Γ)
+    (hC : .nat::Γ ⊢ C : .sort v)
+    (hn : Γ ⊢ n : .nat)
+    (ha : Γ ⊢ a : C.inst .zero)
+    (hb : .nat::Γ ⊢ b : (C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0))) :
+    Γ ⊢ .natCase C (.succ n) a b ≡ b.inst n : C.inst (.succ n) := by
+  refine .natCase_succ hC hn ha hb (.natCaseDF₀ hΓ hC (.succDF hn) ha hb) ?_
+  have h := IsDefEq.inst0 hΓ hn hb
+  rwa [lift_cons_skip_inst_succ_inst] at h
+
 theorem IsDefEq.YDF₀ (hΓ : ⊢ Γ)
     (hA : Γ ⊢ A ≡ A' : .sort u) (hb : A::Γ ⊢ b ≡ b' : A.lift) :
     Γ ⊢ .Y A b ≡ .Y A' b' : A :=
@@ -1407,6 +1593,9 @@ inductive WHRed : Term → Term → Prop where
   | snd : p ⤳ p' → .snd p ⤳ .snd p'
   | pair_fst : .fst (.pair A B a b) ⤳ a
   | pair_snd : .snd (.pair A B a b) ⤳ b
+  | natCase : M ⤳ M' → .natCase C M a b ⤳ .natCase C M' a b
+  | natCase_zero : .natCase C .zero a b ⤳ a
+  | natCase_succ : .natCase C (.succ n) a b ⤳ b.inst n
   | Y : .Y A b ⤳ b.inst (.Y A b)
 
 /-- `WHNF e` says `e` is in weak head-normal form: no `⤳` step applies. -/
@@ -1415,6 +1604,9 @@ def WHNF (e : Term) := ∀ e', ¬e ⤳ e'
 theorem WHNF.sort : WHNF (.sort A) := nofun
 theorem WHNF.forallE : WHNF (.forallE A B) := nofun
 theorem WHNF.sigma : WHNF (.sigma A B) := nofun
+theorem WHNF.nat : WHNF .nat := nofun
+theorem WHNF.zero : WHNF .zero := nofun
+theorem WHNF.succ : WHNF (.succ n) := nofun
 
 theorem WHRed.determ (H1 : e ⤳ e₁) (H2 : e ⤳ e₂) : e₁ = e₂ := by
   induction H1 generalizing e₂ with
@@ -1442,6 +1634,19 @@ theorem WHRed.determ (H1 : e ⤳ e₁) (H2 : e ⤳ e₂) : e₁ = e₂ := by
     cases H2 with
     | snd h2 => cases h2
     | pair_snd => rfl
+  | natCase h1 ih =>
+    cases H2 with
+    | natCase h2 => congr 1; exact ih h2
+    | natCase_zero => cases h1
+    | natCase_succ => cases h1
+  | natCase_zero =>
+    cases H2 with
+    | natCase h2 => cases h2
+    | natCase_zero => rfl
+  | natCase_succ =>
+    cases H2 with
+    | natCase h2 => cases h2
+    | natCase_succ => rfl
   | Y => let .Y := H2; rfl
 
 /-- Multi-step weak-head reduction: the reflexive-transitive closure of `WHRed`. -/
@@ -1462,6 +1667,12 @@ theorem WHRedS.snd (H : e1 ⤳* e2) : .snd e1 ⤳* .snd e2 := by
   induction H with
   | rfl => exact .rfl
   | tail _ h2 ih => exact .tail ih h2.snd
+
+theorem WHRedS.natCase (H : M ⤳* M') :
+    Term.natCase C M a b ⤳* Term.natCase C M' a b := by
+  induction H with
+  | rfl => exact .rfl
+  | tail _ h2 ih => exact .tail ih h2.natCase
 
 theorem WHRedS.determ_l (H1 : e ⤳* e₁) (H2 : e ⤳* e₂) (W2 : WHNF e₂) : e₁ ⤳* e₂ := by
   induction H1 using ReflTransGen.headIndOn generalizing e₂ with

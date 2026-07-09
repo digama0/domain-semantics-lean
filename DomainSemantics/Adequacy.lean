@@ -250,6 +250,25 @@ theorem LR.Adequate.mono {Γ₀ Γ : List Term} {ρ : Valuation} {M N A : Term}
         (LR.TmEq.lift hkn' hmem').2 hv
   exact ⟨fun σ σ' W => ⟨lower W (H.1 W).1, lower W (H.1 W).2⟩, fun σ W => lower W (H.2 W)⟩
 
+theorem LR.Adequate.nat {m a : WShape n}
+    (hM : LE_Interp ρ m.T .nat) (hA : LE_Interp ρ a.T (.sort true))
+    (hmem : m.HasType a) : Adequate Γ₀ Γ ρ .nat .nat (.sort true) m a := by
+  refine .wf₀ fun hΓ₀ => ?_
+  suffices (LR hΓ₀).TmEq .nat .nat (.sort true) m a from
+    ⟨fun _ _ _ => ⟨this, this⟩, fun _ _ => this⟩
+  cases hmem.unfold with
+  | bot hm =>
+    apply (LR _).bot hm
+    obtain rfl | rfl := (WShape.le_sort (s := a)).1 <|
+      (TShape.LE.lift_r (Nat.zero_le _)).1 hA.le_sort
+    · exact (LR _).bot_ty
+    · exact .sort
+  | sort => cases n <;> (have .nat h := hM; exact (TShape.sort_not_le_nat h).elim)
+  | forallE => have .nat h := hM; exact (TShape.forallE_not_le_nat h).elim
+  | sigma => have .nat h := hM; exact (TShape.sigma_not_le_nat h).elim
+  | nat => exact ⟨true, ⟨.sort, .rfl⟩, ⟨.nat, .rfl⟩, ⟨.nat, .rfl⟩⟩
+  | _ => obtain ⟨⟨⟩⟩ | ⟨⟨⟩⟩ := WShape.le_sort.1 <| (TShape.LE.lift_r (Nat.zero_le _)).1 hA.le_sort
+
 /-- Dedicated recursion for the `YDF` (fixed-point congruence) case of
 `LR.adequacy`. Separated out because the `.Y` witness `m.T` is not a variable,
 so the finite `LE_Interp`-tower recursion cannot be run inline; here the witness
@@ -410,7 +429,8 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
         exact (LR _).bot hmem.isType <|
           (LR _).mono_r_2_ty hA.le_sort' hmem.isType .sort .sort
       · simp [WShape.ext_iff, WShape.forallE, WShape.sort, Shape.sort,
-          WShape.lam', WShape.lam, WShape.bot, Shape.bot, WShape.sigma, WShape.pair] at h <;>
+          WShape.lam', WShape.lam, WShape.bot, Shape.bot, WShape.sigma, WShape.pair,
+          WShape.nat, Shape.nat, WShape.zero, Shape.zero, WShape.succ, Shape.succ] at h <;>
         first | split at h <;> simp_all only [reduceCtorEq] | simp_all
   | @appDF Γ A u B v F F' X X' _ _ Hf Ha HBa _ _ ihf iha ihBa =>
     cases hM with
@@ -438,8 +458,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
           ((LE_Interp.sound Ha W.fits).1.1 hia)
           ((LE_Interp.sound HBa W.fits).1.1 hA)
           (fun hf hPi hmf => ?_) (fun ha hA hma => ?_) (fun hB hv hmb => ?_)
-        · have ⟨_, _, _, le, le', iB, iv, hmb⟩ :=
-            (LE_Interp.sound HBa W.fits).2 hA |>.out
+        · have ⟨_, _, _, le, le', iB, iv, hmb⟩ := (LE_Interp.sound HBa W.fits).2 hA |>.out
           exact toValTy le le' hmem.isType iv hmb ((ihBa iB iv hmb).2 W.left)
         · exact ((ihf ((LE_Interp.sound Hf W.left.fits).1.2 hf) hPi hmf).symm Hf).left
         · exact ((iha ((LE_Interp.sound Ha W.left.fits).1.2 ha) hA hma).symm Ha).left
@@ -462,8 +481,9 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     cases hmf.unfold with
     | bot => cases hm0 rfl
     | lam hg => ?_
-    | sort | forallE | sigma => exact (TShape.sort_not_le_forallE le).elim
+    | sort | forallE | sigma | nat => exact (TShape.sort_not_le_forallE le).elim
     | pair => exact (TShape.sigma_not_le_forallE le).elim
+    | zero | succ => exact (TShape.nat_not_le_forallE le).elim
     rename_i n₁ b₁' b₂' f' n₂ b₁ b₂ f
     simp at le_nf
     let k := max n (max n₁ n₂); have hk := Nat.max_le.1 (Nat.le_refl k); rw [Nat.max_le] at hk
@@ -552,11 +572,15 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
           cases n <;> let .forallE _ _ _ _ le := hA <;> exact (TShape.sort_not_le_forallE le).elim
         | forallE => exact this _ _ _ rfl .rfl
         | sigma => let .forallE _ _ _ _ le := hA; exact (TShape.sigma_not_le_forallE le).elim
+        | nat => let .forallE _ _ _ _ le := hA; exact (TShape.nat_not_le_forallE le).elim
       | sort => cases n <;> let .lam _ _ _ h := hTerm <;> cases TShape.sort_not_le_lam' h
       | forallE => let .lam _ _ _ h := hTerm <;> cases TShape.forallE_not_le_lam' h
       | lam => exact this _ _ _ rfl .rfl
       | sigma => let .lam _ _ _ h := hTerm <;> cases TShape.sigma_not_le_lam' h
       | pair => let .lam _ _ _ h := hTerm <;> cases TShape.pair_not_le_lam' h
+      | nat => let .lam _ _ _ h := hTerm; exact (TShape.nat_not_le_lam' h).elim
+      | zero => let .lam _ _ _ h := hTerm; exact (TShape.zero_not_le_lam' h).elim
+      | succ _ => let .lam _ _ _ h := hTerm; exact (TShape.succ_not_le_lam' h).elim
     rintro k a₁ a₂ rfl ⟨⟩
     have ⟨_, aty, _⟩ := WShape.HasType.forallE_l.1 hmem.isType
     have hTypA : Γ₀ ⊢ A.subst σ : .sort u :=
@@ -650,6 +674,9 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       intro | .forallE _ _ _ _ h => cases TShape.lam_not_le_forallE h
     | sigma => have .forallE _ _ _ _ h := hM; cases TShape.sigma_not_le_forallE h
     | pair => have .forallE _ _ _ _ h := hM; cases TShape.pair_not_le_forallE h
+    | nat => have .forallE _ _ _ _ h := hM; exact (TShape.nat_not_le_forallE h).elim
+    | zero => have .forallE _ _ _ _ h := hM; exact (TShape.zero_not_le_forallE h).elim
+    | succ _ => have .forallE _ _ _ _ h := hM; exact (TShape.succ_not_le_forallE h).elim
     | @forallE k a₂ a₁ r aty
     refine .wf₀ fun hΓ₀ => ?_
     have aty := WShape.HasTypePi.iff.1 aty
@@ -751,6 +778,9 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     | forallE => let .lam _ _ _ h := hM; cases TShape.forallE_not_le_lam' h
     | sigma => let .lam _ _ _ h := hM <;> cases TShape.sigma_not_le_lam' h
     | pair => let .lam _ _ _ h := hM <;> cases TShape.pair_not_le_lam' h
+    | nat => let .lam _ _ _ h := hM; exact (TShape.nat_not_le_lam' h).elim
+    | zero => let .lam _ _ _ h := hM; exact (TShape.zero_not_le_lam' h).elim
+    | succ _ => let .lam _ _ _ h := hM; exact (TShape.succ_not_le_lam' h).elim
     | lam htm
     revert hM hM' hmem; unfold WShape.lam'
     split <;> intro hM hM' hmem <;>
@@ -778,7 +808,8 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       cases hm.unfold with
       | bot _ => exact .bot (fun _ _ => (LR _).bot_ty) hm
       | sort => exact .bot (fun _ _ => LogRelBase.TyEq.sort) hm
-      | forallE | sigma => let .sort h := hA; cases (TShape.LE.lift_r (by simp [TShape.sort])).1 h
+      | forallE | sigma | nat =>
+        let .sort h := hA; cases (TShape.LE.lift_r (by simp [TShape.sort])).1 h
     | sort => cases n <;> have .sigma _ _ _ _ h := hM <;> cases TShape.sort_not_le_sigma h
     | @lam _ f₀ =>
       revert hM; unfold WShape.lam'
@@ -788,6 +819,9 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       intro | .sigma _ _ _ _ h => cases TShape.lam_not_le_sigma h
     | forallE => have .sigma _ _ _ _ h := hM; cases TShape.forallE_not_le_sigma h
     | pair => have .sigma _ _ _ _ h := hM; cases TShape.pair_not_le_sigma h
+    | nat => have .sigma _ _ _ _ h := hM; exact (TShape.nat_not_le_sigma h).elim
+    | zero => have .sigma _ _ _ _ h := hM; exact (TShape.zero_not_le_sigma h).elim
+    | succ _ => have .sigma _ _ _ _ h := hM; exact (TShape.succ_not_le_sigma h).elim
     | @sigma k a₂ a₁ aty
     refine .wf₀ fun hΓ₀ => ?_
     have aty := WShape.HasTypePi.iff.1 (aty : WShape.HasTypePi a₂ a₁ true)
@@ -880,11 +914,10 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     | bot hm =>
       cases hm.unfold with
       | bot _ => exact .bot (fun _ _ => (LR _).bot_ty) hm
-      | sort =>
-        cases n
-        all_goals (let .sigma _ _ _ _ le := hA; exact (TShape.sort_not_le_sigma le).elim)
+      | sort => cases n <;> let .sigma _ _ _ _ le := hA <;> exact (TShape.sort_not_le_sigma le).elim
       | forallE => let .sigma _ _ _ _ le := hA; exact (TShape.forallE_not_le_sigma le).elim
       | sigma => exact LR.Adequate.bot' HSigmaTy hA hmem.isType ihAB
+      | nat => let .sigma _ _ _ _ le := hA; exact (TShape.nat_not_le_sigma le).elim
     | sort => cases n <;> have .pair _ _ h := hM <;> cases TShape.sort_not_le_pair' h
     | @lam k f₀ =>
       revert hM; unfold WShape.lam'
@@ -892,6 +925,9 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       intro | .pair _ _ h => cases TShape.lam_not_le_pair' h
     | forallE => have .pair _ _ h := hM; cases TShape.forallE_not_le_pair' h
     | sigma => have .pair _ _ h := hM; cases TShape.sigma_not_le_pair' h
+    | nat => have .pair _ _ h := hM; exact (TShape.nat_not_le_pair' h).elim
+    | zero => have .pair _ _ h := hM; exact (TShape.zero_not_le_pair' h).elim
+    | succ _ => have .pair _ _ h := hM; exact (TShape.succ_not_le_pair' h).elim
     | @pair k ms mt at_ bt ph hPair
     refine .wf₀ fun hΓ₀ => .wf fun hΓ => ?_
     have hA1 := hA.sigma_inv.1
@@ -1349,6 +1385,9 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     | bot => cases hm0 rfl
     | sort | sigma | forallE => exact (TShape.sort_not_le_sigma le).elim
     | lam _ => exact (TShape.forallE_not_le_sigma le).elim
+    | nat => exact (TShape.sort_not_le_sigma le).elim
+    | zero => exact (TShape.nat_not_le_sigma le).elim
+    | succ _ => exact (TShape.nat_not_le_sigma le).elim
     | pair hpair
     rename_i n_pair x_p y_p at_ bt_ wh_p
     have hAdP := (LR _).trans
@@ -1428,8 +1467,9 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     cases hsigmaT with | bot => cases hm0 hmp.bot_r | sigma hb1 hb2 hd hF le
     cases hmp.unfold with
     | bot => cases hm0 rfl
-    | sort | sigma | forallE => exact (TShape.sort_not_le_sigma le).elim
+    | sort | sigma | forallE | nat => exact (TShape.sort_not_le_sigma le).elim
     | lam _ => exact (TShape.forallE_not_le_sigma le).elim
+    | zero | succ => exact (TShape.nat_not_le_sigma le).elim
     | pair hpair
     rename_i n_pair x_p y_p at_ bt_ wh_p
     have hAdP := (LR _).trans (hP_eq.subst' W.left.wf₀ W.left.toSubstEq)
@@ -1558,6 +1598,9 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       revert hM; unfold WShape.lam'; split <;> [skip; exact fun _ => (LR _).bot hmem.isType hTyEq]
       intro | .pair _ _ h => cases TShape.lam_not_le_pair' h
     | sigma _ => have .pair _ _ h := hM; cases TShape.sigma_not_le_pair' h
+    | nat => have .pair _ _ h := hM; cases TShape.nat_not_le_pair' h
+    | zero => have .pair _ _ h := hM; cases TShape.zero_not_le_pair' h
+    | succ _ => have .pair _ _ h := hM; cases TShape.succ_not_le_pair' h
     | pair hpair
     have ⟨A₁, A₂, u, v, whr_t, htA₁, vtyA₁, htA₂, hΓfM, _, htpair, edge, vpair_M⟩ :=
       (ihpair hM hA hmem).2 W
@@ -1569,6 +1612,330 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     exact ⟨A.subst σ, B.subst σ.lift, u, v, whr_t, htA₁, vtyA₁, htA₂, hΓfM, hΓfN, htpair, edge,
       ((LR _).whr ⟨H1.hasType.1, .rfl⟩ ⟨H1, .tail .rfl .pair_fst⟩ H1.hasType.1).1 vpair_M.1,
       ((LR _).whr ⟨H2.hasType.1, .rfl⟩ ⟨H2, .tail .rfl .pair_snd⟩ H2.hasType.1).1 vpair_M.2⟩
+  | nat => exact .nat hM hA hmem
+  | zero =>
+    refine .wf₀ fun hΓ₀ => ?_
+    suffices (LR hΓ₀).TmEq .zero .zero .nat m a from
+      ⟨fun _ _ _ => ⟨this, this⟩, fun _ _ => this⟩
+    cases hmem.unfold with
+    | bot hm =>
+      apply (LR _).bot hm
+      cases hm.unfold with
+      | bot => exact (LR _).bot_ty
+      | sort => cases n <;> (have .nat h := hA; exact (TShape.sort_not_le_nat h).elim)
+      | forallE _ => have .nat h := hA; exact (TShape.forallE_not_le_nat h).elim
+      | sigma _ => have .nat h := hA; exact (TShape.sigma_not_le_nat h).elim
+      | nat => exact ⟨⟨.nat, .rfl⟩, ⟨.nat, .rfl⟩⟩
+    | nat => have .zero h := hM; exact (TShape.nat_not_le_zero h).elim
+    | succ => have .zero h := hM; exact (TShape.succ_not_le_zero h).elim
+    | sort => cases n <;> (have .nat h := hA; exact (TShape.sort_not_le_nat h).elim)
+    | forallE => have .nat h := hA; exact (TShape.sort_not_le_nat h).elim
+    | lam => have .nat h := hA; exact (TShape.forallE_not_le_nat h).elim
+    | sigma => have .nat h := hA; exact (TShape.sort_not_le_nat h).elim
+    | pair => have .nat h := hA; exact (TShape.sigma_not_le_nat h).elim
+    | zero => exact ⟨⟨.nat, .rfl⟩, ⟨.zero, .rfl⟩, ⟨.zero, .rfl⟩⟩
+  | @succDF Γ nTm nTm' hnEq ihn =>
+    cases hmem.unfold with
+    | bot hm =>
+      refine .bot (fun _ W => ?_) hm
+      cases hA with | bot => exact (LR _).bot_ty | nat h
+      cases hm.unfold with
+      | bot => exact (LR _).bot_ty
+      | sort => exact (TShape.sort_not_le_nat h).elim
+      | forallE => exact (TShape.forallE_not_le_nat h).elim
+      | sigma => exact (TShape.sigma_not_le_nat h).elim
+      | nat => exact ⟨⟨.nat, .rfl⟩, ⟨.nat, .rfl⟩⟩
+    | sort => cases n <;> (have .nat h := hA; exact (TShape.sort_not_le_nat h).elim)
+    | forallE => have .nat h := hA; exact (TShape.sort_not_le_nat h).elim
+    | lam => have .nat h := hA; exact (TShape.forallE_not_le_nat h).elim
+    | sigma => have .nat h := hA; exact (TShape.sort_not_le_nat h).elim
+    | pair => have .nat h := hA; exact (TShape.sigma_not_le_nat h).elim
+    | nat => have .succ _ h := hM; exact (TShape.nat_not_le_succ h).elim
+    | zero => have .succ _ h := hM; exact (TShape.zero_not_le_succ h).elim
+    | @succ k v' hv'_succ
+    refine .wf₀ fun hΓ₀ => .fits fun hFits => ?_
+    obtain ⟨n_x, m_x, a_x, hle_nx, hle_m, LE_mx, LE_ax, hty_mx⟩ :=
+      (LE_Interp.sound hnEq.succDF hFits).2 hM |>.out
+    obtain ⟨n_a, ha_nat⟩ := LE_ax.le_nat
+    let k'' := max n_x n_a
+    have hkx : n_x ≤ k''+1 := Nat.le_succ_of_le (Nat.le_max_left _ _)
+    have hka : n_a+1 ≤ k''+1 := Nat.succ_le_succ (Nat.le_max_right _ _)
+    have hty_mx_nat : (m_x.lift (k''+1)).HasType .nat := by
+      refine .mono_r ?_ .nat <| (WShape.HasType.lift hkx).2 hty_mx
+      exact WShape.lift_nat (Nat.le_max_right _ _) ▸ (TShape.LE.def hkx hka).1 ha_nat
+    have hm_le_lift := hle_m.trans (TShape.lift_eqv (a := m_x.T) hkx).2
+    obtain hbot | hzero | ⟨v_p, heq_succ, hv_p_ts⟩ := hty_mx_nat.nat_r
+    · cases TShape.succ_not_le_bot (hbot ▸ hm_le_lift)
+    · cases TShape.succ_not_le_zero (hzero ▸ hm_le_lift)
+    have hvp_ty : (v_p.lift (k''+1)).HasType .nat := by
+      match k'', v_p, hv_p_ts with
+      | 0, ⟨.bot, _⟩, _ => exact .bot' .nat
+      | k'''+1, v_p_pat, hv_p_pat =>
+        rw [← WShape.lift_nat (Nat.le_succ k''')]
+        exact (WShape.HasType.lift (Nat.le_succ _)).2 hv_p_pat
+    suffices ∀ {tmA tmB : Term},
+        Γ₀ ⊢ tmA ≡ tmB : Term.nat →
+        (LR (n := k''+1) hΓ₀).TmEq tmA tmB .nat
+          (v_p.lift (k''+1) : WShape (k''+1)) (WShape.nat : WShape (k''+1)) →
+        (LR hΓ₀).TmEq (Term.succ tmA) (Term.succ tmB) Term.nat (.succ v') WShape.nat by
+      have .succ LE_vx h_le_x := heq_succ ▸ LE_mx.lift hkx
+      have LE_vp := LE_vx.mono (TShape.succ_le_succ.1 h_le_x)
+      have Ad_inner := ihn (LE_vp.lift (Nat.le_succ _)) .nat' hvp_ty
+      refine ⟨fun σ σ' W => ⟨?_, ?_⟩, fun σ W => ?_⟩
+      · exact this (hnEq.hasType.1.subst' W.wf₀ W.toSubstEq) (Ad_inner.1 W).1
+      · exact this (hnEq.hasType.2.subst' W.wf₀ W.toSubstEq) (Ad_inner.1 W).2
+      · exact this (hnEq.subst' W.wf₀ W.toSubstEq) (Ad_inner.2 W)
+    intro tmA tmB hnEq h_inner
+    refine (LRS.TmEq.succ_nat (v := v')).mpr ⟨⟨.nat, .rfl⟩, ?_⟩
+    refine ⟨_, _, ⟨hnEq.succDF.hasType.1, .rfl⟩, ⟨hnEq.succDF.hasType.2, .rfl⟩, hnEq, ?_⟩
+    cases k with | zero => trivial | succ k'
+    change v'.HasType .nat at hv'_succ
+    let K := max k' k'' + 1
+    have le1 : k''+1 ≤ K := Nat.succ_le_succ (Nat.le_max_right _ _)
+    have le2 : k'+1 ≤ K := Nat.succ_le_succ (Nat.le_max_left _ _)
+    have hnat_K1 := WShape.lift_nat (Nat.le_max_left k' k'')
+    have hnat_K2 := WShape.lift_nat (Nat.le_max_right k' k'')
+    refine (LR.TmEq.lift le2 hv'_succ).mp (hnat_K1 ▸ ?_)
+    have hvp_ll := WShape.lift_lift (s := v_p) (n₃ := K) (.inl (Nat.le_succ k''))
+    have hle_v' := TShape.succ_le_succ.1 (heq_succ ▸ hm_le_lift)
+    refine (LR (n := K) hΓ₀).mono_l ((TShape.LE.def le2 (Nat.le_of_succ_le le1)).1 hle_v') ?_ ?_ ?_
+    · have h := (WShape.HasType.lift le2).2 hv'_succ; rwa [hnat_K1] at h
+    · have h := (WShape.HasType.lift le1).2 hvp_ty; rwa [hvp_ll, hnat_K2] at h
+    · have h := (LR.TmEq.lift le1 hvp_ty).mpr h_inner; rwa [hvp_ll, hnat_K2] at h
+  | @natCaseDF Γ C C' v M M' aTm aTm' b b' hCC' hMM' haa' hbb' hCMinst ihC ihM iha ihb ihCM =>
+    refine .wf fun hΓ => .wf₀ fun hΓ₀ => ?_
+    have hΓ₀_nat : ⊢ Term.nat :: Γ₀ := ⟨hΓ₀, _, .nat⟩
+    have hΓ_nat : ⊢ Term.nat :: Γ := ⟨hΓ, _, .nat⟩
+    have cons_nat := LR.Adequate.cons (hΓ₀ := hΓ₀) (Γ := Γ) .nat .nat
+    suffices ∀ {C_L C_R M_L M_R aTm_L aTm_R b_L b_R : Term} {σ σ' : Subst}
+        (W : SubstWF Γ₀ σ σ' Γ ρ)
+        (hCC' : .nat :: Γ ⊢ C_L ≡ C_R : .sort v)
+        (hMM' : Γ ⊢ M_L ≡ M_R : .nat)
+        (haa' : Γ ⊢ aTm_L ≡ aTm_R : C.inst .zero)
+        (hbb' : .nat :: Γ ⊢ b_L ≡ b_R : (C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0)))
+        (hCMinst : Γ ⊢ C_L.inst M_L ≡ C_R.inst M_R : .sort v)
+        (hX : LE_Interp ρ m.T (C_L.natCase M_L aTm_L b_L))
+        (hA : LE_Interp ρ a.T (C_L.inst M_L))
+        (hM : Γ ⊢ M ≡ M_L : .nat)
+        (hC : .nat :: Γ ⊢ C ≡ C_L : .sort v)
+        (ihM : ∀ {n'} {mM aM : WShape n'}, LE_Interp ρ mM.T M_L →
+          LE_Interp ρ aM.T .nat → mM.HasType aM →
+          Adequate Γ₀ Γ ρ M_L M_R .nat mM aM ∧
+          Adequate Γ₀ Γ ρ M_L M .nat mM aM)
+        (iha : ∀ {n'} {ma' aa : WShape n'}, LE_Interp ρ ma'.T aTm_L →
+          LE_Interp ρ aa.T (C.inst .zero) → ma'.HasType aa →
+          Adequate Γ₀ Γ ρ aTm_L aTm_R (C.inst .zero) ma' aa)
+        (ihb : ∀ {ρ' : Valuation} {n'} {mb ab : WShape n'} (_ : ρ'.Fits Γ₀ (.nat :: Γ)),
+          LE_Interp ρ' mb.T b_L →
+          LE_Interp ρ' ab.T ((C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0))) →
+          mb.HasType ab →
+          Adequate Γ₀ (.nat :: Γ) ρ' b_L b_R
+            ((C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0))) mb ab),
+        (LR hΓ₀).TmEq
+          ((Term.natCase C_L M_L aTm_L b_L).subst σ)
+          ((Term.natCase C_R M_R aTm_R b_R).subst σ')
+          ((C.inst M).subst σ) m a by
+      refine ⟨fun σ σ' W => ⟨?_, ?_⟩, fun σ W => ?_⟩
+      · exact this W hCC'.hasType.1 hMM'.hasType.1 haa'.hasType.1 hbb'.hasType.1 hCMinst.hasType.1
+          hM hA hMM'.hasType.1 hCC'.hasType.1
+          (fun h1 h2 h3 => ⟨(ihM h1 h2 h3).left, (ihM h1 h2 h3).left⟩)
+          (fun h1 h2 h3 => (iha h1 h2 h3).left)
+          (fun _ h1 h2 h3 => (ihb h1 h2 h3).left)
+      · exact this W hCC'.hasType.2 hMM'.hasType.2 haa'.hasType.2 hbb'.hasType.2 hCMinst.hasType.2
+          ((LE_Interp.sound (.natCaseDF₀ W.wf hCC' hMM' haa' hbb') W.fits).1.1 hM)
+          ((LE_Interp.sound hCMinst W.fits).1.1 hA)
+          hMM' hCC'
+          (fun h1 h2 h3 =>
+            have H := (ihM ((LE_Interp.sound hMM' W.fits).1.2 h1) h2 h3).symm hMM'; ⟨H.left, H⟩)
+          (fun h1 h2 h3 => ((iha ((LE_Interp.sound haa' W.fits).1.2 h1) h2 h3).symm haa').left)
+          (fun hρ' h1 h2 h3 =>
+            ((ihb ((LE_Interp.sound hbb' hρ').1.2 h1) h2 h3).symm hbb').left)
+      · exact this W hCC' hMM' haa' hbb' hCMinst hM hA hMM'.hasType.1 hCC'.hasType.1
+          (fun h1 h2 h3 => ⟨ihM h1 h2 h3, (ihM h1 h2 h3).left⟩) iha (fun _ => ihb)
+    clear hM; intro C_L C_R M_L M_R aTm_L aTm_R b_L b_R σ σ' W
+      hCC' hMM' haa' hbb' hCMinst hX hA hM hC ihM' iha ihb
+    have Wf_cons {x a} := W.fits.cons
+      (InterpTyped.hsort (LE_Interp.sound .nat W.fits).2) (x := x) (a := a)
+    cases hX with
+    | bot =>
+      refine (LR _).bot hmem.isType ?_
+      have ⟨_, _, _, h1, h2, h3, h4, h5⟩ := (LE_Interp.sound hCMinst W.fits).2 hA |>.out
+      refine toValTy h1 h2 hmem.isType h4 h5 ((ihCM ?_ h4 h5).1 W.left).1
+      have ⟨_, a1, a2⟩ := LE_Interp.inst.1 h3
+      have ⟨_, _, _, b1, b2, b3, b4, b5⟩ := (LE_Interp.sound hMM' W.fits).2 a2 |>.out
+      exact LE_Interp.inst.2 ⟨_, (LE_Interp.sound hC (Wf_cons b4 b5.T)).1.2
+        (a1.mono_l (Valuation.LE.push.2 ⟨.rfl, b2⟩)), (LE_Interp.sound hM W.fits).1.2 b3⟩
+    | @natCase_zero _ n_z _ _ _ _ _ hM_z ha_z =>
+      have Ad_M := (ihM' hM_z (.nat' (n := n_z)) .zero).1
+      obtain ⟨a_M, hCa_M, hM_a⟩ := LE_Interp.inst.1 hA
+      obtain ⟨n_x, m_x, a_x, _, hle_am, LE_mx, LE_ax, hty_mx⟩ :=
+        (LE_Interp.sound hMM' W.fits).2 hM_a |>.out
+      obtain ⟨n_a, ha_nat⟩ := LE_ax.le_nat
+      let k := max n_x n_a
+      have hnk_k1 : n_x ≤ k+1 := Nat.le_succ_of_le (Nat.le_max_left _ _)
+      have hna_k1 : n_a + 1 ≤ k+1 := Nat.succ_le_succ (Nat.le_max_right _ _)
+      have hCa0 := (LE_Interp.sound hC (Wf_cons (.nat' (n := n_z)) WShape.HasType.zero.T)).1.2 <| by
+        refine hCa_M.mono_l (Valuation.LE.push.2 ⟨.rfl, hle_am.trans ?_⟩)
+        refine (TShape.lift_eqv hnk_k1).2.trans <| (WShape.LE.T ?_).trans TShape.zero_eqv
+        have : (m_x.lift (k+1) : WShape (k+1)).HasType .nat := by
+          refine .mono_r ?_ .nat ((WShape.HasType.lift hnk_k1).2 hty_mx)
+          exact WShape.lift_nat (Nat.le_max_right ..) ▸ (TShape.LE.def hnk_k1 hna_k1).1 ha_nat
+        obtain h_bot | h_zero | ⟨v_x, h_succ, _⟩ := this.nat_r
+        · exact h_bot ▸ WShape.bot_le
+        · exact h_zero ▸ .rfl
+        · cases WShape.Compat.T_iff.2 <|
+            (h_succ ▸ LE_mx.lift hnk_k1).compat (hM_z.mono TShape.zero_eqv)
+      have ⟨⟨_, hM_L_σ_z, _⟩, ⟨_, _, hM_R_σ'_z⟩⟩ := Ad_M.1 W
+      specialize iha ha_z (LE_Interp.inst.2 ⟨_, hCa0, .zero'⟩) hmem
+      have hCM := IsDefEq.instDF W.wf .nat .sort hC hM
+      have haa'_L := IsDefEq.instDF W.wf .nat .sort hC .zero |>.defeqDF haa'
+      have hbb'_L := IsDefEq.instDF hΓ_nat .nat .sort (hC.weak' (.cons (.skip .refl)))
+        (.succDF (.bvar₀ hΓ_nat .zero)) |>.defeqDF hbb'
+      refine ((LR hΓ₀).whr ?_ ?_ ?_).2 <| (LR hΓ₀).conv ?_ <|
+        (LR hΓ₀).trans (haa'.subst' W.wf₀ W.left.toSubstEq)
+          (haa'.hasType.2.subst' W.wf₀ W.toSubstEq) (iha.2 W.left) (iha.1 W).2
+      · have hC1 := hCC'.hasType.1.subst' hΓ₀_nat (W.left.toSubstEq.lift .nat .nat)
+        have ha1 := subst_inst ▸ haa'_L.hasType.1.subst' W.wf₀ W.left.toSubstEq
+        have hb1 := hbb'_L.hasType.1.subst' hΓ₀_nat (W.left.toSubstEq.lift .nat .nat)
+        rw [subst_succ_branch_swap] at hb1
+        refine ⟨?_, hM_L_σ_z.2.natCase.tail .natCase_zero⟩
+        refine (hCM.subst' W.wf₀ W.left.toSubstEq).symm.defeqDF <|
+          subst_inst ▸ (hC1.natCaseDF₀ hΓ₀ hM_L_σ_z.1 ha1 hb1).trans ?_
+        refine .defeqDF (.instDF hΓ₀ .nat .sort hC1 hM_L_σ_z.1.symm) ?_
+        exact .natCase_zero₀ hΓ₀ hC1 ha1 hb1
+      · have hC1 := hCC'.subst' hΓ₀_nat (W.symm.left.toSubstEq.lift .nat .nat)
+        have ha1 := IsDefEq.instDF hΓ₀ .nat .sort hC1 .zero
+          |>.defeqDF (subst_inst ▸ haa'_L.hasType.2.subst' W.wf₀ W.symm.left.toSubstEq)
+        have hb1 := IsDefEq.instDF hΓ₀_nat .nat .sort (hC1.weak' (.cons (.skip .refl))) <|
+          .succDF (IsDefEq.bvar₀ hΓ₀_nat Lookup.zero)
+        rw [← subst_succ_branch_swap] at hb1
+        have hb2 := hb1.defeqDF <|
+          hbb'_L.hasType.2.subst' hΓ₀_nat (W.symm.left.toSubstEq.lift .nat .nat)
+        have hNC1 := hC1.hasType.2.natCaseDF₀ hΓ₀ hM_R_σ'_z.1 ha1 hb2
+        refine ⟨?_, hM_R_σ'_z.2.natCase.tail .natCase_zero⟩
+        refine (hCM.hasType.1.subst' W.wf₀ W.toSubstEq).symm.defeqDF ?_
+        refine .defeqDF (u := v) ?_ (hNC1.trans ?_)
+        · exact subst_inst ▸ ((hCM.trans hCMinst).subst' W.wf₀ W.symm.left.toSubstEq).symm
+        · refine (IsDefEq.instDF hΓ₀ .nat .sort hC1.hasType.2 hM_R_σ'_z.1.symm).defeqDF ?_
+          exact hC1.hasType.2.natCase_zero₀ hΓ₀ ha1 hb2
+      · refine (hCM.subst' W.wf₀ W.left.toSubstEq).symm.defeqDF ?_
+        exact (hCC'.natCaseDF hMM' haa'_L hbb'_L hCMinst).subst' W.wf₀ W.toSubstEq
+      · have hMσ_z := ((ihM ((LE_Interp.sound hM W.fits).1.2 hM_z) .nat' .zero).1 W).1.2.1
+        have hv_zero_Mσ : (LR hΓ₀).TmEq (n := n_z+1) .zero (M.subst σ) .nat .zero .nat :=
+          LRS.TmEq.zero_nat (IH := LR (n := n_z) hΓ₀).2 ⟨⟨.nat, .rfl⟩, ⟨.zero, .rfl⟩, hMσ_z⟩
+        have W_conv := cons_nat .zero .nat' hMσ_z.1.symm hv_zero_Mσ W.left
+        obtain ⟨_, _, _, le_lvl, le_aT_mCT, iC, iv, hmC⟩ :=
+          (LE_Interp.sound hC.hasType.1 W_conv.fits).2 hCa0 |>.out
+        rw [subst_inst, subst_inst, Term.subst, inst_lift_cons, inst_lift_cons]
+        exact LR.toValTy le_lvl le_aT_mCT hmem.isType iv hmC ((ihC iC iv hmC).1 W_conv).1
+    | @natCase_succ _ n_s v_pred _ _ _ _ _ hM_s hb_s =>
+      obtain ⟨a_M, hCa_M, hM_a⟩ := LE_Interp.inst.1 hA
+      obtain ⟨n_x, m_x, a_x, _, hle_join, LE_mx, LE_ax, hty_mx⟩ :=
+        (LE_Interp.sound hMM' W.fits).2 (hM_s.join' hM_a) |>.out
+      obtain ⟨n_a, ha_nat⟩ := LE_ax.le_nat
+      let k := max n_x n_a
+      have hkx : n_x ≤ k+1 := Nat.le_succ_of_le (Nat.le_max_left _ _)
+      have hka : n_a+1 ≤ k+1 := Nat.succ_le_succ (Nat.le_max_right _ _)
+      have hty_mx_nat : (m_x.lift (k+1)).HasType .nat := by
+        refine .mono_r ?_ .nat ((WShape.HasType.lift hkx).2 hty_mx)
+        exact WShape.lift_nat (Nat.le_max_right _ _) ▸ (TShape.LE.def hkx hka).1 ha_nat
+      have hJ := (TShape.Join.mk (hM_s.compat hM_a)).le
+      have hle_succ_lift := (hJ.1.trans hle_join).trans (TShape.lift_eqv hkx).2
+      have hle_aM_lift := (hJ.2.trans hle_join).trans (TShape.lift_eqv hkx).2
+      obtain hbot | hzero | ⟨v_p, heq_succ, hv_p_ts⟩ := hty_mx_nat.nat_r
+      · cases congrArg (·.1) <| TShape.le_bot.mp ((hbot ▸ hle_succ_lift).trans TShape.bot_eqv.1)
+      · cases TShape.succ_not_le_zero (hzero ▸ hle_succ_lift)
+      have hvp_succ_ty := WShape.HasType.succ hv_p_ts
+      have hvp_ty : (v_p.lift (k+1)).HasType .nat := by
+        match k, v_p, hv_p_ts with
+        | 0, ⟨.bot, _⟩, _ => exact WShape.HasType.bot' WShape.HasType.nat
+        | k'+1, v_p_pat, hv_p_pat =>
+          rw [← WShape.lift_nat (Nat.le_succ k')]
+          exact (WShape.HasType.lift (Nat.le_succ _)).2 hv_p_pat
+      have Ad_M := ihM' (heq_succ ▸ LE_mx.lift hkx) (.nat' (n := k)) hvp_succ_ty
+      have hCa_succ := (LE_Interp.sound hC (Wf_cons (.nat' (n := k)) hvp_succ_ty.T)).1.2 <|
+        hCa_M.mono_l (Valuation.LE.push.2 ⟨.rfl, heq_succ ▸ hle_aM_lift⟩)
+      have ihb := by
+        refine ihb (Wf_cons (.nat' (n := k)) hvp_ty.T) ?_ ?_ hmem
+        · refine hb_s.mono_l (Valuation.LE.push.2 ⟨.rfl, ?_⟩)
+          have := TShape.succ_le_succ.1 (heq_succ ▸ hle_succ_lift)
+          exact this.trans (TShape.lift_eqv (Nat.le_succ k)).2
+        · refine LE_Interp.inst.2 ⟨_, ?_, LE_Interp.succ' <|
+            LE_Interp.bvar0.mono (TShape.lift_eqv (Nat.le_succ k)).2⟩
+          exact (LE_Interp.weak'_iff (l := .cons (.skip .refl)) (by rintro ⟨⟩ <;> rfl)).2 hCa_succ
+      have ⟨_, Mσ_pred, M'σ_pred, hMσ_red, hM'σ'_red, hMσ_pred_eq, hTmEqNat_pred⟩ :=
+        (LRS.TmEq.succ_nat (v := v_p)).1 <| (LR hΓ₀).trans (hMM'.subst' W.wf₀ W.left.toSubstEq)
+          (hMM'.hasType.2.subst' W.wf₀ W.toSubstEq) (Ad_M.1.2 W.left) (Ad_M.1.1 W).2
+      have : (LR (n := k+1) hΓ₀).TmEq Mσ_pred M'σ_pred Term.nat (v_p.lift (k+1)) .nat := by
+        match k, v_p, hv_p_ts, hTmEqNat_pred with
+        | 0, ⟨.bot, _⟩, _, _ =>
+          show (LR (n := 0+1) hΓ₀).TmEq Mσ_pred M'σ_pred Term.nat
+            (WShape.lift (0+1) (⟨Shape.bot, trivial⟩ : WShape 0)) (WShape.nat : WShape (0+1))
+          exact ⟨⟨.nat, .rfl⟩, trivial⟩
+        | k'+1, v_p_pat, hv_p_pat, h =>
+          have hma : v_p_pat.HasType (WShape.nat : WShape (k'+1)) := by
+            simp only [WShape.HasTypeSucc, WShape.HasType, WShape.nat] at hv_p_pat ⊢
+            exact hv_p_pat
+          exact (LR.TmEq.lift (Nat.le_succ _) hma).mpr h
+      have W_ext := cons_nat hvp_ty (.nat' (n := k)) hMσ_pred_eq this W
+      have hCM := IsDefEq.instDF W.wf .nat .sort hC hM
+      have haa'_L := IsDefEq.instDF W.wf .nat .sort hC .zero |>.defeqDF haa'
+      have hbb'_L := IsDefEq.instDF hΓ_nat .nat .sort (hC.weak' (.cons (.skip .refl)))
+        (.succDF (.bvar₀ hΓ_nat .zero)) |>.defeqDF hbb'
+      have := (LR hΓ₀).trans (hbb'.subst' W_ext.left.wf₀ W_ext.left.toSubstEq)
+        (hbb'.hasType.2.subst' W_ext.wf₀ W_ext.toSubstEq)
+        (ihb.2 W_ext.left) (ihb.1 W_ext).2
+      rw [← inst_lift_cons, ← inst_lift_cons, ← inst_lift_cons, subst_succ_branch_swap,
+        lift_cons_skip_inst_succ_inst] at this
+      refine ((LR hΓ₀).whr ?_ ?_ ?_).2 <| (LR hΓ₀).conv ?_ this
+      · have hC1 := hCC'.hasType.1.subst' hΓ₀_nat (W.left.toSubstEq.lift .nat .nat)
+        have ha1 := subst_inst ▸ haa'_L.hasType.1.subst' W.wf₀ W.left.toSubstEq
+        have hb1 := hbb'_L.hasType.1.subst' hΓ₀_nat (W.left.toSubstEq.lift .nat .nat)
+        rw [subst_succ_branch_swap] at hb1
+        refine ⟨?_, hMσ_red.2.natCase.tail .natCase_succ⟩
+        refine (hCM.subst' W.wf₀ W.left.toSubstEq).symm.defeqDF <|
+          subst_inst ▸ (hC1.natCaseDF₀ hΓ₀ hMσ_red.1 ha1 hb1).trans ?_
+        refine .defeqDF (.instDF hΓ₀ .nat .sort hC1 hMσ_red.1.symm) ?_
+        exact .natCase_succ₀ hΓ₀ hC1 hMσ_pred_eq.hasType.1 ha1 hb1
+      · have hC1 := hCC'.subst' hΓ₀_nat (W.symm.left.toSubstEq.lift .nat .nat)
+        have ha1 := IsDefEq.instDF hΓ₀ .nat .sort hC1 .zero
+          |>.defeqDF (subst_inst ▸ haa'_L.hasType.2.subst' W.wf₀ W.symm.left.toSubstEq)
+        have hb1 := IsDefEq.instDF hΓ₀_nat .nat .sort (hC1.weak' (.cons (.skip .refl))) <|
+          .succDF (IsDefEq.bvar₀ hΓ₀_nat .zero)
+        rw [← subst_succ_branch_swap] at hb1
+        have hb2 := hb1.defeqDF <|
+          hbb'_L.hasType.2.subst' hΓ₀_nat (W.symm.left.toSubstEq.lift .nat .nat)
+        have hNC1 := hC1.hasType.2.natCaseDF₀ hΓ₀ hM'σ'_red.1 ha1 hb2
+        refine ⟨?_, hM'σ'_red.2.natCase.tail .natCase_succ⟩
+        refine (hCM.hasType.1.subst' W.wf₀ W.toSubstEq).symm.defeqDF ?_
+        refine .defeqDF (u := v) ?_ (hNC1.trans ?_)
+        · exact subst_inst ▸ ((hCM.trans hCMinst).subst' W.wf₀ W.symm.left.toSubstEq).symm
+        · refine (IsDefEq.instDF hΓ₀ .nat .sort hC1.hasType.2 hM'σ'_red.1.symm).defeqDF ?_
+          exact hC1.hasType.2.natCase_succ₀ hΓ₀ hMσ_pred_eq.hasType.2 ha1 hb2
+      · refine (hCM.subst' W.wf₀ W.left.toSubstEq).symm.defeqDF ?_
+        exact (hCC'.natCaseDF hMM' haa'_L hbb'_L hCMinst).subst' W.wf₀ W.toSubstEq
+      · have MLσ := hM.symm.subst' W.wf₀ W.left.toSubstEq
+        have := ((LR _).whr hMσ_red ⟨MLσ.hasType.2, .rfl⟩ MLσ).1 <| Ad_M.2.2 W.left
+        have W_conv := cons_nat hvp_succ_ty .nat' (hMσ_red.1.symm.trans MLσ) this W.left
+        rw [subst_inst, inst_lift_cons, inst_lift_cons]
+        have ⟨_, _, _, le_lvl, le_aT_mCT, iC, iv, hmC⟩ :=
+          (LE_Interp.sound hC.hasType.1 W_conv.fits).2 hCa_succ |>.out
+        exact LR.toValTy le_lvl le_aT_mCT hmem.isType iv hmC ((ihC iC iv hmC).1 W_conv).1
+  | @natCase_zero Γ C v aTm bTm HC Ha Hb _HLHS ihC iha ihb ih_LHS =>
+    refine ⟨fun _ _ W => ⟨((ih_LHS hM hA hmem).1 W).1, ((iha ?_ hA hmem).1 W).2⟩, fun σ W => ?_⟩
+    · exact (LE_Interp.sound (.natCase_zero₀ W.wf HC Ha Hb) W.fits).1.1 hM
+    have hMeq := HC.natCase_zero₀ W.wf Ha Hb |>.subst' W.wf₀ W.toSubstEq
+    refine ((LR _).whr ⟨hMeq, .tail .rfl .natCase_zero⟩ ⟨?_, .rfl⟩ hMeq).2 ((iha ?_ hA hmem).2 W)
+    · exact Ha.subst' W.wf₀ W.toSubstEq
+    · exact (LE_Interp.sound (.natCase_zero₀ W.wf HC Ha Hb) W.fits).1.1 hM
+  | @natCase_succ Γ C v nTm aTm bTm HC Hn Ha Hb _ Hbn _ ihn _ _ ih_LHS ih_bn =>
+    refine ⟨fun _ _ W => ⟨((ih_LHS hM hA hmem).1 W).1, ((ih_bn ?_ hA hmem).1 W).2⟩, fun σ W => ?_⟩
+    · exact (LE_Interp.sound (.natCase_succ₀ W.wf HC Hn Ha Hb) W.fits).1.1 hM
+    have hMeq := HC.natCase_succ₀ W.wf Hn Ha Hb |>.subst' W.wf₀ W.toSubstEq
+    refine ((LR _).whr ⟨hMeq, ?_⟩ ⟨?_, .rfl⟩ hMeq).2 ((ih_bn ?_ hA hmem).2 W)
+    · exact subst_inst ▸ .tail .rfl .natCase_succ
+    · exact Hbn.subst' W.wf₀ W.toSubstEq
+    · exact (LE_Interp.sound (.natCase_succ₀ W.wf HC Hn Ha Hb) W.fits).1.1 hM
   | @YDF _ A A' u b b' HA Hb Hb' ihA ihb ihb' =>
     refine .fits fun W => ?_
     obtain ⟨_, m', a', le, _, ha', hmem', adq⟩ := LR.adequacy_Y W HA Hb Hb' ihA ihb hM
@@ -1628,6 +1995,7 @@ theorem sort_inv (hΓ : ⊢ Γ) (d : Γ ⊢ Term.sort u ≡ Term.sort v : V) : u
   have := (LR.adequacy d hM (hA.unlift h1') .sort).2 (.id hΓ)
   have ⟨_, _, w, h1, h2⟩ := (LR _).sort_iff.1 (subst_id ▸ subst_id ▸ subst_id ▸ this)
   cases WHNF.sort.whRedS h1.2; cases WHNF.sort.whRedS h2.2; rfl
+
 /-- Headline Σ-type whr-inversion (mirrors `forallE_whRed_l` for Π). -/
 theorem sigma_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A₀ ≡ Term.sigma B₁ F₁ : .sort true) :
     ∃ B₀ F₀, A₀ ⤳* .sigma B₀ F₀ ∧
@@ -1662,3 +2030,30 @@ theorem sort_sigma_inv (hΓ : ⊢ Γ) : ¬Γ ⊢ .sort u ≡ Term.sigma A₁ B�
 theorem forallE_sigma_inv (hΓ : ⊢ Γ) :
     ¬Γ ⊢ Term.forallE A B ≡ Term.sigma A₁ B₁ : .sort true :=
   fun H => have ⟨_, _, H, _⟩ := sigma_whRed_l hΓ H; nomatch WHNF.forallE.whRedS H
+
+/-- Nat-type whr-inversion -/
+theorem nat_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A ≡ Term.nat : .sort true) :
+    A ⤳* .nat := by
+  have hNat : LE_Interp .nil (WShape.T (n := 1) WShape.nat) .nat := .nat' (n := 0)
+  have hmem : WShape.HasType (n := 1) WShape.nat WShape.type := WShape.HasType.nat
+  have h := LR.adequacy d ((LE_Interp.sound d .nil).1.2 hNat) (.sort TShape.sort_eqv.1) hmem
+    |>.2 (.id hΓ)
+  -- TmEq A .nat (.sort true) WShape.nat (.sort true)
+  -- At type-shape (.sort true), unfolds to ∃ u, .sort true ⤳* .sort u ∧ TyEq A .nat WShape.nat,
+  -- which at element-shape WShape.nat unfolds to ValTyNat2 = ⟨A ⤳* .nat, .nat ⤳* .nat⟩.
+  obtain ⟨_, _, redA, _⟩ := subst_id ▸ subst_id ▸ subst_id ▸ h
+  exact redA.2
+
+/-- Sort/Nat disjointness: a sort is never definitionally equal to `.nat`. -/
+theorem sort_nat_inv (hΓ : ⊢ Γ) : ¬ Γ ⊢ Term.sort u ≡ Term.nat : .sort true :=
+  fun H => nomatch WHNF.sort.whRedS (nat_whRed_l hΓ H)
+
+/-- Π/Nat disjointness: a Π-type is never definitionally equal to `.nat`. -/
+theorem forallE_nat_inv (hΓ : ⊢ Γ) :
+    ¬ Γ ⊢ Term.forallE A B ≡ Term.nat : .sort true :=
+  fun H => nomatch WHNF.forallE.whRedS (nat_whRed_l hΓ H)
+
+/-- Σ/Nat disjointness: a Σ-type is never definitionally equal to `.nat`. -/
+theorem sigma_nat_inv (hΓ : ⊢ Γ) :
+    ¬ Γ ⊢ Term.sigma A B ≡ Term.nat : .sort true :=
+  fun H => nomatch WHNF.sigma.whRedS (nat_whRed_l hΓ H)
