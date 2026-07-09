@@ -284,10 +284,10 @@ theorem LR.Adequate.mono_r {Γ₀ Γ : List Term} {ρ : Valuation} {M N A : Term
   exact ⟨fun σ σ' W => ⟨lower W (H.1 W).1, lower W (H.1 W).2⟩, fun σ W => lower W (H.2 W)⟩
 
 theorem LR.Adequate.nat {m a : WShape n}
-    (hM : LE_Interp ρ m.T .nat) (hA : LE_Interp ρ a.T (.sort true))
-    (hmem : m.HasType a) : Adequate Γ₀ Γ ρ .nat .nat (.sort true) m a := by
+    (hM : LE_Interp ρ m.T .nat) (hA : LE_Interp ρ a.T .type)
+    (hmem : m.HasType a) : Adequate Γ₀ Γ ρ .nat .nat .type m a := by
   refine .wf₀ fun hΓ₀ => ?_
-  suffices (LR hΓ₀).TmEq .nat .nat (.sort true) m a from
+  suffices (LR hΓ₀).TmEq .nat .nat .type m a from
     ⟨fun _ _ _ => ⟨this, this⟩, fun _ _ => this⟩
   cases hmem.unfold with
   | bot hm =>
@@ -487,7 +487,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     exact WShape.HasType.T_iff.1 <| .mono_r TShape.sort_eqv.2 .sort_T <| this.retype b4 b1
   | @sort _ l =>
     refine .wf₀ fun hΓ₀ => ?_
-    suffices (LR hΓ₀).TmEq (.sort l) (.sort l) (.sort true) m a from
+    suffices (LR hΓ₀).TmEq (.sort l) (.sort l) .type m a from
       ⟨fun _ _ _ => ⟨this, this⟩, fun _ _ => this⟩
     cases hmem.unfold with
     | bot hm =>
@@ -1002,7 +1002,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
             (Term.id A_ty a_tm a_tm).subst σ' :=
           (Ha.hasType.1.reflDF₀ W.wf).subst' W.symm.left.wf₀ W.symm.left.toSubstEq
         have h_id_subst : Γ₀ ⊢ (Term.id A_ty a_tm a_tm).subst σ ≡
-            (Term.id A_ty a_tm a_tm).subst σ' : .sort true :=
+            (Term.id A_ty a_tm a_tm).subst σ' : .type :=
           HId.subst' W.wf₀ W.toSubstEq
         exact h_id_subst.symm.defeqDF h_at_σ'
     · refine ⟨A_ty.subst σ, a_tm.subst σ, a_tm.subst σ, ?_, ?_, ?_, ?_,
@@ -1022,19 +1022,19 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       · refine ⟨?_, .rfl⟩
         have h_a'_self : Γ ⊢ Term.refl a' ≡ Term.refl a' : Term.id A_ty a' a' :=
           Ha.hasType.2.reflDF₀ W.wf
-        have h_id_eq : Γ ⊢ Term.id A_ty a' a' ≡ Term.id A_ty a_tm a_tm : .sort true :=
+        have h_id_eq : Γ ⊢ Term.id A_ty a' a' ≡ Term.id A_ty a_tm a_tm : .type :=
           HA.hasType.1.idDF Ha.symm Ha.symm
         exact (h_id_eq.defeqDF h_a'_self).subst' W.wf₀ W.left.toSubstEq
       · refine ⟨?_, .rfl⟩
         have h_a'_self : Γ ⊢ Term.refl a' ≡ Term.refl a' : Term.id A_ty a' a' :=
           Ha.hasType.2.reflDF₀ W.wf
-        have h_id_eq : Γ ⊢ Term.id A_ty a' a' ≡ Term.id A_ty a_tm a_tm : .sort true :=
+        have h_id_eq : Γ ⊢ Term.id A_ty a' a' ≡ Term.id A_ty a_tm a_tm : .type :=
           HA.hasType.1.idDF Ha.symm Ha.symm
         have h_at_σ' : Γ₀ ⊢ (Term.refl a').subst σ' ≡ (Term.refl a').subst σ' :
             (Term.id A_ty a_tm a_tm).subst σ' :=
           (h_id_eq.defeqDF h_a'_self).subst' W.symm.left.wf₀ W.symm.left.toSubstEq
         have h_id_subst : Γ₀ ⊢ (Term.id A_ty a_tm a_tm).subst σ ≡
-            (Term.id A_ty a_tm a_tm).subst σ' : .sort true :=
+            (Term.id A_ty a_tm a_tm).subst σ' : .type :=
           HId.subst' W.wf₀ W.toSubstEq
         exact h_id_subst.symm.defeqDF h_at_σ'
     · refine ⟨A_ty.subst σ, a_tm.subst σ, a_tm.subst σ, ?_, ?_, ?_, ?_,
@@ -1056,7 +1056,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       · refine ⟨?_, .rfl⟩
         have h_a'_self : Γ ⊢ Term.refl a' ≡ Term.refl a' : Term.id A_ty a' a' :=
           Ha.hasType.2.reflDF₀ W.wf
-        have h_id_eq : Γ ⊢ Term.id A_ty a' a' ≡ Term.id A_ty a_tm a_tm : .sort true :=
+        have h_id_eq : Γ ⊢ Term.id A_ty a' a' ≡ Term.id A_ty a_tm a_tm : .type :=
           HA.hasType.1.idDF Ha.symm Ha.symm
         exact (h_id_eq.defeqDF h_a'_self).subst' W.wf₀ W.toSubstEq
   | @trDF Γ T T' u A A' B B' C C' v X X' H H' HT HA HB HC HC' HX HH HCb H_idAab
@@ -1119,7 +1119,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     have hX₁_σ : Γ₀ ⊢ X₁.subst σ₁ : (C.subst σ₁.lift).inst (A.subst σ₁) := by
       rw [show (C.subst σ₁.lift).inst (A.subst σ₁) = (C.inst A).subst σ₁ from subst_inst.symm]
       exact hX₁_σ_raw
-    have hTidAB_σ : Γ₀ ⊢ (T.id A B).subst σ₁ : .sort true :=
+    have hTidAB_σ : Γ₀ ⊢ (T.id A B).subst σ₁ : .type :=
       H_idAab.subst' W.wf₀ W.left.toSubstEq
     have hCinst_AB_eq : Γ₀ ⊢ (C.inst A).subst σ₁ ≡ (C.inst B).subst σ₁ : .sort v := by
       rw [show (C.inst A).subst σ₁ = (C.subst σ₁.lift).inst (A.subst σ₁) from subst_inst,
@@ -1153,9 +1153,9 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     have hX₂_σ₂ : Γ₀ ⊢ X₂.subst σ₂ : (C.subst σ₂.lift).inst (A.subst σ₂) := by
       rw [show (C.subst σ₂.lift).inst (A.subst σ₂) = (C.inst A).subst σ₂ from subst_inst.symm]
       exact hX₂_σ₂_raw
-    have hTidAB_σ₂ : Γ₀ ⊢ (T.id A B).subst σ₂ : .sort true :=
+    have hTidAB_σ₂ : Γ₀ ⊢ (T.id A B).subst σ₂ : .type :=
       H_idAab.subst' W.wf₀ W.symm.left.toSubstEq
-    have hTidAB_σ_eq : Γ₀ ⊢ (T.id A B).subst σ₁ ≡ (T.id A B).subst σ₂ : .sort true :=
+    have hTidAB_σ_eq : Γ₀ ⊢ (T.id A B).subst σ₁ ≡ (T.id A B).subst σ₂ : .type :=
       H_idAab.subst' W.wf₀ W.toSubstEq
     have hH_red_r' : Γ₀ ⊢ H₂.subst σ₂ ≡ Term.refl a_h_r : (T.id A B).subst σ₂ :=
       hTidAB_σ_eq.defeqDF hH_red_r.1
@@ -1191,11 +1191,11 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       .instDF W.wf₀ hT₁_σ .sort hC_C₁_σ_at_T₁ (hT_T₁_σ.defeqDF hA_A₁_σ)
     have hX₁_σ_at_C₁A₁ : Γ₀ ⊢ X₁.subst σ₁ : (C₁.subst σ₁.lift).inst (A₁.subst σ₁) :=
       hCA_C₁A₁.defeqDF hX₁_σ
-    have hTid_T₁id_σ : Γ₀ ⊢ (T.id A B).subst σ₁ ≡ (T₁.id A₁ B₁).subst σ₁ : .sort true :=
+    have hTid_T₁id_σ : Γ₀ ⊢ (T.id A B).subst σ₁ ≡ (T₁.id A₁ B₁).subst σ₁ : .type :=
       .idDF hT_T₁_σ hA_A₁_σ hB_B₁_σ
     have hH_red_l_at_T₁ : Γ₀ ⊢ H₁.subst σ₁ ≡ Term.refl a_h_l : (T₁.id A₁ B₁).subst σ₁ :=
       hTid_T₁id_σ.defeqDF hH_red_l.1
-    have hTid_T₁id_σ_ty : Γ₀ ⊢ (T₁.id A₁ B₁).subst σ₁ : .sort true := hTid_T₁id_σ.hasType.2
+    have hTid_T₁id_σ_ty : Γ₀ ⊢ (T₁.id A₁ B₁).subst σ₁ : .type := hTid_T₁id_σ.hasType.2
     have hC₁B_C₁ahl : Γ₀ ⊢ (C₁.subst σ₁.lift).inst (B₁.subst σ₁) ≡
         (C₁.subst σ₁.lift).inst a_h_l : .sort v :=
       .instDF W.wf₀ hT₁_σ .sort hC₁_σ_at_T₁ hCb_1
@@ -1230,11 +1230,11 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       .instDF W.wf₀ hT₂_σ .sort hC_C₂_σ_at_T₂ (hT_T₂_σ.defeqDF hA_A₂_σ)
     have hX₂_σ_at_C₂A₂ : Γ₀ ⊢ X₂.subst σ₂ : (C₂.subst σ₂.lift).inst (A₂.subst σ₂) :=
       hCA_C₂A₂.defeqDF hX₂_σ₂
-    have hTid_T₂id_σ : Γ₀ ⊢ (T.id A B).subst σ₂ ≡ (T₂.id A₂ B₂).subst σ₂ : .sort true :=
+    have hTid_T₂id_σ : Γ₀ ⊢ (T.id A B).subst σ₂ ≡ (T₂.id A₂ B₂).subst σ₂ : .type :=
       .idDF hT_T₂_σ hA_A₂_σ hB_B₂_σ
     have hH_red_r_at_T₂ : Γ₀ ⊢ H₂.subst σ₂ ≡ Term.refl a_h_r : (T₂.id A₂ B₂).subst σ₂ :=
       hTid_T₂id_σ.defeqDF hH_red_r'
-    have hTid_T₂id_σ_ty : Γ₀ ⊢ (T₂.id A₂ B₂).subst σ₂ : .sort true := hTid_T₂id_σ.hasType.2
+    have hTid_T₂id_σ_ty : Γ₀ ⊢ (T₂.id A₂ B₂).subst σ₂ : .type := hTid_T₂id_σ.hasType.2
     have hC₂B_C₂ahr : Γ₀ ⊢ (C₂.subst σ₂.lift).inst (B₂.subst σ₂) ≡
         (C₂.subst σ₂.lift).inst a_h_r : .sort v :=
       .instDF W.wf₀ hT₂_σ .sort hC₂_σ_at_T₂ hCb_2
@@ -1345,11 +1345,11 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       have HA'σ := HA.hasType.2.subst' W.wf₀ W.toSubstEq
       have hΓS' : ⊢ A.subst σ' :: Γ₀ := ⟨W.wf₀, _, HAσ.hasType.2⟩
       have hSigma_σ : Γ₀ ⊢ (A.subst σ).sigma (B.subst σ.lift) ≡
-          (A.subst σ).sigma (B.subst σ.lift) : .sort true :=
+          (A.subst σ).sigma (B.subst σ.lift) : .type :=
         .sigmaDF₀ hΓ₀ HAσ.hasType.1
           (HB.hasType.1.subst hΓS (W.left.toSubstEq.lift HA.hasType.1 HAσ.hasType.1))
       have hSigma_σ' : Γ₀ ⊢ (A.subst σ').sigma (B.subst σ'.lift) ≡
-          (A.subst σ').sigma (B.subst σ'.lift) : .sort true :=
+          (A.subst σ').sigma (B.subst σ'.lift) : .type :=
         .sigmaDF₀ hΓ₀ HAσ.hasType.2
           (HB.hasType.1.subst hΓS' (W.symm.left.toSubstEq.lift HA.hasType.1 HAσ.hasType.2))
       constructor
@@ -1371,11 +1371,11 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
         have hΓA'S : ⊢ A'.subst σ :: Γ₀ := ⟨W.wf₀, _, HA'σ.hasType.1⟩
         have hΓA'S' : ⊢ A'.subst σ' :: Γ₀ := ⟨W.wf₀, _, HA'σ.hasType.2⟩
         have hSigma'_σ : Γ₀ ⊢ (A'.subst σ).sigma (B'.subst σ.lift) ≡
-            (A'.subst σ).sigma (B'.subst σ.lift) : .sort true :=
+            (A'.subst σ).sigma (B'.subst σ.lift) : .type :=
           .sigmaDF₀ hΓ₀ HA'σ.hasType.1
             (HB'.hasType.2.subst hΓA'S (W.left.toSubstEq.lift HA.hasType.2 HA'σ.hasType.1))
         have hSigma'_σ' : Γ₀ ⊢ (A'.subst σ').sigma (B'.subst σ'.lift) ≡
-            (A'.subst σ').sigma (B'.subst σ'.lift) : .sort true :=
+            (A'.subst σ').sigma (B'.subst σ'.lift) : .type :=
           .sigmaDF₀ hΓ₀ HA'σ.hasType.2
             (HB'.hasType.2.subst hΓA'S' (W.symm.left.toSubstEq.lift HA.hasType.2 HA'σ.hasType.2))
         refine ⟨true, ⟨.sort, .rfl⟩,
@@ -1398,10 +1398,10 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     · have hΓA' : ⊢ A' :: Γ := ⟨W.wf, _, HA.hasType.2⟩
       have hΓA'S : ⊢ A'.subst σ :: Γ₀ := ⟨W.wf₀, _, HAAσ.hasType.2⟩
       have hSigma_σ : Γ₀ ⊢ (A.subst σ).sigma (B.subst σ.lift) ≡
-          (A.subst σ).sigma (B.subst σ.lift) : .sort true :=
+          (A.subst σ).sigma (B.subst σ.lift) : .type :=
         .sigmaDF₀ hΓ₀ HAAσ.hasType.1 (HB.hasType.1.subst hΓS S')
       have hSigma'_σ : Γ₀ ⊢ (A'.subst σ).sigma (B'.subst σ.lift) ≡
-          (A'.subst σ).sigma (B'.subst σ.lift) : .sort true :=
+          (A'.subst σ).sigma (B'.subst σ.lift) : .type :=
         .sigmaDF₀ hΓ₀ HAAσ.hasType.2
           (HB'.hasType.2.subst hΓA'S (W.toSubstEq.lift HA.hasType.2 HAAσ.hasType.2))
       refine ⟨true, ⟨.sort, .rfl⟩,
@@ -1485,7 +1485,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
         (Hx_L_R : Γ ⊢ x_L ≡ x_R : A_L)
         (Hy_L_R : Γ ⊢ y_L ≡ y_R : B_L.inst x_L)
         (HBxx_L_R : Γ ⊢ B_L.inst x_L ≡ B_R.inst x_R : .sort v)
-        (HSigma_L : Γ ⊢ Term.sigma A_L B_L : .sort true)
+        (HSigma_L : Γ ⊢ Term.sigma A_L B_L : .type)
         -- bridges between outer (x, y, B.inst x) and pair components
         (Hx_x_L : Γ ⊢ x ≡ x_L : A)
         (HBxx_outer_L : Γ ⊢ B.inst x ≡ B_L.inst x_L : .sort v)
@@ -1609,7 +1609,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
         have HA_R_to_A_het : Γ₀ ⊢ A_R.subst σ_R ≡ A.subst σ_L : .sort u :=
           HA_R_to_A.subst' W.wf₀ W.symm.toSubstEq
         -- Natural RHS pair self-typing at sigma A_R B_R
-        have hSigmaConv : Γ ⊢ Term.sigma A_L B_L ≡ Term.sigma A_R B_R : .sort true :=
+        have hSigmaConv : Γ ⊢ Term.sigma A_L B_L ≡ Term.sigma A_R B_R : .type :=
           .sigmaDF₀ W.wf HA_L_R HB_L_R_at_A_L
         have hPair_R_at_AR_BR : Γ ⊢ Term.pair A_R B_R x_R y_R : Term.sigma A_R B_R :=
           hSigmaConv.defeqDF hPair_natural_eq.hasType.2
@@ -1841,7 +1841,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
             ((B.subst σ.lift).inst (x.subst σ)) mt (bt.app ms) := by
           have := ((ihy hmt_y hBinst_LE_N hPair'.2.2).1 W).2
           rwa [subst_inst] at this
-        have HSigmaA'B' : Γ ⊢ Term.sigma A' B' : .sort true :=
+        have HSigmaA'B' : Γ ⊢ Term.sigma A' B' : .type :=
           (IsDefEq.sigmaDF₀ W.wf HA.hasType.2 HB'.hasType.2).hasType.1
         have Hx'_at_A' : Γ ⊢ x' ≡ x' : A' := HA.defeqDF Hx.hasType.2
         have Hy'_at_B'x' : Γ ⊢ y' ≡ y' : B'.inst x' := HBxx'.defeqDF Hy.hasType.2
@@ -2517,7 +2517,7 @@ theorem sort_inv (hΓ : ⊢ Γ) (d : Γ ⊢ Term.sort u ≡ Term.sort v : V) : u
   have ⟨n, mU, mV, h1, h2, h3, hA, h5⟩ := (LE_Interp.sound d .nil).2 hM |>.out
   have h2' := WShape.lift_sort ▸ (TShape.LE.lift_l h1).1 h2; dsimp only at h2'
   cases WShape.sort_le.1 h2'
-  cases show mV = (.sort true : WShape 1).lift n by
+  cases show mV = (.type : WShape 1).lift n by
     let _+1 := n
     simp only [WShape.HasType, WShape.sort] at h5
     ext1; generalize mV.val = mv at h5
@@ -2535,7 +2535,7 @@ theorem forallE_unit_inv (hΓ : ⊢ Γ) :
   fun H => have ⟨_, _, red, _⟩ := forallE_whRed_l hΓ H; nomatch WHNF.unit.whRedS red
 
 /-- Headline Σ-type whr-inversion (mirrors `forallE_whRed_l` for Π). -/
-theorem sigma_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A₀ ≡ Term.sigma B₁ F₁ : .sort true) :
+theorem sigma_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A₀ ≡ Term.sigma B₁ F₁ : .type) :
     ∃ B₀ F₀, A₀ ⤳* .sigma B₀ F₀ ∧
       ∃ u v, Γ ⊢ B₀ ≡ B₁ : .sort u ∧ B₀::Γ ⊢ F₀ ≡ F₁ : .sort v := by
   have hSigma : LE_Interp .nil (WShape.T (n := 1) (.sigma .bot WShapeFun.bot)) (.sigma B₁ F₁) := by
@@ -2555,58 +2555,58 @@ theorem sigma_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A₀ ≡ Term.sigma B₁ F₁ :
 /-- Σ–Σ injectivity: if two Σ types are definitionally equal,
 their domains and codomains are each definitionally equal. -/
 theorem sigma_inv (hΓ : ⊢ Γ)
-    (H : Γ ⊢ Term.sigma A₀ B₀ ≡ Term.sigma A₁ B₁ : .sort true) :
+    (H : Γ ⊢ Term.sigma A₀ B₀ ≡ Term.sigma A₁ B₁ : .type) :
     ∃ u v, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ A₀::Γ ⊢ B₀ ≡ B₁ : .sort v := by
   have ⟨_, _, red, H⟩ := sigma_whRed_l hΓ H
   cases WHNF.sigma.whRedS red; exact H
 
 /-- Sort/Σ disjointness: a sort is never definitionally equal to a Σ-type. -/
-theorem sort_sigma_inv (hΓ : ⊢ Γ) : ¬Γ ⊢ .sort u ≡ Term.sigma A₁ B₁ : .sort true :=
+theorem sort_sigma_inv (hΓ : ⊢ Γ) : ¬Γ ⊢ .sort u ≡ Term.sigma A₁ B₁ : .type :=
   fun H => have ⟨_, _, H, _⟩ := sigma_whRed_l hΓ H; nomatch WHNF.sort.whRedS H
 
 /-- Unit/Σ disjointness: a unit type is never definitionally equal to a Σ-type. -/
 theorem sigma_unit_inv (hΓ : ⊢ Γ) :
-    ¬Γ ⊢ Term.unit r ≡ Term.sigma A B : .sort true :=
+    ¬Γ ⊢ Term.unit r ≡ Term.sigma A B : .type :=
   fun H => have ⟨_, _, red, _⟩ := sigma_whRed_l hΓ H; nomatch WHNF.unit.whRedS red
 
 /-- Π/Σ disjointness: a Π-type is never definitionally equal to a Σ-type. -/
 theorem forallE_sigma_inv (hΓ : ⊢ Γ) :
-    ¬Γ ⊢ Term.forallE A B ≡ Term.sigma A₁ B₁ : .sort true :=
+    ¬Γ ⊢ Term.forallE A B ≡ Term.sigma A₁ B₁ : .type :=
   fun H => have ⟨_, _, H, _⟩ := sigma_whRed_l hΓ H; nomatch WHNF.forallE.whRedS H
 
 /-- Nat-type whr-inversion -/
-theorem nat_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A ≡ Term.nat : .sort true) :
+theorem nat_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A ≡ Term.nat : .type) :
     A ⤳* .nat := by
   have hNat : LE_Interp .nil (WShape.T (n := 1) WShape.nat) .nat := .nat' (n := 0)
   have hmem : WShape.HasType (n := 1) WShape.nat WShape.type := WShape.HasType.nat
   have h := LR.adequacy d ((LE_Interp.sound d .nil).1.2 hNat) (.sort TShape.sort_eqv.1) hmem
     |>.2 (.id hΓ)
-  -- TmEq A .nat (.sort true) WShape.nat (.sort true)
-  -- At type-shape (.sort true), unfolds to ∃ u, .sort true ⤳* .sort u ∧ TyEq A .nat WShape.nat,
+  -- TmEq A .nat .type WShape.nat .type
+  -- At type-shape .type, unfolds to ∃ u, .type ⤳* .sort u ∧ TyEq A .nat WShape.nat,
   -- which at element-shape WShape.nat unfolds to ValTyNat2 = ⟨A ⤳* .nat, .nat ⤳* .nat⟩.
   obtain ⟨_, _, redA, _⟩ := subst_id ▸ subst_id ▸ subst_id ▸ h
   exact redA.2
 
 /-- Sort/Nat disjointness: a sort is never definitionally equal to `.nat`. -/
-theorem sort_nat_inv (hΓ : ⊢ Γ) : ¬ Γ ⊢ Term.sort u ≡ Term.nat : .sort true :=
+theorem sort_nat_inv (hΓ : ⊢ Γ) : ¬ Γ ⊢ Term.sort u ≡ Term.nat : .type :=
   fun H => nomatch WHNF.sort.whRedS (nat_whRed_l hΓ H)
 
 /-- Unit/Nat disjointness: a unit type is never definitionally equal to `.nat`. -/
-theorem nat_unit_inv (hΓ : ⊢ Γ) : ¬ Γ ⊢ Term.unit r ≡ Term.nat : .sort true :=
+theorem nat_unit_inv (hΓ : ⊢ Γ) : ¬ Γ ⊢ Term.unit r ≡ Term.nat : .type :=
   fun H => nomatch WHNF.unit.whRedS (nat_whRed_l hΓ H)
 
 /-- Π/Nat disjointness: a Π-type is never definitionally equal to `.nat`. -/
 theorem forallE_nat_inv (hΓ : ⊢ Γ) :
-    ¬ Γ ⊢ Term.forallE A B ≡ Term.nat : .sort true :=
+    ¬ Γ ⊢ Term.forallE A B ≡ Term.nat : .type :=
   fun H => nomatch WHNF.forallE.whRedS (nat_whRed_l hΓ H)
 
 /-- Σ/Nat disjointness: a Σ-type is never definitionally equal to `.nat`. -/
 theorem sigma_nat_inv (hΓ : ⊢ Γ) :
-    ¬ Γ ⊢ Term.sigma A B ≡ Term.nat : .sort true :=
+    ¬ Γ ⊢ Term.sigma A B ≡ Term.nat : .type :=
   fun H => nomatch WHNF.sigma.whRedS (nat_whRed_l hΓ H)
 
 /-- Id-type whr-inversion -/
-theorem id_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A₀ ≡ Term.id A₁ a₁ b₁ : .sort true) :
+theorem id_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A₀ ≡ Term.id A₁ a₁ b₁ : .type) :
     ∃ A₀_inner a₀ b₀, A₀ ⤳* .id A₀_inner a₀ b₀ ∧
       ∃ u, Γ ⊢ A₀_inner ≡ A₁ : .sort u ∧
         Γ ⊢ a₀ ≡ a₁ : A₀_inner ∧ Γ ⊢ b₀ ≡ b₁ : A₀_inner := by
@@ -2625,31 +2625,31 @@ theorem id_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A₀ ≡ Term.id A₁ a₁ b₁ : 
 /-- Id–Id injectivity: if two Id types are definitionally equal,
 their carrier and endpoints are each definitionally equal. -/
 theorem id_inv (hΓ : ⊢ Γ)
-    (H : Γ ⊢ Term.id A₀ a₀ b₀ ≡ Term.id A₁ a₁ b₁ : .sort true) :
+    (H : Γ ⊢ Term.id A₀ a₀ b₀ ≡ Term.id A₁ a₁ b₁ : .type) :
     ∃ u, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ Γ ⊢ a₀ ≡ a₁ : A₀ ∧ Γ ⊢ b₀ ≡ b₁ : A₀ := by
   have ⟨_, _, _, red, H⟩ := id_whRed_l hΓ H
   cases WHNF.id.whRedS red; exact H
 
 /-- Sort/Id disjointness: a sort is never definitionally equal to an Id-type. -/
-theorem sort_id_inv (hΓ : ⊢ Γ) : ¬Γ ⊢ .sort u ≡ Term.id A₁ a₁ b₁ : .sort true :=
+theorem sort_id_inv (hΓ : ⊢ Γ) : ¬Γ ⊢ .sort u ≡ Term.id A₁ a₁ b₁ : .type :=
   fun H => have ⟨_, _, _, H, _⟩ := id_whRed_l hΓ H; nomatch WHNF.sort.whRedS H
 
 /-- Π/Id disjointness: a Π-type is never definitionally equal to an Id-type. -/
 theorem forallE_id_inv (hΓ : ⊢ Γ) :
-    ¬Γ ⊢ Term.forallE A B ≡ Term.id A₁ a₁ b₁ : .sort true :=
+    ¬Γ ⊢ Term.forallE A B ≡ Term.id A₁ a₁ b₁ : .type :=
   fun H => have ⟨_, _, _, H, _⟩ := id_whRed_l hΓ H; nomatch WHNF.forallE.whRedS H
 
 /-- Σ/Id disjointness: a Σ-type is never definitionally equal to an Id-type. -/
 theorem sigma_id_inv (hΓ : ⊢ Γ) :
-    ¬Γ ⊢ Term.sigma A B ≡ Term.id A₁ a₁ b₁ : .sort true :=
+    ¬Γ ⊢ Term.sigma A B ≡ Term.id A₁ a₁ b₁ : .type :=
   fun H => have ⟨_, _, _, H, _⟩ := id_whRed_l hΓ H; nomatch WHNF.sigma.whRedS H
 
 /-- Unit/Id disjointness: a unit type is never definitionally equal to an Id-type. -/
 theorem unit_id_inv (hΓ : ⊢ Γ) :
-    ¬Γ ⊢ Term.unit r ≡ Term.id A₁ a₁ b₁ : .sort true :=
+    ¬Γ ⊢ Term.unit r ≡ Term.id A₁ a₁ b₁ : .type :=
   fun H => have ⟨_, _, _, H, _⟩ := id_whRed_l hΓ H; nomatch WHNF.unit.whRedS H
 
 /-- Nat/Id disjointness: `.nat` is never definitionally equal to an Id-type. -/
 theorem nat_id_inv (hΓ : ⊢ Γ) :
-    ¬Γ ⊢ Term.nat ≡ Term.id A₁ a₁ b₁ : .sort true :=
+    ¬Γ ⊢ Term.nat ≡ Term.id A₁ a₁ b₁ : .type :=
   fun H => have ⟨_, _, _, H, _⟩ := id_whRed_l hΓ H; nomatch WHNF.nat.whRedS H

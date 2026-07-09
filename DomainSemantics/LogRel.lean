@@ -54,10 +54,10 @@ weak-head-reduction stability, …) needed to prove adequacy. Level-0
 Π/λ data on top of an inductive hypothesis `IH : LogRel Γ n`. -/
 structure LogRel (Γ : List Term) (n : Nat) extends LogRelBase Γ n where
   sort_iff : TmEq M N A (.sort r) (.sort r') ↔
-    ∃ v, Γ ⊢ A ⤳* .sort v : .sort true ∧
-    ∃ u, Γ ⊢ M ⤳* .sort u : .sort true ∧ Γ ⊢ N ⤳* .sort u : .sort true
+    ∃ v, Γ ⊢ A ⤳* .sort v : .type ∧
+    ∃ u, Γ ⊢ M ⤳* .sort u : .type ∧ Γ ⊢ N ⤳* .sort u : .type
   sort_iff_ty : TyEq M N (.sort r) ↔
-    ∃ u, Γ ⊢ M ⤳* .sort u : .sort true ∧ Γ ⊢ N ⤳* .sort u : .sort true
+    ∃ u, Γ ⊢ M ⤳* .sort u : .type ∧ Γ ⊢ N ⤳* .sort u : .type
   bot : a.HasType .type → TyEq A A a → TmEq M N A .bot a
   bot_ty : TyEq A B .bot
   isType : TmEq M N A m a → TyEq A A a
@@ -89,12 +89,12 @@ theorem LogRelBase.TyEq.sort {R : LogRel Γ n} : R.TyEq (.sort u) (.sort u) (.so
 
 def LR0.TyEq (Γ : List Term) (M N : Term) : WShape 0 → Prop
   | ⟨.bot, _⟩ => True
-  | ⟨.sort _, _⟩ => ∃ u, Γ ⊢ M ⤳* .sort u : .sort true ∧ Γ ⊢ N ⤳* .sort u : .sort true
+  | ⟨.sort _, _⟩ => ∃ u, Γ ⊢ M ⤳* .sort u : .type ∧ Γ ⊢ N ⤳* .sort u : .type
 
 def LR0.TmEq (Γ : List Term) (M N A : Term) (m a : WShape 0) : Prop :=
   match a.1 with
   | .bot => True
-  | .sort _ => ∃ u, Γ ⊢ A ⤳* .sort u : .sort true ∧ LR0.TyEq Γ M N m
+  | .sort _ => ∃ u, Γ ⊢ A ⤳* .sort u : .type ∧ LR0.TyEq Γ M N m
 
 theorem LR0.TyEq.left : LR0.TyEq Γ M N m → LR0.TyEq Γ M M m := by
   cases m using WShape.casesOn with | bot => intro; trivial | sort
@@ -234,17 +234,17 @@ def LRS.LamDefEq (IH : LogRel Γ n)
 /-- "Sigma-type validity at level `n+1`": `M₁`, `M₂` both whr-reduce to Σ-types
 whose domains and codomains are `IH`-equal. Uses `PiDefEq` for the codomain
 function equality (structurally identical to Π). Sigma has type
-`Sort u → (A → Sort v) → Sort true` — the result is always at `.sort true`
+`Sort u → (A → Sort v) → Sort true` — the result is always at `.type`
 but the codomain's universe `v` varies. -/
 def LRS.ValTySigma2 (IH : LogRel Γ n) (M₁ M₂ : Term) (b : WShape n) (f : WShapeFun n) : Prop :=
   ∃ B₁ F₁ B₂ F₂ u v,
-    Γ ⊢ M₁ ⤳* .sigma B₁ F₁ : .sort true ∧ Γ ⊢ M₂ ⤳* .sigma B₂ F₂ : .sort true ∧
+    Γ ⊢ M₁ ⤳* .sigma B₁ F₁ : .type ∧ Γ ⊢ M₂ ⤳* .sigma B₂ F₂ : .type ∧
     Γ ⊢ B₁ ≡ B₂ : .sort u ∧ B₁::Γ ⊢ F₁ ≡ F₂ : .sort v ∧ IH.TyEq B₁ B₂ b ∧
     LRS.PiDefEq IH B₁ F₁ F₂ b f
 
 def LRS.ValTyId2 (IH : LogRel Γ n) (M₁ M₂ : Term) (AV aV bV : WShape n) : Prop :=
   ∃ A₁ a₁ b₁ A₂ a₂ b₂ u,
-    Γ ⊢ M₁ ⤳* .id A₁ a₁ b₁ : .sort true ∧ Γ ⊢ M₂ ⤳* .id A₂ a₂ b₂ : .sort true ∧
+    Γ ⊢ M₁ ⤳* .id A₁ a₁ b₁ : .type ∧ Γ ⊢ M₂ ⤳* .id A₂ a₂ b₂ : .type ∧
     Γ ⊢ A₁ ≡ A₂ : .sort u ∧ Γ ⊢ a₁ ≡ a₂ : A₁ ∧ Γ ⊢ b₁ ≡ b₂ : A₁ ∧
     IH.TyEq A₁ A₂ AV ∧ IH.TmEq a₁ a₂ A₁ aV AV ∧ IH.TmEq b₁ b₂ A₁ bV AV
 
@@ -545,21 +545,21 @@ theorem LRS.LamDefEq.mono_r_1 {IH : LogRel Γ n}
 Non-trivial at `.forallE` (Pi injectivity) and `.sort` (sort injectivity). -/
 def LRS.TyEq (IH : LogRel Γ n) (M N : Term) : WShape (n+1) → Prop
   | ⟨.bot, _⟩ | ⟨.lam _, _⟩ | ⟨.pair _ _, _⟩ | ⟨.zero, _⟩ | ⟨.succ _, _⟩ | ⟨.refl _, _⟩ => True
-  | ⟨.sort _, _⟩ => ∃ u, Γ ⊢ M ⤳* .sort u : .sort true ∧ Γ ⊢ N ⤳* .sort u : .sort true
+  | ⟨.sort _, _⟩ => ∃ u, Γ ⊢ M ⤳* .sort u : .type ∧ Γ ⊢ N ⤳* .sort u : .type
   | ⟨.unit _, _⟩ => ∃ r, Γ ⊢ M ⤳* .unit r : .sort r ∧ Γ ⊢ N ⤳* .unit r : .sort r
   | ⟨.forallE b f, wf⟩ => LRS.ValTyPi2 IH M N ⟨b, wf.1⟩ ⟨f, wf.2⟩
   | ⟨.sigma b f, wf⟩ => LRS.ValTySigma2 IH M N ⟨b, wf.1⟩ ⟨f, wf.2⟩
-  | ⟨.nat, _⟩ => Γ ⊢ M ⤳* .nat : .sort true ∧ Γ ⊢ N ⤳* .nat : .sort true
+  | ⟨.nat, _⟩ => Γ ⊢ M ⤳* .nat : .type ∧ Γ ⊢ N ⤳* .nat : .type
   | ⟨.id A a b, wf⟩ => LRS.ValTyId2 IH M N ⟨A, wf.1⟩ ⟨a, wf.2.1⟩ ⟨b, wf.2.2⟩
 
 @[simp] theorem LRS.TyEq.bot : LRS.TyEq IH M N .bot := trivial
 @[simp] theorem LRS.TyEq.sort_iff :
     LRS.TyEq (Γ := Γ) IH M N (.sort r) ↔ ∃ u,
-      Γ ⊢ M ⤳* .sort u : .sort true ∧ Γ ⊢ N ⤳* .sort u : .sort true := .rfl
+      Γ ⊢ M ⤳* .sort u : .type ∧ Γ ⊢ N ⤳* .sort u : .type := .rfl
 @[simp] theorem LRS.TyEq.forallE_iff :
     LRS.TyEq (Γ := Γ) IH M N (.forallE b f) ↔ LRS.ValTyPi2 (Γ := Γ) IH M N b f := .rfl
 @[simp] theorem LRS.TyEq.nat_iff :
-    LRS.TyEq (Γ := Γ) IH M N .nat ↔ Γ ⊢ M ⤳* .nat : .sort true ∧ Γ ⊢ N ⤳* .nat : .sort true := .rfl
+    LRS.TyEq (Γ := Γ) IH M N .nat ↔ Γ ⊢ M ⤳* .nat : .type ∧ Γ ⊢ N ⤳* .nat : .type := .rfl
 @[simp] theorem LRS.TyEq.zero_m : LRS.TyEq IH M N .zero ↔ True := .rfl
 @[simp] theorem LRS.TyEq.succ_m : LRS.TyEq IH M N (.succ v) ↔ True := .rfl
 @[simp] theorem LRS.TyEq.unit_iff :
@@ -855,7 +855,7 @@ theorem LogRel.TmEqNat.trans : ∀ {n : Nat} {Γ : List Term} {IH : LogRel Γ n}
 def LRS.TmEq (IH : LogRel Γ n) (M N A : Term) (m a : WShape (n+1)) : Prop :=
   match ha : a.1 with
   | .bot => True
-  | .sort _ => ∃ u, Γ ⊢ A ⤳* .sort u : .sort true ∧ LRS.TyEq IH M N m
+  | .sort _ => ∃ u, Γ ⊢ A ⤳* .sort u : .type ∧ LRS.TyEq IH M N m
   | .unit _ => ∃ r, Γ ⊢ A ⤳* .unit r : .sort r
   | .forallE a₁ a₂ =>
     have wfa1 := (ha ▸ a.2).1; have wfa2 := (ha ▸ a.2).2
@@ -872,7 +872,7 @@ def LRS.TmEq (IH : LogRel Γ n) (M N A : Term) (m a : WShape (n+1)) : Prop :=
     match hm : m.1 with
     | .bot => LRS.ValTySigma2 IH A A ⟨a₁, wfa1⟩ ⟨a₂, wfa2⟩
     | .pair ms mt =>
-      ∃ A₁ A₂ u v, Γ ⊢ A ⤳* .sigma A₁ A₂ : .sort true ∧
+      ∃ A₁ A₂ u v, Γ ⊢ A ⤳* .sigma A₁ A₂ : .type ∧
       Γ ⊢ A₁ : .sort u ∧ IH.TyEq A₁ A₁ ⟨a₁, wfa1⟩ ∧ A₁::Γ ⊢ A₂ : .sort v ∧
       Γ ⊢ .fst M : A₁ ∧ Γ ⊢ .fst N : A₁ ∧
       WShape.HasTypePair ⟨ms, (hm ▸ m.2).1⟩ ⟨mt, (hm ▸ m.2).2.1⟩
@@ -881,7 +881,7 @@ def LRS.TmEq (IH : LogRel Γ n) (M N A : Term) (m a : WShape (n+1)) : Prop :=
       LRS.PairDefEq IH M N A₁ A₂ ⟨ms, (hm ▸ m.2).1⟩ ⟨mt, (hm ▸ m.2).2.1⟩ ⟨a₁, wfa1⟩ ⟨a₂, wfa2⟩
     | _ => False
   | .nat =>
-    Γ ⊢ A ⤳* .nat : .sort true ∧
+    Γ ⊢ A ⤳* .nat : .type ∧
     match hm : m.1 with
     | .bot => True
     | .zero => Γ ⊢ M ⤳* .zero : .nat ∧ Γ ⊢ N ⤳* .zero : .nat
@@ -895,7 +895,7 @@ def LRS.TmEq (IH : LogRel Γ n) (M N A : Term) (m a : WShape (n+1)) : Prop :=
     | .refl sw =>
       have swf : sw.WF := by have h2 := m.2; rw [hm] at h2; exact h2
       ∃ A₁ a₁ b₁ : Term,
-        Γ ⊢ A ⤳* .id A₁ a₁ b₁ : .sort true ∧
+        Γ ⊢ A ⤳* .id A₁ a₁ b₁ : .type ∧
         IH.TyEq A₁ A₁ ⟨aA, wfA⟩ ∧
         IH.TmEq a₁ a₁ A₁ ⟨aa, wfa⟩ ⟨aA, wfA⟩ ∧
         IH.TmEq b₁ b₁ A₁ ⟨ab, wfb⟩ ⟨aA, wfA⟩ ∧
@@ -912,7 +912,7 @@ def LRS.TmEq (IH : LogRel Γ n) (M N A : Term) (m a : WShape (n+1)) : Prop :=
 @[simp] theorem LRS.TmEq.sort_a {Γ : List Term} {n : Nat} {IH : LogRel Γ n}
     {M N A : Term} {m : WShape (n+1)} {r : Bool} :
     LRS.TmEq IH M N A m (.sort r) ↔
-    ∃ u, Γ ⊢ A ⤳* .sort u : .sort true ∧ LRS.TyEq IH M N m := Iff.rfl
+    ∃ u, Γ ⊢ A ⤳* .sort u : .type ∧ LRS.TyEq IH M N m := Iff.rfl
 @[simp] theorem LRS.TmEq.bot_m :
     LRS.TmEq IH M N A .bot (.forallE a₁ a₂) ↔ LRS.ValTyPi2 IH A A a₁ a₂ := by
   show LRS.ValTyPi2 IH _ _ ⟨_, _⟩ ⟨_, _⟩ ↔ _
@@ -949,7 +949,7 @@ def LRS.TmEq (IH : LogRel Γ n) (M N A : Term) (m a : WShape (n+1)) : Prop :=
 @[simp] theorem LRS.TmEq.pair_sigma (IH : LogRel Γ n)
     {ms mt : WShape n} {mh : ¬ms.val ≤ Shape.bot ∨ ¬mt.val ≤ Shape.bot} :
     LRS.TmEq IH M N A (.pair ms mt mh) (.sigma a₁ a₂) ↔
-    (∃ A₁ A₂ u v, Γ ⊢ A ⤳* .sigma A₁ A₂ : .sort true ∧
+    (∃ A₁ A₂ u v, Γ ⊢ A ⤳* .sigma A₁ A₂ : .type ∧
       Γ ⊢ A₁ : .sort u ∧ IH.TyEq A₁ A₁ a₁ ∧ A₁::Γ ⊢ A₂ : .sort v ∧
       Γ ⊢ .fst M : A₁ ∧ Γ ⊢ .fst N : A₁ ∧
       WShape.HasTypePair ms mt a₁ a₂ ∧
@@ -959,14 +959,14 @@ def LRS.TmEq (IH : LogRel Γ n) (M N A : Term) (m a : WShape (n+1)) : Prop :=
     LRS.PairDefEq IH _ _ _ _ ⟨_, _⟩ ⟨_, _⟩ ⟨_, _⟩ ⟨_, _⟩) ↔ _
   simp only [Subtype.eta]
 @[simp] theorem LRS.TmEq.bot_nat {IH : LogRel Γ n} :
-    LRS.TmEq IH M N A .bot .nat ↔ Γ ⊢ A ⤳* .nat : .sort true := by
+    LRS.TmEq IH M N A .bot .nat ↔ Γ ⊢ A ⤳* .nat : .type := by
   simp only [LRS.TmEq, WShape.bot, WShape.nat, and_true]
 @[simp] theorem LRS.TmEq.zero_nat {IH : LogRel Γ n} :
     LRS.TmEq IH M N A .zero .nat ↔
-    Γ ⊢ A ⤳* .nat : .sort true ∧ Γ ⊢ M ⤳* .zero : .nat ∧ Γ ⊢ N ⤳* .zero : .nat := by
+    Γ ⊢ A ⤳* .nat : .type ∧ Γ ⊢ M ⤳* .zero : .nat ∧ Γ ⊢ N ⤳* .zero : .nat := by
   simp only [LRS.TmEq, WShape.zero, WShape.nat]
 @[simp] theorem LRS.TmEq.succ_nat {IH : LogRel Γ n} :
-    LRS.TmEq IH M N A (.succ v) .nat ↔ Γ ⊢ A ⤳* .nat : .sort true ∧
+    LRS.TmEq IH M N A (.succ v) .nat ↔ Γ ⊢ A ⤳* .nat : .type ∧
       ∃ M' N', Γ ⊢ M ⤳* .succ M' : .nat ∧ Γ ⊢ N ⤳* .succ N' : .nat ∧
         Γ ⊢ M' ≡ N' : .nat ∧ IH.TmEqNat M' N' v := by
   show (_ ∧ ∃ _ _, _ ∧ _ ∧ _ ∧ IH.TmEqNat _ _ ⟨_, _⟩) ↔ _; simp only [Subtype.eta]

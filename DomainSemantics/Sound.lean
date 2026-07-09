@@ -1431,7 +1431,7 @@ theorem LE_Interp.sound_sigma
     (H2 : ∀ {a x}, LE_Interp ρ a A → x.HasType a →
       ∀ {e}, LE_Interp (ρ.push x) e B → InterpTyped (ρ.push x) e B (.sort v))
     (h1 : LE_Interp ρ m (A.sigma B)) :
-    InterpTyped ρ m (A.sigma B) (.sort true) := by
+    InterpTyped ρ m (A.sigma B) .type := by
   by_cases hm : m ≤ .bot; · exact TShape.le_bot'.1 hm ▸ .bot
   cases h1 with | bot => cases hm TShape.bot_le' | @sigma _ n b₀ _ b f _ _ h1 h2 h3 h4 h5
   have ⟨a', a1, a2, a3⟩ := H1 h2
@@ -1441,7 +1441,7 @@ theorem LE_Interp.sound_sigma
         (∀ p ∈ fl, WShapeFun.single (p.1.lift k) (p.2.lift k) ≤ f') ∧
         WShape.HasDom f' (b.lift k) ∧
         (∀ x, x.HasType (b.lift k) → LE_Interp (ρ.push x.T) (f'.app x).T B) ∧
-        (∀ x, x.HasType (b.lift k) → (f'.app x).HasType (.sort true)) by
+        (∀ x, x.HasType (b.lift k) → (f'.app x).HasType .type) by
     have ⟨n', le, H⟩ := this f.elems fun p h => by
       have := WShapeFun.mem_elems.1 h
       have ⟨x', hle, hht, happ⟩ := WShape.HasDom.iff.1 h3 p.1
@@ -1494,7 +1494,7 @@ theorem LE_Interp.sound_sigma
     have ⟨k₁, le1, H1⟩ := ih H
     have ⟨x', x'le, hx', happ⟩ := WShape.HasDom.iff.1 h3 p.1
     have ⟨f'x, _, le_e, he', hb', heb'⟩ := H2 h2 hx'.T (h4 x' hx')
-    replace heb' : f'x.HasType (.sort true) :=
+    replace heb' : f'x.HasType .type :=
       (TShape.HasType.mono_r hb'.le_sort .sort heb').toType
     refine ⟨k₁.max f'x.1, Nat.le_trans le1 (Nat.le_max_left ..), fun k le' => ?_⟩
     have ⟨le₁, le₂⟩ := Nat.max_le.1 le'
@@ -1534,7 +1534,7 @@ theorem LE_Interp.sound_id {A a b : Term} {U : Bool}
     (Ha : ∀ {m}, LE_Interp ρ m a → InterpTyped ρ m a A)
     (Hb : ∀ {m}, LE_Interp ρ m b → InterpTyped ρ m b A)
     (h : LE_Interp ρ m (.id A a b)) :
-    InterpTyped ρ m (.id A a b) (.sort true) := by
+    InterpTyped ρ m (.id A a b) .type := by
   by_cases hm : m ≤ .bot; · exact TShape.le_bot'.1 hm ▸ .bot
   cases h with | bot => cases hm TShape.bot_le' | id hA_li ha_li hb_li h_le
   rename_i n0 AV0 aV0 bV0
@@ -1807,7 +1807,7 @@ inductive StrongSound : List Term → Term → Term → Prop where
 `StrongSound`, which is what each sub-derivation actually produces. -/
 inductive StrongSoundCore : List Term → Term → Term → Prop where
   | bvar : Lookup Γ i A → StrongSoundCore Γ (.bvar i) A
-  | sort : StrongSoundCore Γ (.sort l) (.sort true)
+  | sort : StrongSoundCore Γ (.sort l) .type
   | lam : SoundTy Γ A (.sort u) →
     StrongSound (A::Γ) e B → StrongSoundCore Γ (.lam A e) (.forallE A B)
   | app : SoundTy Γ A (.sort u) →
@@ -1816,7 +1816,7 @@ inductive StrongSoundCore : List Term → Term → Term → Prop where
   | forallE : StrongSound Γ A (.sort u) → StrongSound (A::Γ) B (.sort v) →
     StrongSoundCore Γ (.forallE A B) (.sort v)
   | sigma : StrongSound Γ A (.sort u) → StrongSound (A::Γ) B (.sort v) →
-    StrongSoundCore Γ (.sigma A B) (.sort true)
+    StrongSoundCore Γ (.sigma A B) .type
   | unit : StrongSoundCore Γ (.unit r) (.sort r)
   | star : StrongSoundCore Γ (.star r) (.unit r)
   | pair : SoundTy Γ A (.sort u) → SoundTy (A::Γ) B (.sort v) →
@@ -1828,7 +1828,7 @@ inductive StrongSoundCore : List Term → Term → Term → Prop where
   | snd : SoundTy Γ A (.sort u) → SoundTy (A::Γ) B (.sort v) →
     StrongSound Γ p (.sigma A B) →
     StrongSoundCore Γ (.snd p) (B.inst (.fst p))
-  | nat : StrongSoundCore Γ .nat (.sort true)
+  | nat : StrongSoundCore Γ .nat .type
   | zero : StrongSoundCore Γ .zero .nat
   | succ : StrongSound Γ n .nat → StrongSoundCore Γ (.succ n) .nat
   | natCase : StrongSound (.nat::Γ) C (.sort v) →
@@ -1839,7 +1839,7 @@ inductive StrongSoundCore : List Term → Term → Term → Prop where
   | Y : SoundTy Γ A (.sort u) → StrongSound (A::Γ) b A.lift → StrongSoundCore Γ (.Y A b) A
   | id : StrongSound Γ A (.sort u) →
     StrongSound Γ a A → StrongSound Γ b A →
-    StrongSoundCore Γ (.id A a b) (.sort true)
+    StrongSoundCore Γ (.id A a b) .type
   | refl : SoundTy Γ A (.sort u) → StrongSound Γ a A →
     StrongSoundCore Γ (.refl a) (.id A a a)
   | tr : SoundTy Γ A (.sort u) → SoundTy Γ a A → SoundTy Γ b A →
@@ -1900,7 +1900,7 @@ theorem SoundTy.bvar (H : Lookup Γ i A) : SoundTy Γ (.bvar i) A := fun _ _ W _
   cases H with | zero => exact ⟨_, _, a1, .bvar .rfl, h2.weak, h3⟩ | succ h
   have ⟨_, _, le, h1, h2, h3⟩ := ih h a1; exact ⟨_, _, le, h1.weak, h2.weak, h3⟩
 
-theorem SoundTy.nat : SoundTy Γ .nat (.sort true) := fun _ _ _ _ h => by
+theorem SoundTy.nat : SoundTy Γ .nat .type := fun _ _ _ _ h => by
   cases h with | bot => exact .bot | nat h1
   exact .mk h1 .nat' .sort' (.mono_r TShape.sort_eqv.1 .sort WShape.HasType.nat.T)
 

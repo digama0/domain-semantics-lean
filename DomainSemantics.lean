@@ -41,3 +41,7 @@ open DomainSemantics
 -- **Progress**: a closed well-typed term is a value or takes a weak-head step.
 /-- info: 'DomainSemantics.progress' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms progress
+
+-- **Definitional UIP is false**: It is not the case that all proofs of a (proof-relevant) identity are equal.
+/-- info: 'DomainSemantics.not_UIP' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms not_UIP

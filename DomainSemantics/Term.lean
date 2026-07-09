@@ -68,7 +68,10 @@ inductive Term where
   | refl (a : Term)
   | tr (A a b C x h : Term)
 
-instance : Inhabited Term := ⟨.sort false⟩
+abbrev Term.type := Term.sort true
+abbrev Term.prop := Term.sort false
+
+instance : Inhabited Term := ⟨.prop⟩
 
 namespace Term
 
@@ -352,7 +355,7 @@ inductive IsDefEq₀ : List Term → Term → Term → Term → Prop where
   | bvar : Lookup Γ i A → Γ ⊢₀ .bvar i : A
   | symm : Γ ⊢₀ e ≡ e' : A → Γ ⊢₀ e' ≡ e : A
   | trans : Γ ⊢₀ e₁ ≡ e₂ : A → Γ ⊢₀ e₂ ≡ e₃ : A → Γ ⊢₀ e₁ ≡ e₃ : A
-  | sort : Γ ⊢₀ .sort l : .sort true
+  | sort : Γ ⊢₀ .sort l : .type
   | unit : Γ ⊢₀ .unit r : .sort r
   | star : Γ ⊢₀ .star r : .unit r
   | appDF : Γ ⊢₀ f ≡ f' : .forallE A B → Γ ⊢₀ a ≡ a' : A →
@@ -362,7 +365,7 @@ inductive IsDefEq₀ : List Term → Term → Term → Term → Prop where
   | forallEDF : Γ ⊢₀ A ≡ A' : .sort u → A::Γ ⊢₀ body ≡ body' : .sort v →
     Γ ⊢₀ .forallE A body ≡ .forallE A' body' : .sort v
   | sigmaDF : Γ ⊢₀ A ≡ A' : .sort u → A::Γ ⊢₀ B ≡ B' : .sort v →
-    Γ ⊢₀ .sigma A B ≡ .sigma A' B' : .sort true
+    Γ ⊢₀ .sigma A B ≡ .sigma A' B' : .type
   | pairDF : Γ ⊢₀ A ≡ A' : .sort u → A::Γ ⊢₀ B ≡ B' : .sort v →
     Γ ⊢₀ a ≡ a' : A → Γ ⊢₀ b ≡ b' : B.inst a →
     Γ ⊢₀ .pair A B a b ≡ .pair A' B' a' b' : .sigma A B
@@ -382,7 +385,7 @@ inductive IsDefEq₀ : List Term → Term → Term → Term → Prop where
     Γ ⊢₀ .snd (.pair A B a b) ≡ b : B.inst a
   | fst_snd : Γ ⊢₀ p : .sigma A B →
     Γ ⊢₀ .pair A B (.fst p) (.snd p) ≡ p : .sigma A B
-  | nat : Γ ⊢₀ .nat : .sort true
+  | nat : Γ ⊢₀ .nat : .type
   | zero : Γ ⊢₀ .zero : .nat
   | succDF : Γ ⊢₀ n ≡ n' : .nat → Γ ⊢₀ .succ n ≡ .succ n' : .nat
   | natCaseDF :
@@ -408,7 +411,7 @@ inductive IsDefEq₀ : List Term → Term → Term → Term → Prop where
     Γ ⊢₀ .Y A b ≡ b.inst (.Y A b) : A
   | idDF : Γ ⊢₀ A ≡ A' : .sort u →
     Γ ⊢₀ a ≡ a' : A → Γ ⊢₀ b ≡ b' : A →
-    Γ ⊢₀ .id A a b ≡ .id A' a' b' : .sort true
+    Γ ⊢₀ .id A a b ≡ .id A' a' b' : .type
   | reflDF : Γ ⊢₀ a ≡ a' : A → Γ ⊢₀ .refl a ≡ .refl a' : .id A a a
   | trDF : Γ ⊢₀ A ≡ A' : .sort u →
     Γ ⊢₀ a ≡ a' : A → Γ ⊢₀ b ≡ b' : A →
@@ -417,7 +420,7 @@ inductive IsDefEq₀ : List Term → Term → Term → Term → Prop where
     Γ ⊢₀ .tr A a b C x h ≡ .tr A' a' b' C' x' h' : C.inst b
   | tr_refl : Γ ⊢₀ a : A → A::Γ ⊢₀ C : .sort v → Γ ⊢₀ x : C.inst a →
     Γ ⊢₀ .tr A a a C x (.refl a) ≡ x : C.inst a
-  | proofIrrel : Γ ⊢₀ p : .sort false → Γ ⊢₀ h : p → Γ ⊢₀ h' : p → Γ ⊢₀ h ≡ h' : p
+  | proofIrrel : Γ ⊢₀ p : .prop → Γ ⊢₀ h : p → Γ ⊢₀ h' : p → Γ ⊢₀ h ≡ h' : p
 
 end
 
@@ -451,7 +454,7 @@ inductive IsDefEq : List Term → Term → Term → Term → Prop where
   | trans : Γ ⊢ e₁ ≡ e₂ : A → Γ ⊢ e₂ ≡ e₃ : A → Γ ⊢ e₁ ≡ e₃ : A
   /-- Heterogeneous transitivity: middle term may be at a different sort. -/
   | trans' : Γ ⊢ A ≡ B : .sort u → Γ ⊢ B ≡ C : .sort v → Γ ⊢ A ≡ C : .sort u
-  | sort : Γ ⊢ .sort l : .sort true
+  | sort : Γ ⊢ .sort l : .type
   | unit : Γ ⊢ .unit r : .sort r
   | star : Γ ⊢ .star r : .unit r
   | appDF : Γ ⊢ A : .sort u → A::Γ ⊢ B : .sort v →
@@ -467,12 +470,12 @@ inductive IsDefEq : List Term → Term → Term → Term → Prop where
     Γ ⊢ .forallE A body ≡ .forallE A' body' : .sort v
   | sigmaDF : Γ ⊢ A ≡ A' : .sort u →
     A::Γ ⊢ B ≡ B' : .sort v → A'::Γ ⊢ B ≡ B' : .sort v →
-    Γ ⊢ .sigma A B ≡ .sigma A' B' : .sort true
+    Γ ⊢ .sigma A B ≡ .sigma A' B' : .type
   | pairDF : Γ ⊢ A ≡ A' : .sort u →
     A::Γ ⊢ B ≡ B' : .sort v → A'::Γ ⊢ B ≡ B' : .sort v →
     Γ ⊢ a ≡ a' : A → Γ ⊢ b ≡ b' : B.inst a →
     Γ ⊢ B.inst a ≡ B'.inst a' : .sort v →
-    Γ ⊢ .sigma A B : .sort true →
+    Γ ⊢ .sigma A B : .type →
     Γ ⊢ .pair A B a b ≡ .pair A' B' a' b' : .sigma A B
   | fstDF : Γ ⊢ A : .sort u → A::Γ ⊢ B : .sort v →
     Γ ⊢ p ≡ p' : .sigma A B →
@@ -499,7 +502,7 @@ inductive IsDefEq : List Term → Term → Term → Term → Prop where
   | fst_snd : Γ ⊢ p : .sigma A B →
     Γ ⊢ .pair A B (.fst p) (.snd p) : .sigma A B →
     Γ ⊢ .pair A B (.fst p) (.snd p) ≡ p : .sigma A B
-  | nat : Γ ⊢ .nat : .sort true
+  | nat : Γ ⊢ .nat : .type
   | zero : Γ ⊢ .zero : .nat
   | succDF : Γ ⊢ n ≡ n' : .nat → Γ ⊢ .succ n ≡ .succ n' : .nat
   | natCaseDF :
@@ -531,22 +534,22 @@ inductive IsDefEq : List Term → Term → Term → Term → Prop where
     Γ ⊢ .Y A b ≡ b.inst (.Y A b) : A
   | idDF : Γ ⊢ A ≡ A' : .sort u →
     Γ ⊢ a ≡ a' : A → Γ ⊢ b ≡ b' : A →
-    Γ ⊢ .id A a b ≡ .id A' a' b' : .sort true
+    Γ ⊢ .id A a b ≡ .id A' a' b' : .type
   | reflDF : Γ ⊢ A : .sort u → Γ ⊢ a ≡ a' : A →
-    Γ ⊢ .id A a a : .sort true →
+    Γ ⊢ .id A a a : .type →
     Γ ⊢ .refl a ≡ .refl a' : .id A a a
   | trDF : Γ ⊢ A ≡ A' : .sort u →
     Γ ⊢ a ≡ a' : A → Γ ⊢ b ≡ b' : A →
     A::Γ ⊢ C ≡ C' : .sort v → A'::Γ ⊢ C ≡ C' : .sort v →
     Γ ⊢ x ≡ x' : C.inst a → Γ ⊢ h ≡ h' : .id A a b →
     Γ ⊢ C.inst b ≡ C'.inst b' : .sort v →
-    Γ ⊢ .id A a b : .sort true →
+    Γ ⊢ .id A a b : .type →
     Γ ⊢ .tr A a b C x h ≡ .tr A' a' b' C' x' h' : C.inst b
   | tr_refl : Γ ⊢ A : .sort u → Γ ⊢ a : A →
     A::Γ ⊢ C : .sort v → Γ ⊢ x : C.inst a →
     Γ ⊢ .tr A a a C x (.refl a) : C.inst a →
     Γ ⊢ .tr A a a C x (.refl a) ≡ x : C.inst a
-  | proofIrrel : Γ ⊢ p : .sort false → Γ ⊢ h : p → Γ ⊢ h' : p → Γ ⊢ h ≡ h' : p
+  | proofIrrel : Γ ⊢ p : .prop → Γ ⊢ h : p → Γ ⊢ h' : p → Γ ⊢ h ≡ h' : p
 end
 scoped notation:65 Γ " ⊢ " e1 " : " A:36 => IsDefEq Γ e1 e1 A
 scoped notation:65 Γ " ⊢ " e1 " ≡ " e2 " : " A:36 => IsDefEq Γ e1 e2 A
@@ -1060,7 +1063,7 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
       rwa [show (B.inst a).subst σ = (B.subst σ.lift).inst (a.subst σ) from subst_inst,
            show (B'.inst a').subst σ = (B'.subst σ.lift).inst (a'.subst σ) from subst_inst] at this
     have sigma_r_to_l : Γ₀ ⊢ Term.sigma (A'.subst σ) (B'.subst σ.lift) ≡
-        Term.sigma (A.subst σ) (B.subst σ.lift) : .sort true :=
+        Term.sigma (A.subst σ) (B.subst σ.lift) : .type :=
       .sigmaDF (v := v) hAA'_σ.symm
         ((ih3 hΓ_A'_subst W_A'.left).2.2).symm
         ((ih2 hΓ_A_subst W_A.left).2.2).symm
@@ -1301,17 +1304,17 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
     let ⟨iha_l, iha_r, iha_c⟩ := ih2 hΓ₀ W
     have ⟨_, _, iha_cleft⟩ := ih2 hΓ₀ W.left
     have ihA_σ : Γ₀ ⊢ A.subst σ : .sort u := (ih1 hΓ₀ W).1.hasType.1
-    have ih_id_σ : Γ₀ ⊢ (Term.id A a a).subst σ : .sort true := (ih3 hΓ₀ W).1.hasType.1
+    have ih_id_σ : Γ₀ ⊢ (Term.id A a a).subst σ : .type := (ih3 hΓ₀ W).1.hasType.1
     have res_l : Γ₀ ⊢ (Term.refl a).subst σ ≡ (Term.refl a).subst τ : (Term.id A a a).subst σ :=
       .reflDF ihA_σ iha_l ih_id_σ
-    have ih_id_a'σ : Γ₀ ⊢ Term.id (A.subst σ) (a'.subst σ) (a'.subst σ) : .sort true :=
+    have ih_id_a'σ : Γ₀ ⊢ Term.id (A.subst σ) (a'.subst σ) (a'.subst σ) : .type :=
       (IsDefEq.idDF (A := A.subst σ) (A' := A.subst σ)
         ihA_σ iha_r.hasType.1 iha_r.hasType.1).hasType.1
     have res_r_natural : Γ₀ ⊢ (Term.refl a').subst σ ≡ (Term.refl a').subst τ :
         Term.id (A.subst σ) (a'.subst σ) (a'.subst σ) :=
       .reflDF ihA_σ iha_r ih_id_a'σ
     have id_r_to_l : Γ₀ ⊢ Term.id (A.subst σ) (a'.subst σ) (a'.subst σ) ≡
-        Term.id (A.subst σ) (a.subst σ) (a.subst σ) : .sort true :=
+        Term.id (A.subst σ) (a.subst σ) (a.subst σ) : .type :=
       .idDF ihA_σ iha_cleft.symm iha_cleft.symm
     have res_r : Γ₀ ⊢ (Term.refl a').subst σ ≡ (Term.refl a').subst τ :
         (Term.id A a a).subst σ :=
@@ -1363,7 +1366,7 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
         (C'.subst σ.lift).inst (b'.subst σ) : .sort v := by
       simpa [subst_inst] using (ih7 hΓ₀ W.left).2.2
     let ⟨ih_id_l, _, _⟩ := ih8 hΓ₀ W
-    have hId_l : Γ₀ ⊢ .id (A.subst σ) (a.subst σ) (b.subst σ) : .sort true :=
+    have hId_l : Γ₀ ⊢ .id (A.subst σ) (a.subst σ) (b.subst σ) : .type :=
       .idDF ihA_l.hasType.1 iha_l.hasType.1 ihb_l.hasType.1
     have W_A'_τ : Ctx.SubstEq (A'.subst τ :: Γ₀) σ.lift τ.lift (A' :: Γ) :=
       W.lift_at hA'_in_Γ hA'_τ ihA_r
@@ -1410,12 +1413,12 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
         (C'.subst σ.lift).inst (a'.subst σ) :=
       .defeqDF hCa'_C_to_C' (.defeqDF hC_a_to_a' ihx_r)
     have hId_r_iff : Γ₀ ⊢ Term.id (A.subst σ) (a.subst σ) (b.subst σ) ≡
-        Term.id (A'.subst σ) (a'.subst σ) (b'.subst σ) : .sort true :=
+        Term.id (A'.subst σ) (a'.subst σ) (b'.subst σ) : .type :=
       .idDF hAA'_σ ((ih2 hΓ₀ W.left).2.2) ((ih3 hΓ₀ W.left).2.2)
     have ihh_r_at_A' : Γ₀ ⊢ h'.subst σ ≡ h'.subst τ :
         Term.id (A'.subst σ) (a'.subst σ) (b'.subst σ) :=
       .defeqDF hId_r_iff ihh_r
-    have hId_r : Γ₀ ⊢ .id (A'.subst σ) (a'.subst σ) (b'.subst σ) : .sort true :=
+    have hId_r : Γ₀ ⊢ .id (A'.subst σ) (a'.subst σ) (b'.subst σ) : .type :=
       .idDF ihA_r.hasType.1 iha_r_at_A'σ.hasType.1 ihb_r_at_A'σ.hasType.1
     have res_r_natural : Γ₀ ⊢ (Term.tr A' a' b' C' x' h').subst σ ≡
         (Term.tr A' a' b' C' x' h').subst τ : (C'.subst σ.lift).inst (b'.subst σ) := by
@@ -1713,7 +1716,7 @@ theorem IsDefEq.eta₀ {Γ e A B} (hΓ : ⊢ Γ) (he : Γ ⊢ e : .forallE A B) 
 
 theorem IsDefEq.sigmaDF₀ (hΓ : ⊢ Γ)
     (hA : Γ ⊢ A ≡ A' : .sort u) (hB : A::Γ ⊢ B ≡ B' : .sort v) :
-    Γ ⊢ .sigma A B ≡ .sigma A' B' : .sort true :=
+    Γ ⊢ .sigma A B ≡ .sigma A' B' : .type :=
   .sigmaDF hA hB (hA.defeqDF_l hΓ hB)
 
 theorem IsDefEq.pairDF₀ (hΓ : ⊢ Γ)
@@ -1819,7 +1822,7 @@ theorem IsDefEq.tr_refl₀ (hΓ : ⊢ Γ)
     (ha : Γ ⊢ a : A) (hC : A::Γ ⊢ C : .sort v) (hx : Γ ⊢ x : C.inst a) :
     Γ ⊢ .tr A a a C x (.refl a) ≡ x : C.inst a := by
   let ⟨_, hA⟩ := ha.isType hΓ
-  have h_id_aa : Γ ⊢ .id A a a : .sort true := .idDF hA ha ha
+  have h_id_aa : Γ ⊢ .id A a a : .type := .idDF hA ha ha
   exact .tr_refl hA ha hC hx
     (.trDF hA ha ha hC hC hx (.reflDF hA ha h_id_aa) (.instDF hΓ hA .sort hC ha) h_id_aa)
 

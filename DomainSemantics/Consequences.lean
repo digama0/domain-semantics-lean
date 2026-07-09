@@ -39,7 +39,7 @@ prove `HasType.uniq` and ultimately `IsDefEq.uniq_sort`.
 -/
 inductive HasType : List Term → Term → Term → Bool → Prop where
   | bvar : Lookup Γ i A → Γ ⊢ A : .sort u → Γ ⊨ .bvar i :! A
-  | sort' : Γ ⊨ .sort l :! .sort true
+  | sort' : Γ ⊨ .sort l :! .type
   | unit : Γ ⊨ .unit r :! .sort r
   | star : Γ ⊨ .star r :! .unit r
   | app :
@@ -54,7 +54,7 @@ inductive HasType : List Term → Term → Term → Bool → Prop where
     Γ ⊨ .forallE A body :! .sort v
   | sigma :
     Γ ⊨ A : .sort u → A::Γ ⊨ body : .sort v →
-    Γ ⊨ .sigma A body :! .sort true
+    Γ ⊨ .sigma A body :! .type
   | pair :
     Γ ⊢ A : .sort u → A::Γ ⊢ B : .sort v →
     Γ ⊢ B.inst a : .sort v →
@@ -69,7 +69,7 @@ inductive HasType : List Term → Term → Term → Bool → Prop where
     Γ ⊢ B.inst (.fst p) : .sort v →
     Γ ⊨ p : .sigma A B →
     Γ ⊨ .snd p :! B.inst (.fst p)
-  | nat : Γ ⊨ .nat :! .sort true
+  | nat : Γ ⊨ .nat :! .type
   | zero : Γ ⊨ .zero :! .nat
   | succ : Γ ⊨ n : .nat → Γ ⊨ .succ n :! .nat
   | natCase :
@@ -80,7 +80,7 @@ inductive HasType : List Term → Term → Term → Bool → Prop where
   | Y : Γ ⊨ A : .sort u → A::Γ ⊨ body : A.lift → Γ ⊨ .Y A body :! A
   | id :
     Γ ⊨ A : .sort u → Γ ⊨ a : A → Γ ⊨ b : A →
-    Γ ⊨ .id A a b :! .sort true
+    Γ ⊨ .id A a b :! .type
   | refl :
     Γ ⊨ A : .sort u → Γ ⊨ a : A →
     Γ ⊨ .refl a :! .id A a a
@@ -340,7 +340,7 @@ theorem IsDefEq.toHasType {Γ : List Term} {e₁ e₂ A : Term}
     refine .base (.id (ih_A hΓ).2 (.defeq HA (ih_a hΓ).2) (.defeq HA (ih_b hΓ).2))
   | @reflDF Γ A u a a' HA Ha HId ih_A ih_a ih_Id =>
     refine ⟨.base (.refl (ih_A hΓ).1 (ih_a hΓ).1), ?_⟩
-    have h_Aa_eq_Aa' : Γ ⊢ Term.id A a a ≡ Term.id A a' a' : .sort true :=
+    have h_Aa_eq_Aa' : Γ ⊢ Term.id A a a ≡ Term.id A a' a' : .type :=
       .idDF HA.hasType.1 Ha Ha
     exact .defeq h_Aa_eq_Aa'.symm (.base (.refl (ih_A hΓ).1 (ih_a hΓ).2))
   | @trDF Γ A A' u a a' b b' C C' v x x' h h' HA Ha Hb HC HC' Hx Hh HCb H_id
@@ -530,14 +530,14 @@ theorem IsDefEq.trans_r (hΓ : ⊢ Γ)
   exact eq.defeqDF H |>.trans h2
 
 theorem IsDefEq.to_sigma_type (hΓ : ⊢ Γ)
-    (H : Γ ⊢ e ≡ Term.sigma A B : .sort w) : Γ ⊢ e ≡ Term.sigma A B : .sort true := by
+    (H : Γ ⊢ e ≡ Term.sigma A B : .sort w) : Γ ⊢ e ≡ Term.sigma A B : .type := by
   have ⟨⟨_, h1⟩, _, h2⟩ := H.sigma_inv' hΓ (.inr rfl)
   exact H.trans_r hΓ (h1.sigmaDF₀ hΓ h2)
 
 /-- Any definitional equality to an Id-type is at sort `true` (the Id-type's
 structural sort), by type-uniqueness. Mirrors `to_sigma_type`. -/
 theorem IsDefEq.to_id_type (hΓ : ⊢ Γ)
-    (H : Γ ⊢ e ≡ Term.id A a b : .sort w) : Γ ⊢ e ≡ Term.id A a b : .sort true := by
+    (H : Γ ⊢ e ≡ Term.id A a b : .sort w) : Γ ⊢ e ≡ Term.id A a b : .type := by
   have ⟨⟨_, h1⟩, h2, h3⟩ := H.id_inv' hΓ (.inr rfl)
   exact H.trans_r hΓ (h1.idDF h2 h3)
 
@@ -848,7 +848,7 @@ to an Id-type. -/
 theorem Value.id_r (hΓ : ⊢ Γ) (hv : Value f) (h : Γ ⊢ f : .id A a b) :
     ∃ a', f = .refl a' := by
   have H := (h.toHasType hΓ).1
-  have no : ∀ {T}, Γ ⊨ f : T → ¬(Γ ⊢ T ≡ .id A a b : .sort true) → ∃ a', f = .refl a' :=
+  have no : ∀ {T}, Γ ⊨ f : T → ¬(Γ ⊢ T ≡ .id A a b : .type) → ∃ a', f = .refl a' :=
     fun H2 hd => let ⟨_, eq⟩ := H.uniq hΓ H2; (hd (eq.symm.to_id_type hΓ)).elim
   cases hv with
   | refl => exact ⟨_, rfl⟩
@@ -941,3 +941,15 @@ theorem progress {e : Term} : ∀ {A}, [] ⊢ e : A → Value e ∨ ∃ e', e �
 /-- Progress for the standard judgment `IsDefEq₀`. -/
 theorem progress' {e A : Term} (h : [] ⊢₀ e : A) : Value e ∨ ∃ e', e ⤳ e' :=
   progress ((IsDefEq.iff (Γ := []) trivial).2 h)
+
+/-- Definitional UIP (uniqueness of identity proofs) is disprovable.
+(Propositional UIP is not, since this model can never disprove type inhabitation,
+and indeed with Type : Type every type is inhabited.) -/
+theorem not_UIP (uip : ∀ {Γ A M h}, Γ ⊢ h : .id A M M → Γ ⊢ h ≡ .refl M : .id A M M) : False := by
+  let Γ := [Term.id .type .type .type]
+  refine have hA := .idDF .sort .sort .sort; have hΓ : ⊢ Γ := ⟨⟨⟩, _, hA⟩; ?_
+  specialize @uip Γ .type .type _ (.bvar₀ hΓ .zero)
+  let ρ := Valuation.nil.push (WShape.T (n := 1) (.refl .bot))
+  have W : ρ.Fits [] Γ := .cons .nil (InterpTyped.hsort (LE_Interp.sound hA .nil).2)
+    (.id .sort' .sort' .sort' .rfl) rfl
+  cases LE_Interp.bvar_iff.1 <| (LE_Interp.sound uip W).1.2 (.refl .sort' .rfl)
