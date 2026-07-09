@@ -45,7 +45,8 @@ universe `Type`, `false` ↦ proof-irrelevant universe `Prop`), and binders
 the eliminators `fst`/`snd`. The natural numbers `nat` come with constructors
 `zero` and `succ` and a dependent eliminator `natCase C M a b` whose motive `C`
 and succ-branch `b` are binders (single-variable abstractions, not functions).
-Well-typed terms are carved out by `IsDefEq` below. -/
+Identity types `id A a b` come with introduction `refl a` and the transport
+eliminator `tr C x h`. Well-typed terms are carved out by `IsDefEq` below. -/
 inductive Term where
   | bvar (i : Nat)
   | sort (u : Bool)
@@ -63,6 +64,9 @@ inductive Term where
   | succ (n : Term)
   | natCase (C M a b : Term)
   | Y (A b : Term)
+  | id (A a b : Term)
+  | refl (a : Term)
+  | tr (A a b C x h : Term)
 
 instance : Inhabited Term := ⟨.sort false⟩
 
@@ -88,6 +92,10 @@ lift is extended with `Lift.cons` so that the bound variable is pinned. -/
   | .succ n, k => .succ (n.lift' k)
   | .natCase C M a b, k => .natCase (C.lift' k.cons) (M.lift' k) (a.lift' k) (b.lift' k.cons)
   | .Y ty body, k => .Y (ty.lift' k) (body.lift' k.cons)
+  | .id A a b, k => .id (A.lift' k) (a.lift' k) (b.lift' k)
+  | .refl a, k => .refl (a.lift' k)
+  | .tr A a b C x h, k =>
+    .tr (A.lift' k) (a.lift' k) (b.lift' k) (C.lift' k.cons) (x.lift' k) (h.lift' k)
 
 /-- Shorthand for the single-skip lift `lift' e (skip refl)`, i.e. the
 weakening that bumps every free index by one. -/
@@ -181,6 +189,10 @@ def Term.subst : Term → Subst → Term
   | .succ n, σ => .succ (n.subst σ)
   | .natCase C M a b, σ => .natCase (C.subst σ.lift) (M.subst σ) (a.subst σ) (b.subst σ.lift)
   | .Y ty body, σ => .Y (ty.subst σ) (body.subst σ.lift)
+  | .id A a b, σ => .id (A.subst σ) (a.subst σ) (b.subst σ)
+  | .refl a, σ => .refl (a.subst σ)
+  | .tr A a b C x h, σ =>
+    .tr (A.subst σ) (a.subst σ) (b.subst σ) (C.subst σ.lift) (x.subst σ) (h.subst σ)
 
 @[simp] theorem id_lift : Subst.id.lift = Subst.id := by funext i; cases i <;> rfl
 
@@ -394,6 +406,17 @@ inductive IsDefEq₀ : List Term → Term → Term → Term → Prop where
     Γ ⊢₀ .Y A b ≡ .Y A' b' : A
   | Y_unfold : Γ ⊢₀ A : .sort u → A::Γ ⊢₀ b : A.lift →
     Γ ⊢₀ .Y A b ≡ b.inst (.Y A b) : A
+  | idDF : Γ ⊢₀ A ≡ A' : .sort u →
+    Γ ⊢₀ a ≡ a' : A → Γ ⊢₀ b ≡ b' : A →
+    Γ ⊢₀ .id A a b ≡ .id A' a' b' : .sort true
+  | reflDF : Γ ⊢₀ a ≡ a' : A → Γ ⊢₀ .refl a ≡ .refl a' : .id A a a
+  | trDF : Γ ⊢₀ A ≡ A' : .sort u →
+    Γ ⊢₀ a ≡ a' : A → Γ ⊢₀ b ≡ b' : A →
+    A::Γ ⊢₀ C ≡ C' : .sort v → A'::Γ ⊢₀ C ≡ C' : .sort v →
+    Γ ⊢₀ x ≡ x' : C.inst a → Γ ⊢₀ h ≡ h' : .id A a b →
+    Γ ⊢₀ .tr A a b C x h ≡ .tr A' a' b' C' x' h' : C.inst b
+  | tr_refl : Γ ⊢₀ a : A → A::Γ ⊢₀ C : .sort v → Γ ⊢₀ x : C.inst a →
+    Γ ⊢₀ .tr A a a C x (.refl a) ≡ x : C.inst a
   | proofIrrel : Γ ⊢₀ p : .sort false → Γ ⊢₀ h : p → Γ ⊢₀ h' : p → Γ ⊢₀ h ≡ h' : p
 
 end
@@ -506,6 +529,23 @@ inductive IsDefEq : List Term → Term → Term → Term → Prop where
   | Y_unfold : Γ ⊢ A : .sort u → A::Γ ⊢ b : A.lift →
     Γ ⊢ .Y A b : A → Γ ⊢ b.inst (.Y A b) : A →
     Γ ⊢ .Y A b ≡ b.inst (.Y A b) : A
+  | idDF : Γ ⊢ A ≡ A' : .sort u →
+    Γ ⊢ a ≡ a' : A → Γ ⊢ b ≡ b' : A →
+    Γ ⊢ .id A a b ≡ .id A' a' b' : .sort true
+  | reflDF : Γ ⊢ A : .sort u → Γ ⊢ a ≡ a' : A →
+    Γ ⊢ .id A a a : .sort true →
+    Γ ⊢ .refl a ≡ .refl a' : .id A a a
+  | trDF : Γ ⊢ A ≡ A' : .sort u →
+    Γ ⊢ a ≡ a' : A → Γ ⊢ b ≡ b' : A →
+    A::Γ ⊢ C ≡ C' : .sort v → A'::Γ ⊢ C ≡ C' : .sort v →
+    Γ ⊢ x ≡ x' : C.inst a → Γ ⊢ h ≡ h' : .id A a b →
+    Γ ⊢ C.inst b ≡ C'.inst b' : .sort v →
+    Γ ⊢ .id A a b : .sort true →
+    Γ ⊢ .tr A a b C x h ≡ .tr A' a' b' C' x' h' : C.inst b
+  | tr_refl : Γ ⊢ A : .sort u → Γ ⊢ a : A →
+    A::Γ ⊢ C : .sort v → Γ ⊢ x : C.inst a →
+    Γ ⊢ .tr A a a C x (.refl a) : C.inst a →
+    Γ ⊢ .tr A a a C x (.refl a) ≡ x : C.inst a
   | proofIrrel : Γ ⊢ p : .sort false → Γ ⊢ h : p → Γ ⊢ h' : p → Γ ⊢ h ≡ h' : p
 end
 scoped notation:65 Γ " ⊢ " e1 " : " A:36 => IsDefEq Γ e1 e1 A
@@ -582,6 +622,18 @@ theorem IsDefEq.weak' (W : Ctx.Lift' ρ Γ Γ') (H : Γ ⊢ e1 ≡ e2 : A) :
   | @Y_unfold _ A _ b _ _ _ _ ih1 ih2 ih3 ih4 =>
     rw [lift'_inst_hi]
     exact .Y_unfold (ih1 W) (lift_lift' ▸ ih2 W.cons) (ih3 W) (lift'_inst_hi b (.Y A b) ρ ▸ ih4 W)
+  | idDF _ _ _ ih1 ih2 ih3 => exact .idDF (ih1 W) (ih2 W) (ih3 W)
+  | @reflDF _ A u a a' _ _ _ ih1 ih2 ih3 => exact .reflDF (ih1 W) (ih2 W) (ih3 W)
+  | @trDF _ A A' u a a' b b' C C' v x x' h h' _ _ _ _ _ _ _ _ _
+      ih1 ih2 ih3 ih4 ih4' ih5 ih6 ih7 ih8 =>
+    refine lift'_inst_hi C b ρ ▸ .trDF (ih1 W) (ih2 W) (ih3 W) (ih4 W.cons) (ih4' W.cons) ?_
+      (ih6 W) ?_ (ih8 W)
+    · exact lift'_inst_hi C a ρ ▸ ih5 W
+    · exact lift'_inst_hi C b ρ ▸ lift'_inst_hi C' b' ρ ▸ ih7 W
+  | @tr_refl _ A u a C v x _ _ _ _ _ ih1 ih2 ih3 ih4 ih5 =>
+    refine lift'_inst_hi C a ρ ▸ .tr_refl (ih1 W) (ih2 W) (ih3 W.cons) ?_ ?_
+    · exact lift'_inst_hi C a ρ ▸ ih4 W
+    · exact lift'_inst_hi C a ρ ▸ ih5 W
   | proofIrrel _ _ _ ih1 ih2 ih3 => exact .proofIrrel (ih1 W) (ih2 W) (ih3 W)
 
 theorem IsDefEq.hasType (H : Γ ⊢ e1 ≡ e2 : A) : Γ ⊢ e1 : A ∧ Γ ⊢ e2 : A :=
@@ -634,6 +686,10 @@ theorem IsDefEq.isType (hΓ : ⊢ Γ) (H : Γ ⊢ e1 ≡ e2 : A) : ∃ u, Γ ⊢
   | natCase_succ _ _ _ _ _ _ _ _ _ _ _ ih6 => exact ih6 hΓ
   | YDF hA _ _ _ _ _ => exact ⟨_, hA.hasType.1⟩
   | Y_unfold hA _ _ _ _ _ _ _ => exact ⟨_, hA⟩
+  | idDF _ _ _ _ _ _ => exact ⟨_, .sort⟩
+  | reflDF _ _ h3 _ _ _ => exact ⟨_, h3⟩
+  | trDF _ _ _ _ _ _ _ h8 _ _ _ _ _ _ _ _ _ _ => exact ⟨_, h8.hasType.1⟩
+  | tr_refl _ _ _ _ _ _ _ _ _ ih5 => exact ih5 hΓ
   | proofIrrel h1 _ _ _ _ _ => exact ⟨_, h1⟩
 
 theorem Subst.lift_r_tail {σ : Subst} {ρ : Lift} :
@@ -998,38 +1054,28 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
       have := ihBinst_c_raw
       rwa [show (B.inst a).subst σ = (B.subst σ.lift).inst (a.subst σ) from subst_inst,
            show (B'.inst a').subst τ = (B'.subst τ.lift).inst (a'.subst τ) from subst_inst] at this
-    -- For the r conjunct, we also need the equality at σ between (B'.σ.lift).inst (a'.σ)
-    -- and (B.σ.lift).inst (a.σ) to convert pair r's natural type.
     have ihBinst_cleft : Γ₀ ⊢ (B.subst σ.lift).inst (a.subst σ) ≡
         (B'.subst σ.lift).inst (a'.subst σ) : .sort v := by
       have := (ih6 hΓ₀ W.left).2.2
       rwa [show (B.inst a).subst σ = (B.subst σ.lift).inst (a.subst σ) from subst_inst,
            show (B'.inst a').subst σ = (B'.subst σ.lift).inst (a'.subst σ) from subst_inst] at this
-    -- Sigma-type equality: .sigma (A'.σ) (B'.σ.lift) ≡ .sigma (A.σ) (B.σ.lift) for r conjunct conversion.
     have sigma_r_to_l : Γ₀ ⊢ Term.sigma (A'.subst σ) (B'.subst σ.lift) ≡
         Term.sigma (A.subst σ) (B.subst σ.lift) : .sort true :=
       .sigmaDF (v := v) hAA'_σ.symm
         ((ih3 hΓ_A'_subst W_A'.left).2.2).symm
         ((ih2 hΓ_A_subst W_A.left).2.2).symm
-    -- Convert primed-side IHs to primed types for the r conjunct.
     have iha_r_at_A'σ : Γ₀ ⊢ a'.subst σ ≡ a'.subst τ : A'.subst σ :=
       .defeqDF hAA'_σ iha_r
     have ihb_r_at_A'B' : Γ₀ ⊢ b'.subst σ ≡ b'.subst τ : (B'.subst σ.lift).inst (a'.subst σ) :=
       .defeqDF ihBinst_cleft ihb_r
-    -- Conjunct l: build via .pairDF with diagonal premises.
-    have hSigma_l : Γ₀ ⊢ .sigma (A.subst σ) (B.subst σ.lift) ≡ .sigma (A.subst σ) (B.subst σ.lift) : .sort true :=
-      .sigmaDF ihA_l.hasType.1 ihB_l.hasType.1 ihB_l.hasType.1
-    have hSigma_r : Γ₀ ⊢ .sigma (A'.subst σ) (B'.subst σ.lift) ≡ .sigma (A'.subst σ) (B'.subst σ.lift) : .sort true :=
-      .sigmaDF ihA_r.hasType.1 ihB'_r.hasType.1 ihB'_r.hasType.1
+    have hSigma_l := ihA_l.hasType.1.sigmaDF ihB_l.hasType.1 ihB_l.hasType.1
+    have hSigma_r := ihA_r.hasType.1.sigmaDF ihB'_r.hasType.1 ihB'_r.hasType.1
     have res_l : Γ₀ ⊢ (Term.pair A B a b).subst σ ≡ (Term.pair A B a b).subst τ :
         (Term.sigma A B).subst σ :=
       .pairDF ihA_l ihB_l ihB_l_at_Aτ iha_l ihb_l ihBinst_l hSigma_l
-    -- Conjunct c: build via .pairDF with cross-conjuncts.
     have res_c : Γ₀ ⊢ (Term.pair A B a b).subst σ ≡ (Term.pair A' B' a' b').subst τ :
         (Term.sigma A B).subst σ :=
       .pairDF ihA_c ihB_c ihB_c_at_A'τ iha_c ihb_c ihBinst_c hSigma_l
-    -- Conjunct r: build via .pairDF with A'/B'/a'/b' premises (natural type .sigma (A'.σ) (B'.σ.lift)),
-    -- then convert to .sigma (A.σ) (B.σ.lift) via defeqDF.
     have res_r_natural : Γ₀ ⊢ (Term.pair A' B' a' b').subst σ ≡ (Term.pair A' B' a' b').subst τ :
         Term.sigma (A'.subst σ) (B'.subst σ.lift) :=
       .pairDF ihA_r ihB'_r ihB'_r_at_A'τ iha_r_at_A'σ ihb_r_at_A'B' ihBinst_r hSigma_r
@@ -1055,7 +1101,6 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
       (ih2 hΓ_A_σ W_A_diag).1
     have ⟨ihp_l, ihp_r, ihp_c⟩ := ih3 hΓ₀ W
     have ⟨_, _, ihp_cleft⟩ := ih3 hΓ₀ W.left
-    -- Helper: given x ≡ y : A.σ, produce B.σ.lift.inst x ≡ B.σ.lift.inst y : sort v
     have ih2_cons : ∀ {x y : Term}, Γ₀ ⊢ x ≡ y : A.subst σ →
         Γ₀ ⊢ (B.subst σ.lift).inst x ≡ (B.subst σ.lift).inst y : .sort v := by
       intro x y hxy
@@ -1067,7 +1112,6 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
         rw [htail_x]; exact hxy
       have := (ih2 hΓ₀ W_cons).1
       rwa [← inst_lift_cons, ← inst_lift_cons] at this
-    -- .fst-equalities for each ihp via .fstDF
     have hfst_l : Γ₀ ⊢ .fst (p.subst σ) ≡ .fst (p.subst τ) : A.subst σ :=
       .fstDF hA_σ hB_σ ihp_l
     have hfst_r : Γ₀ ⊢ .fst (p'.subst σ) ≡ .fst (p'.subst τ) : A.subst σ :=
@@ -1076,11 +1120,9 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
       .fstDF hA_σ hB_σ ihp_c
     have hfst_pσ_p'σ : Γ₀ ⊢ .fst (p.subst σ) ≡ .fst (p'.subst σ) : A.subst σ :=
       .fstDF hA_σ hB_σ ihp_cleft
-    -- 4th premises for .sndDF: (B.σ.lift).inst (.fst _) ≡ (B.σ.lift).inst (.fst _) : sort v
     have res_l := IsDefEq.sndDF hA_σ hB_σ ihp_l (ih2_cons hfst_l)
     have res_r := IsDefEq.sndDF hA_σ hB_σ ihp_r (ih2_cons hfst_r)
     have res_c := IsDefEq.sndDF hA_σ hB_σ ihp_c (ih2_cons hfst_c)
-    -- Convert res_r's type from (B.σ.lift).inst (.fst (p'.σ)) to (B.σ.lift).inst (.fst (p.σ))
     have res_r' := IsDefEq.defeqDF (ih2_cons hfst_pσ_p'σ).symm res_r
     refine ⟨subst_inst ▸ res_l, subst_inst ▸ res_r', subst_inst ▸ res_c⟩
   | @pair_fst Γ A u B v a b hA _ _ _ _ ih1 ih2 ih3 ih4 ih5 =>
@@ -1209,22 +1251,17 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
       W.left.lift_at hA_in_Γ hA'_subst hAA'_σ
     have body_l : (A.subst σ) :: Γ₀ ⊢ b.subst σ.lift ≡ b.subst τ.lift : (A.subst σ).lift :=
       lift_subst_lift ▸ (ih2 hΓ_A_subst W_A).1
-    have body_l_at_Aτ_raw : (A.subst τ) :: Γ₀ ⊢ b.subst σ.lift ≡ b.subst τ.lift : (A.subst σ).lift :=
-      lift_subst_lift ▸ (ih2 hΓ_A_τ_subst W_A_τ).1
+    have body_l_at_Aτ_raw := lift_subst_lift ▸ (ih2 hΓ_A_τ_subst W_A_τ).1
     have body_l_at_Aτ : (A.subst τ) :: Γ₀ ⊢ b.subst σ.lift ≡ b.subst τ.lift : (A.subst τ).lift :=
       .defeqDF (ihA_l.weak' (.skip .refl)) body_l_at_Aτ_raw
     have body_c : (A.subst σ) :: Γ₀ ⊢ b.subst σ.lift ≡ b'.subst τ.lift : (A.subst σ).lift :=
       lift_subst_lift ▸ (ih2 hΓ_A_subst W_A).2.2
-    have body_c_at_A'τ_raw : (A'.subst τ) :: Γ₀ ⊢ b.subst σ.lift ≡ b'.subst τ.lift : (A.subst σ).lift :=
-      lift_subst_lift ▸ (ih2 hΓ_A'_τ_subst W_A_to_A'τ).2.2
-    have body_c_at_A'τ : (A'.subst τ) :: Γ₀ ⊢ b.subst σ.lift ≡ b'.subst τ.lift : (A'.subst τ).lift :=
-      .defeqDF (ihA_c.weak' (.skip .refl)) body_c_at_A'τ_raw
+    have body_c_at_A'τ_raw := lift_subst_lift ▸ (ih2 hΓ_A'_τ_subst W_A_to_A'τ).2.2
+    have body_c_at_A'τ := (ihA_c.weak' (.skip .refl)).defeqDF body_c_at_A'τ_raw
     have body_cd : (A.subst σ) :: Γ₀ ⊢ b.subst σ.lift ≡ b'.subst σ.lift : (A.subst σ).lift :=
       lift_subst_lift ▸ (ih2 hΓ_A_subst W_A.left).2.2
-    have body_cd_at_A'σ_raw : (A'.subst σ) :: Γ₀ ⊢ b.subst σ.lift ≡ b'.subst σ.lift : (A.subst σ).lift :=
-      lift_subst_lift ▸ (ih2 hΓ_A'_subst W_left_A'σ).2.2
-    have body_cd_at_A'σ : (A'.subst σ) :: Γ₀ ⊢ b.subst σ.lift ≡ b'.subst σ.lift : (A'.subst σ).lift :=
-      .defeqDF (hAA'_σ.weak' (.skip .refl)) body_cd_at_A'σ_raw
+    have body_cd_at_A'σ_raw := lift_subst_lift ▸ (ih2 hΓ_A'_subst W_left_A'σ).2.2
+    have body_cd_at_A'σ := (hAA'_σ.weak' (.skip .refl)).defeqDF body_cd_at_A'σ_raw
     have res_l : Γ₀ ⊢ (Term.Y A b).subst σ ≡ (Term.Y A b).subst τ : A.subst σ :=
       .YDF ihA_l body_l body_l_at_Aτ
     have res_c : Γ₀ ⊢ (Term.Y A b).subst σ ≡ (Term.Y A' b').subst τ : A.subst σ :=
@@ -1252,6 +1289,164 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
             (b.subst σ.lift).inst (Term.Y (A.subst σ) (b.subst σ.lift)) from subst_inst]
       exact .Y_unfold hA_σ hb_σ hy_σ hbinst_σ
     exact ⟨ih3_l, ih4_l, H_σ.trans ih4_l⟩
+  | @idDF Γ A A' u a a' b b' _ _ _ ih1 ih2 ih3 =>
+    let ⟨ihA_l, ihA_r, ihA_c⟩ := ih1 hΓ₀ W
+    let ⟨iha_l, iha_r, iha_c⟩ := ih2 hΓ₀ W
+    let ⟨ihb_l, ihb_r, ihb_c⟩ := ih3 hΓ₀ W
+    have hAA'_σ : Γ₀ ⊢ A.subst σ ≡ A'.subst σ : .sort u := (ih1 hΓ₀ W.left).2.2
+    exact ⟨.idDF ihA_l iha_l ihb_l,
+           .idDF ihA_r (.defeqDF hAA'_σ iha_r) (.defeqDF hAA'_σ ihb_r),
+           .idDF ihA_c iha_c ihb_c⟩
+  | @reflDF Γ A u a a' _hA _ha _h_id ih1 ih2 ih3 =>
+    let ⟨iha_l, iha_r, iha_c⟩ := ih2 hΓ₀ W
+    have ⟨_, _, iha_cleft⟩ := ih2 hΓ₀ W.left
+    have ihA_σ : Γ₀ ⊢ A.subst σ : .sort u := (ih1 hΓ₀ W).1.hasType.1
+    have ih_id_σ : Γ₀ ⊢ (Term.id A a a).subst σ : .sort true := (ih3 hΓ₀ W).1.hasType.1
+    have res_l : Γ₀ ⊢ (Term.refl a).subst σ ≡ (Term.refl a).subst τ : (Term.id A a a).subst σ :=
+      .reflDF ihA_σ iha_l ih_id_σ
+    have ih_id_a'σ : Γ₀ ⊢ Term.id (A.subst σ) (a'.subst σ) (a'.subst σ) : .sort true :=
+      (IsDefEq.idDF (A := A.subst σ) (A' := A.subst σ)
+        ihA_σ iha_r.hasType.1 iha_r.hasType.1).hasType.1
+    have res_r_natural : Γ₀ ⊢ (Term.refl a').subst σ ≡ (Term.refl a').subst τ :
+        Term.id (A.subst σ) (a'.subst σ) (a'.subst σ) :=
+      .reflDF ihA_σ iha_r ih_id_a'σ
+    have id_r_to_l : Γ₀ ⊢ Term.id (A.subst σ) (a'.subst σ) (a'.subst σ) ≡
+        Term.id (A.subst σ) (a.subst σ) (a.subst σ) : .sort true :=
+      .idDF ihA_σ iha_cleft.symm iha_cleft.symm
+    have res_r : Γ₀ ⊢ (Term.refl a').subst σ ≡ (Term.refl a').subst τ :
+        (Term.id A a a).subst σ :=
+      .defeqDF id_r_to_l res_r_natural
+    have res_c : Γ₀ ⊢ (Term.refl a).subst σ ≡ (Term.refl a').subst τ : (Term.id A a a).subst σ :=
+      .reflDF ihA_σ iha_c ih_id_σ
+    exact ⟨res_l, res_r, res_c⟩
+  | @trDF Γ A A' u a a' b b' C C' v x x' h h' _hA _ha _hb _hC _hC' _hx _hh _hCb _h_id
+        ih1 ih2 ih3 ih4 ih4' ih5 ih6 ih7 ih8 =>
+    have hA_in_Γ : Γ ⊢ A : .sort u := _hA.hasType.1
+    have hA'_in_Γ : Γ ⊢ A' : .sort u := _hA.hasType.2
+    let ⟨ihA_l, ihA_r, ihA_c⟩ := ih1 hΓ₀ W
+    have hA_σ : Γ₀ ⊢ A.subst σ : .sort u := ihA_l.hasType.1
+    have hA_τ : Γ₀ ⊢ A.subst τ : .sort u := ihA_l.hasType.2
+    have hA'_σ : Γ₀ ⊢ A'.subst σ : .sort u := ihA_r.hasType.1
+    have hA'_τ : Γ₀ ⊢ A'.subst τ : .sort u := ihA_r.hasType.2
+    have hAA'_σ : Γ₀ ⊢ A.subst σ ≡ A'.subst σ : .sort u := (ih1 hΓ₀ W.left).2.2
+    have hΓ_A_σ : ⊢ A.subst σ :: Γ₀ := ⟨hΓ₀, _, hA_σ⟩
+    have hΓ_A'_σ : ⊢ A'.subst σ :: Γ₀ := ⟨hΓ₀, _, hA'_σ⟩
+    have hΓ_A_τ : ⊢ A.subst τ :: Γ₀ := ⟨hΓ₀, _, hA_τ⟩
+    have hΓ_A'_τ : ⊢ A'.subst τ :: Γ₀ := ⟨hΓ₀, _, hA'_τ⟩
+    have W_A : Ctx.SubstEq (A.subst σ :: Γ₀) σ.lift τ.lift (A :: Γ) :=
+      W.lift hA_in_Γ hA_σ
+    have W_A_τ : Ctx.SubstEq (A.subst τ :: Γ₀) σ.lift τ.lift (A :: Γ) :=
+      W.lift_at hA_in_Γ hA_τ ihA_l
+    have ⟨iha_l, iha_r, iha_c⟩ := ih2 hΓ₀ W
+    have ha'_σ : Γ₀ ⊢ a'.subst σ : A.subst σ := iha_r.hasType.1
+    have ⟨ihb_l, ihb_r, ihb_c⟩ := ih3 hΓ₀ W
+    let ⟨ihC_l, _, ihC_c⟩ := ih4 hΓ_A_σ W_A
+    let ⟨ihx_l_raw, ihx_r_raw, ihx_c_raw⟩ := ih5 hΓ₀ W
+    have ihx_l : Γ₀ ⊢ x.subst σ ≡ x.subst τ : (C.subst σ.lift).inst (a.subst σ) :=
+      subst_inst ▸ ihx_l_raw
+    have ihx_r : Γ₀ ⊢ x'.subst σ ≡ x'.subst τ : (C.subst σ.lift).inst (a.subst σ) :=
+      subst_inst ▸ ihx_r_raw
+    have ihx_c : Γ₀ ⊢ x.subst σ ≡ x'.subst τ : (C.subst σ.lift).inst (a.subst σ) :=
+      subst_inst ▸ ihx_c_raw
+    let ⟨ihh_l, ihh_r, ihh_c⟩ := ih6 hΓ₀ W
+    have ⟨ihCb_l_raw, ihCb_r_raw, ihCb_c_raw⟩ := ih7 hΓ₀ W
+    have ihCb_l : Γ₀ ⊢ (C.subst σ.lift).inst (b.subst σ) ≡
+        (C.subst τ.lift).inst (b.subst τ) : .sort v := by
+      rwa [subst_inst, subst_inst] at ihCb_l_raw
+    have ihCb_c : Γ₀ ⊢ (C.subst σ.lift).inst (b.subst σ) ≡
+        (C'.subst τ.lift).inst (b'.subst τ) : .sort v := by
+      rwa [subst_inst, subst_inst] at ihCb_c_raw
+    have ihCb_r : Γ₀ ⊢ (C'.subst σ.lift).inst (b'.subst σ) ≡
+        (C'.subst τ.lift).inst (b'.subst τ) : .sort v := by
+      rwa [subst_inst, subst_inst] at ihCb_r_raw
+    have ihCb_cleft : Γ₀ ⊢ (C.subst σ.lift).inst (b.subst σ) ≡
+        (C'.subst σ.lift).inst (b'.subst σ) : .sort v := by
+      simpa [subst_inst] using (ih7 hΓ₀ W.left).2.2
+    let ⟨ih_id_l, _, _⟩ := ih8 hΓ₀ W
+    have hId_l : Γ₀ ⊢ .id (A.subst σ) (a.subst σ) (b.subst σ) : .sort true :=
+      .idDF ihA_l.hasType.1 iha_l.hasType.1 ihb_l.hasType.1
+    have W_A'_τ : Ctx.SubstEq (A'.subst τ :: Γ₀) σ.lift τ.lift (A' :: Γ) :=
+      W.lift_at hA'_in_Γ hA'_τ ihA_r
+    have ihC_l_dual : (A.subst τ) :: Γ₀ ⊢ C.subst σ.lift ≡ C.subst τ.lift : .sort v :=
+      (ih4 hΓ_A_τ W_A_τ).1
+    have ihC_c_dual : (A'.subst τ) :: Γ₀ ⊢ C.subst σ.lift ≡ C'.subst τ.lift : .sort v :=
+      (ih4' hΓ_A'_τ W_A'_τ).2.2
+    have res_l : Γ₀ ⊢ (Term.tr A a b C x h).subst σ ≡ (Term.tr A a b C x h).subst τ :
+        (C.inst b).subst σ := by
+      rw [subst_inst]
+      exact .trDF ihA_l iha_l ihb_l ihC_l ihC_l_dual ihx_l ihh_l ihCb_l hId_l
+    have res_c : Γ₀ ⊢ (Term.tr A a b C x h).subst σ ≡ (Term.tr A' a' b' C' x' h').subst τ :
+        (C.inst b).subst σ := by
+      rw [subst_inst]
+      exact .trDF ihA_c iha_c ihb_c ihC_c ihC_c_dual ihx_c ihh_c ihCb_c hId_l
+    have iha_r_at_A'σ : Γ₀ ⊢ a'.subst σ ≡ a'.subst τ : A'.subst σ :=
+      .defeqDF hAA'_σ iha_r
+    have ihb_r_at_A'σ : Γ₀ ⊢ b'.subst σ ≡ b'.subst τ : A'.subst σ :=
+      .defeqDF hAA'_σ ihb_r
+    have W_A'_σ : Ctx.SubstEq (A'.subst σ :: Γ₀) σ.lift τ.lift (A' :: Γ) :=
+      W.lift hA'_in_Γ hA'_σ
+    have ihC_r_at_A'binder : (A'.subst σ) :: Γ₀ ⊢ C'.subst σ.lift ≡ C'.subst τ.lift : .sort v :=
+      (ih4' hΓ_A'_σ W_A'_σ).2.1
+    have ihC_r_dual : (A'.subst τ) :: Γ₀ ⊢ C'.subst σ.lift ≡ C'.subst τ.lift : .sort v :=
+      (ih4' hΓ_A'_τ W_A'_τ).2.1
+    have W_cons_a_at_A'σ : Ctx.SubstEq Γ₀ (σ.cons (a'.subst σ)) (σ.cons (a'.subst σ)) (A :: Γ) := by
+      have htail : (σ.cons (a'.subst σ)).tail = σ := by funext i; rfl
+      refine .cons (htail ▸ W.left) hA_in_Γ ?_
+      rw [htail]; exact ha'_σ
+    have hCa'_C_to_C' : Γ₀ ⊢ (C.subst σ.lift).inst (a'.subst σ) ≡
+        (C'.subst σ.lift).inst (a'.subst σ) : .sort v := by
+      have := (ih4 hΓ₀ W_cons_a_at_A'σ).2.2
+      rwa [← inst_lift_cons (e := C), ← inst_lift_cons (e := C')] at this
+    have W_cons_a_to_a' : Ctx.SubstEq Γ₀ (σ.cons (a.subst σ)) (σ.cons (a'.subst σ)) (A :: Γ) := by
+      have htail : (σ.cons (a.subst σ)).tail = σ := by funext i; rfl
+      have htail' : (σ.cons (a'.subst σ)).tail = σ := by funext i; rfl
+      refine .cons (htail ▸ htail' ▸ W.left) hA_in_Γ ?_
+      rw [htail]; exact (ih2 hΓ₀ W.left).2.2
+    have hC_a_to_a' : Γ₀ ⊢ (C.subst σ.lift).inst (a.subst σ) ≡
+        (C.subst σ.lift).inst (a'.subst σ) : .sort v := by
+      have := (ih4 hΓ₀ W_cons_a_to_a').1
+      rwa [← inst_lift_cons (e := C), ← inst_lift_cons (e := C)] at this
+    have ihx_r_at_C' : Γ₀ ⊢ x'.subst σ ≡ x'.subst τ :
+        (C'.subst σ.lift).inst (a'.subst σ) :=
+      .defeqDF hCa'_C_to_C' (.defeqDF hC_a_to_a' ihx_r)
+    have hId_r_iff : Γ₀ ⊢ Term.id (A.subst σ) (a.subst σ) (b.subst σ) ≡
+        Term.id (A'.subst σ) (a'.subst σ) (b'.subst σ) : .sort true :=
+      .idDF hAA'_σ ((ih2 hΓ₀ W.left).2.2) ((ih3 hΓ₀ W.left).2.2)
+    have ihh_r_at_A' : Γ₀ ⊢ h'.subst σ ≡ h'.subst τ :
+        Term.id (A'.subst σ) (a'.subst σ) (b'.subst σ) :=
+      .defeqDF hId_r_iff ihh_r
+    have hId_r : Γ₀ ⊢ .id (A'.subst σ) (a'.subst σ) (b'.subst σ) : .sort true :=
+      .idDF ihA_r.hasType.1 iha_r_at_A'σ.hasType.1 ihb_r_at_A'σ.hasType.1
+    have res_r_natural : Γ₀ ⊢ (Term.tr A' a' b' C' x' h').subst σ ≡
+        (Term.tr A' a' b' C' x' h').subst τ : (C'.subst σ.lift).inst (b'.subst σ) := by
+      show Γ₀ ⊢ Term.tr _ _ _ _ _ _ ≡ Term.tr _ _ _ _ _ _ : _
+      exact .trDF ihA_r iha_r_at_A'σ ihb_r_at_A'σ ihC_r_at_A'binder ihC_r_dual
+        ihx_r_at_C' ihh_r_at_A' ihCb_r hId_r
+    have res_r : Γ₀ ⊢ (Term.tr A' a' b' C' x' h').subst σ ≡
+        (Term.tr A' a' b' C' x' h').subst τ : (C.inst b).subst σ := by
+      rw [subst_inst]
+      exact .defeqDF ihCb_cleft.symm res_r_natural
+    exact ⟨res_l, res_r, res_c⟩
+  | @tr_refl Γ A u a C v x _hA _ha _hC _hx _hLHS ih1 ih2 ih3 ih4 ih5 =>
+    have ih4_l := (ih4 hΓ₀ W).1
+    have hA_σ : Γ₀ ⊢ A.subst σ : .sort u := (ih1 hΓ₀ W.left).1
+    have ha_σ : Γ₀ ⊢ a.subst σ : A.subst σ := (ih2 hΓ₀ W.left).1
+    have hΓ_A_σ : ⊢ A.subst σ :: Γ₀ := ⟨hΓ₀, _, hA_σ⟩
+    have W_A : Ctx.SubstEq (A.subst σ :: Γ₀) σ.lift σ.lift (A :: Γ) :=
+      W.left.lift _hA hA_σ
+    have hC_σ : A.subst σ :: Γ₀ ⊢ C.subst σ.lift : .sort v := (ih3 hΓ_A_σ W_A).1
+    have hx_σ : Γ₀ ⊢ x.subst σ : (C.subst σ.lift).inst (a.subst σ) := by
+      have := (ih4 hΓ₀ W.left).1
+      rwa [subst_inst] at this
+    have hLHS_σ : Γ₀ ⊢ (Term.tr A a a C x (.refl a)).subst σ :
+        (C.subst σ.lift).inst (a.subst σ) := by
+      have := (ih5 hΓ₀ W.left).1
+      rwa [subst_inst] at this
+    have H_σ : Γ₀ ⊢ (Term.tr A a a C x (.refl a)).subst σ ≡ x.subst σ :
+        (C.inst a).subst σ := by
+      rw [subst_inst]
+      exact .tr_refl hA_σ ha_σ hC_σ hx_σ hLHS_σ
+    exact ⟨(ih5 hΓ₀ W).1, ih4_l, H_σ.trans ih4_l⟩
 
 /-- Main substitution lemma: from `Γ ⊢ e₁ ≡ e₂ : A` and a diagonal
 two-sided substitution `Ctx.SubstEq Γ₀ σ σ Γ` we get
@@ -1352,38 +1547,9 @@ theorem IsDefEq.sigma_inv' (hΓ : ⊢ Γ)
     · exact ⟨⟨_, h1.hasType.1⟩, _, h2.hasType.1⟩
     · exact ⟨⟨_, h1.hasType.2⟩, _, h1.defeqDF_l hΓ h2.hasType.2⟩
   | defeqDF _ _ _ ih2 => exact ih2 hΓ eq
-  | @beta Γ_c A_c u_c e_body B_c e'_c hA he he' happ heinst ihA ihe ihe' ihapp iheinst =>
+  | beta _ _ _ _ _ _ _ _ _ ih =>
     obtain ⟨⟨⟩⟩ | eq := eq
-    cases e_body with
-    | bvar i =>
-      cases i with
-      | zero =>
-        simp [Term.inst, Term.subst, Subst.one, Subst.cons] at eq
-        exact ihe' hΓ (.inl eq)
-      | succ n =>
-        simp [Term.inst, Term.subst, Subst.one, Subst.cons, Subst.id] at eq
-    | sigma A_e B_e =>
-      cases eq
-      have hΓ' : ⊢ A_c::Γ_c := ⟨hΓ, _, hA⟩
-      have ⟨⟨u_A, A1⟩, u_B, A2⟩ := ihe hΓ' (.inl rfl)
-      have sort_A : Γ_c ⊢ A_e.inst e'_c : .sort u_A :=
-        .inst0 hΓ he' A1
-      have W_base : Ctx.SubstEq Γ_c (Subst.one e'_c) (Subst.one e'_c) (A_c :: Γ_c) := by
-        refine .cons (σ := Subst.one e'_c) (σ' := Subst.one e'_c) ?_ hA ?_
-        · show Ctx.SubstEq Γ_c (Subst.one e'_c).tail (Subst.one e'_c).tail Γ_c
-          have htail : (Subst.one e'_c).tail = Subst.id := by funext i; rfl
-          rw [htail]; exact Ctx.SubstEq.id hΓ
-        · show Γ_c ⊢ e'_c : A_c.subst (Subst.one e'_c).tail
-          have htail : (Subst.one e'_c).tail = Subst.id := by funext i; rfl
-          rw [htail, subst_id]; exact he'
-      have W_lift : Ctx.SubstEq (A_e.inst e'_c :: Γ_c) (Subst.one e'_c).lift
-          (Subst.one e'_c).lift (A_e :: A_c :: Γ_c) :=
-        W_base.lift A1 sort_A
-      have hΓ_lift : ⊢ A_e.inst e'_c :: Γ_c := ⟨hΓ, _, sort_A⟩
-      have sort_B : A_e.inst e'_c :: Γ_c ⊢ B_e.subst (Subst.one e'_c).lift : .sort u_B :=
-        A2.subst hΓ_lift W_lift
-      exact ⟨⟨u_A, sort_A⟩, u_B, sort_B⟩
-    | _ => cases eq
+    exact ih hΓ (.inr eq)
   | eta _ _ ih _ =>
     obtain ⟨⟨⟩⟩ | eq := eq
     exact ih hΓ (.inr eq)
@@ -1408,6 +1574,9 @@ theorem IsDefEq.sigma_inv' (hΓ : ⊢ Γ)
   | Y_unfold _ _ _ _ _ _ _ ihred =>
     obtain ⟨⟨⟩⟩ | eq := eq
     exact ihred hΓ (.inl eq)
+  | tr_refl _ _ _ _ _ _ _ _ ih_x _ =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih_x hΓ (.inr eq)
   | _ => nomatch eq
 
 theorem IsDefEq.forallE_inv' (hΓ : ⊢ Γ)
@@ -1427,36 +1596,9 @@ theorem IsDefEq.forallE_inv' (hΓ : ⊢ Γ)
     · exact ⟨⟨_, h1.hasType.1⟩, _, h2.hasType.1⟩
     · exact ⟨⟨_, h1.hasType.2⟩, _, h1.defeqDF_l hΓ h2.hasType.2⟩
   | defeqDF _ _ _ ih2 => exact ih2 hΓ eq
-  | @beta Γ_c A_c u_c e_body B_c e'_c hA he he' happ heinst ihA ihe ihe' ihapp iheinst =>
+  | beta _ _ _ _ _ _ _ _ _ ih =>
     obtain ⟨⟨⟩⟩ | eq := eq
-    cases e_body with
-    | bvar i =>
-      cases i with
-      | zero =>
-        simp [Term.inst, Term.subst, Subst.one, Subst.cons] at eq
-        exact ihe' hΓ (.inl eq)
-      | succ n =>
-        simp [Term.inst, Term.subst, Subst.one, Subst.cons, Subst.id] at eq
-    | forallE A_e B_e =>
-      cases eq
-      have hΓ' : ⊢ A_c::Γ_c := ⟨hΓ, _, hA⟩
-      have ⟨⟨u_A, A1⟩, u_B, A2⟩ := ihe hΓ' (.inl rfl)
-      have sort_A : Γ_c ⊢ A_e.inst e'_c : .sort u_A :=
-        .inst0 hΓ he' A1
-      have W_base : Ctx.SubstEq Γ_c (Subst.one e'_c) (Subst.one e'_c) (A_c :: Γ_c) := by
-        refine .cons (σ := Subst.one e'_c) (σ' := Subst.one e'_c) ?_ hA ?_
-        · show Ctx.SubstEq Γ_c (Subst.one e'_c).tail (Subst.one e'_c).tail Γ_c
-          have htail : (Subst.one e'_c).tail = Subst.id := by funext i; rfl
-          rw [htail]; exact Ctx.SubstEq.id hΓ
-        · show Γ_c ⊢ e'_c : A_c.subst (Subst.one e'_c).tail
-          have htail : (Subst.one e'_c).tail = Subst.id := by funext i; rfl
-          rw [htail, subst_id]; exact he'
-      have W_lift : Ctx.SubstEq (A_e.inst e'_c :: Γ_c) (Subst.one e'_c).lift
-          (Subst.one e'_c).lift (A_e :: A_c :: Γ_c) :=
-        W_base.lift A1 sort_A
-      have hΓ_lift : ⊢ A_e.inst e'_c :: Γ_c := ⟨hΓ, _, sort_A⟩
-      exact ⟨⟨u_A, sort_A⟩, u_B, A2.subst hΓ_lift W_lift⟩
-    | _ => cases eq
+    exact ih hΓ (.inr eq)
   | eta _ _ ih _ =>
     obtain ⟨⟨⟩⟩ | eq := eq
     exact ih hΓ (.inr eq)
@@ -1481,6 +1623,57 @@ theorem IsDefEq.forallE_inv' (hΓ : ⊢ Γ)
   | Y_unfold _ _ _ _ _ _ _ ihred =>
     obtain ⟨⟨⟩⟩ | eq := eq
     exact ihred hΓ (.inl eq)
+  | tr_refl _ _ _ _ _ _ _ _ ih_x _ =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih_x hΓ (.inr eq)
+  | _ => nomatch eq
+
+theorem IsDefEq.id_inv' (hΓ : ⊢ Γ)
+    (H : Γ ⊢ e1 ≡ e2 : V) (eq : e1 = Term.id A a b ∨ e2 = Term.id A a b) :
+    (∃ u, Γ ⊢ A : .sort u) ∧ (Γ ⊢ a : A) ∧ (Γ ⊢ b : A) := by
+  induction H generalizing A a b with
+  | symm _ ih => exact ih hΓ eq.symm
+  | trans _ _ ih1 ih2
+  | trans' _ _ ih1 ih2
+  | proofIrrel _ _ _ _ ih1 ih2 =>
+    obtain eq | eq := eq
+    · exact ih1 hΓ (.inl eq)
+    · exact ih2 hΓ (.inr eq)
+  | idDF hA ha hb =>
+    obtain ⟨⟨⟩⟩ | ⟨⟨⟩⟩ := eq
+    · exact ⟨⟨_, hA.hasType.1⟩, ha.hasType.1, hb.hasType.1⟩
+    · exact ⟨⟨_, hA.hasType.2⟩, .defeqDF hA ha.hasType.2, .defeqDF hA hb.hasType.2⟩
+  | defeqDF _ _ _ ih2 => exact ih2 hΓ eq
+  | beta _ _ _ _ _ _ _ _ _ ih =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih hΓ (.inr eq)
+  | eta _ _ ih _ =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih hΓ (.inr eq)
+  | pair_fst _ _ _ _ _ _ _ ih3 _ _ =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih3 hΓ (.inl eq)
+  | pair_snd _ _ _ _ _ _ _ _ ih4 _ =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih4 hΓ (.inl eq)
+  | fst_snd _ _ ih1 _ =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih1 hΓ (.inr eq)
+  | tr_refl _ _ _ _ _ _ _ _ ih_x _ =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih_x hΓ (.inr eq)
+  | @Y_unfold _ _ _ _ _ _ _ _ _ _ _ ih4 =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih4 hΓ (.inr eq)
+  | unit_eta _ ih =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih hΓ (.inl eq)
+  | natCase_zero _ _ _ _ _ ih2 _ _ =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih2 hΓ (.inl eq)
+  | natCase_succ _ _ _ _ _ _ _ _ _ _ _ ih6 =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih6 hΓ (.inl eq)
   | _ => nomatch eq
 
 theorem IsDefEq.bvar₀ (hΓ : ⊢ Γ) (h : Lookup Γ i A) : Γ ⊢ .bvar i : A :=
@@ -1608,6 +1801,28 @@ theorem IsDefEq.Y_unfold₀ (hΓ : ⊢ Γ)
     rwa [lift_inst] at this
   exact .Y_unfold hA hb hy hbinst
 
+theorem IsDefEq.reflDF₀ (hΓ : ⊢ Γ) (ha : Γ ⊢ a ≡ a' : A) :
+    Γ ⊢ .refl a ≡ .refl a' : .id A a a :=
+  let ⟨_, hA⟩ := ha.isType hΓ
+  .reflDF hA ha (.idDF hA ha.hasType.1 ha.hasType.1)
+
+theorem IsDefEq.trDF₀ (hΓ : ⊢ Γ)
+    (hC : A::Γ ⊢ C ≡ C' : .sort v)
+    (hx : Γ ⊢ x ≡ x' : C.inst a)
+    (hh : Γ ⊢ h ≡ h' : .id A a b) :
+    Γ ⊢ .tr A a b C x h ≡ .tr A a b C' x' h' : C.inst b := by
+  let ⟨_, h_id_some⟩ := hh.isType hΓ
+  let ⟨⟨_, hA⟩, ha, hb⟩ := h_id_some.id_inv' hΓ (.inl rfl)
+  exact .trDF hA ha hb hC hC hx hh (.instDF hΓ hA .sort hC hb) (.idDF hA ha hb)
+
+theorem IsDefEq.tr_refl₀ (hΓ : ⊢ Γ)
+    (ha : Γ ⊢ a : A) (hC : A::Γ ⊢ C : .sort v) (hx : Γ ⊢ x : C.inst a) :
+    Γ ⊢ .tr A a a C x (.refl a) ≡ x : C.inst a := by
+  let ⟨_, hA⟩ := ha.isType hΓ
+  have h_id_aa : Γ ⊢ .id A a a : .sort true := .idDF hA ha ha
+  exact .tr_refl hA ha hC hx
+    (.trDF hA ha ha hC hC hx (.reflDF hA ha h_id_aa) (.instDF hΓ hA .sort hC ha) h_id_aa)
+
 scoped notation:65 e1 " ⤳ " e2:36 => WHRed e1 e2
 /-- Single-step weak-head reduction `Γ ⊢ e ⤳ e'`. Only the head position is
 reduced: either β-reduce a `lam`-headed application, or recurse on the
@@ -1624,6 +1839,8 @@ inductive WHRed : Term → Term → Prop where
   | natCase_zero : .natCase C .zero a b ⤳ a
   | natCase_succ : .natCase C (.succ n) a b ⤳ b.inst n
   | Y : .Y A b ⤳ b.inst (.Y A b)
+  | tr : h ⤳ h' → .tr A a b C x h ⤳ .tr A a b C x h'
+  | tr_refl : .tr A a b C x (.refl y) ⤳ x
 
 /-- `WHNF e` says `e` is in weak head-normal form: no `⤳` step applies. -/
 def WHNF (e : Term) := ∀ e', ¬e ⤳ e'
@@ -1636,47 +1853,26 @@ theorem WHNF.sigma : WHNF (.sigma A B) := nofun
 theorem WHNF.nat : WHNF .nat := nofun
 theorem WHNF.zero : WHNF .zero := nofun
 theorem WHNF.succ : WHNF (.succ n) := nofun
+theorem WHNF.id : WHNF (.id A a b) := nofun
+theorem WHNF.refl : WHNF (.refl a) := nofun
 
 theorem WHRed.determ (H1 : e ⤳ e₁) (H2 : e ⤳ e₂) : e₁ = e₂ := by
   induction H1 generalizing e₂ with
-  | app h1 ih =>
-    cases H2 with
-    | app h2 => congr 1; exact ih h2
-    | beta => cases h1
-  | beta =>
-    cases H2 with
-    | app h2 => cases h2
-    | beta => rfl
-  | fst h1 ih =>
-    cases H2 with
-    | fst h2 => congr 1; exact ih h2
-    | pair_fst => cases h1
-  | snd h1 ih =>
-    cases H2 with
-    | snd h2 => congr 1; exact ih h2
-    | pair_snd => cases h1
-  | pair_fst =>
-    cases H2 with
-    | fst h2 => cases h2
-    | pair_fst => rfl
-  | pair_snd =>
-    cases H2 with
-    | snd h2 => cases h2
-    | pair_snd => rfl
-  | natCase h1 ih =>
-    cases H2 with
+  | app h1 ih => cases H2 with | app h2 => congr 1; exact ih h2 | beta => cases h1
+  | beta => cases H2 with | app h2 => cases h2 | beta => rfl
+  | fst h1 ih => cases H2 with | fst h2 => congr 1; exact ih h2 | pair_fst => cases h1
+  | snd h1 ih => cases H2 with | snd h2 => congr 1; exact ih h2 | pair_snd => cases h1
+  | pair_fst => cases H2 with | fst h2 => cases h2 | pair_fst => rfl
+  | pair_snd => cases H2 with | snd h2 => cases h2 | pair_snd => rfl
+  | natCase h1 ih => cases H2 with
     | natCase h2 => congr 1; exact ih h2
     | natCase_zero => cases h1
     | natCase_succ => cases h1
-  | natCase_zero =>
-    cases H2 with
-    | natCase h2 => cases h2
-    | natCase_zero => rfl
-  | natCase_succ =>
-    cases H2 with
-    | natCase h2 => cases h2
-    | natCase_succ => rfl
+  | natCase_zero => cases H2 with | natCase h2 => cases h2 | natCase_zero => rfl
+  | natCase_succ => cases H2 with | natCase h2 => cases h2 | natCase_succ => rfl
   | Y => let .Y := H2; rfl
+  | tr h1 ih => cases H2 with | tr h2 => congr 1; exact ih h2 | tr_refl => cases h1
+  | tr_refl => cases H2 with | tr h2 => cases h2 | tr_refl => rfl
 
 /-- Multi-step weak-head reduction: the reflexive-transitive closure of `WHRed`. -/
 def WHRedS : Term → Term → Prop := ReflTransGen WHRed
@@ -1703,13 +1899,15 @@ theorem WHRedS.natCase (H : M ⤳* M') :
   | rfl => exact .rfl
   | tail _ h2 ih => exact .tail ih h2.natCase
 
+theorem WHRedS.tr (H : e1 ⤳* e2) : Term.tr A a b C x e1 ⤳* Term.tr A a b C x e2 := by
+  induction H with
+  | rfl => exact .rfl
+  | tail _ h2 ih => exact .tail ih h2.tr
+
 theorem WHRedS.determ_l (H1 : e ⤳* e₁) (H2 : e ⤳* e₂) (W2 : WHNF e₂) : e₁ ⤳* e₂ := by
-  induction H1 using ReflTransGen.headIndOn generalizing e₂ with
-  | rfl => exact H2
-  | head l1 l2 ih =>
-    cases H2 using ReflTransGen.headIndOn with
-    | rfl => cases W2 _ l1
-    | head r1 r2 => cases l1.determ r1; exact ih r2 W2
+  induction H1 using ReflTransGen.headIndOn generalizing e₂ with | rfl => exact H2 | head l1 l2 ih
+  cases H2 using ReflTransGen.headIndOn with | rfl => cases W2 _ l1 | head r1 r2
+  cases l1.determ r1; exact ih r2 W2
 
 theorem WHNF.whRedS (W : WHNF e) (H : e ⤳* e') : e = e' := by
   cases H using ReflTransGen.headIndOn with
