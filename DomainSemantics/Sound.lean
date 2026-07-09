@@ -66,6 +66,7 @@ inductive LE_Interp : Valuation → TShape → Term → Prop
   | bot : LE_Interp ρ (WShape.T (n := n) .bot) M
   | bvar : m ≤ ρ i → LE_Interp ρ m (.bvar i)
   | sort : m ≤ .sort l → LE_Interp ρ m (.sort l)
+  | unit : m ≤ .unit r → LE_Interp ρ m (.unit r)
   | app : LE_Interp ρ (WShape.T f) F → LE_Interp ρ a.T A →
     m ≤ (f.app a).T → LE_Interp ρ m (.app F A)
   | lam : LE_Interp ρ (WShape.T (n := n) a) A →
@@ -99,6 +100,7 @@ inductive LE_Interp : Valuation → TShape → Term → Prop
 theorem LE_Interp.bvar' : LE_Interp ρ (ρ i) (.bvar i) := .bvar .rfl
 theorem LE_Interp.bvar0 : LE_Interp (.push ρ x) x (.bvar 0) := .bvar' (ρ := ρ.push x) (i := 0)
 theorem LE_Interp.sort' : LE_Interp ρ (.sort l) (.sort l) := .sort .rfl
+theorem LE_Interp.unit' : LE_Interp ρ (.unit r) (.unit r) := .unit .rfl
 theorem LE_Interp.app' (h1 : LE_Interp ρ (WShape.T f) F) (h2 : LE_Interp ρ a.T A) :
     LE_Interp ρ (f.app a).T (.app F A) := .app h1 h2 .rfl
 theorem LE_Interp.lam' {f : WShapeFun n} {a : WShape n}
@@ -150,11 +152,18 @@ theorem LE_Interp.le_succ (H : LE_Interp ρ m (.succ N)) :
 theorem LE_Interp.le_sort' (H : LE_Interp ρ m (.sort u)) : m.2 ≤ .sort u :=
   (TShape.LE.lift_r (Nat.zero_le _)).1 H.le_sort
 
+theorem LE_Interp.le_unit (H : LE_Interp ρ m (.unit r)) : m ≤ .unit r := by
+  generalize eq : Term.unit r = M at H
+  induction H with cases eq
+  | bot => exact TShape.bot_le'
+  | unit h => exact h.trans TShape.unit_eqv.1
+
 theorem LE_Interp.mono (h : m ≤ m') (H : LE_Interp ρ m' M) : LE_Interp ρ m M := by
   induction H generalizing m with
   | bot => exact TShape.le_bot'.1 (h.trans TShape.bot_eqv.1) ▸ .bot
   | bvar h1 => exact .bvar (h.trans h1)
   | sort h1 => exact .sort (h.trans h1)
+  | unit h1 => exact .unit (h.trans h1)
   | app hf ha h1 => exact .app hf ha (h.trans h1)
   | lam ha hdom hbody h1 => exact .lam ha hdom hbody (h.trans h1)
   | forallE hb hb' hdom hbody h1 => exact .forallE hb hb' hdom hbody (h.trans h1)
@@ -174,6 +183,7 @@ theorem LE_Interp.mono_l (hρ : ρ.LE ρ') (H : LE_Interp ρ m M) : LE_Interp ρ
   | bot => exact .bot
   | bvar h1 => exact .bvar (h1.trans (hρ _))
   | sort h1 => exact .sort h1
+  | unit h1 => exact .unit h1
   | app _ _ h1 ih_f ih_a => exact .app (ih_f hρ) (ih_a hρ) h1
   | lam _ hdom _ h1 ih_a ih_body =>
     exact .lam (ih_a hρ) hdom (fun x hx => ih_body x hx (Valuation.LE.push.2 ⟨hρ, .rfl⟩)) h1
@@ -207,6 +217,7 @@ theorem LE_Interp.weak'_iff (l : Lift) (h : ∀ i, ρ i = ρ' (l.liftVar i)) :
       | subst eq | cases M <;> cases eq
     | bot => exact .bot
     | sort h1 => exact .sort h1
+    | unit h1 => exact .unit h1
     | bvar h1 => exact .bvar (h _ ▸ h1)
     | app _ _ h1 ih_f ih_a => exact .app (ih_f _ h rfl) (ih_a _ h rfl) h1
     | lam _ hdom _ h1 ih_a ih_body =>
@@ -233,6 +244,7 @@ theorem LE_Interp.weak'_iff (l : Lift) (h : ∀ i, ρ i = ρ' (l.liftVar i)) :
   · induction H generalizing ρ' l with
     | bot => exact .bot
     | sort h1 => exact .sort h1
+    | unit h1 => exact .unit h1
     | bvar h1 => exact .bvar (h _ ▸ h1)
     | app _ _ h1 ih_f ih_a => exact .app (ih_f l h) (ih_a l h) h1
     | lam _ hdom _ h1 ih_a ih_body =>
@@ -278,6 +290,9 @@ theorem LE_Interp.compat_join {m₁ m₂ : TShape}
   | sort h1 =>
     cases H2 with | bot => exact bot_r hρ (.sort h1) | sort h2
     exact mk h1 (h2.trans TShape.sort_eqv.2) (.sort .rfl)
+  | unit h1 =>
+    cases H2 with | bot => exact bot_r hρ (.unit h1) | unit h2
+    exact mk h1 (h2.trans TShape.unit_eqv.2) (.unit .rfl)
   | bvar h1 =>
     cases H2 with | bot => exact bot_r hρ (.bvar h1) | bvar h2
     exact mk (h1.trans (hρ _)) h2 .bvar'
@@ -525,6 +540,9 @@ theorem LE_Interp.subst : LE_Interp ρ m (M.subst σ) ↔
     | sort h1 =>
       cases M with | bvar => exact bvar eq (.sort h1) | sort => ?_ | _ => cases eq
       cases eq; exact ⟨.nil, .sort h1, fun _ => .bot⟩
+    | unit h1 =>
+      cases M with | bvar => exact bvar eq (.unit h1) | unit => ?_ | _ => cases eq
+      cases eq; exact ⟨.nil, .unit h1, fun _ => .bot⟩
     | bvar h1 => cases M with | bvar => exact bvar eq (.bvar h1) | _ => cases eq
     | app hf ha h1 ih_f ih_a =>
       cases M with | bvar => exact bvar eq (.app hf ha h1) | app F' A' => ?_ | _ => cases eq
@@ -757,6 +775,7 @@ theorem LE_Interp.subst : LE_Interp ρ m (M.subst σ) ↔
     induction H generalizing ρ σ with
     | bot => exact .bot
     | sort h1 => exact .sort h1
+    | unit h1 => exact .unit h1
     | bvar h1 => exact (h _).mono h1
     | app hf ha h1 ih_f ih_a => exact .app (ih_f h) (ih_a h) h1
     | lam ha hdom hbody h1 ih_a ih_body =>
@@ -1504,6 +1523,8 @@ inductive StrongSoundCore : List Term → Term → Term → Prop where
     StrongSoundCore Γ (.forallE A B) (.sort v)
   | sigma : StrongSound Γ A (.sort u) → StrongSound (A::Γ) B (.sort v) →
     StrongSoundCore Γ (.sigma A B) (.sort true)
+  | unit : StrongSoundCore Γ (.unit r) (.sort r)
+  | star : StrongSoundCore Γ (.star r) (.unit r)
   | pair : SoundTy Γ A (.sort u) → SoundTy (A::Γ) B (.sort v) →
     StrongSound Γ X A → StrongSound Γ Y (B.inst X) →
     StrongSoundCore Γ (.pair A B X Y) (.sigma A B)
@@ -1793,6 +1814,8 @@ theorem StrongSound.uniq : StrongSound Γ M A → StrongSound Γ M B → SoundEq
     exact SoundEq.sort.1 (ihB a2 b2)
   | sigma => let .sigma .. := H1; let .sigma .. := H2; exact .rfl
   | pair => let .pair .. := H1; let .pair .. := H2; exact .rfl
+  | unit => let .unit := H1; let .unit := H2; exact .rfl
+  | star => let .star := H1; let .star := H2; exact .rfl
   | fst _ ihP =>
     let .fst a1 a2 a3 := H1; let .fst b1 b2 b3 := H2
     exact ((ihP a3 b3).sigma_inv a1 b1).1
@@ -2403,6 +2426,22 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
       refine .natCase_succ (v := v_w.lift (k+1)) (.succ' (hv_w_li.lift hk1nk)) ?_
       refine h_m_b.mono_l (Valuation.LE.push.2 ⟨.rfl, ?_⟩)
       exact hv_le_a.trans (TShape.lift_eqv (a := v_w.T) hk1nk).2
+  | @unit _ r =>
+    refine .rfl ⟨fun _ _ W _ h => ?_, .unit, .rfl⟩
+    generalize eq : Term.unit r = M at h
+    induction h with cases eq | bot => exact .mk .rfl .bot .bot (.bot_T' <| .bot .sort) | unit h1
+    exact .mk h1 (.unit .rfl) (.sort .rfl) (by simpa using TShape.HasType.unit (Bool.le_refl r))
+  | @star _ r =>
+    refine .rfl ⟨fun _ _ W _ h => ?_, .star, .rfl⟩
+    cases h with | bot => exact .bot
+  | @unit_eta _ e r _ ih =>
+    refine ⟨fun _ _ W _ => ⟨fun h => ?_, fun h => ?_⟩,
+      ⟨fun _ _ W _ h => ?_, .star, .rfl⟩, ih.left⟩
+    · cases h with | bot => exact .bot
+    · have ⟨m', a', le, hm', ha', hty⟩ := ih.left.sound W h
+      exact LE_Interp.bot.mono <| le.trans <|
+        TShape.HasType.eq_bot_of_unit (.mono_r ha'.le_unit (.unit (Bool.le_refl _)) hty)
+    · cases h with | bot => exact .bot
   | YDF _ _ _ ihA ihb ihb' =>
     refine ⟨fun _ _ W _ => ⟨fun h => ?_, fun h => ?_⟩, ?_, ?_⟩
     · exact .Y_cong (ihA.left.sound W) ihb.left.sound ihb.sound W h

@@ -208,6 +208,38 @@ theorem LR.Adequate.bot' {Γ₀ Γ : List Term} {ρ : Valuation} {M N A : Term}
   have ⟨_, _, _, le_n, le_a, hA', hSort, hmem'⟩ := (LE_Interp.sound HtypeA W.fits).2 hA |>.out
   exact LR.toValTy le_n le_a ha hSort hmem' ((IH hA' hSort hmem').2 W)
 
+/-- Adequacy of the unit **type** former `.unit r : .sort r`. Factored out of the
+`unit` case so that `star`/`unit_eta` (whose terms are always `⊥`) can feed it
+as the `bot'` type-adequacy witness. -/
+theorem LR.adequate_unit {Γ₀ Γ : List Term} {ρ : Valuation} {n : Nat}
+    {m a : WShape n} {r : Bool}
+    (hM : LE_Interp ρ m.T (.unit r)) (hA : LE_Interp ρ a.T (.sort r))
+    (hmem : m.HasType a) :
+    Adequate Γ₀ Γ ρ (.unit r) (.unit r) (.sort r) m a := by
+  refine .wf₀ fun hΓ₀ => ?_
+  suffices (LR hΓ₀).TmEq (.unit r) (.unit r) (.sort r) m a from
+    ⟨fun _ _ _ => ⟨this, this⟩, fun _ _ => this⟩
+  cases hmem.unfold with
+  | bot hm =>
+    apply (LR _).bot hm
+    obtain rfl | rfl := (WShape.le_sort (s := a)).1 <|
+      (TShape.LE.lift_r (Nat.zero_le _)).1 hA.le_sort
+    · exact (LR _).bot_ty
+    · exact .sort
+  | unit h => exact ⟨r, ⟨.sort, .rfl⟩, r, ⟨.unit, .rfl⟩, ⟨.unit, .rfl⟩⟩
+  | sort => cases TShape.sort_not_le_unit hM.le_unit
+  | forallE => cases TShape.forallE_not_le_unit hM.le_unit
+  | lam =>
+    revert hM; unfold WShape.lam'
+    split <;> [skip; exact fun _ => (LR _).bot hmem.isType <|
+      (LR _).mono_r_2_ty hA.le_sort' hmem.isType .sort .sort]
+    intro hM; cases TShape.lam_not_le_unit hM.le_unit
+  | sigma => cases TShape.sigma_not_le_unit hM.le_unit
+  | pair => cases TShape.pair_not_le_unit hM.le_unit
+  | nat => cases TShape.nat_not_le_unit hM.le_unit
+  | zero => cases TShape.zero_not_le_unit hM.le_unit
+  | succ _ => cases TShape.succ_not_le_unit hM.le_unit
+
 /-- Lower an `Adequate` from a witness `(m', a')` to a smaller one `(m, a)` — used to
 consume the saturated invariant returned by `adequacy_Y`. `le : m.T ≤ m'.T` lowers the
 term-witness; the two type-witnesses `a, a'` (both interpreting `A`, hence compatible)
@@ -264,6 +296,7 @@ theorem LR.Adequate.nat {m a : WShape n}
     · exact (LR _).bot_ty
     · exact .sort
   | sort => cases n <;> (have .nat h := hM; exact (TShape.sort_not_le_nat h).elim)
+  | unit => have .nat h := hM; exact (TShape.unit_not_le_nat h).elim
   | forallE => have .nat h := hM; exact (TShape.forallE_not_le_nat h).elim
   | sigma => have .nat h := hM; exact (TShape.sigma_not_le_nat h).elim
   | nat => exact ⟨true, ⟨.sort, .rfl⟩, ⟨.nat, .rfl⟩, ⟨.nat, .rfl⟩⟩
@@ -430,8 +463,13 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
           (LR _).mono_r_2_ty hA.le_sort' hmem.isType .sort .sort
       · simp [WShape.ext_iff, WShape.forallE, WShape.sort, Shape.sort,
           WShape.lam', WShape.lam, WShape.bot, Shape.bot, WShape.sigma, WShape.pair,
-          WShape.nat, Shape.nat, WShape.zero, Shape.zero, WShape.succ, Shape.succ] at h <;>
+          WShape.nat, Shape.nat, WShape.zero, Shape.zero, WShape.succ, Shape.succ,
+          WShape.unit] at h <;>
         first | split at h <;> simp_all only [reduceCtorEq] | simp_all
+  | @unit Γ r => exact LR.adequate_unit hM hA hmem
+  | @star Γ r =>
+    cases hM with
+    | bot => exact .bot' .unit hA hmem.isType fun h h' hm => LR.adequate_unit h h' hm
   | @appDF Γ A u B v F F' X X' _ _ Hf Ha HBa _ _ ihf iha ihBa =>
     cases hM with
     | bot => exact .bot' HBa.hasType.1 hA hmem.isType fun h h' hm => (ihBa h h' hm).left
@@ -481,7 +519,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     cases hmf.unfold with
     | bot => cases hm0 rfl
     | lam hg => ?_
-    | sort | forallE | sigma | nat => exact (TShape.sort_not_le_forallE le).elim
+    | sort | unit | forallE | sigma | nat => exact (TShape.sort_not_le_forallE le).elim
     | pair => exact (TShape.sigma_not_le_forallE le).elim
     | zero | succ => exact (TShape.nat_not_le_forallE le).elim
     rename_i n₁ b₁' b₂' f' n₂ b₁ b₂ f
@@ -571,9 +609,11 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
         | sort =>
           cases n <;> let .forallE _ _ _ _ le := hA <;> exact (TShape.sort_not_le_forallE le).elim
         | forallE => exact this _ _ _ rfl .rfl
+        | unit => let .forallE _ _ _ _ le := hA; exact (TShape.unit_not_le_forallE le).elim
         | sigma => let .forallE _ _ _ _ le := hA; exact (TShape.sigma_not_le_forallE le).elim
         | nat => let .forallE _ _ _ _ le := hA; exact (TShape.nat_not_le_forallE le).elim
       | sort => cases n <;> let .lam _ _ _ h := hTerm <;> cases TShape.sort_not_le_lam' h
+      | unit => let .lam _ _ _ h := hTerm <;> cases TShape.unit_not_le_lam' h
       | forallE => let .lam _ _ _ h := hTerm <;> cases TShape.forallE_not_le_lam' h
       | lam => exact this _ _ _ rfl .rfl
       | sigma => let .lam _ _ _ h := hTerm <;> cases TShape.sigma_not_le_lam' h
@@ -677,6 +717,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     | nat => have .forallE _ _ _ _ h := hM; exact (TShape.nat_not_le_forallE h).elim
     | zero => have .forallE _ _ _ _ h := hM; exact (TShape.zero_not_le_forallE h).elim
     | succ _ => have .forallE _ _ _ _ h := hM; exact (TShape.succ_not_le_forallE h).elim
+    | unit => have .forallE _ _ _ _ h := hM; cases TShape.unit_not_le_forallE h
     | @forallE k a₂ a₁ r aty
     refine .wf₀ fun hΓ₀ => ?_
     have aty := WShape.HasTypePi.iff.1 aty
@@ -781,6 +822,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     | nat => let .lam _ _ _ h := hM; exact (TShape.nat_not_le_lam' h).elim
     | zero => let .lam _ _ _ h := hM; exact (TShape.zero_not_le_lam' h).elim
     | succ _ => let .lam _ _ _ h := hM; exact (TShape.succ_not_le_lam' h).elim
+    | unit => let .lam _ _ _ h := hM <;> cases TShape.unit_not_le_lam' h
     | lam htm
     revert hM hM' hmem; unfold WShape.lam'
     split <;> intro hM hM' hmem <;>
@@ -795,6 +837,9 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     refine ((LR _).whr ⟨H, ?_⟩ ⟨H.hasType.2, .rfl⟩ H).2 (vpi_N.2 hp ha hv)
     rw [(?_ : (e0.subst σ).app a = _)]; · exact .tail .rfl .beta
     rw [inst_lift_cons, Term.subst, lift_subst_cons]; rfl
+  | @unit_eta Γ e r He ihe =>
+    let .bot := hM
+    exact .bot' .unit hA hmem.isType fun h h' hm => LR.adequate_unit h h' hm
   | proofIrrel Hp _ _ ihp =>
     refine .wf fun hΓ => .fits fun W => ?_
     have ⟨_, _, s, le_n, le_a, _, hSort, hmem'⟩ := (LE_Interp.sound Hp W).2 hA |>.out
@@ -808,9 +853,10 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       cases hm.unfold with
       | bot _ => exact .bot (fun _ _ => (LR _).bot_ty) hm
       | sort => exact .bot (fun _ _ => LogRelBase.TyEq.sort) hm
-      | forallE | sigma | nat =>
+      | forallE | sigma | nat | unit =>
         let .sort h := hA; cases (TShape.LE.lift_r (by simp [TShape.sort])).1 h
     | sort => cases n <;> have .sigma _ _ _ _ h := hM <;> cases TShape.sort_not_le_sigma h
+    | unit => have .sigma _ _ _ _ h := hM; cases TShape.unit_not_le_sigma h
     | @lam _ f₀ =>
       revert hM; unfold WShape.lam'
       split <;> [skip; exact fun _ => .bot
@@ -915,10 +961,12 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       cases hm.unfold with
       | bot _ => exact .bot (fun _ _ => (LR _).bot_ty) hm
       | sort => cases n <;> let .sigma _ _ _ _ le := hA <;> exact (TShape.sort_not_le_sigma le).elim
+      | unit => let .sigma _ _ _ _ le := hA; exact (TShape.unit_not_le_sigma le).elim
       | forallE => let .sigma _ _ _ _ le := hA; exact (TShape.forallE_not_le_sigma le).elim
       | sigma => exact LR.Adequate.bot' HSigmaTy hA hmem.isType ihAB
       | nat => let .sigma _ _ _ _ le := hA; exact (TShape.nat_not_le_sigma le).elim
     | sort => cases n <;> have .pair _ _ h := hM <;> cases TShape.sort_not_le_pair' h
+    | unit => have .pair _ _ h := hM; cases TShape.unit_not_le_pair' h
     | @lam k f₀ =>
       revert hM; unfold WShape.lam'
       split <;> [skip; exact fun _ => LR.Adequate.bot' HSigmaTy hA hmem.isType ihAB]
@@ -1383,7 +1431,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     cases hsigmaT with | bot => cases hm0 hmp.bot_r | sigma hb1 hb2 hd hF le
     cases hmp.unfold with
     | bot => cases hm0 rfl
-    | sort | sigma | forallE => exact (TShape.sort_not_le_sigma le).elim
+    | sort | unit | sigma | forallE => exact (TShape.sort_not_le_sigma le).elim
     | lam _ => exact (TShape.forallE_not_le_sigma le).elim
     | nat => exact (TShape.sort_not_le_sigma le).elim
     | zero => exact (TShape.nat_not_le_sigma le).elim
@@ -1467,7 +1515,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     cases hsigmaT with | bot => cases hm0 hmp.bot_r | sigma hb1 hb2 hd hF le
     cases hmp.unfold with
     | bot => cases hm0 rfl
-    | sort | sigma | forallE | nat => exact (TShape.sort_not_le_sigma le).elim
+    | sort | unit | sigma | forallE | nat => exact (TShape.sort_not_le_sigma le).elim
     | lam _ => exact (TShape.forallE_not_le_sigma le).elim
     | zero | succ => exact (TShape.nat_not_le_sigma le).elim
     | pair hpair
@@ -1593,6 +1641,7 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
     cases hmem.unfold with
     | bot hm => exact (LR _).bot hm hTyEq
     | sort => cases n <;> have .pair _ _ h := hM <;> cases TShape.sort_not_le_pair' h
+    | unit => have .pair _ _ h := hM; cases TShape.unit_not_le_pair' h
     | forallE _ => have .pair _ _ h := hM; cases TShape.forallE_not_le_pair' h
     | lam _ =>
       revert hM; unfold WShape.lam'; split <;> [skip; exact fun _ => (LR _).bot hmem.isType hTyEq]
@@ -1623,17 +1672,19 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       cases hm.unfold with
       | bot => exact (LR _).bot_ty
       | sort => cases n <;> (have .nat h := hA; exact (TShape.sort_not_le_nat h).elim)
+      | unit => have .nat h := hA; exact (TShape.unit_not_le_nat h).elim
       | forallE _ => have .nat h := hA; exact (TShape.forallE_not_le_nat h).elim
       | sigma _ => have .nat h := hA; exact (TShape.sigma_not_le_nat h).elim
       | nat => exact ⟨⟨.nat, .rfl⟩, ⟨.nat, .rfl⟩⟩
-    | nat => have .zero h := hM; exact (TShape.nat_not_le_zero h).elim
-    | succ => have .zero h := hM; exact (TShape.succ_not_le_zero h).elim
     | sort => cases n <;> (have .nat h := hA; exact (TShape.sort_not_le_nat h).elim)
+    | unit => have .zero h := hM; exact (TShape.unit_not_le_zero h).elim
     | forallE => have .nat h := hA; exact (TShape.sort_not_le_nat h).elim
     | lam => have .nat h := hA; exact (TShape.forallE_not_le_nat h).elim
     | sigma => have .nat h := hA; exact (TShape.sort_not_le_nat h).elim
     | pair => have .nat h := hA; exact (TShape.sigma_not_le_nat h).elim
+    | nat => have .zero h := hM; exact (TShape.nat_not_le_zero h).elim
     | zero => exact ⟨⟨.nat, .rfl⟩, ⟨.zero, .rfl⟩, ⟨.zero, .rfl⟩⟩
+    | succ => have .zero h := hM; exact (TShape.succ_not_le_zero h).elim
   | @succDF Γ nTm nTm' hnEq ihn =>
     cases hmem.unfold with
     | bot hm =>
@@ -1642,10 +1693,12 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       cases hm.unfold with
       | bot => exact (LR _).bot_ty
       | sort => exact (TShape.sort_not_le_nat h).elim
+      | unit => exact (TShape.unit_not_le_nat h).elim
       | forallE => exact (TShape.forallE_not_le_nat h).elim
       | sigma => exact (TShape.sigma_not_le_nat h).elim
       | nat => exact ⟨⟨.nat, .rfl⟩, ⟨.nat, .rfl⟩⟩
     | sort => cases n <;> (have .nat h := hA; exact (TShape.sort_not_le_nat h).elim)
+    | unit => have .succ _ h := hM; exact (TShape.unit_not_le_succ h).elim
     | forallE => have .nat h := hA; exact (TShape.sort_not_le_nat h).elim
     | lam => have .nat h := hA; exact (TShape.forallE_not_le_nat h).elim
     | sigma => have .nat h := hA; exact (TShape.sort_not_le_nat h).elim
@@ -1996,6 +2049,13 @@ theorem sort_inv (hΓ : ⊢ Γ) (d : Γ ⊢ Term.sort u ≡ Term.sort v : V) : u
   have ⟨_, _, w, h1, h2⟩ := (LR _).sort_iff.1 (subst_id ▸ subst_id ▸ subst_id ▸ this)
   cases WHNF.sort.whRedS h1.2; cases WHNF.sort.whRedS h2.2; rfl
 
+/-- Unit/Π disjointness: a unit type is never definitionally equal to a Π-type
+(hence, symmetrically, no Π-type is a unit type). Proved from the Π side:
+`.unit r` is already a WHNF, so it cannot weak-head-reduce to a `forallE`. -/
+theorem forallE_unit_inv (hΓ : ⊢ Γ) :
+    ¬Γ ⊢ Term.unit r ≡ Term.forallE A B : .sort s :=
+  fun H => have ⟨_, _, red, _⟩ := forallE_whRed_l hΓ H; nomatch WHNF.unit.whRedS red
+
 /-- Headline Σ-type whr-inversion (mirrors `forallE_whRed_l` for Π). -/
 theorem sigma_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A₀ ≡ Term.sigma B₁ F₁ : .sort true) :
     ∃ B₀ F₀, A₀ ⤳* .sigma B₀ F₀ ∧
@@ -2026,6 +2086,11 @@ theorem sigma_inv (hΓ : ⊢ Γ)
 theorem sort_sigma_inv (hΓ : ⊢ Γ) : ¬Γ ⊢ .sort u ≡ Term.sigma A₁ B₁ : .sort true :=
   fun H => have ⟨_, _, H, _⟩ := sigma_whRed_l hΓ H; nomatch WHNF.sort.whRedS H
 
+/-- Unit/Σ disjointness: a unit type is never definitionally equal to a Σ-type. -/
+theorem sigma_unit_inv (hΓ : ⊢ Γ) :
+    ¬Γ ⊢ Term.unit r ≡ Term.sigma A B : .sort true :=
+  fun H => have ⟨_, _, red, _⟩ := sigma_whRed_l hΓ H; nomatch WHNF.unit.whRedS red
+
 /-- Π/Σ disjointness: a Π-type is never definitionally equal to a Σ-type. -/
 theorem forallE_sigma_inv (hΓ : ⊢ Γ) :
     ¬Γ ⊢ Term.forallE A B ≡ Term.sigma A₁ B₁ : .sort true :=
@@ -2047,6 +2112,10 @@ theorem nat_whRed_l (hΓ : ⊢ Γ) (d : Γ ⊢ A ≡ Term.nat : .sort true) :
 /-- Sort/Nat disjointness: a sort is never definitionally equal to `.nat`. -/
 theorem sort_nat_inv (hΓ : ⊢ Γ) : ¬ Γ ⊢ Term.sort u ≡ Term.nat : .sort true :=
   fun H => nomatch WHNF.sort.whRedS (nat_whRed_l hΓ H)
+
+/-- Unit/Nat disjointness: a unit type is never definitionally equal to `.nat`. -/
+theorem nat_unit_inv (hΓ : ⊢ Γ) : ¬ Γ ⊢ Term.unit r ≡ Term.nat : .sort true :=
+  fun H => nomatch WHNF.unit.whRedS (nat_whRed_l hΓ H)
 
 /-- Π/Nat disjointness: a Π-type is never definitionally equal to `.nat`. -/
 theorem forallE_nat_inv (hΓ : ⊢ Γ) :

@@ -40,6 +40,7 @@ shape. -/
 inductive ShapeS (Shape : Type) : Type where
   | bot : ShapeS Shape
   | sort (rel : Bool) : ShapeS Shape
+  | unit (rel : Bool) : ShapeS Shape
   | forallE : Shape → List (Shape × Shape) → ShapeS Shape
   | lam : List (Shape × Shape) → ShapeS Shape
   | sigma : Shape → List (Shape × Shape) → ShapeS Shape
@@ -89,6 +90,7 @@ when two shapes can be joined. -/
 def Shape.Compat : ∀ {n}, Shape n → Shape n → Bool
   | 0, .bot, _ | 0, _, .bot | _+1, .bot, _ | _+1, _, .bot => true
   | 0, .sort r, .sort r' | _+1, .sort r, .sort r' => r = r'
+  | _+1, .unit r, .unit r' => r = r'
   | _+1, .forallE s f, .forallE s' f' => s.Compat s' && ShapeFun.Compat Compat f f'
   | _+1, .lam f, .lam f' => ShapeFun.Compat Compat f f'
   | _+1, .sigma s f, .sigma s' f' => s.Compat s' && ShapeFun.Compat Compat f f'
@@ -124,6 +126,7 @@ entry of `s'`'s. `bot` is the least element. -/
 def Shape.ble : ∀ {n}, Shape n → Shape n → Bool
   | 0, .bot, _ | _+1, .bot, _ => true
   | 0, .sort r, .sort r' | _+1, .sort r, .sort r' => r = r'
+  | _+1, .unit r, .unit r' => r = r'
   | _+1, .forallE s f, .forallE s' f' => s.ble s' && ShapeFun.ble ble f f'
   | _+1, .lam f, .lam f' => ShapeFun.ble ble f f'
   | _+1, .sigma s f, .sigma s' f' => s.ble s' && ShapeFun.ble ble f f'
@@ -151,6 +154,7 @@ theorem Shape.LE.def {s s' : Shape (n + 1)} : s ≤ s' ↔
     match s, s' with
     | .bot, _ => True
     | .sort r, .sort r' => r = r' --j ≤ i
+    | .unit r, .unit r' => r = r'
     | .forallE s f, .forallE s' f' => s ≤ s' ∧ ShapeFun.LE f f'
     | .lam f, .lam f' => ShapeFun.LE f f'
     | .sigma s f, .sigma s' f' => s ≤ s' ∧ ShapeFun.LE f f'
@@ -185,6 +189,13 @@ theorem Shape.le_sort {s : Shape n} : s ≤ .sort r ↔ s = .bot ∨ s = .sort r
 
 theorem Shape.sort_le {s : Shape n} : .sort r ≤ s ↔ .sort r = s := by
   cases n <;> simp [sort, (· ≤ ·), Shape.LE] <;> cases s <;> simp [ble, Shape]
+
+theorem Shape.le_unit {s : Shape (n+1)} : s ≤ .unit r ↔ s = .bot ∨ s = .unit r := by
+  cases n <;> simp [bot, (· ≤ ·), Shape.LE] <;> cases s <;>
+    simp [ble] <;> exact ⟨fun h => h ▸ rfl, fun h => by injection h⟩
+
+theorem Shape.unit_le {s : Shape (n+1)} : .unit r ≤ s ↔ .unit r = s := by
+  cases n <;> simp [(· ≤ ·), Shape.LE] <;> cases s <;> simp [ble, Shape]
 
 theorem Shape.forallE_le {s : Shape (n+1)} :
     .forallE a b ≤ s ↔ ∃ a' b', a ≤ a' ∧ ShapeFun.LE b b' ∧ .forallE a' b' = s := by
@@ -247,9 +258,8 @@ theorem Shape.Compat.mono_r {n} {s t t' : Shape n}
     (le : t ≤ t') (H : s.Compat t') : s.Compat t := by
   induction n with
   | zero =>
-    cases s <;> [simp [Compat]; skip]
-    cases t <;> cases t' <;> simp [Compat, (·≤·), Shape.LE, Shape.ble] at H le ⊢
-    exact H.trans le.symm
+    cases s <;> cases t <;> cases t' <;>
+      simp_all [Compat, (·≤·), Shape.LE, Shape.ble]
   | succ n ih
   let rec go {s t t' : ShapeFun n}
       (le : t.LE t') (H : ShapeFun.Compat Compat s t') : ShapeFun.Compat Compat s t := by
@@ -260,6 +270,7 @@ theorem Shape.Compat.mono_r {n} {s t t' : Shape n}
     (cases t' with | bot => cases le_bot.1 le; rfl | _) <;>
     simp [Compat] at H <;> (cases t with | bot => rfl | _) <;>
     simp [Shape.LE.def, Compat] at le ⊢
+  · exact H.trans le.symm
   · exact H.trans le.symm
   · exact ⟨ih le.1 H.1, go le.2 H.2⟩
   · exact go le H
@@ -281,6 +292,7 @@ level 0). -/
 def Shape.lift : ∀ {n} m, Shape n → Shape m
   | 0, _, .sort r | _+1, _, .sort r => .sort r
   | 0, _, .bot | _+1, _, .bot | _, 0, _ => .bot
+  | _+1, _+1, .unit r => .unit r
   | _+1, _+1, .forallE s f => .forallE (lift _ s) <| ShapeFun.lift (lift _) f
   | _+1, _+1, .lam f => .lam <| ShapeFun.lift (lift _) f
   | _+1, _+1, .sigma s f => .sigma (lift _ s) <| ShapeFun.lift (lift _) f
@@ -294,7 +306,6 @@ def Shape.lift : ∀ {n} m, Shape n → Shape m
 
 @[simp] theorem Shape.lift_sort : (.sort r : Shape n).lift m = .sort r := by
   cases n <;> [rfl; cases m <;> rfl]
-
 
 theorem Shape.lift_self {s : Shape n} : s.lift n = s := by
   have {α} {lift : α → α} (IH : ∀ {s}, lift s = s) {s} : ShapeFun.lift lift s = s := by
@@ -393,6 +404,7 @@ def Shape.olift : ∀ {n m}, Shape n → Option (Shape m)
   | 0, _, .sort r | _+1, _, .sort r => some (.sort r)
   | 0, _, .bot | _+1, _, .bot => some .bot
   | _+1, 0, _ => none
+  | _+1, _+1, .unit r => some (.unit r)
   | _+1, _+1, .forallE s f => return .forallE (← s.olift) (← ShapeFun.olift olift f)
   | _+1, _+1, .lam f => return .lam (← ShapeFun.olift olift f)
   | _+1, _+1, .sigma s f => return .sigma (← s.olift) (← ShapeFun.olift olift f)
@@ -429,6 +441,7 @@ theorem Shape.olift_thm (le : n ≤ m) {s : Shape m} {t : Shape n} :
     <;> cases t <;> simp [lift, bot, sort]
   iterate 4 · grind
   all_goals have le := Nat.le_of_succ_le_succ le
+  · grind
   · simp [olift_thm le, go olift_thm le]; grind
   · simp [go olift_thm le]; grind
   · simp [olift_thm le, go olift_thm le]; grind
@@ -503,6 +516,7 @@ theorem ShapeFun.mem_join {join} {f f' : ShapeFun n} {a} :
 def Shape.join : ∀ {n}, Shape n → Shape n → Shape n
   | 0, s, .bot | 0, .bot, s | _+1, .bot, s | _+1, s, .bot => s
   | 0, .sort r, .sort r' | _+1, .sort r, .sort r' => if r = r' then .sort r else .bot
+  | _+1, .unit r, .unit r' => if r = r' then .unit r else .bot
   | _+1, .forallE s f, .forallE s' f' => .forallE (join s s') (ShapeFun.join join f f')
   | _+1, .lam f, .lam f' => .lam (ShapeFun.join join f f')
   | _+1, .sigma s f, .sigma s' f' => .sigma (join s s') (ShapeFun.join join f f')
@@ -517,7 +531,7 @@ theorem Shape.lift_join {x y : Shape n} (le : n ≤ m) :
   induction n generalizing m with
   | zero =>
     cases m with | zero => simp [lift_self] | succ m
-    cases x <;> cases y <;> simp [lift, join, sort]; split <;> simp [lift, sort]
+    cases x <;> cases y <;> simp [lift, join, sort] <;> split <;> simp [lift, sort]
   | succ n ih
   let m + 1 := m; replace le := Nat.le_of_succ_le_succ le; replace ih {x y} := @ih m x y le
   let rec go {x y : ShapeFun n} :
@@ -535,6 +549,7 @@ theorem Shape.lift_join {x y : Shape n} (le : n ≤ m) :
     simp [G, G', Compat.lift le]; split <;> simp [ih, ShapeFun.lift_app le]
   cases x with cases y <;> simp [join, lift, go, sort, ih]
   | sort => split <;> simp [lift, sort]
+  | unit => split <;> simp [lift]
 
 theorem Shape.bot_join {x : Shape n} : bot.join x = x := by cases n <;> cases x <;> rfl
 theorem Shape.join_bot {x : Shape n} : x.join bot = x := by cases n <;> cases x <;> rfl
@@ -556,7 +571,7 @@ theorem ShapeFun.NonZero.mono {f f' : ShapeFun n} (le : f.LE f') : NonZero f →
   | ⟨_, h1, h2⟩ => have ⟨_, _, a1, _, a2⟩ := ShapeFun.LE.def.1 le _ _ h1; ⟨_, a1, mt a2.trans h2⟩
 
 def Shape.WF : ∀ {n}, Shape n → Prop
-  | 0, _ | _+1, .bot | _+1, .sort .. => True
+  | 0, _ | _+1, .bot | _+1, .sort .. | _+1, .unit .. => True
   | _+1, .forallE s f => s.WF ∧ ShapeFun.WF WF f
   | _+1, .lam f => ShapeFun.WF WF f ∧ ShapeFun.NonZero f
   | _+1, .sigma s f => s.WF ∧ ShapeFun.WF WF f
@@ -654,6 +669,7 @@ def WShape.bot : WShape n := ⟨.bot, .bot⟩
 def WShape.sort (r : Bool) : WShape n := ⟨.sort r, .sort⟩
 abbrev WShape.type : WShape n := .sort true
 abbrev WShape.prop : WShape n := .sort false
+def WShape.unit (r : Bool) : WShape (n+1) := ⟨.unit r, trivial⟩
 def WShape.forallE (s : WShape n) (f : WShapeFun n) : WShape (n + 1) := ⟨.forallE s.1 f.1, s.2, f.2⟩
 def WShape.lam (f : WShapeFun n) (h : f.NonZero) :
     WShape (n + 1) := ⟨.lam f.1, f.2, h⟩
@@ -700,6 +716,7 @@ def WShape.casesOn' {motive : WShape (n+1) → Sort u}
     (s : WShape (n+1))
     (bot : motive .bot)
     (sort : ∀ r, motive (.sort r))
+    (unit : ∀ r, motive (.unit r))
     (forallE : ∀ s f, motive (.forallE s f))
     (lam : ∀ f h, motive (.lam f h))
     (sigma : ∀ s f, motive (.sigma s f))
@@ -711,6 +728,7 @@ def WShape.casesOn' {motive : WShape (n+1) → Sort u}
   cases s with
   | bot => exact bot
   | sort r => exact sort r
+  | unit r => exact unit r
   | forallE s' f' => exact forallE ⟨s', wf.1⟩ ⟨f', wf.2⟩
   | lam f' => exact lam ⟨f', wf.1⟩ wf.2
   | sigma s' f' => exact sigma ⟨s', wf.1⟩ ⟨f', wf.2⟩
@@ -725,6 +743,7 @@ def WShape.casesOn {motive : ∀ {n}, WShape n → Sort u}
     {n} (s : WShape n)
     (bot : motive (n := n) .bot)
     (sort : ∀ r, motive (n := n) (.sort r))
+    (unit : ∀ {n'} r, motive (n := n'+1) (.unit r))
     (forallE : ∀ {n'} s f, motive (n := n'+1) (.forallE s f))
     (lam : ∀ {n'} f h, motive (n := n'+1) (.lam f h))
     (sigma : ∀ {n'} s f, motive (n := n'+1) (.sigma s f))
@@ -738,7 +757,7 @@ def WShape.casesOn {motive : ∀ {n}, WShape n → Sort u}
     cases s with
     | bot => exact bot
     | sort r => exact sort r
-  | succ n => exact s.casesOn' bot sort forallE lam sigma pair nat zero succ
+  | succ n => exact s.casesOn' bot sort unit forallE lam sigma pair nat zero succ
 
 def WShape.lift {n} (m) (s : WShape n) : WShape m := by
   refine ⟨(s.1.olift (m := m)).getD .bot, ?_⟩
@@ -784,6 +803,9 @@ theorem WShape.forallE.inj {f : WShapeFun n} :
 
 @[simp] theorem WShape.lift_sort : (WShape.sort r : WShape n).lift m = .sort r := by
   ext; simp [lift, sort]
+
+@[simp] theorem WShape.lift_unit : (WShape.unit r : WShape (n+1)).lift (m+1) = .unit r := by
+  ext; simp [lift, unit, Shape.olift]
 
 @[simp] theorem WShape.lift_type : (WShape.type (n := n)).lift m = WShape.type := WShape.lift_sort
 
@@ -991,7 +1013,7 @@ theorem WShape.le_forallE_iff {s : WShape (n+1)} {a' : WShape n} {f' : WShapeFun
   · cases s using WShape.casesOn' with
     | bot => exact fun _ => .inl rfl
     | forallE a f => exact fun h => .inr ⟨a, f, rfl, forallE_le_forallE.1 h⟩
-    | _ => simp only [sort, lam, forallE, sigma, pair,
+    | _ => simp only [sort, lam, forallE, sigma, pair, unit,
       WShape.nat, WShape.zero, WShape.succ, LE.def, Shape.LE.def, false_implies]
   · rintro (rfl | ⟨a, f, rfl, h1, h2⟩)
     · exact bot_le
@@ -1003,7 +1025,7 @@ theorem WShape.le_sigma_iff {s : WShape (n+1)} {a' : WShape n} {f' : WShapeFun n
   · cases s using WShape.casesOn' with
     | bot => exact fun _ => .inl rfl
     | sigma a f => exact fun h => .inr ⟨a, f, rfl, sigma_le_sigma.1 h⟩
-    | _ => simp only [sort, lam, forallE, sigma, pair,
+    | _ => simp only [sort, lam, forallE, sigma, pair, unit,
       WShape.nat, WShape.zero, WShape.succ, LE.def, Shape.LE.def, false_implies]
   · rintro (rfl | ⟨a, f, rfl, h1, h2⟩)
     · exact bot_le
@@ -1019,7 +1041,7 @@ theorem WShape.le_nat_iff {s : WShape (n+1)} :
     | bot => exact .inl rfl
     | nat => exact .inr rfl
     | _ => simp [WShape.LE.def, WShape.nat, WShape.sort, WShape.lam, WShape.forallE,
-      WShape.sigma, WShape.pair, WShape.zero, WShape.succ, Shape.LE.def, Shape.nat] at h
+      WShape.sigma, WShape.pair, WShape.zero, WShape.succ, WShape.unit, Shape.LE.def, Shape.nat] at h
   · rintro (rfl | rfl)
     · exact bot_le
     · exact .rfl
@@ -1031,7 +1053,7 @@ theorem WShape.le_zero_iff {s : WShape (n+1)} :
     | bot => exact .inl rfl
     | zero => exact .inr rfl
     | _ => simp [WShape.LE.def, WShape.zero, WShape.sort, WShape.lam, WShape.forallE,
-      WShape.sigma, WShape.pair, WShape.nat, WShape.succ, Shape.LE.def, Shape.zero] at h
+      WShape.sigma, WShape.pair, WShape.nat, WShape.succ, WShape.unit, Shape.LE.def, Shape.zero] at h
   · rintro (rfl | rfl)
     · exact bot_le
     · exact .rfl
@@ -1043,13 +1065,19 @@ theorem WShape.le_succ_iff {s : WShape (n+1)} {v' : WShape n} :
     | bot => exact .inl rfl
     | succ v => exact .inr ⟨v, rfl, (Shape.succ_le_succ).1 h⟩
     | _ => simp [WShape.LE.def, WShape.succ, WShape.sort, WShape.lam, WShape.forallE,
-      WShape.sigma, WShape.pair, WShape.nat, WShape.zero, Shape.LE.def, Shape.succ] at h
+      WShape.sigma, WShape.pair, WShape.nat, WShape.zero, WShape.unit, Shape.LE.def, Shape.succ] at h
   · rintro (rfl | ⟨v, rfl, h⟩)
     · exact bot_le
     · exact (Shape.succ_le_succ).2 h
 
 theorem WShape.sort_le {s : WShape n} : .sort r ≤ s ↔ .sort r = s :=
   Shape.sort_le.trans <| by simp [WShape.ext_iff, WShape.sort]
+
+theorem WShape.unit_le {s : WShape (n+1)} : .unit r ≤ s ↔ .unit r = s :=
+  Shape.unit_le.trans <| by simp [WShape.ext_iff, WShape.unit]
+
+theorem WShape.le_unit {s : WShape (n+1)} : s ≤ .unit r ↔ s = .bot ∨ s = .unit r :=
+  Shape.le_unit.trans <| by simp [WShape.ext_iff, WShape.bot, WShape.unit]
 
 theorem WShape.forallE_le {s : WShape (n+1)} {a : WShape n} {f : WShapeFun n} :
     WShape.forallE a f ≤ s ↔
@@ -1095,6 +1123,10 @@ instance : Decidable (WShapeFun.Compat a b) := inferInstanceAs (Decidable (_ = t
 @[simp] theorem WShape.Compat.bot_r {n} {s : WShape n} : s.Compat bot := Shape.Compat.bot_r
 @[simp] theorem WShape.Compat.sort_sort : Compat (sort r : WShape n) (sort r') ↔ r = r' :=
   Shape.Compat.sort_sort
+
+@[simp] theorem WShape.Compat.unit_unit :
+    Compat (.unit r : WShape (n+1)) (.unit r') ↔ r = r' := by
+  simp [WShape.Compat, WShape.unit, Shape.Compat]
 
 @[simp] theorem WShape.Compat.forallE_forallE {a a' : WShape n} {f f' : WShapeFun n} :
     (WShape.forallE a f).Compat (.forallE a' f') ↔ a.Compat a' ∧ WShapeFun.Compat f f' :=
@@ -1302,6 +1334,7 @@ theorem WShape.join_prop {x y : WShape n} :
     (cases y with | bot => exact Shape.Compat.bot_r | _) <;>
     simp [Shape.LE.def, Shape.Compat] at h3 ⊢ <;> dsimp [Shape.WF] at wf wf' wf₃
     · exact h2.trans h3.symm
+    · exact h2.trans h3.symm
     · exact ⟨(@ih ⟨_, wf.1⟩ ⟨_, wf'.1⟩).1 ⟨_, wf₃.1⟩ h2.1 h3.1,
         (go wf.2 wf'.2).1 ⟨_, wf₃.2⟩ h2.2 h3.2⟩
     · exact (go wf.1 wf'.1).1 ⟨_, wf₃.1⟩ h2 h3
@@ -1430,6 +1463,12 @@ def WShapeFun.join (x y : WShapeFun n) : WShapeFun n :=
 
 theorem WShapeFun.join_val {x y : WShapeFun n} (H : Compat x y) :
     (x.join y).1 = x.1.join Shape.join y.1 := by simp [join, dif_pos H]
+
+@[simp] theorem WShape.unit_join_unit :
+    join (unit r : WShape (n+1)) (unit r') = if r = r' then .unit r else .bot := by
+· rw [WShape.join]; split
+  · ext1; simp [WShape.unit, Shape.join]; simp_all
+  · simp_all
 
 @[simp] theorem WShape.forallE_join_forallE {a a' : WShape n} {f f' : WShapeFun n}
     (hc1 : a.Compat a') (hc2 : WShapeFun.Compat f f') :
@@ -1577,6 +1616,7 @@ theorem TShape.succ_le_succ {v : WShape n} {v' : WShape n'} :
 def TShape.bot : TShape := WShape.T (n := 0) .bot
 def TShape.sort (r : Bool) : TShape := WShape.T (n := 0) (.sort r)
 def TShape.type : TShape := .sort true
+def TShape.unit (r : Bool) : TShape := WShape.T (n := 1) (.unit r)
 
 nonrec theorem TShape.LE.rfl {a : TShape} : a ≤ a := WShape.LE.rfl
 
@@ -1687,6 +1727,11 @@ theorem TShape.succ_not_le_forallE {v : WShape n} {a : WShape n'} {f : WShapeFun
   rw [TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂),
     WShape.lift_succ le₁, WShape.lift_forallE le₂]
   simp [WShape.LE.def, WShape.succ, WShape.forallE, Shape.LE.def, Shape.succ]
+
+theorem TShape.unit_eqv :
+    (WShape.unit (n := n) r).T ≤ .unit r ∧ .unit r ≤ (WShape.unit (n := n) r).T := by
+  rw [TShape.LE.lift_r (Nat.le_add_left ..), TShape.LE.lift_l (Nat.le_add_left ..)]
+  simp [unit, WShape.lift_unit, WShape.LE.rfl]
 
 theorem TShape.sort_not_le_lam' {f : WShapeFun n'} :
     ¬(.sort r : WShape n).T ≤ (WShape.lam' f).T := by
@@ -1799,6 +1844,125 @@ theorem TShape.pair_not_le_sigma {a b : WShape n} {h}
     obtain hne | hne := h
     · apply hne; rw [(WShape.lift_le_bot le₁).1 hcond.1]; exact Shape.bot_le
     · apply hne; rw [(WShape.lift_le_bot le₁).1 hcond.2]; exact Shape.bot_le
+
+theorem TShape.unit_not_le_forallE :
+    ¬(.unit r : WShape (n+1)).T ≤ (.forallE a' f' : WShape (n'+1)).T := by
+  have' le₁ := Nat.le_max_left ..; have' le₂ := Nat.le_max_right ..
+  rw [TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂),
+    WShape.lift_unit, WShape.lift_forallE le₂]
+  simp [WShape.LE.def, WShape.unit, WShape.forallE, Shape.LE.def]
+
+theorem TShape.unit_not_le_lam' {f₂ : WShapeFun n'} :
+    ¬(.unit r : WShape (n+1)).T ≤ (WShape.lam' f₂).T := by
+  have' le₁ := Nat.le_max_left ..; have' le₂ := Nat.le_max_right ..
+  rw [TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂),
+    WShape.lift_unit, WShape.lift_lam' le₂]
+  intro hle
+  unfold WShape.lam' at hle; split at hle <;>
+    simp [WShape.LE.def, WShape.unit, WShape.lam, WShape.bot, Shape.LE.def] at hle
+
+theorem TShape.unit_not_le_sigma {a' : WShape n'} {f' : WShapeFun n'} :
+    ¬(.unit r : WShape (n+1)).T ≤ (.sigma a' f' : WShape (n'+1)).T := by
+  have' le₁ := Nat.le_max_left ..; have' le₂ := Nat.le_max_right ..
+  rw [TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂),
+    WShape.lift_unit, WShape.lift_sigma le₂]
+  simp [WShape.LE.def, WShape.unit, WShape.sigma, Shape.LE.def]
+
+theorem TShape.unit_not_le_pair' {a' b' : WShape n'} :
+    ¬(.unit r : WShape (n+1)).T ≤ (WShape.pair' a' b' : WShape (n'+1)).T := by
+  have' le₁ := Nat.le_max_left ..; have' le₂ := Nat.le_max_right ..
+  rw [TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂),
+    WShape.lift_unit, WShape.lift_pair' le₂]
+  intro hle
+  unfold WShape.pair' at hle; split at hle <;>
+    simp [WShape.LE.def, WShape.unit, WShape.pair, WShape.bot, Shape.LE.def] at hle
+
+theorem TShape.sort_not_le_unit :
+    ¬(.sort r : WShape n).T ≤ (.unit r' : WShape (n'+1)).T := by
+  rw [TShape.LE.def']; simp only [WShape.T, WShape.lift_sort]
+  intro h; have h := congrArg (·.1) (WShape.sort_le.1 h)
+  simp only [WShape.sort, WShape.unit, WShape.lift_val (Nat.le_max_right ..)] at h
+  have hk : max n (n' + 1) = max n (n' + 1) - 1 + 1 := by omega
+  rw [hk] at h; simp [Shape.sort, Shape.lift] at h
+
+theorem TShape.forallE_not_le_unit {a : WShape n} {f : WShapeFun n} :
+    ¬(.forallE a f : WShape (n+1)).T ≤ (.unit r' : WShape (n'+1)).T := by
+  have' le₁ := Nat.le_max_left ..; have' le₂ := Nat.le_max_right ..
+  rw [TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂),
+    WShape.lift_forallE le₁, WShape.lift_unit]
+  simp [WShape.LE.def, WShape.forallE, WShape.unit, Shape.LE.def]
+
+theorem TShape.sigma_not_le_unit {a : WShape n} {f : WShapeFun n} :
+    ¬(.sigma a f : WShape (n+1)).T ≤ (.unit r' : WShape (n'+1)).T := by
+  have' le₁ := Nat.le_max_left ..; have' le₂ := Nat.le_max_right ..
+  rw [TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂),
+    WShape.lift_sigma le₁, WShape.lift_unit]
+  simp [WShape.LE.def, WShape.sigma, WShape.unit, Shape.LE.def]
+
+theorem TShape.lam_not_le_unit {f₁ : WShapeFun n} {hl} :
+    ¬(.lam f₁ hl : WShape (n+1)).T ≤ (.unit r' : WShape (n'+1)).T := by
+  have' le₁ := Nat.le_max_left ..; have' le₂ := Nat.le_max_right ..
+  rw [TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂),
+    WShape.lift_lam le₁, WShape.lift_unit]
+  simp [(· ≤ ·), Shape.LE, Shape.ble, WShape.lam, WShape.unit]
+
+theorem TShape.pair_not_le_unit {a b : WShape n} {h} :
+    ¬(.pair a b h : WShape (n+1)).T ≤ (.unit r' : WShape (n'+1)).T := by
+  have' le₁ := Nat.le_max_left ..; have' le₂ := Nat.le_max_right ..
+  rw [TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂)]
+  rw [show (WShape.pair a b h : WShape (n+1)) = WShape.pair' a b from
+    WShape.pair_eq_pair']
+  rw [WShape.lift_pair' le₁, WShape.lift_unit]
+  intro hle
+  unfold WShape.pair' at hle; split at hle
+  · simp [WShape.LE.def, WShape.pair, WShape.unit, Shape.LE.def] at hle
+  · rename_i hcond
+    simp [not_or] at hcond
+    obtain hne | hne := h
+    · apply hne; rw [(WShape.lift_le_bot le₁).1 hcond.1]; exact Shape.bot_le
+    · apply hne; rw [(WShape.lift_le_bot le₁).1 hcond.2]; exact Shape.bot_le
+
+theorem TShape.nat_not_le_unit :
+    ¬(WShape.nat : WShape (n+1)).T ≤ (.unit r' : WShape (n'+1)).T := by
+  have' le₁ := Nat.le_max_left ..; have' le₂ := Nat.le_max_right ..
+  rw [TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂),
+    WShape.lift_nat le₁, WShape.lift_unit]
+  simp [WShape.LE.def, WShape.nat, WShape.unit, Shape.LE.def, Shape.nat]
+
+theorem TShape.zero_not_le_unit :
+    ¬(WShape.zero : WShape (n+1)).T ≤ (.unit r' : WShape (n'+1)).T := by
+  have' le₁ := Nat.le_max_left ..; have' le₂ := Nat.le_max_right ..
+  rw [TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂),
+    WShape.lift_zero le₁, WShape.lift_unit]
+  simp [WShape.LE.def, WShape.zero, WShape.unit, Shape.LE.def, Shape.zero]
+
+theorem TShape.succ_not_le_unit {v : WShape n} :
+    ¬(.succ v : WShape (n+1)).T ≤ (.unit r' : WShape (n'+1)).T := by
+  have' le₁ := Nat.le_max_left ..; have' le₂ := Nat.le_max_right ..
+  rw [TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂),
+    WShape.lift_succ le₁, WShape.lift_unit]
+  simp [WShape.LE.def, WShape.succ, WShape.unit, Shape.LE.def, Shape.succ]
+
+theorem TShape.unit_not_le_nat :
+    ¬(.unit r : WShape (n+1)).T ≤ (WShape.nat : WShape (n'+1)).T := by
+  have' le₁ := Nat.le_max_left ..; have' le₂ := Nat.le_max_right ..
+  rw [TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂),
+    WShape.lift_unit, WShape.lift_nat le₂]
+  simp [WShape.LE.def, WShape.unit, WShape.nat, Shape.LE.def, Shape.nat]
+
+theorem TShape.unit_not_le_zero :
+    ¬(.unit r : WShape (n+1)).T ≤ (WShape.zero : WShape (n'+1)).T := by
+  have' le₁ := Nat.le_max_left ..; have' le₂ := Nat.le_max_right ..
+  rw [TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂),
+    WShape.lift_unit, WShape.lift_zero le₂]
+  simp [WShape.LE.def, WShape.unit, WShape.zero, Shape.LE.def, Shape.zero]
+
+theorem TShape.unit_not_le_succ {v : WShape n'} :
+    ¬(.unit r : WShape (n+1)).T ≤ (.succ v : WShape (n'+1)).T := by
+  have' le₁ := Nat.le_max_left ..; have' le₂ := Nat.le_max_right ..
+  rw [TShape.LE.def (Nat.succ_le_succ le₁) (Nat.succ_le_succ le₂),
+    WShape.lift_unit, WShape.lift_succ le₂]
+  simp [WShape.LE.def, WShape.unit, WShape.succ, Shape.LE.def, Shape.succ]
 
 theorem TShape.nat_not_le_sigma {a' : WShape n'} {f' : WShapeFun n'} :
     ¬(WShape.nat : WShape (n+1)).T ≤ (.sigma a' f' : WShape (n'+1)).T := by
@@ -2485,14 +2649,16 @@ def hasType.core (hasType : Shape n → Shape n → Bool)
   f.all fun (x, y) => (f.any fun (x', y') => x' ≤ x && y ≤ y' && hasType x' a) && hasType y (G x)
 
 def Shape.hasType : ∀ {n}, Shape n → Shape n → Bool
+  | 0, .bot, _ | _+1, .bot, .bot | _+1, .bot, .sort _ => true
+  | 0, .sort _, .sort j | _+1, .sort _, .sort j => j
+  | _+1, .bot, .unit _ => true
+  | _+1, .unit rel, .sort j => rel ≤ j
   | _+1, .bot, .forallE a b => hasType.core hasType b a fun _ => .type
   | _+1, .forallE a b, .sort r => hasType.core hasType b a fun _ => .sort r
   | _+1, .bot, .sigma a b => hasType.core hasType b a fun _ => .type
   | _+1, .sigma a b, .sort true => hasType.core hasType b a fun _ => .type
   | _+1, .bot, .nat => true
   | _+1, .nat, .sort true => true
-  | 0, .bot, _ | _+1, .bot, .bot | _+1, .bot, .sort _ => true
-  | 0, .sort _, .sort j | _+1, .sort _, .sort j => j
   | _+1, .lam f, .forallE a b =>
     hasType.core hasType b a (fun _ => .type) && hasType.core hasType f a (ShapeFun.app b)
   | _+1, .pair x y, .sigma a b =>
@@ -2545,6 +2711,7 @@ theorem Shape.hasType.core.iff {a : Shape n} :
 inductive Shape.HasTypeU : ∀ {n}, Shape n → Shape n → Prop
   | bot : HasType x .type → HasTypeU .bot x
   | sort : HasTypeU (.sort r) .type
+  | unit : r ≤ s → HasTypeU (n := n+1) (.unit r) (.sort s)
   | forallE : HasTypePi (n := n) b a r → HasTypeU (n := n+1) (.forallE a b) (.sort r)
   | lam : HasTypeLam (n := n) f a b → HasTypeU (n := n+1) (.lam f) (.forallE a b)
   | sigma : HasTypeSigma (n := n) b a → HasTypeU (n := n+1) (.sigma a b) .type
@@ -2556,14 +2723,16 @@ inductive Shape.HasTypeU : ∀ {n}, Shape n → Shape n → Prop
 theorem Shape.HasType.unfold {m a : Shape n} : HasType m a → HasTypeU m a := by
   unfold HasType Shape.hasType
   split <;> (try simp [hasType.core.iff]) <;> intros <;> subst_vars <;> try constructor
+  · rename_i x; cases x <;> rfl
+  · rfl
+  · rfl
+  · simp [HasType, hasType]
+  · exact ‹_›
   · simp [HasType, hasType.core.iff, hasType]; exact ⟨‹_›, ‹_›⟩
   · simp [HasTypePi]; exact ⟨‹_›, ‹_›⟩
   · -- bot at sigma: HasTypeU.bot with HasType (.sigma a b) .type
     simp [HasType, hasType.core.iff, hasType]; exact ⟨‹_›, ‹_›⟩
   · simp [HasTypeSigma]; exact ⟨‹_›, ‹_›⟩
-  · rfl
-  · rename_i x; cases x <;> rfl
-  · rfl
   · rfl
   · simp only [HasTypeLam, HasTypePi]; exact ⟨⟨‹_›, ‹_›⟩, ⟨‹_›, ‹_›⟩⟩
   · simp only [HasTypePair, HasTypeSigma]
@@ -2577,10 +2746,11 @@ theorem Shape.HasType.unfold_iff {m a : Shape n} : HasType m a ↔ HasTypeU m a 
   | bot h =>
     cases h.unfold with
     | bot | sort => cases n <;> rfl
+    | unit | nat => rfl
     | forallE => simpa [HasType, hasType] using h
     | sigma => simpa [HasType, hasType] using h
-    | nat => rfl
   | sort => cases n <;> rfl
+  | unit => simpa [HasType, hasType]
   | forallE H => simpa [HasType, hasType, hasType.core.iff] using H
   | lam H => simp [HasType, hasType, hasType.core.iff]; exact H
   | sigma H => simpa [HasType, hasType, hasType.core.iff] using H
@@ -2668,6 +2838,10 @@ protected theorem Shape.HasType.succ {v : Shape n} (H : HasTypeSucc v) :
     HasType (n := n+1) (.succ v) .nat := by
   cases n with | zero => subst H; rfl | succ => exact H
 
+/-- Eta: the only shape inhabiting `.unit r` is `.bot`. -/
+theorem Shape.HasType.eq_bot_of_unit {m : Shape (n+1)} (H : HasType m (.unit r)) : m = .bot := by
+  cases n <;> cases H.unfold <;> rfl
+
 theorem Shape.HasType.toType (H : HasType (n := n) m (.sort r)) : HasType m .type := by
   unfold HasType hasType at H; revert H; generalize eq : sort r = s
   split <;> cases eq <;> simp [HasType, hasType]
@@ -2676,7 +2850,7 @@ theorem Shape.HasType.toType (H : HasType (n := n) m (.sort r)) : HasType m .typ
 theorem Shape.HasType.isType (H : HasType m a) : a.HasType .type := by
   cases H.unfold with
   | bot H => exact H
-  | sort | forallE | sigma | nat => exact .sort
+  | sort | forallE | sigma | nat | unit => exact .sort
   | lam H' => exact .forallE H'.1
   | pair H' => exact .sigma H'.1
   | zero | succ => exact .nat
@@ -2741,7 +2915,7 @@ theorem WShape.HasType.mono_r {m a a' : WShape n} (ha : a ≤ a')
   simp only [HasType, sort, WShape.LE.def] at *
   cases H.unfold with
   | bot H => exact .bot Ha.toType
-  | sort | forallE | sigma | nat => cases Shape.sort_le.1 ha; exact H
+  | sort | forallE | sigma | nat | unit => cases Shape.sort_le.1 ha; exact H
   | zero | succ => cases Shape.nat_le.1 ha; exact H
   | @lam n _ _ _ H' =>
     obtain ⟨_, _, h1, h2, ⟨⟩⟩ := Shape.forallE_le.1 ha
@@ -2863,6 +3037,7 @@ theorem WShape.HasType.mono_l {m m' a : WShape n}
   cases H.unfold with
   | bot => cases Shape.le_bot.1 hm2; exact H
   | sort => cases Shape.sort_le.1 hm1; exact H
+  | unit => cases Shape.unit_le.1 hm1; exact H
   | forallE H' =>
     obtain ⟨_, _, a1, a2, ⟨⟩⟩ := Shape.forallE_le.1 hm1
     have ⟨b1, b2⟩ := Shape.forallE_le_forallE.1 hm2
@@ -2972,6 +3147,7 @@ def WShape.HasTypeSucc {n} (v : WShape n) : Prop := Shape.HasTypeSucc v.1
 inductive WShape.HasTypeU : ∀ {n}, WShape n → WShape n → Prop
   | bot : HasType x .type → HasTypeU .bot x
   | sort : HasTypeU (.sort r) .type
+  | unit : r ≤ s → HasTypeU (.unit r) (.sort s)
   | forallE : HasTypePi (n := n) b a r → HasTypeU (n := n+1) (.forallE a b) (.sort r)
   | lam : HasTypeLam (n := n) f a b → HasTypeU (n := n+1) (.lam' f) (.forallE a b)
   | sigma : HasTypeSigma (n := n) b a → HasTypeU (n := n+1) (.sigma a b) .type
@@ -2988,6 +3164,7 @@ theorem WShape.HasType.unfold {m a : WShape n} (H : HasType m a) : HasTypeU m a 
   cases H.unfold with
   | bot h => exact .bot h
   | sort => exact .sort
+  | unit h => exact .unit h
   | forallE h => exact .forallE (a := ⟨_, mwf.1⟩) (b := ⟨_, mwf.2⟩) h
   | lam h =>
     have := HasTypeU.lam (f := ⟨_, mwf.1⟩) (a := ⟨_, awf.1⟩) (b := ⟨_, awf.2⟩) h
@@ -3004,6 +3181,7 @@ theorem WShape.HasType.unfold_iff {m a : WShape n} : HasType m a ↔ HasTypeU m 
   cases h with
   | bot h => exact .bot h
   | sort => exact .sort
+  | unit h => exact Shape.HasType.unfold_iff.2 (.unit h)
   | forallE h => exact .forallE h
   | @lam _ f a b h => unfold lam'; split <;> [exact .lam h; exact .bot (.forallE h.1)]
   | sigma h => exact .sigma h
@@ -3015,6 +3193,8 @@ theorem WShape.HasType.unfold_iff {m a : WShape n} : HasType m a ↔ HasTypeU m 
 theorem WShape.HasType.bot' : HasType (n := n) x .type → HasType .bot x :=
   (unfold_iff.2 <| .bot ·)
 theorem WShape.HasType.sort : HasType (n := n) (.sort r) .type := unfold_iff.2 .sort
+theorem WShape.HasType.unit : r ≤ s →
+    HasType (n := n+1) (.unit r) (.sort s) := (unfold_iff.2 <| .unit ·)
 theorem WShape.HasType.forallE : HasTypePi (n := n) b a r →
     HasType (n := n+1) (.forallE a b) (.sort r) := (unfold_iff.2 <| .forallE ·)
 theorem WShape.HasType.lam : HasTypeLam (n := n) f a b →
@@ -3051,6 +3231,9 @@ theorem WShape.HasType.bot : HasType (n := n) x (.sort r) → HasType .bot x := 
 theorem WShape.HasType.bot_r (H : HasType (n := n) x .bot) : x = .bot := by
   cases n <;> cases H.unfold <;> rfl
 
+theorem WShape.HasType.eq_bot_of_unit {x : WShape (n+1)} (H : HasType x (.unit r)) : x = .bot :=
+  Subtype.ext (Shape.HasType.eq_bot_of_unit H)
+
 theorem WShape.HasType.bot_iff : HasType (n := n) .bot x ↔ HasType x .type := ⟨.isType, .bot'⟩
 
 /-- Monotonicity of `WShape.pair'` at TShape level: comparing two pair'
@@ -3072,8 +3255,7 @@ theorem WShape.HasType.sigma_r {m : WShape (n+1)} {a : WShape n} {f : WShapeFun 
   generalize eq : WShape.sigma a f = t at H
   cases H.unfold with
   | bot _ => exact .inl rfl
-  | sort | forallE | lam | sigma => cases congrArg (·.1) eq
-  | nat | zero | succ => cases congrArg (·.1) eq
+  | sort | forallE | lam | sigma | nat | zero | succ | unit => cases congrArg (·.1) eq
   | @pair _ x y a' b' h H' =>
     obtain ⟨rfl, rfl⟩ : a = a' ∧ f = b' := by
       cases a; cases a'; cases f; cases b'
@@ -3086,8 +3268,7 @@ theorem WShape.HasType.fst_proj {m : WShape (n+1)} {a : WShape n} {f : WShapeFun
   cases H.unfold with
   | bot _ => simp [WShape.bot_fst]; exact .bot' ha
   | sigma H' => cases congrArg (·.1) eq
-  | sort | forallE | lam => cases congrArg (·.1) eq
-  | nat | zero | succ => cases congrArg (·.1) eq
+  | sort | forallE | lam | nat | zero | succ | unit => cases congrArg (·.1) eq
   | @pair _ x y a' b' h H' =>
     obtain ⟨rfl, rfl⟩ : a = a' ∧ f = b' := by
       cases a; cases a'; cases f; cases b'
@@ -3103,8 +3284,7 @@ theorem WShape.HasType.snd_proj {m : WShape (n+1)} {a : WShape n} {f : WShapeFun
     show (WShape.bot : WShape (n+1)).snd.HasType (f.app (WShape.bot : WShape (n+1)).fst)
     simp only [WShape.bot_snd, WShape.bot_fst]; exact .bot' hba
   | sigma H' => cases congrArg (·.1) eq
-  | sort | forallE | lam => cases congrArg (·.1) eq
-  | nat | zero | succ => cases congrArg (·.1) eq
+  | sort | forallE | lam | nat | zero | succ | unit => cases congrArg (·.1) eq
   | @pair _ x y a' b' h H' =>
     obtain ⟨rfl, rfl⟩ : a = a' ∧ f = b' := by
       cases a; cases a'; cases f; cases b'
@@ -3228,6 +3408,10 @@ theorem WShape.HasType.join {m₁ m₂ a : WShape n} (hJ : m₁.Compat m₂)
     (cases m₂ with | bot => exact h1 | _) <;>
       simp only [Shape.Compat, decide_eq_true_eq, Bool.false_eq_true] at hJ
     simpa only [Shape.join, hJ]
+  | unit =>
+    (cases m₂ with | bot => exact h1 | _) <;>
+      simp only [Shape.Compat, decide_eq_true_eq, Bool.false_eq_true] at hJ
+    subst hJ; simpa only [Shape.join, if_pos rfl]
   | forallE h1' =>
     (cases h2.unfold with | bot => exact h1 | forallE h2' | _) <;>
       simp only [Shape.Compat, Bool.false_eq_true, Bool.and_eq_true] at hJ
@@ -3310,6 +3494,12 @@ theorem TShape.HasType.bot_r (H : HasType x .bot) : x ≤ .bot := by
   simp only [TShape.LE.def', bot, WShape.lift_bot]
   exact (h : x.2.lift _ = .bot) ▸ WShape.LE.rfl
 
+theorem TShape.HasType.eq_bot_of_unit (H : HasType x (.unit r)) : x ≤ .bot := by
+  have ⟨k, eq⟩ := Nat.exists_eq_add_of_le' (Nat.le_max_right x.1 1)
+  simp [TShape.HasType, unit] at H; rw [eq, WShape.lift_unit] at H
+  have h := WShape.HasType.eq_bot_of_unit H
+  exact TShape.le_bot.2 ((WShape.lift_eq_bot (eq ▸ Nat.le_max_left x.1 1)).1 h)
+
 theorem TShape.HasType.mono_r {m a a' : TShape} (ha : a ≤ a')
     (h1 : HasType a' (.sort r)) (h2 : HasType m a) : HasType m a' := by
   let k := max (max m.1 a.1) a'.1
@@ -3329,6 +3519,10 @@ theorem TShape.HasType.bot' : HasType x .type → HasType .bot x := .bot
 theorem TShape.HasType.sort : HasType (.sort r) .type := by
   simp [HasType, TShape.sort, TShape.type, WShape.lift_sort, WShape.HasType]
   exact WShape.HasType.sort
+
+theorem TShape.HasType.unit (h : r ≤ s) : HasType (.unit r) (.sort s) := by
+  simp [HasType, TShape.unit, TShape.sort, WShape.lift_sort, WShape.HasType]
+  exact WShape.HasType.unit h
 
 theorem TShape.HasType.join' (hJ : Join m₁ m₂ m)
     (h1 : HasType m₁ a) (h2 : HasType m₂ a) : HasType m a := by
@@ -3482,7 +3676,10 @@ theorem TShape.HasType.bot_T' (H : HasType x .type) : HasType (WShape.T (n := n)
 theorem WShape.HasType.proofIrrel
     (ha : HasType (n := n) a .prop) (hx : HasType x a) : x = .bot := by
   cases n with | zero => cases ha.unfold; exact hx.bot_r | succ n
-  cases ha.unfold with | bot => exact hx.bot_r | @forallE _ b a _ ha
+  cases ha.unfold with
+  | bot => exact hx.bot_r
+  | unit => exact hx.eq_bot_of_unit
+  | @forallE _ b a _ ha
   generalize eq : WShape.forallE .. = t at hx
   cases hx.unfold with | bot => rfl | @lam _ f a' b' hx' => ?_ | _ => cases eq
   obtain ⟨rfl, rfl⟩ : a = a' ∧ b = b' := by
@@ -3515,6 +3712,7 @@ theorem WShape.HasType.retype (ha : HasType (n := n) a (.sort r))
   cases ha.unfold with
   | bot => exact .bot .sort
   | sort => exact sort_le.1 le ▸ ha'
+  | unit => exact unit_le.1 le ▸ ha'
   | forallE Ha =>
     obtain ⟨_, _, le₁, le₂, rfl⟩ := WShape.forallE_le.1 le
     have ⟨H1, H2⟩ := HasTypePi.iff'.1 Ha

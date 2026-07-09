@@ -49,6 +49,8 @@ Well-typed terms are carved out by `IsDefEq` below. -/
 inductive Term where
   | bvar (i : Nat)
   | sort (u : Bool)
+  | unit (r : Bool)
+  | star (r : Bool)
   | app (f a : Term)
   | lam (A e : Term)
   | forallE (A B : Term)
@@ -71,6 +73,8 @@ lift is extended with `Lift.cons` so that the bound variable is pinned. -/
 @[simp] def lift' : Term → Lift → Term
   | .bvar i, k => .bvar (k.liftVar i)
   | .sort u, _ => .sort u
+  | .unit r, _ => .unit r
+  | .star r, _ => .star r
   | .app fn arg, k => .app (fn.lift' k) (arg.lift' k)
   | .lam ty body, k => .lam (ty.lift' k) (body.lift' k.cons)
   | .forallE ty body, k => .forallE (ty.lift' k) (body.lift' k.cons)
@@ -162,6 +166,8 @@ under each binder with `Subst.lift`. -/
 def Term.subst : Term → Subst → Term
   | .bvar i, σ => σ i
   | .sort u, _ => .sort u
+  | .unit r, _ => .unit r
+  | .star r, _ => .star r
   | .app fn arg, σ => .app (fn.subst σ) (arg.subst σ)
   | .lam ty body, σ => .lam (ty.subst σ) (body.subst σ.lift)
   | .forallE ty body, σ => .forallE (ty.subst σ) (body.subst σ.lift)
@@ -335,6 +341,8 @@ inductive IsDefEq₀ : List Term → Term → Term → Term → Prop where
   | symm : Γ ⊢₀ e ≡ e' : A → Γ ⊢₀ e' ≡ e : A
   | trans : Γ ⊢₀ e₁ ≡ e₂ : A → Γ ⊢₀ e₂ ≡ e₃ : A → Γ ⊢₀ e₁ ≡ e₃ : A
   | sort : Γ ⊢₀ .sort l : .sort true
+  | unit : Γ ⊢₀ .unit r : .sort r
+  | star : Γ ⊢₀ .star r : .unit r
   | appDF : Γ ⊢₀ f ≡ f' : .forallE A B → Γ ⊢₀ a ≡ a' : A →
     Γ ⊢₀ .app f a ≡ .app f' a' : B.inst a
   | lamDF : Γ ⊢₀ A ≡ A' : .sort u → A::Γ ⊢₀ body ≡ body' : B →
@@ -353,6 +361,7 @@ inductive IsDefEq₀ : List Term → Term → Term → Term → Prop where
     Γ ⊢₀ .app (.lam A e) e' ≡ e.inst e' : B.inst e'
   | eta : Γ ⊢₀ e : .forallE A B →
     Γ ⊢₀ .lam A (.app e.lift (.bvar 0)) ≡ e : .forallE A B
+  | unit_eta : Γ ⊢₀ e : .unit r → Γ ⊢₀ .star r ≡ e : .unit r
   | pair_fst : A::Γ ⊢₀ B : .sort v →
     Γ ⊢₀ a : A → Γ ⊢₀ b : B.inst a →
     Γ ⊢₀ .fst (.pair A B a b) ≡ a : A
@@ -420,6 +429,8 @@ inductive IsDefEq : List Term → Term → Term → Term → Prop where
   /-- Heterogeneous transitivity: middle term may be at a different sort. -/
   | trans' : Γ ⊢ A ≡ B : .sort u → Γ ⊢ B ≡ C : .sort v → Γ ⊢ A ≡ C : .sort u
   | sort : Γ ⊢ .sort l : .sort true
+  | unit : Γ ⊢ .unit r : .sort r
+  | star : Γ ⊢ .star r : .unit r
   | appDF : Γ ⊢ A : .sort u → A::Γ ⊢ B : .sort v →
     Γ ⊢ f ≡ f' : .forallE A B → Γ ⊢ a ≡ a' : A →
     Γ ⊢ B.inst a ≡ B.inst a' : .sort v →
@@ -453,6 +464,7 @@ inductive IsDefEq : List Term → Term → Term → Term → Prop where
     Γ ⊢ .app (.lam A e) e' ≡ e.inst e' : B.inst e'
   | eta : Γ ⊢ e : .forallE A B → Γ ⊢ .lam A (.app e.lift (.bvar 0)) : .forallE A B →
     Γ ⊢ .lam A (.app e.lift (.bvar 0)) ≡ e : .forallE A B
+  | unit_eta : Γ ⊢ e : .unit r → Γ ⊢ .star r ≡ e : .unit r
   | pair_fst : Γ ⊢ A : .sort u → A::Γ ⊢ B : .sort v →
     Γ ⊢ a : A → Γ ⊢ b : B.inst a →
     Γ ⊢ .fst (.pair A B a b) : A →
@@ -510,6 +522,8 @@ theorem IsDefEq.weak' (W : Ctx.Lift' ρ Γ Γ') (H : Γ ⊢ e1 ≡ e2 : A) :
   | trans _ _ ih1 ih2 => exact .trans (ih1 W) (ih2 W)
   | trans' _ _ ih1 ih2 => exact .trans' (ih1 W) (ih2 W)
   | sort => exact .sort
+  | unit => exact .unit
+  | star => exact .star
   | appDF _ _ _ _ _ ih1 ih2 ih3 ih4 ih5 =>
     exact lift'_inst_hi .. ▸ .appDF (ih1 W) (ih2 W.cons) (ih3 W) (ih4 W)
       (lift'_inst_hi .. ▸ lift'_inst_hi .. ▸ ih5 W)
@@ -562,6 +576,7 @@ theorem IsDefEq.weak' (W : Ctx.Lift' ρ Γ Γ') (H : Γ ⊢ e1 ≡ e2 : A) :
     · exact lift'_succ_branch_swap C ρ ▸ ih4 W.cons
     · exact lift'_inst_hi C (.succ n) ρ ▸ ih5 W
     · exact lift'_inst_hi C (.succ n) ρ ▸ lift'_inst_hi b n ρ ▸ ih6 W
+  | unit_eta _ ih => exact .unit_eta (ih W)
   | YDF _ _ _ ih1 ih2 ih3 =>
     exact .YDF (ih1 W) (lift_lift' ▸ ih2 W.cons) (lift_lift' ▸ ih3 W.cons)
   | @Y_unfold _ A _ b _ _ _ _ ih1 ih2 ih3 ih4 =>
@@ -594,6 +609,8 @@ theorem IsDefEq.isType (hΓ : ⊢ Γ) (H : Γ ⊢ e1 ≡ e2 : A) : ∃ u, Γ ⊢
   | trans _ _ ih1 _ => exact ih1 hΓ
   | trans' _ _ _ _ => exact ⟨_, .sort⟩
   | sort => exact ⟨_, .sort⟩
+  | unit => exact ⟨_, .sort⟩
+  | star => exact ⟨_, .unit⟩
   | appDF _ _ _ _ h5 _ _ _ _ _ => exact ⟨_, h5.hasType.1⟩
   | lamDF h1 h2 _ _ => exact ⟨_, .forallEDF h1.hasType.1 h2 h2⟩
   | forallEDF => exact ⟨_, .sort⟩
@@ -605,6 +622,7 @@ theorem IsDefEq.isType (hΓ : ⊢ Γ) (H : Γ ⊢ e1 ≡ e2 : A) : ∃ u, Γ ⊢
   | defeqDF h1 _ _ _ => exact ⟨_, h1.hasType.2⟩
   | beta _ _ _ _ _ _ _ _ ih _ => exact ih hΓ
   | eta _ _ ih _ => exact ih hΓ
+  | unit_eta _ _ => exact ⟨_, .unit⟩
   | pair_fst h1 _ _ _ _ _ _ _ _ _ => exact ⟨_, h1⟩
   | pair_snd _ _ _ _ _ _ _ _ _ ih5 => exact ih5 hΓ
   | fst_snd _ _ ih1 _ => exact ih1 hΓ
@@ -724,6 +742,8 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
   induction H generalizing Γ₀ σ τ with
   | bvar h _ => exact ⟨W.lookup h, W.lookup h, W.lookup h⟩
   | sort => exact ⟨.sort, .sort, .sort⟩
+  | unit => exact ⟨.unit, .unit, .unit⟩
+  | star => exact ⟨.star, .star, .star⟩
   | symm _ ih => let ⟨l, r, c⟩ := ih hΓ₀ W; exact ⟨r, l, (r.trans c.symm).trans l⟩
   | trans _ _ ih1 ih2 =>
     let ⟨l1, _, c1⟩ := ih1 hΓ₀ W
@@ -1165,6 +1185,7 @@ theorem IsDefEq.substEq' {Γ₀ Γ : List Term} {σ τ : Subst} {e1 e2 A : Term}
       (subst_succ_branch_swap C σ ▸ (ih4 hΓ_Nat Wl).1 :)
       (subst_inst ▸ (ih5 hΓ₀ W.left).1 :) ?_
     have := (ih6 hΓ₀ W.left).1; rwa [subst_inst, subst_inst] at this
+  | unit_eta _ ih => have ⟨l, _, _⟩ := ih hΓ₀ W; exact ⟨.star, l, .unit_eta l.hasType.2⟩
   | @YDF Γ A A' u b b' h1 _ _ ih1 ih2 ih3 =>
     let ⟨ihA_l, ihA_r, ihA_c⟩ := ih1 hΓ₀ W
     have hA_in_Γ : Γ ⊢ A : .sort u := h1.hasType.1
@@ -1366,6 +1387,9 @@ theorem IsDefEq.sigma_inv' (hΓ : ⊢ Γ)
   | eta _ _ ih _ =>
     obtain ⟨⟨⟩⟩ | eq := eq
     exact ih hΓ (.inr eq)
+  | unit_eta _ ih =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih hΓ (.inr eq)
   | pair_fst _ _ _ _ _ _ _ ih3 _ _ =>
     obtain ⟨⟨⟩⟩ | eq := eq
     exact ih3 hΓ (.inl eq)
@@ -1434,6 +1458,9 @@ theorem IsDefEq.forallE_inv' (hΓ : ⊢ Γ)
       exact ⟨⟨u_A, sort_A⟩, u_B, A2.subst hΓ_lift W_lift⟩
     | _ => cases eq
   | eta _ _ ih _ =>
+    obtain ⟨⟨⟩⟩ | eq := eq
+    exact ih hΓ (.inr eq)
+  | unit_eta _ ih =>
     obtain ⟨⟨⟩⟩ | eq := eq
     exact ih hΓ (.inr eq)
   | pair_fst _ _ _ _ _ _ _ ih3 _ _ =>
@@ -1602,6 +1629,8 @@ inductive WHRed : Term → Term → Prop where
 def WHNF (e : Term) := ∀ e', ¬e ⤳ e'
 
 theorem WHNF.sort : WHNF (.sort A) := nofun
+theorem WHNF.unit : WHNF (.unit r) := nofun
+theorem WHNF.star : WHNF (.star r) := nofun
 theorem WHNF.forallE : WHNF (.forallE A B) := nofun
 theorem WHNF.sigma : WHNF (.sigma A B) := nofun
 theorem WHNF.nat : WHNF .nat := nofun

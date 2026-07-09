@@ -40,6 +40,8 @@ prove `HasType.uniq` and ultimately `IsDefEq.uniq_sort`.
 inductive HasType : List Term → Term → Term → Bool → Prop where
   | bvar : Lookup Γ i A → Γ ⊢ A : .sort u → Γ ⊨ .bvar i :! A
   | sort' : Γ ⊨ .sort l :! .sort true
+  | unit : Γ ⊨ .unit r :! .sort r
+  | star : Γ ⊨ .star r :! .unit r
   | app :
     Γ ⊢ A : .sort u → A::Γ ⊢ B : .sort v → Γ ⊢ B.inst a : .sort v →
     Γ ⊨ f : .forallE A B → Γ ⊨ a : A →
@@ -89,6 +91,8 @@ scoped notation:65 Γ " ⊨ " e " :! " A:36 => HasType Γ e A false
 theorem HasType.hasType : HasType Γ e A b → Γ ⊢ e : A
   | .bvar h hA => .bvar h hA
   | .sort' => .sort
+  | .unit => .unit
+  | .star => .star
   | .app hA hB hBa ihf iha => .appDF hA hB ihf.hasType iha.hasType hBa
   | .lam ihA hB ihbody => .lamDF ihA.hasType hB ihbody.hasType ihbody.hasType
       (.forallEDF ihA.hasType hB hB)
@@ -142,6 +146,14 @@ theorem HasType.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
     let .sort' := H2_s
     exact transport .sort
+  | unit =>
+    obtain ⟨_, H2_s, transport⟩ := H2.toStructural
+    let .unit := H2_s
+    exact transport .sort
+  | star =>
+    obtain ⟨_, H2_s, transport⟩ := H2.toStructural
+    let .star := H2_s
+    exact transport .unit
   | @app Γ' A _ _ _ a _ _ _ _ h_f h_a ih_f ih_a =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
     let .app _ _ _ h_f' _ := H2_s
@@ -227,6 +239,8 @@ theorem IsDefEq.toHasType {Γ : List Term} {e₁ e₂ A : Term}
     cases sort_inv hΓ eq
     exact ⟨(ih1 hΓ).1, (ih2 hΓ).2⟩
   | sort => exact ⟨.base .sort', .base .sort'⟩
+  | unit => exact ⟨.base .unit, .base .unit⟩
+  | star => exact ⟨.base .star, .base .star⟩
   | appDF hA hB _ _ h_Ba _ _ ih_f ih_a _ =>
     exact ⟨.base (.app hA hB h_Ba.hasType.1 (ih_f hΓ).1 (ih_a hΓ).1),
       .defeq h_Ba.symm
@@ -244,6 +258,7 @@ theorem IsDefEq.toHasType {Γ : List Term} {e₁ e₂ A : Term}
   | defeqDF d _ _ ih2 => exact ⟨.defeq d (ih2 hΓ).1, .defeq d (ih2 hΓ).2⟩
   | beta _ _ _ _ _ _ _ _ ih_app ih_inst => exact ⟨(ih_app hΓ).1, (ih_inst hΓ).1⟩
   | eta _ _ ih_e ih_lam => exact ⟨(ih_lam hΓ).1, (ih_e hΓ).1⟩
+  | unit_eta _ ih => exact ⟨.base .star, (ih hΓ).1⟩
   | sigmaDF h_A _ _ ih_A ih_body ih_body' =>
     exact ⟨.base (.sigma (ih_A hΓ).1 (ih_body ⟨hΓ, _, h_A.hasType.1⟩).1),
       .base (.sigma (ih_A hΓ).2 (ih_body' ⟨hΓ, _, h_A.hasType.2⟩).2)⟩
@@ -324,12 +339,15 @@ theorem IsDefEq₀.iff' {Γ : List Term} {e₁ e₂ A : Term}
     | symm _ ih => exact .symm (ih hΓ)
     | trans _ _ ih1 ih2 => exact .trans (ih1 hΓ) (ih2 hΓ)
     | sort => exact .sort
+    | unit => exact .unit
+    | star => exact .star
     | appDF _ _ ih1 ih2 => exact .appDF₀ hΓ (ih1 hΓ) (ih2 hΓ)
     | lamDF _ _ ih1 ih2 => exact .lamDF₀ hΓ (ih1 hΓ) (ih2 ⟨hΓ, _, (ih1 hΓ).hasType.1⟩)
     | forallEDF _ _ ih1 ih2 => exact .forallEDF₀ hΓ (ih1 hΓ) (ih2 ⟨hΓ, _, (ih1 hΓ).hasType.1⟩)
     | defeqDF _ _ ih1 ih2 => exact .defeqDF (ih1 hΓ) (ih2 hΓ)
     | beta _ _ ih1 ih2 => exact .beta₀ hΓ (ih1 ⟨hΓ, (ih2 hΓ).isType hΓ⟩) (ih2 hΓ)
     | eta _ ih => exact .eta₀ hΓ (ih hΓ)
+    | unit_eta _ ih => exact .unit_eta (ih hΓ)
     | sigmaDF _ _ ih1 ih2 => exact .sigmaDF₀ hΓ (ih1 hΓ) (ih2 ⟨hΓ, _, (ih1 hΓ).hasType.1⟩)
     | pairDF _ _ _ _ ihA ihB ih1 ih2 =>
       exact .pairDF₀ hΓ (ihA hΓ) (ihB ⟨hΓ, _, (ihA hΓ).hasType.1⟩) (ih1 hΓ) (ih2 hΓ)
@@ -360,12 +378,15 @@ theorem IsDefEq₀.iff' {Γ : List Term} {e₁ e₂ A : Term}
     | trans _ _ ih1 ih2 => exact .trans (ih1 hΓ) (ih2 hΓ)
     | trans' h1 h2 ih1 ih2 => cases h1.uniq_sort hΓ h2; exact .trans (ih1 hΓ) (ih2 hΓ)
     | sort => exact .sort
+    | unit => exact .unit
+    | star => exact .star
     | appDF _ _ _ _ _ _ _ ih2 ih3 => exact .appDF (ih2 hΓ) (ih3 hΓ)
     | lamDF h1 _ _ _ _ ih1 _ ih2 => exact .lamDF (ih1 hΓ) (ih2 ⟨hΓ, _, h1.hasType.1⟩)
     | forallEDF h1 _ _ ih1 ih2 => exact .forallEDF (ih1 hΓ) (ih2 ⟨hΓ, _, h1.hasType.1⟩)
     | defeqDF _ _ ih1 ih2 => exact .defeqDF (ih1 hΓ) (ih2 hΓ)
     | beta h1 _ _ _ _ _ ih1 ih2 => exact .beta (ih1 ⟨hΓ, _, h1⟩) (ih2 hΓ)
     | eta _ _ ih => exact .eta (ih hΓ)
+    | unit_eta _ ih => exact .unit_eta (ih hΓ)
     | sigmaDF h_A _ _ ih_A ih_B _ =>
       exact .sigmaDF (ih_A hΓ) (ih_B ⟨hΓ, _, h_A.hasType.1⟩)
     | pairDF h_A _ _ _ _ _ _ ih_A ih_B _ ih_a ih_b _ _ =>
@@ -561,6 +582,8 @@ a closed application always β-reduces. -/
 /-- Weak-head canonical forms: the closed normal forms of the core theory. -/
 inductive Value : Term → Prop where
   | sort : Value (.sort u)
+  | unit : Value (.unit r)
+  | star : Value (.star r)
   | lam : Value (.lam A e)
   | forallE : Value (.forallE A B)
   | sigma : Value (.sigma A B)
@@ -589,6 +612,12 @@ theorem Value.forallE_r (hΓ : ⊢ Γ) (hv : Value f) (h : Γ ⊢ f : .forallE A
   | sort =>
     obtain ⟨_, eq⟩ := (h.toHasType hΓ).1.uniq hΓ (.base .sort')
     cases sort_forallE_inv hΓ eq.symm
+  | unit =>
+    obtain ⟨_, eq⟩ := (h.toHasType hΓ).1.uniq hΓ (.base .unit)
+    cases sort_forallE_inv hΓ eq.symm
+  | star =>
+    obtain ⟨_, eq⟩ := (h.toHasType hΓ).1.uniq hΓ (.base .star)
+    cases forallE_unit_inv hΓ eq.symm
   | forallE =>
     obtain ⟨_, hfs, _⟩ := (h.toHasType hΓ).1.toStructural
     let .forallE hC hD := hfs
@@ -626,6 +655,12 @@ theorem Value.sigma_r (hΓ : ⊢ Γ) (hv : Value f) (h : Γ ⊢ f : .sigma A B) 
   | sort =>
     obtain ⟨_, eq⟩ := (h.toHasType hΓ).1.uniq hΓ (.base .sort')
     cases sort_sigma_inv hΓ (eq.symm.to_sigma_type hΓ)
+  | unit =>
+    obtain ⟨_, eq⟩ := (h.toHasType hΓ).1.uniq hΓ (.base .unit)
+    cases sort_sigma_inv hΓ (eq.symm.to_sigma_type hΓ)
+  | star =>
+    obtain ⟨_, eq⟩ := (h.toHasType hΓ).1.uniq hΓ (.base .star)
+    cases sigma_unit_inv hΓ (eq.symm.to_sigma_type hΓ)
   | lam =>
     obtain ⟨_, hfs, _⟩ := (h.toHasType hΓ).1.toStructural
     let .lam hC hD hE := hfs
@@ -662,6 +697,12 @@ theorem Value.nat_r (hΓ : ⊢ Γ) (hv : Value n) (h : Γ ⊢ n : .nat) :
   | sort =>
     obtain ⟨_, eq⟩ := (h.toHasType hΓ).1.uniq hΓ (.base .sort')
     cases sort_nat_inv hΓ (eq.symm.trans_r hΓ .nat)
+  | unit =>
+    obtain ⟨_, eq⟩ := (h.toHasType hΓ).1.uniq hΓ (.base .unit)
+    cases sort_nat_inv hΓ (eq.symm.trans_r hΓ .nat)
+  | star =>
+    obtain ⟨_, eq⟩ := (h.toHasType hΓ).1.uniq hΓ (.base .star)
+    cases nat_unit_inv hΓ (eq.symm.trans_r hΓ .nat)
   | lam =>
     obtain ⟨_, hfs, _⟩ := (h.toHasType hΓ).1.toStructural
     let .lam hC hD hE := hfs
@@ -696,6 +737,8 @@ theorem progress {e : Term} : ∀ {A}, [] ⊢ e : A → Value e ∨ ∃ e', e �
     let .bvar h_l _ := Hs
     nomatch h_l
   | sort => intro A _; exact .inl .sort
+  | unit => intro A _; exact .inl .unit
+  | star => intro A _; exact .inl .star
   | app _ _ ih_f =>
     intro A h
     obtain ⟨_, Hs, _⟩ := (h.toHasType (Γ := []) trivial).1.toStructural
