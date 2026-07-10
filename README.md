@@ -10,11 +10,20 @@ logical relation. From the resulting Adequacy theorem we recover Pi-type
 and sort injectivity, and from those we prove uniqueness of typing for
 the syntactic definitional-equality judgment.
 
+A trimmed-down variant covering just the core type theory (Π-types and a
+universe hierarchy, without Σ / Nat / Id) is kept in
+[`core/`](core/README.md) as a smaller reference point for the same proof
+architecture.
+
 ## Compilation
 
 ```sh
 lake build
 ```
+
+The [`core/`](core/README.md) directory is a separate Lake package, so
+building the whole repo means running `lake build` at the top level and
+again inside `core/`.
 
 Build dependencies — [Lean 4](https://lean-lang.org/) (toolchain pinned
 via `lean-toolchain` to
