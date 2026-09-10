@@ -256,6 +256,80 @@ theorem Shape.IsBot.le : ∀ {n} {s t : Shape n}, s.IsBot → Shape.LE Δ s t :=
       | _ => exact fun e he => Shape.le_bot_iff.2 (h e he)
     | _ => cases h
 
+/-! ## Compatibility and join
+
+`Compat Δ x y` says `x` and `y` can be joined.  For graphs it is master's
+condition, with the label premise added: entries with definitionally equal
+labels and compatible inputs must have compatible outputs.  That single
+clause is what the other repo splits into `IsCoherent` (`f` against
+itself) and `InternallyCompatible` (`f` against `g`).
+
+`join` is context-free and total, producing junk (`⊥`) on mismatched
+heads; it is a least upper bound only for compatible, well-formed shapes.
+On graphs it is **append**, which is the lub for entry-wise coverage; the
+old `ShapeFun.join` re-applied the graphs because they had to stay
+saturated. -/
+
+/-- Entries with defeq labels and compatible inputs have compatible outputs. -/
+def ShapeFun.Compat (Δ : List Term) (R : Shape n → Shape n → Prop) (f f' : ShapeFun n) : Prop :=
+  ∀ e ∈ f, ∀ e' ∈ f', LabelEq Δ e.ty e.tm e'.ty e'.tm → R e.inp e'.inp → R e.out e'.out
+
+def Shape.Compat (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
+  | 0, .bot, _ => True
+  | 0, _, .bot => True
+  | 0, .sort r, .sort r' => r = r'
+  | _+1, .bot, _ => True
+  | _+1, _, .bot => True
+  | _+1, .sort r, .sort r' => r = r'
+  | _+1, .unit r, .unit r' => r = r'
+  | _+1, .nat, .nat => True
+  | _+1, .zero, .zero => True
+  | _+1, .succ v, .succ v' => Compat Δ v v'
+  | _+1, .refl w, .refl w' => Compat Δ w w'
+  | _+1, .id r A a b, .id r' A' a' b' => r = r' ∧ IdLabelEq Δ A a b A' a' b'
+  | _+1, .forallE A B d f, .forallE A' B' d' f' =>
+      PiLabelEq Δ A B A' B' ∧ Compat Δ d d' ∧ ShapeFun.Compat Δ (Compat Δ) f f'
+  | _+1, .sigma A B d f, .sigma A' B' d' f' =>
+      PiLabelEq Δ A B A' B' ∧ Compat Δ d d' ∧ ShapeFun.Compat Δ (Compat Δ) f f'
+  | _+1, .pair a b, .pair a' b' => Compat Δ a a' ∧ Compat Δ b b'
+  | _+1, .lam f, .lam f' => ShapeFun.Compat Δ (Compat Δ) f f'
+  -- an information-free λ-shape is compatible with anything
+  | _+1, .lam f, _ => ∀ e ∈ f, Shape.IsBot e.out
+  | _+1, _, .lam f' => ∀ e ∈ f', Shape.IsBot e.out
+  | _+1, _, _ => False
+
+/-- `Join Δ x y z`: `z` is a least upper bound of `x` and `y` in the
+context `Δ`.  This is master's `WShape.Join`, and it is the form used in
+proofs: it is context-sensitive, insensitive to which of two definitionally
+equal labels a witness happens to carry, and does not presuppose that a
+join exists.  The function `join` below is merely one witness. -/
+def Shape.Join (Δ : List Term) {n} (x y z : Shape n) : Prop :=
+  ∀ w, Shape.LE Δ z w ↔ (Shape.LE Δ x w ∧ Shape.LE Δ y w)
+
+/-- A concrete join.  Total, context-free, `⊥` on mismatched heads; it
+witnesses `Join Δ` only for compatible well-formed shapes.  Labels of the
+left argument are kept, which is legitimate under `Compat Δ`, since they
+are then definitionally equal to the right one's — this asymmetry is
+exactly why proofs use the relation `Join Δ` rather than this function. -/
+def Shape.join : ∀ {n}, Shape n → Shape n → Shape n
+  | 0, .bot, s => s
+  | 0, s, .bot => s
+  | 0, .sort r, .sort r' => if r = r' then .sort r else .bot
+  | _+1, .bot, s => s
+  | _+1, s, .bot => s
+  | _+1, .sort r, .sort r' => if r = r' then .sort r else .bot
+  | _+1, .unit r, .unit r' => if r = r' then .unit r else .bot
+  | _+1, .nat, .nat => .nat
+  | _+1, .zero, .zero => .zero
+  | _+1, .succ v, .succ v' => .succ (join v v')
+  | _+1, .refl w, .refl w' => .refl (join w w')
+  | _+1, .id r A a b, .id _ _ _ _ => .id r A a b
+  | _+1, .forallE A B d f, .forallE _ _ d' f' => .forallE A B (join d d') (f ++ f')
+  | _+1, .sigma A B d f, .sigma _ _ d' f' => .sigma A B (join d d') (f ++ f')
+  | _+1, .pair a b, .pair a' b' => .pair (join a a') (join b b')
+  | _+1, .lam f, .lam f' => .lam (f ++ f')
+  | _+1, _, _ => .bot
+
 /-- Composing coverage of graphs.  This is the step that forces the label
 to carry its type: the two `LabelEq` proofs are chained by
 `LabelEq.trans`, whose sort-typed component is handled by `IsDefEq.trans'`.
