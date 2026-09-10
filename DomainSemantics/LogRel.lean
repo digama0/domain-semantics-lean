@@ -1,5 +1,5 @@
 import DomainSemantics.Term
-import DomainSemantics.Shape
+import DomainSemantics.ShapeOld
 
 /-! # The logical relation
 
@@ -242,20 +242,20 @@ def LRS.ValTySigma2 (IH : LogRel Γ n) (M₁ M₂ : Term) (b : WShape n) (f : WS
     Γ ⊢ B₁ ≡ B₂ : .sort u ∧ B₁::Γ ⊢ F₁ ≡ F₂ : .sort v ∧ IH.TyEq B₁ B₂ b ∧
     LRS.PiDefEq IH B₁ F₁ F₂ b f
 
-def LRS.ValTyId2 (IH : LogRel Γ n) (M₁ M₂ : Term) (AV aV bV : WShape n) : Prop :=
+def LRS.ValTyId2 (IH : LogRel Γ n) (M₁ M₂ : Term) (r : Bool) (AV aV bV : WShape n) : Prop :=
   ∃ A₁ a₁ b₁ A₂ a₂ b₂ u,
-    Γ ⊢ M₁ ⤳* .id A₁ a₁ b₁ : .type ∧ Γ ⊢ M₂ ⤳* .id A₂ a₂ b₂ : .type ∧
+    Γ ⊢ M₁ ⤳* .id r A₁ a₁ b₁ : .sort r ∧ Γ ⊢ M₂ ⤳* .id r A₂ a₂ b₂ : .sort r ∧
     Γ ⊢ A₁ ≡ A₂ : .sort u ∧ Γ ⊢ a₁ ≡ a₂ : A₁ ∧ Γ ⊢ b₁ ≡ b₂ : A₁ ∧
     IH.TyEq A₁ A₂ AV ∧ IH.TmEq a₁ a₂ A₁ aV AV ∧ IH.TmEq b₁ b₂ A₁ bV AV
 
 theorem LRS.ValTyId2.left {IH : LogRel Γ n} :
-    LRS.ValTyId2 IH M N AV aV bV → LRS.ValTyId2 IH M M AV aV bV
+    LRS.ValTyId2 IH M N r AV aV bV → LRS.ValTyId2 IH M M r AV aV bV
   | ⟨A₁, a₁, b₁, _, _, _, u, rM, _, hA, ha, hb, hValA, hValAa, hValAb⟩ =>
     ⟨A₁, a₁, b₁, A₁, a₁, b₁, u, rM, rM, hA.hasType.1, ha.hasType.1, hb.hasType.1,
       IH.left_ty hValA, IH.left hValAa, IH.left hValAb⟩
 
 theorem LRS.ValTyId2.symm {IH : LogRel Γ n} :
-    LRS.ValTyId2 IH M N AV aV bV → LRS.ValTyId2 IH N M AV aV bV
+    LRS.ValTyId2 IH M N r AV aV bV → LRS.ValTyId2 IH N M r AV aV bV
   | ⟨A₁, a₁, b₁, A₂, a₂, b₂, u, rM, rN, hA, ha, hb, hValA, hValAa, hValAb⟩ =>
     ⟨A₂, a₂, b₂, A₁, a₁, b₁, u, rN, rM, hA.symm,
       hA.defeqDF ha.symm, hA.defeqDF hb.symm,
@@ -263,8 +263,8 @@ theorem LRS.ValTyId2.symm {IH : LogRel Γ n} :
       IH.conv hValA (IH.symm hb hValAb)⟩
 
 theorem LRS.ValTyId2.trans {IH : LogRel Γ n} :
-    LRS.ValTyId2 IH M₁ M₂ AV aV bV → LRS.ValTyId2 IH M₂ M₃ AV aV bV →
-    LRS.ValTyId2 IH M₁ M₃ AV aV bV
+    LRS.ValTyId2 IH M₁ M₂ r AV aV bV → LRS.ValTyId2 IH M₂ M₃ r AV aV bV →
+    LRS.ValTyId2 IH M₁ M₃ r AV aV bV
   | ⟨A₁, a₁, b₁, A₂, a₂, b₂, u, rM₁, rM₂, hA₁₂, ha₁₂, hb₁₂, hValA₁₂, hValAa₁₂, hValAb₁₂⟩,
     ⟨_, _, _, A₃, a₃, b₃, u', rM₂', rM₃, hA₂₃, ha₂₃, hb₂₃, hValA₂₃, hValAa₂₃, hValAb₂₃⟩ => by
     cases rM₂.2.determ .id rM₂'.2 .id
@@ -280,7 +280,7 @@ theorem LRS.ValTyId2.mono_r {IH : LogRel Γ n} {AV AV' aV aV' bV bV' : WShape n}
     (leA : AV ≤ AV') (lea : aV ≤ aV') (leb : bV ≤ bV')
     (haV : aV.HasType AV) (haV' : aV'.HasType AV')
     (hbV : bV.HasType AV) (hbV' : bV'.HasType AV') :
-    LRS.ValTyId2 IH M N AV' aV' bV' → LRS.ValTyId2 IH M N AV aV bV
+    LRS.ValTyId2 IH M N r AV' aV' bV' → LRS.ValTyId2 IH M N r AV aV bV
   | ⟨A₁, a₁, b₁, A₂, a₂, b₂, u, rM, rN, hA, ha, hb, hValA, hValAa, hValAb⟩ =>
     ⟨A₁, a₁, b₁, A₂, a₂, b₂, u, rM, rN, hA, ha, hb,
       IH.mono_r_2_ty leA haV.isType haV'.isType hValA,
@@ -292,8 +292,8 @@ theorem LRS.ValTyId2.join {IH : LogRel Γ n}
     (hC_A : AV₁.Compat AV₂) (hC_a : aV₁.Compat aV₂) (hC_b : bV₁.Compat bV₂)
     (haV₁ : aV₁.HasType AV₁) (haV₂ : aV₂.HasType AV₂)
     (hbV₁ : bV₁.HasType AV₁) (hbV₂ : bV₂.HasType AV₂) :
-    LRS.ValTyId2 IH M N AV₁ aV₁ bV₁ → LRS.ValTyId2 IH M N AV₂ aV₂ bV₂ →
-    LRS.ValTyId2 IH M N (AV₁.join AV₂) (aV₁.join aV₂) (bV₁.join bV₂) := by
+    LRS.ValTyId2 IH M N r AV₁ aV₁ bV₁ → LRS.ValTyId2 IH M N r AV₂ aV₂ bV₂ →
+    LRS.ValTyId2 IH M N r (AV₁.join AV₂) (aV₁.join aV₂) (bV₁.join bV₂) := by
   intro ⟨A₁, a₁, b₁, A₂, a₂, b₂, u, rM₁, rN₁, hA₁, ha₁, hb₁, hValA₁, hValAa₁, hValAb₁⟩
         ⟨_, _, _, _, _, _, _, rM₂, rN₂, _, _, _, hValA₂, hValAa₂, hValAb₂⟩
   cases rM₁.2.determ .id rM₂.2 .id
@@ -314,18 +314,18 @@ theorem LRS.ValTyId2.join {IH : LogRel Γ n}
       (IH.mono_r_1 hLE_A1 hbV₁ hbV₁_at_J (IH.left_ty hValA_joined) hValAb₁)
       (IH.mono_r_1 hLE_A2 hbV₂ hbV₂_at_J (IH.left_ty hValA_joined) hValAb₂)⟩
 
-def LRS.ReflDefEq (IH : LogRel Γ n) (M N A a b : Term) (sA sw : WShape n) : Prop :=
-  ∃ a₁ a₂, Γ ⊢ M ⤳* .refl a₁ : .id A a b ∧ Γ ⊢ N ⤳* .refl a₂ : .id A a b ∧
+def LRS.ReflDefEq (IH : LogRel Γ n) (M N A a b : Term) (r : Bool) (sA sw : WShape n) : Prop :=
+  ∃ a₁ a₂, Γ ⊢ M ⤳* .refl r a₁ : .id r A a b ∧ Γ ⊢ N ⤳* .refl r a₂ : .id r A a b ∧
     Γ ⊢ a₁ ≡ a : A ∧ Γ ⊢ a₁ ≡ b : A ∧ Γ ⊢ a₁ ≡ a₂ : A ∧
     IH.TmEq a₁ a A sw sA ∧ IH.TmEq a₁ b A sw sA ∧ IH.TmEq a₁ a₂ A sw sA
 
 theorem LRS.ReflDefEq.left {IH : LogRel Γ n} :
-    LRS.ReflDefEq IH M N A a b sA sw → LRS.ReflDefEq IH M M A a b sA sw
+    LRS.ReflDefEq IH M N A a b r sA sw → LRS.ReflDefEq IH M M A a b r sA sw
   | ⟨a₁, _, rM, _, hCa, hCb, _, teLa, teLb, _⟩ =>
     ⟨a₁, a₁, rM, rM, hCa, hCb, hCa.hasType.1, teLa, teLb, IH.left teLa⟩
 
 theorem LRS.ReflDefEq.symm {IH : LogRel Γ n} :
-    LRS.ReflDefEq IH M N A a b sA sw → LRS.ReflDefEq IH N M A a b sA sw
+    LRS.ReflDefEq IH M N A a b r sA sw → LRS.ReflDefEq IH N M A a b r sA sw
   | ⟨a₁, a₂, rM, rN, hCa, hCb, hC12, teLa, teLb, te12⟩ =>
     ⟨a₂, a₁, rN, rM, hC12.symm.trans hCa, hC12.symm.trans hCb, hC12.symm,
      IH.trans hC12.symm hCa (IH.symm hC12 te12) teLa,
@@ -333,8 +333,8 @@ theorem LRS.ReflDefEq.symm {IH : LogRel Γ n} :
      IH.symm hC12 te12⟩
 
 theorem LRS.ReflDefEq.trans {IH : LogRel Γ n} :
-    LRS.ReflDefEq IH M₁ M₂ A a b sA sw → LRS.ReflDefEq IH M₂ M₃ A a b sA sw →
-    LRS.ReflDefEq IH M₁ M₃ A a b sA sw
+    LRS.ReflDefEq IH M₁ M₂ A a b r sA sw → LRS.ReflDefEq IH M₂ M₃ A a b r sA sw →
+    LRS.ReflDefEq IH M₁ M₃ A a b r sA sw
   | ⟨a₁, _, rM₁, _, hCa_1, hCb_1, _, teLa₁, teLb₁, _⟩,
     ⟨_, a₃, _, rM₃, hCa_2, _, hC23, teLa₂, _, te12₂⟩ =>
     ⟨a₁, a₃, rM₁, rM₃, hCa_1, hCb_1, (hCa_1.trans hCa_2.symm).trans hC23,
@@ -346,7 +346,7 @@ theorem LRS.ReflDefEq.trans {IH : LogRel Γ n} :
 fixed): transport each of the 3 semantic endpoint `TmEq`s via `IH.mono_r_2`. -/
 theorem LRS.ReflDefEq.mono_r_2 {IH : LogRel Γ n} {M N A a b : Term} {sA sA' sw : WShape n}
     (leA : sA ≤ sA') (hsw : sw.HasType sA) (hsA' : sA'.HasType .type) :
-    LRS.ReflDefEq IH M N A a b sA' sw → LRS.ReflDefEq IH M N A a b sA sw
+    LRS.ReflDefEq IH M N A a b r sA' sw → LRS.ReflDefEq IH M N A a b r sA sw
   | ⟨a₁, a₂, rM, rN, hCa, hCb, hC12, teLa, teLb, te12⟩ =>
     ⟨a₁, a₂, rM, rN, hCa, hCb, hC12,
       IH.mono_r_2 leA hsw hsA' teLa,
@@ -357,7 +357,7 @@ theorem LRS.ReflDefEq.mono_r_2 {IH : LogRel Γ n} {M N A a b : Term} {sA sA' sw 
 fixed): transport each of the 3 semantic endpoint `TmEq`s via `IH.mono_r_1`. -/
 theorem LRS.ReflDefEq.mono_r_1 {IH : LogRel Γ n} {M N A a b : Term} {sA sA' sw : WShape n}
     (leA : sA ≤ sA') (hsw : sw.HasType sA) (hsw' : sw.HasType sA') (hTy : IH.TyEq A A sA') :
-    LRS.ReflDefEq IH M N A a b sA sw → LRS.ReflDefEq IH M N A a b sA' sw
+    LRS.ReflDefEq IH M N A a b r sA sw → LRS.ReflDefEq IH M N A a b r sA' sw
   | ⟨a₁, a₂, rM, rN, hCa, hCb, hC12, teLa, teLb, te12⟩ =>
     ⟨a₁, a₂, rM, rN, hCa, hCb, hC12,
       IH.mono_r_1 leA hsw hsw' hTy teLa,
@@ -368,7 +368,7 @@ theorem LRS.ReflDefEq.mono_r_1 {IH : LogRel Γ n} {M N A a b : Term} {sA sA' sw 
 fixed): transport each of the 3 semantic endpoint `TmEq`s via `IH.mono_l`. -/
 theorem LRS.ReflDefEq.mono_l {IH : LogRel Γ n} {M N A a b : Term} {sA sw sw' : WShape n}
     (le : sw ≤ sw') (hsw : sw.HasType sA) (hsw' : sw'.HasType sA) :
-    LRS.ReflDefEq IH M N A a b sA sw' → LRS.ReflDefEq IH M N A a b sA sw
+    LRS.ReflDefEq IH M N A a b r sA sw' → LRS.ReflDefEq IH M N A a b r sA sw
   | ⟨a₁, a₂, rM, rN, hCa, hCb, hC12, teLa, teLb, te12⟩ =>
     ⟨a₁, a₂, rM, rN, hCa, hCb, hC12,
       IH.mono_l le hsw hsw' teLa,
@@ -380,8 +380,8 @@ theorem LRS.ReflDefEq.mono_l {IH : LogRel Γ n} {M N A a b : Term} {sA sw sw' : 
 join each of the 3 semantic endpoint `TmEq`s via `IH.join`. -/
 theorem LRS.ReflDefEq.join {IH : LogRel Γ n} {M N A a b : Term} {sA w w' : WShape n}
     (hC : w.Compat w') (hw : w.HasType sA) (hw' : w'.HasType sA) :
-    LRS.ReflDefEq IH M N A a b sA w → LRS.ReflDefEq IH M N A a b sA w' →
-    LRS.ReflDefEq IH M N A a b sA (w.join w') := by
+    LRS.ReflDefEq IH M N A a b r sA w → LRS.ReflDefEq IH M N A a b r sA w' →
+    LRS.ReflDefEq IH M N A a b r sA (w.join w') := by
   intro ⟨u₁, u₂, rM₁, rN₁, hCa, hCb, hC12, teLa₁, teLb₁, te12₁⟩
         ⟨v₁, v₂, rM₂, rN₂, _, _, _, teLa₂, teLb₂, te12₂⟩
   cases rM₁.2.determ .refl rM₂.2 .refl
@@ -550,7 +550,7 @@ def LRS.TyEq (IH : LogRel Γ n) (M N : Term) : WShape (n+1) → Prop
   | ⟨.forallE b f, wf⟩ => LRS.ValTyPi2 IH M N ⟨b, wf.1⟩ ⟨f, wf.2⟩
   | ⟨.sigma b f, wf⟩ => LRS.ValTySigma2 IH M N ⟨b, wf.1⟩ ⟨f, wf.2⟩
   | ⟨.nat, _⟩ => Γ ⊢ M ⤳* .nat : .type ∧ Γ ⊢ N ⤳* .nat : .type
-  | ⟨.id A a b, wf⟩ => LRS.ValTyId2 IH M N ⟨A, wf.1⟩ ⟨a, wf.2.1⟩ ⟨b, wf.2.2⟩
+  | ⟨.id r A a b, wf⟩ => LRS.ValTyId2 IH M N r ⟨A, wf.1⟩ ⟨a, wf.2.1⟩ ⟨b, wf.2.2⟩
 
 @[simp] theorem LRS.TyEq.bot : LRS.TyEq IH M N .bot := trivial
 @[simp] theorem LRS.TyEq.sort_iff :
@@ -888,19 +888,19 @@ def LRS.TmEq (IH : LogRel Γ n) (M N A : Term) (m a : WShape (n+1)) : Prop :=
     | .succ m' => ∃ M' N', Γ ⊢ M ⤳* .succ M' : .nat ∧ Γ ⊢ N ⤳* .succ N' : .nat ∧
       Γ ⊢ M' ≡ N' : .nat ∧ IH.TmEqNat M' N' ⟨m', (hm ▸ m.2 :)⟩
     | _ => False
-  | .id aA aa ab =>
+  | .id r aA aa ab =>
     have wfA := (ha ▸ a.2).1; have wfa := (ha ▸ a.2).2.1; have wfb := (ha ▸ a.2).2.2
     match hm : m.1 with
-    | .bot => LRS.ValTyId2 IH A A ⟨aA, wfA⟩ ⟨aa, wfa⟩ ⟨ab, wfb⟩
+    | .bot => LRS.ValTyId2 IH A A r ⟨aA, wfA⟩ ⟨aa, wfa⟩ ⟨ab, wfb⟩
     | .refl sw =>
       have swf : sw.WF := by have h2 := m.2; rw [hm] at h2; exact h2
       ∃ A₁ a₁ b₁ : Term,
-        Γ ⊢ A ⤳* .id A₁ a₁ b₁ : .type ∧
+        Γ ⊢ A ⤳* .id r A₁ a₁ b₁ : .sort r ∧
         IH.TyEq A₁ A₁ ⟨aA, wfA⟩ ∧
         IH.TmEq a₁ a₁ A₁ ⟨aa, wfa⟩ ⟨aA, wfA⟩ ∧
         IH.TmEq b₁ b₁ A₁ ⟨ab, wfb⟩ ⟨aA, wfA⟩ ∧
         WShape.HasTypeRefl ⟨sw, swf⟩ ⟨aA, wfA⟩ ⟨aa, wfa⟩ ⟨ab, wfb⟩ ∧
-        LRS.ReflDefEq IH M N A₁ a₁ b₁ ⟨aA, wfA⟩ ⟨sw, swf⟩
+        LRS.ReflDefEq IH M N A₁ a₁ b₁ r ⟨aA, wfA⟩ ⟨sw, swf⟩
     | _ => False
   | _ => False
 
@@ -1039,9 +1039,11 @@ theorem LRS.TyEq.join {IH : LogRel Γ n} {A B : Term} {m₁ m₂ : WShape (n+1)}
   | bot _ => rwa [WShape.bot_join]
   | id hi₁ =>
     cases hm₂.unfold with | bot => rwa [WShape.join_bot] | id hi₂ => ?_ | _ => cases hC
-    obtain ⟨hCA, hCa, hCb⟩ := WShape.Compat.id_id.1 hC
+    simp only [WShape.Compat, WShape.id, Shape.Compat, Bool.and_eq_true, decide_eq_true_eq,
+      and_assoc] at hC
+    obtain ⟨rfl, hCA, hCa, hCb⟩ := hC
     rw [WShape.id_join_id hCA hCa hCb]
-    show LRS.ValTyId2 IH A B _ _ _
+    show LRS.ValTyId2 IH A B _ _ _ _
     exact LRS.ValTyId2.join hCA hCa hCb hi₁.1 hi₂.1 hi₁.2 hi₂.2 h1 h2
   | sort =>
     cases hm₂.unfold with | bot => rwa [WShape.join_bot] | sort => ?_ | _ => cases hC
@@ -1367,8 +1369,8 @@ def LRS (IH : LogRel Γ n) : LogRel Γ (n+1) where
           (IH.mono_l lea (WShape.HasType.mono_r leA haV'_AV'.isType haV_AV) haV'_AV' hValTa),
         IH.mono_r_2 leA hbV_AV haV'_AV'.isType
           (IH.mono_l leb (WShape.HasType.mono_r leA haV'_AV'.isType hbV_AV) hbV'_AV' hValTb),
-        WShape.HasType.refl_iff.1 hm,
-        hP.mono_r_2 leA (WShape.HasType.refl_iff.1 hm).2.1 haV'_AV'.isType⟩
+        (WShape.HasType.refl_iff.1 hm).2,
+        hP.mono_r_2 leA (WShape.HasType.refl_iff.1 hm).2.2.1 haV'_AV'.isType⟩
     | _ => nomatch hm.isType
   mono_r_2_ty {a a' A B} le ha ha' h := by
     cases a using WShape.casesOn' with
@@ -1493,9 +1495,9 @@ def LRS (IH : LogRel Γ n) : LogRel Γ (n+1) where
       cases rA_T.2.determ .id rA'_T.2 .id
       cases rA_M.2.determ .id rA_T.2 .id
       refine ⟨A₁_M, a₁_M, b₁_M, rA_M, IH.left_ty hValA_T,
-        IH.left hValTa_T, IH.left hValTb_T, WShape.HasType.refl_iff.1 ha', ?_⟩
-      exact hP.mono_r_1 leA (WShape.HasType.refl_iff.1 ha).2.1
-        (WShape.HasType.refl_iff.1 ha').2.1 (IH.left_ty hValA_T)
+        IH.left hValTa_T, IH.left hValTb_T, (WShape.HasType.refl_iff.1 ha').2, ?_⟩
+      exact hP.mono_r_1 leA (WShape.HasType.refl_iff.1 ha).2.2.1
+        (WShape.HasType.refl_iff.1 ha').2.2.1 (IH.left_ty hValA_T)
     | refl => cases ha'.refl_r
   mono_l {m m' M N A a} le hm hm' h := by
     cases a using WShape.casesOn' with
@@ -1603,8 +1605,8 @@ def LRS (IH : LogRel Γ n) : LogRel Γ (n+1) where
       obtain hbot | ⟨w', rfl, hRefl'⟩ := WShape.HasType.id_r hm'
       · cases WShape.le_bot.1 (hbot ▸ le)
       · obtain ⟨A₁, a₁, b₁, rA, hValA, hValTa, hValTb, _, hP⟩ := h
-        exact ⟨A₁, a₁, b₁, rA, hValA, hValTa, hValTb, WShape.HasType.refl_iff.1 hm,
-          hP.mono_l (WShape.refl_le_refl.1 le) (WShape.HasType.refl_iff.1 hm).2.1 hRefl'.2.1⟩
+        exact ⟨A₁, a₁, b₁, rA, hValA, hValTa, hValTb, (WShape.HasType.refl_iff.1 hm).2,
+          hP.mono_l (WShape.refl_le_refl.1 le) (WShape.HasType.refl_iff.1 hm).2.2.1 hRefl'.2.1⟩
     | refl => cases hm.refl_r
     | _ => cases hm.isType
   join_ty := .join
@@ -1711,8 +1713,8 @@ def LRS (IH : LogRel Γ n) : LogRel Γ (n+1) where
       obtain ⟨_, _, _, rA₂, _, _, _, _, hP₂⟩ := h2
       cases rA₁.2.determ .id rA₂.2 .id
       exact ⟨A₁, a₁, b₁, rA₁, hValA₁, hValTa₁, hValTb₁,
-        WShape.HasType.refl_iff.1 (WShape.refl_join_refl hC_w ▸ WShape.HasType.join compat hm hm'),
-        hP₁.join hC_w (WShape.HasType.refl_iff.1 hm).2.1 (WShape.HasType.refl_iff.1 hm').2.1 hP₂⟩
+        (WShape.HasType.refl_iff.1 (WShape.refl_join_refl hC_w ▸ WShape.HasType.join compat hm hm')).2,
+        hP₁.join hC_w (WShape.HasType.refl_iff.1 hm).2.2.1 (WShape.HasType.refl_iff.1 hm').2.2.1 hP₂⟩
     | refl => cases hm.refl_r
   whr {M M' A N N' m a} hM hN hMN := by
     cases a using WShape.casesOn' with
@@ -1995,8 +1997,8 @@ private theorem LRS.ReflDefEq.lift_aux {M N A a b : Term} {sA sw : WShape n}
     (_le : n ≤ n') (hsw : WShape.HasType sw sA)
     (IH : ∀ {M N A : Term} {m a : WShape n}, WShape.HasType m a →
       ((LR Γ).TmEq M N A (m.lift n') (a.lift _) ↔ (LR Γ).TmEq M N A m a)) :
-    LRS.ReflDefEq (LR Γ) (n := n') M N A a b (sA.lift n') (sw.lift n') ↔
-    LRS.ReflDefEq (LR Γ) M N A a b sA sw := by
+    LRS.ReflDefEq (LR Γ) (n := n') M N A a b r (sA.lift n') (sw.lift n') ↔
+    LRS.ReflDefEq (LR Γ) M N A a b r sA sw := by
   unfold LRS.ReflDefEq
   constructor
   · intro ⟨a₁, a₂, rM, rN, hCa, hCb, hC12, teLa, teLb, te12⟩
@@ -2035,10 +2037,10 @@ private theorem LR.lift_succ_aux :
         · exact (LRS.PiDefEq.lift_aux (Nat.le_succ k) htpi ih.1 ih.2).2 hE
       | pair => exact absurd hmt WShape.HasType.pair_isType
       | nat => rw [WShape.lift_nat (Nat.le_succ k)]; rfl
-      | id A a b =>
+      | id r A a b =>
         rw [WShape.lift_id (Nat.le_succ k)]
         have ⟨⟨hta_A, htb_A⟩, _⟩ := WShape.HasType.id_l.1 hmt
-        show LRS.ValTyId2 _ _ _ _ _ _ ↔ LRS.ValTyId2 _ _ _ _ _ _
+        show LRS.ValTyId2 _ _ _ _ _ _ _ ↔ LRS.ValTyId2 _ _ _ _ _ _ _
         constructor <;>
           intro ⟨A₁, a₁, b₁, A₂, a₂, b₂, u, rA, rB, hAA, haa, hbb, hValA, hValTa, hValTb⟩ <;>
           refine ⟨A₁, a₁, b₁, A₂, a₂, b₂, u, rA, rB, hAA, haa, hbb, ?_, ?_, ?_⟩
@@ -2065,12 +2067,12 @@ private theorem LR.lift_succ_aux :
         · exact ⟨u, whA, (h1 hma.toType).1 h⟩
         · exact ⟨u, whA, (h1 hma.toType).2 h⟩
       | unit => constructor <;> intro <;> trivial
-      | id A_v a_v b_v =>
+      | id r A_v a_v b_v =>
         have ⟨⟨hta_A, htb_A⟩, _⟩ := WShape.HasType.id_l.1 hma.isType
         cases m using WShape.casesOn' with
         | bot =>
           rw [WShape.lift_bot, WShape.lift_id (Nat.le_succ k)]
-          show LRS.ValTyId2 _ _ _ _ _ _ ↔ LRS.ValTyId2 _ _ _ _ _ _
+          show LRS.ValTyId2 _ _ _ _ _ _ _ ↔ LRS.ValTyId2 _ _ _ _ _ _ _
           constructor <;>
             intro ⟨A₁, a₁, b₁, A₂, a₂, b₂, u, rA, rB, hAA, haa, hbb, hValA, hValTa, hValTb⟩ <;>
             refine ⟨A₁, a₁, b₁, A₂, a₂, b₂, u, rA, rB, hAA, haa, hbb, ?_, ?_, ?_⟩
@@ -2081,7 +2083,7 @@ private theorem LR.lift_succ_aux :
           · exact (ih.2 hta_A).2 hValTa
           · exact (ih.2 htb_A).2 hValTb
         | refl w =>
-          have hsw : WShape.HasType w A_v := (WShape.HasType.refl_iff.1 hma).2.1
+          have hsw : WShape.HasType w A_v := (WShape.HasType.refl_iff.1 hma).2.2.1
           have hmaL := (WShape.HasType.lift (Nat.le_succ (k+1))).2 hma
           rw [WShape.lift_refl (Nat.le_succ k), WShape.lift_id (Nat.le_succ k)] at hmaL
           rw [WShape.lift_refl (Nat.le_succ k), WShape.lift_id (Nat.le_succ k)]
@@ -2091,12 +2093,12 @@ private theorem LR.lift_succ_aux :
           · exact (ih.1 hta_A.isType).1 hValA
           · exact (ih.2 hta_A).1 hValTa
           · exact (ih.2 htb_A).1 hValTb
-          · exact WShape.HasType.refl_iff.1 hma
+          · exact (WShape.HasType.refl_iff.1 hma).2
           · exact (LRS.ReflDefEq.lift_aux (Nat.le_succ k) hsw ih.2).1 hP
           · exact (ih.1 hta_A.isType).2 hValA
           · exact (ih.2 hta_A).2 hValTa
           · exact (ih.2 htb_A).2 hValTb
-          · exact WShape.HasType.refl_iff.1 hmaL
+          · exact (WShape.HasType.refl_iff.1 hmaL).2
           · exact (LRS.ReflDefEq.lift_aux (Nat.le_succ k) hsw ih.2).2 hP
         | _ => constructor <;> intro <;> trivial
       | forallE a₁ a₂ =>

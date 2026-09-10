@@ -1,5 +1,5 @@
 import DomainSemantics.Term
-import DomainSemantics.Shape
+import DomainSemantics.ShapeOld
 
 /-! # Semantic interpretation and soundness
 
@@ -97,15 +97,15 @@ inductive LE_Interp : Valuation → TShape → Term → Prop
   | protected Y {s : TShape} : LE_Interp (ρ.push s) m b → LE_Interp ρ s (.Y A b) →
     LE_Interp ρ m (.Y A b)
   | id : LE_Interp ρ AV.T A → LE_Interp ρ aV.T a → LE_Interp ρ bV.T b →
-    m ≤ WShape.T (n := n+1) (.id AV aV bV) → LE_Interp ρ m (.id A a b)
+    m ≤ WShape.T (n := n+1) (.id r AV aV bV) → LE_Interp ρ m (.id r A a b)
   | refl {v : WShape n} : LE_Interp ρ v.T a →
-    m ≤ WShape.T (n := n+1) (.refl v) → LE_Interp ρ m (.refl a)
-  | tr {v vA m' cb : TShape} : m ≤ m' → LE_Interp ρ m' X →
+    m ≤ WShape.T (n := n+1) (.refl v) → LE_Interp ρ m (.refl true a)
+  | tr {v vA m' cb : TShape} {r : Bool} : m ≤ m' → LE_Interp ρ m' X →
     LE_Interp ρ v a → LE_Interp ρ v b →
     LE_Interp ρ vA A → v.HasType vA →
     LE_Interp (ρ.push v) cb C → m'.HasType cb →
-    LE_Interp ρ (WShape.refl v.2).T H →
-    LE_Interp ρ m (.tr A a b C X H)
+    (r → LE_Interp ρ (WShape.refl v.2).T H) →
+    LE_Interp ρ m (.tr r A a b C X H)
 
 theorem LE_Interp.bvar' : LE_Interp ρ (ρ i) (.bvar i) := .bvar .rfl
 theorem LE_Interp.bvar0 : LE_Interp (.push ρ x) x (.bvar 0) := .bvar' (ρ := ρ.push x) (i := 0)
@@ -219,7 +219,7 @@ theorem LE_Interp.mono_l (hρ : ρ.LE ρ') (H : LE_Interp ρ m M) : LE_Interp ρ
   | id _ _ _ h1 ihA iha ihb => exact .id (ihA hρ) (iha hρ) (ihb hρ) h1
   | refl _ h1 ihv => exact .refl (ihv hρ) h1
   | tr le _ _ _ _ hv_ty_vA _ hty _ ihx ihva ihvb ihvA ihc_C ihH =>
-    refine .tr le (ihx hρ) (ihva hρ) (ihvb hρ) (ihvA hρ) hv_ty_vA ?_ hty (ihH hρ)
+    refine .tr le (ihx hρ) (ihva hρ) (ihvb hρ) (ihvA hρ) hv_ty_vA ?_ hty (fun hr => ihH hr hρ)
     exact ihc_C (Valuation.LE.push.2 ⟨hρ, .rfl⟩)
 
 theorem LE_Interp.unlift (le : m.1 ≤ n)
@@ -265,7 +265,7 @@ theorem LE_Interp.weak'_iff (l : Lift) (h : ∀ i, ρ i = ρ' (l.liftVar i)) :
     | refl _ h1 ihv => exact .refl (ihv _ h rfl) h1
     | tr le _ _ _ _ hv_ty_vA _ hty _ ihx ihva ihvb ihvA ihc_C ihH =>
       refine .tr le (ihx _ h rfl) (ihva _ h rfl) (ihvb _ h rfl)
-        (ihvA _ h rfl) hv_ty_vA ?_ hty (ihH _ h rfl)
+        (ihvA _ h rfl) hv_ty_vA ?_ hty (fun hr => ihH hr _ h rfl)
       exact ihc_C _ (fun i => by cases i <;> simp [Valuation.push, h]) rfl
   · induction H generalizing ρ' l with
     | bot => exact .bot
@@ -298,7 +298,7 @@ theorem LE_Interp.weak'_iff (l : Lift) (h : ∀ i, ρ i = ρ' (l.liftVar i)) :
       exact .id (ihA l h) (iha l h) (ihb l h) h1
     | refl _ h1 ihv => exact .refl (ihv l h) h1
     | tr le _ _ _ _ hv_ty_vA _ hty _ ihx ihva ihvb ihvA ihc_C ihH =>
-      refine .tr le (ihx l h) (ihva l h) (ihvb l h) (ihvA l h) hv_ty_vA ?_ hty (ihH l h)
+      refine .tr le (ihx l h) (ihva l h) (ihvb l h) (ihvA l h) hv_ty_vA ?_ hty (fun hr => ihH hr l h)
       exact ihc_C l.cons fun i => by cases i <;> simp [Valuation.push, h]
 
 theorem LE_Interp.weak_iff : LE_Interp (ρ.push x) m M.lift ↔ LE_Interp ρ m M :=
@@ -545,7 +545,7 @@ theorem LE_Interp.compat_join {m₁ m₂ : TShape}
     exact ⟨cm, .Y im is⟩
   | id hA ha hb h1 ihA iha ihb =>
     cases H2 with | bot => exact bot_r hρ (.id hA ha hb h1) | id hA2 ha2 hb2 h12
-    rename_i _ρ_in A a b _m n₁ AV₁ aV₁ bV₁ n₂ AV₂ aV₂ bV₂
+    rename_i _ρ_in A a b _m n₁ _r AV₁ aV₁ bV₁ n₂ AV₂ aV₂ bV₂
     have ⟨cA, iA⟩ := ihA hρ hA2
     have ⟨ca, ia⟩ := iha hρ ha2
     have ⟨cb, ib⟩ := ihb hρ hb2
@@ -580,7 +580,6 @@ theorem LE_Interp.compat_join {m₁ m₂ : TShape}
     have ⟨_cva, jva⟩ := ihva hρ hva2
     have ⟨cvb, jvb⟩ := ihvb hρ hvb2
     have ⟨_cvA, jvA⟩ := ihvA hρ hvA2
-    have ⟨cH, jH⟩ := ihH hρ hH2_refl
     have vb_J := TShape.Join.mk cvb
     have ⟨ca, ja⟩ := ihc_C (Valuation.LE.push.2 (And.intro hρ vb_J.le.1))
       (hc_C2.mono_l (Valuation.LE.push.2 (And.intro .rfl vb_J.le.2)))
@@ -592,7 +591,8 @@ theorem LE_Interp.compat_join {m₁ m₂ : TShape}
     have vA_J := TShape.Join.mk _cvA
     have tJ := TShape.HasType.join' vA_J hv_ty_vA.isType hv_ty_vA2.isType
     refine mk (le.trans m'_J.le.1) (le2.trans m'_J.le.2) <|
-      .tr .rfl jx jva jvb jvA (.join' vb_J ?_ ?_) ja hty_J (jH.mono ?_)
+      .tr .rfl jx jva jvb jvA (.join' vb_J ?_ ?_) ja hty_J
+        (fun hr => ((ihH hr hρ (hH2_refl hr)).2).mono ?_)
     · exact .mono_r vA_J.le.1 tJ hv_ty_vA
     · exact .mono_r vA_J.le.2 tJ hv_ty_vA2
     · rw [TShape.LE.def (Nat.le_refl _)
@@ -863,7 +863,7 @@ theorem LE_Interp.subst : LE_Interp ρ m (M.subst σ) ↔
       rw [← (show ρ_b'.push (ρ_b 0) = ρ_b by funext i; cases i <;> rfl)]
       exact Valuation.LE.push.2 ⟨hj_b, bvar_iff.1 (hρ_b 0)⟩
     | id hA ha hb h1 ihA iha ihb =>
-      cases M with | bvar => exact bvar eq (.id hA ha hb h1) | id A' a' b' => ?_ | _ => cases eq
+      cases M with | bvar => exact bvar eq (.id hA ha hb h1) | id r' A' a' b' => ?_ | _ => cases eq
       cases eq
       have ⟨ρA, hA', hρA⟩ := ihA A' σ rfl
       have ⟨ρa, ha', hρa⟩ := iha a' σ rfl
@@ -879,21 +879,29 @@ theorem LE_Interp.subst : LE_Interp ρ m (M.subst σ) ↔
             (hb'.mono_l hj_Aab_b) h1,
         fun i => (hjAa_i i).join' (hρb i)⟩
     | refl hv h1 ihv =>
-      cases M with | bvar => exact bvar eq (.refl hv h1) | refl a' => ?_ | _ => cases eq
+      cases M with | bvar => exact bvar eq (.refl hv h1) | refl r' a' => ?_ | _ => cases eq
       cases eq
       have ⟨ρv, hv', hρv⟩ := ihv a' σ rfl
       exact ⟨ρv, .refl hv' h1, hρv⟩
     | tr le hx hva hvb hvA hv_ty_vA hc_C hty hH_refl ihx ihva ihvb ihvA ihc_C ihH =>
       cases M with
       | bvar => exact bvar eq (.tr le hx hva hvb hvA hv_ty_vA hc_C hty hH_refl)
-      | tr A' a' b' C' X' H' => ?_ | _ => cases eq
+      | tr r' A' a' b' C' X' H' => ?_ | _ => cases eq
       cases eq
       have ⟨ρ_x, hX', hρ_x⟩ := ihx X' σ rfl
       have ⟨ρ_va, hva', hρ_va⟩ := ihva a' σ rfl
       have ⟨ρ_vb, hvb', hρ_vb⟩ := ihvb b' σ rfl
       have ⟨ρ_vA, hvA', hρ_vA⟩ := ihvA A' σ rfl
       have ⟨ρ_C, hc_C', hρ_C⟩ := ihc_C C' σ.lift rfl
-      have ⟨ρ_H, hH_refl', hρ_H⟩ := ihH H' σ rfl
+      rename_i rf
+      obtain ⟨ρ_H, hH_refl', hρ_H⟩ :
+          ∃ ρ_H, (rf → LE_Interp ρ_H (WShape.refl _).T H') ∧
+            ∀ i, LE_Interp _ (ρ_H i) (σ i) := by
+        cases rf with
+        | true =>
+          obtain ⟨ρ_H, hH, hρ_H⟩ := ihH rfl H' σ rfl
+          exact ⟨ρ_H, fun _ => hH, hρ_H⟩
+        | false => exact ⟨fun _ => .bot, fun h => absurd h (by decide), fun _ => .bot⟩
       let ρ_C' : Valuation := fun i => ρ_C (i + 1)
       have hρ_C_skip (i) := weak_iff.1 (hρ_C (i + 1))
       have h_ρ_C_0 := bvar_iff.1 (hρ_C 0)
@@ -937,7 +945,7 @@ theorem LE_Interp.subst : LE_Interp ρ m (M.subst σ) ↔
           hv_ty_vA
           (hc_C'.mono_l ?_)
           hty
-          (hH_refl'.mono_l hj_H_to_full),
+          (fun hr => (hH_refl' hr).mono_l hj_H_to_full),
         hρ_full⟩
       rw [h_ρ_C_eq]
       exact Valuation.LE.push.2 ⟨fun i => (hj_C'_to_full i).trans (hj_full_to_H i), h_ρ_C_0⟩
@@ -971,7 +979,7 @@ theorem LE_Interp.subst : LE_Interp ρ m (M.subst σ) ↔
     | id _ _ _ h1 ihA iha ihb => exact .id (ihA h) (iha h) (ihb h) h1
     | refl _ h1 ihv => exact .refl (ihv h) h1
     | tr le _ _ _ _ hv_ty_vA _ hty _ ihx ihva ihvb ihvA ihc_C ihH =>
-      refine .tr le (ihx h) (ihva h) (ihvb h) (ihvA h) hv_ty_vA ?_ hty (ihH h)
+      refine .tr le (ihx h) (ihva h) (ihvb h) (ihvA h) hv_ty_vA ?_ hty (fun hr => ihH hr h)
       exact ihc_C fun | 0 => .bvar0 | i + 1 => (h i).weak
 
 theorem LE_Interp.inst : LE_Interp ρ f (F.inst A) ↔
@@ -1029,7 +1037,7 @@ theorem LE_Interp.forallE_inv' {b} {f : WShapeFun n} {B F}
   funext i; cases i <;> rfl
 
 theorem LE_Interp.id_inv {AV aV bV : WShape n} {A a b : Term}
-    (H : LE_Interp ρ (WShape.T (n := n+1) (.id AV aV bV)) (.id A a b)) :
+    (H : LE_Interp ρ (WShape.T (n := n+1) (.id r AV aV bV)) (.id r A a b)) :
     LE_Interp ρ AV.T A ∧ LE_Interp ρ aV.T a ∧ LE_Interp ρ bV.T b := by
   let .id (n := n') hA₁ ha₁ hb₁ le := H
   have le₁ := Nat.le_max_left n n'; have le₂ := Nat.le_max_right n n'
@@ -1037,6 +1045,15 @@ theorem LE_Interp.id_inv {AV aV bV : WShape n} {A a b : Term}
   refine ⟨hA₁.mono ((TShape.LE.def le₁ le₂).2 hle_A),
           ha₁.mono ((TShape.LE.def le₁ le₂).2 hle_a),
           hb₁.mono ((TShape.LE.def le₁ le₂).2 hle_b)⟩
+
+/-- The outer-shape flag of an `id`-typed interp equals the term's flag. -/
+theorem LE_Interp.id_flag {AV aV bV : WShape n} {A a b : Term} {r_s : Bool}
+    (H : LE_Interp ρ (WShape.T (n := n+1) (.id r_s AV aV bV)) (.id r A a b)) : r_s = r := by
+  let .id (n := n') _ _ _ le := H
+  have hraw := (TShape.LE.def (Nat.succ_le_succ (Nat.le_max_left n n'))
+    (Nat.succ_le_succ (Nat.le_max_right n n'))).1 le
+  rw [WShape.lift_id (Nat.le_max_left n n'), WShape.lift_id (Nat.le_max_right n n')] at hraw
+  exact (Shape.LE.def.1 (WShape.LE.def.1 hraw)).1
 
 theorem LE_Interp.sigma_inv {b} {f : WShapeFun n} {B F}
     (H : LE_Interp ρ (WShape.T (n := n+1) (.sigma b f)) (.sigma B F)) :
@@ -1533,8 +1550,8 @@ theorem LE_Interp.sound_id {A a b : Term} {U : Bool}
     (HA : ∀ {m}, LE_Interp ρ m A → InterpTyped ρ m A (.sort U))
     (Ha : ∀ {m}, LE_Interp ρ m a → InterpTyped ρ m a A)
     (Hb : ∀ {m}, LE_Interp ρ m b → InterpTyped ρ m b A)
-    (h : LE_Interp ρ m (.id A a b)) :
-    InterpTyped ρ m (.id A a b) .type := by
+    (h : LE_Interp ρ m (.id r A a b)) :
+    InterpTyped ρ m (.id r A a b) (.sort r) := by
   by_cases hm : m ≤ .bot; · exact TShape.le_bot'.1 hm ▸ .bot
   cases h with | bot => cases hm TShape.bot_le' | id hA_li ha_li hb_li h_le
   rename_i n0 AV0 aV0 bV0
@@ -1594,9 +1611,9 @@ theorem LE_Interp.sound_id {A a b : Term} {U : Bool}
         (av_w.lift _) (bv_w.lift _) :=
     ⟨hav_ty_W, hbv_ty_W⟩
   have h_shape_ty :
-      (WShape.id (W_T.2.lift (max (max (max nA na) nb) W_T.1)) (av_w.lift _) (bv_w.lift _)).HasType
-        (WShape.type : WShape (max (max (max nA na) nb) W_T.1 + 1)) :=
-    WShape.HasType.id_l.2 ⟨h_idty, rfl⟩
+      (WShape.id r (W_T.2.lift (max (max (max nA na) nb) W_T.1)) (av_w.lift _) (bv_w.lift _)).HasType
+        (WShape.sort r : WShape (max (max (max nA na) nb) W_T.1 + 1)) :=
+    WShape.HasType.id_l.2 ⟨h_idty, r, (by cases r <;> decide), rfl⟩
   have hav_li_k1 : LE_Interp ρ (av_w.lift (max (max (max nA na) nb) W_T.1)).T a :=
     hav_w_li.lift (Nat.le_trans hka hk_k1)
   have hbv_li_k1 : LE_Interp ρ (bv_w.lift (max (max (max nA na) nb) W_T.1)).T b :=
@@ -1628,7 +1645,7 @@ theorem LE_Interp.sound_id {A a b : Term} {U : Bool}
     have := (TShape.LE.def hn0_k1 (Nat.le_refl _)).1 hbV0_T_le_bvk1
     simpa [WShape.lift_self] using this
   have h_le_id : m ≤
-      (WShape.id (W_T.2.lift _) (av_w.lift _) (bv_w.lift _) :
+      (WShape.id r (W_T.2.lift _) (av_w.lift _) (bv_w.lift _) :
         WShape (max (max (max nA na) nb) W_T.1 + 1)).T := by
     refine h_le.trans ?_
     refine (TShape.LE.lift_l (Nat.succ_le_succ hn0_k1)).2 ?_
@@ -1839,13 +1856,13 @@ inductive StrongSoundCore : List Term → Term → Term → Prop where
   | Y : SoundTy Γ A (.sort u) → StrongSound (A::Γ) b A.lift → StrongSoundCore Γ (.Y A b) A
   | id : StrongSound Γ A (.sort u) →
     StrongSound Γ a A → StrongSound Γ b A →
-    StrongSoundCore Γ (.id A a b) .type
+    StrongSoundCore Γ (.id r A a b) (.sort r)
   | refl : SoundTy Γ A (.sort u) → StrongSound Γ a A →
-    StrongSoundCore Γ (.refl a) (.id A a a)
+    StrongSoundCore Γ (.refl r a) (.id r A a a)
   | tr : SoundTy Γ A (.sort u) → SoundTy Γ a A → SoundTy Γ b A →
     StrongSound (A::Γ) C (.sort v) →
-    StrongSound Γ x (C.inst a) → StrongSound Γ h (.id A a b) →
-    StrongSoundCore Γ (.tr A a b C x h) (C.inst b)
+    StrongSound Γ x (C.inst a) → StrongSound Γ h (.id r A a b) →
+    StrongSoundCore Γ (.tr r A a b C x h) (C.inst b)
 end
 /-- Strong soundness for an equality judgment: both sides are individually
 `StrongSound` at `A`, and they are semantically equal. -/
@@ -1959,11 +1976,11 @@ theorem SoundEq.sigma (hA : SoundTy Γ A (.sort u))
   exact (H3 (W.cons (InterpTyped.hsort (hA W)) ((H1 W).2 h2) h'.T)).1 (h4 _ h')
 
 theorem SoundEq.id (H1 : SoundEq Γ A A') (H2 : SoundEq Γ a a') (H3 : SoundEq Γ b b') :
-    SoundEq Γ (.id A a b) (.id A' a' b') := by
+    SoundEq Γ (.id r A a b) (.id r A' a' b') := by
   intro _ ρ W m
   suffices ∀ {A₁ A₂ a₁ a₂ b₁ b₂},
       SoundEq Γ A₁ A₂ → SoundEq Γ a₁ a₂ → SoundEq Γ b₁ b₂ →
-      LE_Interp ρ m (.id A₁ a₁ b₁) → LE_Interp ρ m (.id A₂ a₂ b₂) from
+      LE_Interp ρ m (.id r A₁ a₁ b₁) → LE_Interp ρ m (.id r A₂ a₂ b₂) from
     ⟨this H1 H2 H3, this H1.symm H2.symm H3.symm⟩
   intro A₁ A₂ a₁ a₂ b₁ b₂ HA Ha Hb h
   cases h with | bot => exact .bot | id h1 h2 h3 h4
@@ -1975,28 +1992,28 @@ theorem SoundEq.inst_arg {C : Term} (hX : SoundEq Γ X X') :
   refine ⟨fun ⟨x, h1, h2⟩ => ⟨x, h1, (hX W).1 h2⟩,
     fun ⟨x, h1, h2⟩ => ⟨x, h1, (hX W).2 h2⟩⟩
 
-theorem SoundEq.id_inv (H : SoundEq Γ (.id A a b) (.id A' a' b')) :
+theorem SoundEq.id_inv (H : SoundEq Γ (.id r A a b) (.id r A' a' b')) :
     SoundEq Γ A A' ∧ SoundEq Γ a a' ∧ SoundEq Γ b b' := by
   refine ⟨?_, ?_, ?_⟩
   · intro _ ρ W m
-    suffices ∀ {A B a₁ b₁ a₂ b₂}, SoundEq Γ (.id A a₁ b₁) (.id B a₂ b₂) →
+    suffices ∀ {A B a₁ b₁ a₂ b₂}, SoundEq Γ (.id r A a₁ b₁) (.id r B a₂ b₂) →
         LE_Interp ρ m A → LE_Interp ρ m B from ⟨this H, this H.symm⟩
     intro A B a₁ b₁ a₂ b₂ H h_A
-    have h_id : LE_Interp ρ (WShape.T (n := m.1+1) (.id m.2 .bot .bot)) (.id A a₁ b₁) :=
+    have h_id : LE_Interp ρ (WShape.T (n := m.1+1) (.id r m.2 .bot .bot)) (.id r A a₁ b₁) :=
       .id h_A .bot .bot .rfl
     exact ((H W).1 h_id).id_inv.1
   · intro _ ρ W m
-    suffices ∀ {A B a₁ b₁ a₂ b₂}, SoundEq Γ (.id A a₁ b₁) (.id B a₂ b₂) →
+    suffices ∀ {A B a₁ b₁ a₂ b₂}, SoundEq Γ (.id r A a₁ b₁) (.id r B a₂ b₂) →
         LE_Interp ρ m a₁ → LE_Interp ρ m a₂ from ⟨this H, this H.symm⟩
     intro A B a₁ b₁ a₂ b₂ H h_a
-    have h_id : LE_Interp ρ (WShape.T (n := m.1+1) (.id .bot m.2 .bot)) (.id A a₁ b₁) :=
+    have h_id : LE_Interp ρ (WShape.T (n := m.1+1) (.id r .bot m.2 .bot)) (.id r A a₁ b₁) :=
       .id .bot h_a .bot .rfl
     exact ((H W).1 h_id).id_inv.2.1
   · intro _ ρ W m
-    suffices ∀ {A B a₁ b₁ a₂ b₂}, SoundEq Γ (.id A a₁ b₁) (.id B a₂ b₂) →
+    suffices ∀ {A B a₁ b₁ a₂ b₂}, SoundEq Γ (.id r A a₁ b₁) (.id r B a₂ b₂) →
         LE_Interp ρ m b₁ → LE_Interp ρ m b₂ from ⟨this H, this H.symm⟩
     intro A B a₁ b₁ a₂ b₂ H h_b
-    have h_id : LE_Interp ρ (WShape.T (n := m.1+1) (.id .bot .bot m.2)) (.id A a₁ b₁) :=
+    have h_id : LE_Interp ρ (WShape.T (n := m.1+1) (.id r .bot .bot m.2)) (.id r A a₁ b₁) :=
       .id .bot .bot h_b .rfl
     exact ((H W).1 h_id).id_inv.2.2
 
@@ -2174,10 +2191,10 @@ theorem StrongSound.uniq : StrongSound Γ M A → StrongSound Γ M B → SoundEq
   | natCase => let .natCase .. := H1; let .natCase .. := H2; exact .rfl
   | Y _ _ => let .Y _ _ := H1; let .Y _ _ := H2; exact .rfl
   | id => let .id .. := H1; let .id .. := H2; exact .rfl
-  | refl _ ih =>
+  | refl _ _ ih =>
     let .refl _ a2 := H1; let .refl _ b2 := H2
     exact SoundEq.id (ih a2 b2) .rfl .rfl
-  | tr _ _ _ _ _ _ _ _ _ _ _ ih_h =>
+  | tr _ _ _ _ _ _ _ _ _ _ _ _ ih_h =>
     let .tr _ _ _ _ _ a6 := H1
     let .tr _ _ _ _ _ b6 := H2
     have ⟨_, _, Hb⟩ := SoundEq.id_inv (ih_h a6 b6)
@@ -2673,7 +2690,7 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
       try cases h with | bot => cases hm TShape.bot_le' | id h1 h2 h3 h4
     · exact .id ((ihA.sound W).1 h1) ((iha.sound W).1 h2) ((ihb.sound W).1 h3) h4
     · exact .id ((ihA.sound W).2 h1) ((iha.sound W).2 h2) ((ihb.sound W).2 h3) h4
-  | @reflDF Γ A u a a' _hA _ha _h_id ihA iha _ih_id =>
+  | @reflDF Γ A u a a' r _hA _ha _h_id ihA iha _ih_id =>
     refine .mk' (.refl ihA.left.sound iha.left) .rfl
       (.refl ihA.left.sound iha.right)
       (SoundEq.id .rfl iha.sound.symm iha.sound.symm) fun _ _ W m => ?_
@@ -2685,7 +2702,7 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
       have ⟨n_vs, v_sat, A_sat, _, le_v_sat, hv_sat_li, hA_sat_li, hv_sat_ty⟩ :=
         (iha.left.sound W hv).out
       refine ⟨(WShape.refl v_sat : WShape (n_vs + 1)).T,
-        (WShape.id A_sat v_sat v_sat : WShape (n_vs + 1)).T, ?_, ?_, ?_, ?_⟩
+        (WShape.id true A_sat v_sat v_sat : WShape (n_vs + 1)).T, ?_, ?_, ?_, ?_⟩
       · refine h_le.trans ?_
         have hk_v : n_v ≤ max n_v n_vs := Nat.le_max_left ..
         have hk_vs : n_vs ≤ max n_v n_vs := Nat.le_max_right ..
@@ -2696,7 +2713,7 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
       · exact .id hA_sat_li hv_sat_li hv_sat_li .rfl
       · exact WShape.HasType.T_iff.2 (Shape.HasType.refl
           ⟨⟨hv_sat_ty, hv_sat_ty⟩, hv_sat_ty, Shape.LE.rfl, Shape.LE.rfl⟩)
-  | @trDF Γ A A' u a a' b b' C C' v x x' h h' _hA _ha _hb _hC _hC' _hx _hh _hCb _h_id
+  | @trDF Γ A A' u a a' b b' C C' v x x' h h' r _hA _ha _hb _hC _hC' _hx _hh _hCb _h_id
       ihA iha ihb ihC ihC' ihx ihh ihCb _ih_id =>
     have eq_Cinst : SoundEq Γ (C.inst a) (C'.inst a') :=
       (SoundEq.inst iha.left.sound ihA.left.sound ihC.sound).trans (SoundEq.inst_arg iha.sound)
@@ -2712,11 +2729,11 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
     refine ⟨⟨fun h => ?_, fun h => ?_⟩, fun h => ?_⟩
     · cases h with | bot => exact .bot | tr le hx hva hvb hvA hvv hc_C hty hH_refl
       refine .tr le ((ihx.sound W).1 hx) ((iha.sound W).1 hva)
-        ((ihb.sound W).1 hvb) ((ihA.sound W).1 hvA) hvv ?_ hty ((ihh.sound W).1 hH_refl)
+        ((ihb.sound W).1 hvb) ((ihA.sound W).1 hvA) hvv ?_ hty (fun hr => (ihh.sound W).1 (hH_refl hr))
       exact (ihC.sound (W.cons (InterpTyped.hsort (ihA.left.sound W)) hvA hvv)).1 hc_C
     · cases h with | bot => exact .bot | tr le hx hva hvb hvA hvv hc_C hty hH_refl
       refine .tr le ((ihx.sound W).2 hx) ((iha.sound W).2 hva)
-        ((ihb.sound W).2 hvb) ((ihA.sound W).2 hvA) hvv ?_ hty ((ihh.sound W).2 hH_refl)
+        ((ihb.sound W).2 hvb) ((ihA.sound W).2 hvA) hvv ?_ hty (fun hr => (ihh.sound W).2 (hH_refl hr))
       exact (ihC'.sound (W.cons (InterpTyped.hsort (ihA.right.sound W)) hvA hvv)).2 hc_C
     · by_cases hm : m ≤ .bot
       · exact TShape.le_bot'.1 hm ▸ .bot
@@ -2725,7 +2742,7 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
       | tr le hx hva hvb hvA hvv hc_C hty hH_refl
       refine ⟨_, _, le, ?_, LE_Interp.inst.2 ⟨_, hc_C, hvb⟩, hty⟩
       exact .tr .rfl hx hva hvb hvA hvv hc_C hty hH_refl
-  | @tr_refl _ A u a C v x _hA _ha _hC _hx _h_tr ihA iha ihC ihx ih_tr =>
+  | @tr_refl _ A u a C v x r _hA _ha _hC _hx _h_tr ihA iha ihC ihx ih_tr =>
     obtain ⟨_, ih_tr_core, ih_tr_eq⟩ := ih_tr.left
     obtain ⟨_, ihx_core, ihx_eq⟩ := ihx.left
     refine .mk' ih_tr_core ih_tr_eq ihx_core ihx_eq fun _ ρ W m => ?_
@@ -2735,14 +2752,14 @@ theorem LE_Interp.strongSound (H : Γ ⊢ M ≡ N : A) : StrongSoundEq Γ M N A 
       have ⟨vb, hc_C, hvb⟩ := LE_Interp.inst.1 ha_C
       have ⟨m_sat_a, a_sat_A, le_a, hm_sat_a, ha_sat_A, hm_sat_ty⟩ := iha.left.sound W hvb
       exact .tr le_m_sat hm_x_sat hm_sat_a hm_sat_a ha_sat_A hm_sat_ty
-        (hc_C.mono_l (Valuation.LE.push.2 ⟨.rfl, le_a⟩)) hty_x (.refl hm_sat_a .rfl)
+        (hc_C.mono_l (Valuation.LE.push.2 ⟨.rfl, le_a⟩)) hty_x (· ▸ .refl hm_sat_a .rfl)
     · cases h with | bot => exact .bot | tr le hx
       have ⟨m', a_w, le_m, hm_x, ha_C, hty⟩ := ihx.left.sound W (hx.mono le)
       have ⟨vb, hc_C, hvb⟩ := LE_Interp.inst.1 ha_C
       have ⟨m_sat_a, a_sat_A, le_a, hm_sat_a, ha_sat_A, hm_sat_ty⟩ := iha.left.sound W hvb
       refine ⟨m', a_w, le_m, ?_, ha_C, hty⟩
       exact .tr .rfl hm_x hm_sat_a hm_sat_a ha_sat_A hm_sat_ty
-        (hc_C.mono_l (Valuation.LE.push.2 ⟨.rfl, le_a⟩)) hty (.refl hm_sat_a .rfl)
+        (hc_C.mono_l (Valuation.LE.push.2 ⟨.rfl, le_a⟩)) hty (· ▸ .refl hm_sat_a .rfl)
   | @proofIrrel _ p h h' _ _ _ ih1 ih2 ih3 =>
     refine ⟨fun _ ρ W m => ?_, ih2.left, ih3.left⟩
     suffices ∀ {h h'}, InterpTyped ρ m h p → LE_Interp ρ m h → LE_Interp ρ m h' from
