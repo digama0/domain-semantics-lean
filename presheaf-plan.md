@@ -414,29 +414,46 @@ invariant, and it is what makes the computed join a lub. Coherence (his `IsCoher
 labels and compatible inputs, at every typed later stage, have compatible
 outputs. `IsCode r` as in his `UniverseShape.lean`.
 
-### 4.2 `Decode` (the retraction), by recursion on the level
+### 4.2 Typing of shapes: keep `HasType`, drop `Decode`
 
-```
-Decode (Δ) : ∀ {n}, WShape n → TShape → TShape → Prop     -- Decode c x y : y approximates the retraction of x along code c
-```
+An earlier draft of this section proposed a retraction `Decode Δ c x y`
+("`y` approximates the retraction of `x` along the code `c`") defined by
+recursion on the level, following the other repo's `CodeAssignment` /
+`extend` / `piOperator`.  **Not needed.**  He builds a retraction because
+his shapes carry *no* typing relation at all — for him typing *is* being a
+fixed point of the code's operator, which is why he needs the
+`piStep`/`piStage`/`rank`/`piLimit` fixed-point construction
+(`PiStages.lean`, `RankLocality.lean`, `PiFixedPoint.lean`, ~1k lines).
 
-* `sort r`: `y ≤ x ∧ IsCode r y`.
-* `forallE (A,B) d f` (level `n+1`, `d f` at level `n`): `y ≤ lam h` for a
-  graph `h` all of whose entries `((A',t), x, y')` are *valid*: exists
-  `x'` with `Decode d x x'` (input retracted along the domain code), a
-  family code `c` with `c ∈ app(f, (A',t), x')` (the graph `f` of codes,
-  looked up at the label with `LabelEq Δ` and input `x'`), and
-  `Decode c (app(x, (A',t), x')) y'` (output retracted along `c`). All
-  codes involved are at level `n`, so this is structural in `n`.
-* `sigma`: componentwise; `id r …`: `y ≤ x` and `y` is `⊥` or a `refl`
-  shape (`r = true`) / `y ≤ ⊥` (`r = false`); `unit`, `nat`: as expected;
-  everything else: `y ≤ ⊥`.
+Our shapes already have a typing relation, `WShape.HasType` (with
+`HasDom`/`HasTypePi`/`HasTypeLam`), and master already phrases every use
+we need in terms of it:
 
-Needed lemmas: monotone in `x`, lower-closed in `y`, idempotent,
-strict (`Decode c ⊥ y → y ≤ ⊥`), hereditary along typed `τ`, `join`.
-"`x` is typed at `A`" is then `∃ c, Interp A … c ∧ Decode c x x`, our
-old `InterpTyped`/`HasType`, and his `HasFixedness` is "every
-approximant of `t` is typed at `A`".
+| use | master |
+|---|---|
+| typed approximation of a term | `InterpTyped ρ m M A := ∃ m' a, m ≤ m' ∧ LE_Interp ρ m' M ∧ LE_Interp ρ a A ∧ m'.HasType a` |
+| binder rule: input restricted to the domain | `∀ x, x.HasType a → LE_Interp (ρ.push x.T) (f.app x).T F` |
+| `tr` | `m'.HasType cb` |
+| admissible valuation | `Valuation.Fits`'s `x.HasType a` |
+
+So the plan is: **keep `HasType` and `InterpTyped`**, adapted to labelled
+shapes, and drop `Decode` entirely.  `IsCode r` is then just
+`HasType · (sort r)`, and proof irrelevance is the statement that nothing
+non-`⊥` is typed at a `prop` code.
+
+Two things to watch.
+
+* `HasType` for Π/λ used `ShapeFun.app` (search for the maximal entry
+  below the input), which relied on graph saturation and is gone (§4.1).
+  It must be restated with the relational lookup: the output of an entry is
+  typed at *some* code in the (directed) set of codes the family graph
+  yields at that label and input.
+* Master's `{z ≤ x ∣ z : c}` had a maximum *because* graphs were
+  join-closed.  Without saturation it need not, so a retraction of a single
+  shape would under-approximate.  This is exactly why `InterpTyped`
+  quantifies `∃ m' ∈ ⟦M⟧` rather than bounding by one shape: the joins come
+  from directedness of the interpretation (the `join` lemma), not from the
+  shape.  Keep that formulation and the issue does not arise.
 
 ### 4.3 `Interp` (one constructor per term former, as `LE_Interp`)
 

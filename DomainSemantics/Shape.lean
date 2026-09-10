@@ -210,38 +210,30 @@ theorem Shape.LE.refl_aux : ∀ {n} {s : Shape n}, Shape.WF Γ s → Shape.LE Γ
       have ⟨⟨_, hty⟩, htm, hin, hout⟩ := hf e he
       .inr ⟨e, he, LabelEq.refl hty htm, ih hin, ih hout⟩
     cases s with
-    | bot => trivial
-    | sort => rfl
-    | unit => rfl
-    | nat => trivial
-    | zero => trivial
-    | succ v => exact ih hs
-    | refl w => exact ih hs
+    | bot | nat | zero => trivial
+    | sort | unit => rfl
+    | succ | refl => exact ih hs
     | id =>
       have ⟨⟨_, hA⟩, ha, hb⟩ := hs
-      exact ⟨rfl, IdLabelEq.refl hA ha hb⟩
+      exact ⟨rfl, .refl hA ha hb⟩
     | forallE A B d f =>
       have ⟨⟨_, hA⟩, ⟨_, hB⟩, hd, hf⟩ := hs
-      exact ⟨PiLabelEq.refl hA hB, ih hd, hfun f hf⟩
+      exact ⟨.refl hA hB, ih hd, hfun f hf⟩
     | sigma A B d f =>
       have ⟨⟨_, hA⟩, ⟨_, hB⟩, hd, hf⟩ := hs
-      exact ⟨PiLabelEq.refl hA hB, ih hd, hfun f hf⟩
-    | pair a b => exact ⟨ih hs.1, ih hs.2⟩
-    | lam f => exact hfun f hs
+      exact ⟨.refl hA hB, ih hd, hfun f hf⟩
+    | pair => exact ⟨ih hs.1, ih hs.2⟩
+    | lam => exact hfun _ hs
 
 /-- `s ≤ ⊥` is exactly `IsBot s`, so the `R e.out .bot` escape in
 `ShapeFun.LE` is the same condition as the other repo's
 `Entry.bottom : IsBottom y → Entry g name x y`. -/
-theorem Shape.le_bot_iff : ∀ {n} {s : Shape n}, Shape.LE Δ s .bot ↔ s.IsBot := by
-  intro n
+theorem Shape.le_bot_iff {s : Shape n} : Shape.LE Δ s .bot ↔ s.IsBot := by
   induction n with
-  | zero => intro s; cases s <;> simp [Shape.LE, Shape.IsBot]
+  | zero => cases s <;> simp [Shape.LE, Shape.IsBot]
   | succ n ih =>
-    intro s
     cases s with
-    | lam f =>
-      show (∀ e ∈ f, Shape.LE Δ e.out .bot) ↔ _
-      exact ⟨fun h e he => ih.1 (h e he), fun h e he => ih.2 (h e he)⟩
+    | lam f => exact ⟨fun h e he => ih.1 (h e he), fun h e he => ih.2 (h e he)⟩
     | _ => simp [Shape.LE, Shape.IsBot]
 
 /-- An information-free shape is below everything (the other repo's
@@ -253,16 +245,16 @@ theorem Shape.IsBot.le : ∀ {n} {s t : Shape n}, s.IsBot → Shape.LE Δ s t :=
     intro s t h
     cases s with
     | bot => trivial
-    | sort => exact absurd h id
+    | _ => cases h
   | succ n ih =>
     intro s t h
     cases s with
     | bot => trivial
     | lam f =>
       cases t with
-      | lam f' => exact fun e he => .inl (Shape.le_bot_iff.2 (h e he))
+      | lam f' => exact fun e he => .inl <| Shape.le_bot_iff.2 (h e he)
       | _ => exact fun e he => Shape.le_bot_iff.2 (h e he)
-    | _ => exact absurd h id
+    | _ => cases h
 
 /-- Composing coverage of graphs.  This is the step that forces the label
 to carry its type: the two `LabelEq` proofs are chained by
@@ -286,7 +278,7 @@ theorem Shape.LE.trans_aux (hΓ : ⊢ Γ) {n} {s t u : Shape n}
     (h₁ : Shape.LE Γ s t) (h₂ : Shape.LE Γ t u) : Shape.LE Γ s u := by
   induction n with
   | zero => cases s <;> cases t <;> cases u <;> simp_all [Shape.LE]
-  | succ n ih
+  | succ _ ih
   cases s with
   | bot => trivial
   | lam f =>
@@ -307,11 +299,11 @@ theorem Shape.LE.trans_aux (hΓ : ⊢ Γ) {n} {s t u : Shape n}
     cases t <;> try cases h₁
     cases u <;> try cases h₂
     exact ih h₁ h₂
-  | pair a b =>
+  | pair =>
     cases t <;> cases h₁
     cases u <;> cases h₂
     exact ⟨ih ‹_› ‹_›, ih ‹_› ‹_›⟩
-  | id r A a b =>
+  | id =>
     cases t <;> cases h₁
     cases u <;> cases h₂
     exact ⟨.trans ‹_› ‹_›, .trans ‹_› ‹_›⟩
