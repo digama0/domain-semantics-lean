@@ -393,8 +393,23 @@ LFun X := List ((Term × Term) × X × X)                         -- entries ((A
 
 Order: as now, plus `LabelEq Δ` on labels, so `Shape.LE` becomes
 `Shape.LE Δ` (context-indexed). The `Bool`-valued `ble`/`Compat` become
-`Prop`s (label defeq is not decidable); `lift`/`olift`/`join`/`WF` carry
-labels through unchanged. Coherence (his `IsCoherent`, our `WF` +
+`Prop`s (label defeq is not decidable); `lift`/`olift` carry labels
+through unchanged.
+
+**Graph semantics: per-entry, not saturated.** Our `ShapeFun.WF`
+(`⊥`-input entry, closure of inputs under compatible joins, monotone
+samples) makes a graph a saturated sample so that `app` is a `find?` of
+the maximal entry below the input. Saturation is per label class and
+label classes merge under substitution, so it is not preserved by
+reindexing and cannot be kept. Replace by his `Evaluates`: the output at
+`(ℓ, a)` is the join of all outputs of entries with label `≡_Δ ℓ` and input
+`≤ a`, closed under `⊥` and lowering (an inductive relation
+`Evaluates Δ f ℓ a y`, which is the premise of the `app` constructor).
+Consequences: graph join is list append; no `⊥` entry, no stored joins,
+no monotonicity of samples; `maxBelow`/`trunc`/`ShapeFun.app`/
+`ShapeFun.join`/`NonZero`/`lam'` are deleted; a λ with only `⊥` outputs is
+handled by the `IsBottom`/`collapse` rule of `LE`. Coherence is the only
+invariant, and it is what makes the computed join a lub. Coherence (his `IsCoherent`, our `WF` +
 `Compat`) becomes the hereditary condition on graphs: entries with defeq
 labels and compatible inputs, at every typed later stage, have compatible
 outputs. `IsCode r` as in his `UniverseShape.lean`.
