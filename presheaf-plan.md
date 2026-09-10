@@ -502,12 +502,18 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
 
 ## 7. Remaining open points
 
-1. **Coherence: where to put it.** His `CoherentShape` subtype vs our
-   `WShape.WF` + `Compat`. With context-dependent labels, "internally
-   directed at every typed later stage" cannot be a context-free `WF`
-   predicate; it is either a `Δ`-indexed predicate on shapes or a lemma
-   about interpretations ("approximants of typed terms are coherent").
-   Leaning to the latter, since we never form arbitrary ideals.
+1. **Coherence: where to put it.** The condition (his `Graph.Compatible`,
+   `InternallyCompatible`) for entries `(a₁,u₁,v₁) ∈ f`, `(a₂,u₂,v₂) ∈ g`
+   of two graphs approximating the same function is hereditary and
+   syntax-aware:
+   `∀ Θ τ, ⊢Θ → Θ ⊢ τ : Δ → a₁[τ] ≡_Θ a₂[τ] → Compat Θ (u₁[τ]) (u₂[τ]) → Compat Θ (v₁[τ]) (v₂[τ])`
+   (substitution can create new label equalities and new compatibilities,
+   since `Compat` inspects nested labels). Decision: define `Coherent Δ`
+   in this form but do **not** put it in the shape type; prove
+   "approximants of well-typed terms are coherent" once, from per-entry
+   validity + monotonicity in `ρ` + stage-defeq preservation + the `join`
+   lemma, and use it only in the `join` case for `app`. `WShape.WF`
+   (graph WF, `HasDom`, `NonZero`) goes away; `WShape` becomes `Shape`.
 2. **Directedness.** Needed for the retraction equation (argument side)
    and hence β; η goes through "both sides are abstractions of the same
    body action". No way found to drop it; it is the `join` lemma.
