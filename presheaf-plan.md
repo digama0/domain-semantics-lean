@@ -414,46 +414,53 @@ invariant, and it is what makes the computed join a lub. Coherence (his `IsCoher
 labels and compatible inputs, at every typed later stage, have compatible
 outputs. `IsCode r` as in his `UniverseShape.lean`.
 
-### 4.2 Typing of shapes: keep `HasType`, drop `Decode`
+### 4.2 The decoder, implemented by `HasType`
 
-An earlier draft of this section proposed a retraction `Decode Δ c x y`
-("`y` approximates the retraction of `x` along the code `c`") defined by
-recursion on the level, following the other repo's `CodeAssignment` /
-`extend` / `piOperator`.  **Not needed.**  He builds a retraction because
-his shapes carry *no* typing relation at all — for him typing *is* being a
-fixed point of the code's operator, which is why he needs the
-`piStep`/`piStage`/`rank`/`piLimit` fixed-point construction
-(`PiStages.lean`, `RankLocality.lean`, `PiFixedPoint.lean`, ~1k lines).
+The other repo's decoder is **not** optional: `HasFixedness Γ t A`
+(`rawExtend ⟦A⟧ ⟦t⟧ = ⟦t⟧`) is one of the six components of
+`RawJudgment` and carries the typing content of soundness (§2.7).  What is
+optional is *how* it is built.  He constructs a retraction operator per
+code (`CodeAssignment`, `extend`, `piOperator`), and needs the
+`piStep`/`piStage`/`rank`/`piLimit` fixed point because his shapes have no
+typing relation at all.  Ours do, so we implement the same notion with
+`HasType`, in master's style, and the fixed-point construction disappears
+(the level index of `Shape n` already stratifies it).
 
-Our shapes already have a typing relation, `WShape.HasType` (with
-`HasDom`/`HasTypePi`/`HasTypeLam`), and master already phrases every use
-we need in terms of it:
+Note the argument of the retraction is an **ideal**, not a shape:
+`extend T X` takes the type-ideal `T = ⟦A⟧` and the term-ideal `X = ⟦t⟧`.
+Bounding by a single shape would under-approximate, because master's
+`{z ≤ x ∣ z : c}` had a maximum only thanks to graph saturation, which is
+gone (§4.1); with the ideal formulation the joins come from directedness
+of the interpretation instead.
 
-| use | master |
-|---|---|
-| typed approximation of a term | `InterpTyped ρ m M A := ∃ m' a, m ≤ m' ∧ LE_Interp ρ m' M ∧ LE_Interp ρ a A ∧ m'.HasType a` |
-| binder rule: input restricted to the domain | `∀ x, x.HasType a → LE_Interp (ρ.push x.T) (f.app x).T F` |
-| `tr` | `m'.HasType cb` |
-| admissible valuation | `Valuation.Fits`'s `x.HasType a` |
+| other repo | role | ours | master |
+|---|---|---|---|
+| `extend T X` | retract the term ideal to the type ideal | `{m ∣ ∃ m' a, m ≤ m' ∧ m' ∈ X ∧ a ∈ T ∧ m'.HasType a}` | `InterpTyped` (`Sound.lean:530`) |
+| `HasFixedness Γ t A` | "`t : A`", semantically | every `m ∈ ⟦t⟧` is such an `m'`-approximant | `SoundTy` (`Sound.lean:813`) |
+| `IsIdempotent` | `extend T ∘ extend T = extend T` | immediate: the typed set is lower-closed and contains its witnesses | — |
+| `IsPayloadStrict`, `extend T ⊥ = ⊥` | admissibility of the `⊥` valuation | `⊥` is typed at everything | `WShape.HasType.bot` |
+| `piStage_eval_prop` (prop codes ↦ `⊥`) | `proofIrrel` | prop-typed shapes collapse | `WShape.HasType.proofIrrel`, `TShape.HasType.proofIrrel` |
+| `universeOperator r` | sort codes | `IsCode r` := `HasType · (sort r)` | — |
+| `piOperator`, `arrow`, `application_piOperator` | β | the `∀ x, x.HasType a → …` premise of the `lam`/`forallE` clauses, plus `sound_app`/`sound_lam` | `LE_Interp` |
+| `piStep`/`piStage`/`rank`/`piLimit` | the fixed point | not needed — recursion on the level | — |
 
-So the plan is: **keep `HasType` and `InterpTyped`**, adapted to labelled
-shapes, and drop `Decode` entirely.  `IsCode r` is then just
-`HasType · (sort r)`, and proof irrelevance is the statement that nothing
-non-`⊥` is typed at a `prop` code.
+So the obligation is to define `HasType` on **labelled** shapes so that it
+still supports the behaviour the decoder needs.  What has to be checked:
 
-Two things to watch.
+1. `⊥` is typed at every type shape, and the typed set is lower-closed
+   (strictness, idempotence).
+2. Two typed shapes at compatible types have a typed join (directedness of
+   the retraction; this is where coherence is consumed).
+3. Prop-typed shapes are `⊥` (proof irrelevance).
+4. Preservation under typed substitution — new, since labels move.
+5. The Π/λ clause restated with the **relational** lookup: `HasType`
+   for Π and λ used `ShapeFun.app` (search for the maximal entry below the
+   input), which relied on saturation.  The output of an entry must instead
+   be typed at *some* code in the directed set of codes the family graph
+   yields at that label and input.
 
-* `HasType` for Π/λ used `ShapeFun.app` (search for the maximal entry
-  below the input), which relied on graph saturation and is gone (§4.1).
-  It must be restated with the relational lookup: the output of an entry is
-  typed at *some* code in the (directed) set of codes the family graph
-  yields at that label and input.
-* Master's `{z ≤ x ∣ z : c}` had a maximum *because* graphs were
-  join-closed.  Without saturation it need not, so a retraction of a single
-  shape would under-approximate.  This is exactly why `InterpTyped`
-  quantifies `∃ m' ∈ ⟦M⟧` rather than bounding by one shape: the joins come
-  from directedness of the interpretation (the `join` lemma), not from the
-  shape.  Keep that formulation and the issue does not arise.
+Item 5 is the only real work; 1–3 are master's lemmas, 4 is routine given
+`LabelEq.subst`.
 
 ### 4.3 `Interp` (one constructor per term former, as `LE_Interp`)
 
