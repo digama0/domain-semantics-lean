@@ -362,7 +362,7 @@ Decisions so far:
   --  Interp Γ t Δ σ ρ x : "x is an approximant of ⟦t⟧ at stage σ : Δ → Γ under ρ"
   ```
 
-  plus one shape-level relation `Decode` (§4.2). Directedness (`join`),
+  plus the shape-level typing relation `HasType` (§4.2). Directedness (`join`),
   monotonicity in `ρ`, naturality along typed `τ`, and the substitution
   lemma (with its `∃ ρ'` + join trick, which is the finitarity argument
   done once) become lemmas by induction on derivations, exactly as
@@ -375,7 +375,7 @@ Decisions so far:
   of `⟦b⟧` in `ρ` and an inner induction on `n` in every lemma. Positivity
   holds: all occurrences of `Interp` in premises are positive (`app`,
   `tr` are `∃`/`∧`; binder validity is `∀ e ∈ g.entries` over a finite
-  graph, i.e. over data); `Decode` is defined before terms and never
+  graph, i.e. over data); `HasType` is defined on shapes alone and never
   mentions `Interp`.
 
 ### 4.1 Shapes (modifications to `Shape.lean`)
@@ -466,7 +466,9 @@ current-stage terms `A[σ]`, `a[σ]`.
   with `LabelEq Δ`, our `ShapeFun.app` with label matching).
 * `lam A b`: `Interp A … d`, `m ≤ lam' g`, and every entry
   `((A', t), x, y)` of `g` is valid: `∃ u, Δ ⊢ A' ≡ A[σ] : sort u`,
-  `Δ ⊢ t : A'`, `∃ x', Decode d x x' ∧ Interp b Δ (σ.cons t) (ρ.push x') y`.
+  `Δ ⊢ t : A'`, and for every `x'` with `x'.HasType d`,
+  `Interp b Δ (σ.cons t) (ρ.push x') y` — master's binder rule, with the
+  stage extended by the label term.
   The label term `t` is substituted for the bound variable *in the
   stage*; the decoded approximant `x'` is pushed on the valuation (his
   normalized body action, with a single approximant instead of the
@@ -477,9 +479,10 @@ current-stage terms `A[σ]`, `a[σ]`.
 * `sigma`/`pair`/`fst`/`snd`: as Π/λ/app, with the label of the pair.
 * `id r A a b ↦ id r (A[σ]) (a[σ]) (b[σ])` (label only, no sub-shapes);
   `refl true a`: `m ≤ refl v` with `v ∈ ⟦a⟧`; `refl false a ↦ ⊥`.
-* `tr r A a b C x h` (our constructor, with `Decode` for `HasType`):
+* `tr r A a b C x h` (master's constructor unchanged, except that `C` is
+  evaluated at the stage `σ.cons b`):
   `m' ∈ ⟦x⟧`, `v ∈ ⟦a⟧ ∩ ⟦b⟧`, `c ∈ ⟦C⟧ Δ (σ.cons b) (ρ.push v)`,
-  `Decode c m' m`, and `(r = true → refl v ∈ ⟦h⟧)`. Sound for `tr_refl`
+  `m'.HasType c`, and `(r = true → refl v ∈ ⟦h⟧)`. Sound for `tr_refl`
   exactly as today (`Sound.lean:2734`); `r = false` ignores the proof, as
   intgrah does.
 * `natCase`, `Y`: `Y` as `Interp (Y A b) … x' → Interp b Δ (σ.cons (Y A b)) (ρ.push x') y → Interp (Y A b) … y`.
