@@ -88,35 +88,3 @@ theorem subst (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
   | ⟨⟨u, h1⟩, h2, h3⟩ => ⟨⟨u, h1.subst hΘ W⟩, h2.subst hΘ W, h3.subst hΘ W⟩
 
 end IdLabelEq
-
-/-! ## Type-free labels: why they do not work
-
-Recorded because it is the first thing one tries. If an entry stored only
-the argument term `a` and not its type, "the labels agree" would have to
-be the relation below. It is reflexive on typed terms, symmetric, and
-stable under substitution, but **transitivity fails**: chaining
-`Δ ⊢ a ≡ a' : A` with `Δ ⊢ a' ≡ a'' : B` needs `Δ ⊢ A ≡ B`, i.e.
-uniqueness of the type of `a'`, which is downstream of the whole
-development. `IsDefEq.trans'` does not help — it is heterogeneous only for
-*sort*-typed equations, which is exactly why the sort-typed components of
-`PiLabelEq`/`IdLabelEq` above are fine. -/
-def TmEq (Δ : List Term) (a a' : Term) : Prop := ∃ A, Δ ⊢ a ≡ a' : A
-
-namespace TmEq
-
-theorem refl (h : Δ ⊢ a : A) : TmEq Δ a a := ⟨A, h⟩
-
-theorem symm : TmEq Δ a a' → TmEq Δ a' a
-  | ⟨A, h⟩ => ⟨A, h.symm⟩
-
-theorem subst (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
-    TmEq Δ a a' → TmEq Θ (a.subst τ) (a'.subst τ)
-  | ⟨A, h⟩ => ⟨A.subst τ, h.subst hΘ W⟩
-
-theorem trans : TmEq Δ a a' → TmEq Δ a' a'' → TmEq Δ a a''
-  -- needs `HasType.uniq` for `a'`; circular.  See the comment above.
-  | ⟨_, _⟩, ⟨_, _⟩ => sorry
-
-end TmEq
-
-end DomainSemantics

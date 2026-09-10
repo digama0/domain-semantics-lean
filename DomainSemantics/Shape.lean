@@ -128,18 +128,18 @@ def Shape.IsBot : ∀ {n}, Shape n → Prop
 /-! ## Well-formed shapes
 
 Labels are compared by plain definitional equality, which is reflexive
-only on well-typed terms.  `Shape.WF Δ` says every label occurring in a
-shape is well-typed in `Δ`; it is the hypothesis of `Shape.LE.refl`.
+only on well-typed terms.  `Shape.WF Γ` says every label occurring in a
+shape is well-typed in `Γ`; it is the hypothesis of `Shape.LE.refl`.
 Note this is a genuine invariant of the model (interpretations only ever
 produce well-typed labels), unlike the saturation conditions of the old
 `ShapeFun.WF`, which are gone. -/
 
 /-- Every entry of a graph has a well-typed label and well-formed shapes. -/
-def ShapeFun.WF (Δ : List Term) (W : Shape n → Prop) (f : ShapeFun n) : Prop :=
-  ∀ e ∈ f, (∃ u, Δ ⊢ e.ty : .sort u) ∧ Δ ⊢ e.tm : e.ty ∧ W e.inp ∧ W e.out
+def ShapeFun.WF (Γ : List Term) (W : Shape n → Prop) (f : ShapeFun n) : Prop :=
+  ∀ e ∈ f, (∃ u, Γ ⊢ e.ty : .sort u) ∧ Γ ⊢ e.tm : e.ty ∧ W e.inp ∧ W e.out
 
-/-- Every label occurring in the shape is well-typed in `Δ`. -/
-def Shape.WF (Δ : List Term) : ∀ {n}, Shape n → Prop
+/-- Every label occurring in the shape is well-typed in `Γ`. -/
+def Shape.WF (Γ : List Term) : ∀ {n}, Shape n → Prop
   | 0, .bot => True
   | 0, .sort _ => True
   | _+1, .bot => True
@@ -147,21 +147,21 @@ def Shape.WF (Δ : List Term) : ∀ {n}, Shape n → Prop
   | _+1, .unit _ => True
   | _+1, .nat => True
   | _+1, .zero => True
-  | _+1, .succ v => WF Δ v
-  | _+1, .refl w => WF Δ w
-  | _+1, .id _ A a b => (∃ u, Δ ⊢ A : .sort u) ∧ Δ ⊢ a : A ∧ Δ ⊢ b : A
+  | _+1, .succ v => WF Γ v
+  | _+1, .refl w => WF Γ w
+  | _+1, .id _ A a b => (∃ u, Γ ⊢ A : .sort u) ∧ Γ ⊢ a : A ∧ Γ ⊢ b : A
   | _+1, .forallE A B d f =>
-      (∃ u, Δ ⊢ A : .sort u) ∧ (∃ v, A :: Δ ⊢ B : .sort v) ∧
-        WF Δ d ∧ ShapeFun.WF Δ (WF Δ) f
+      (∃ u, Γ ⊢ A : .sort u) ∧ (∃ v, A :: Γ ⊢ B : .sort v) ∧
+        WF Γ d ∧ ShapeFun.WF Γ (WF Γ) f
   | _+1, .sigma A B d f =>
-      (∃ u, Δ ⊢ A : .sort u) ∧ (∃ v, A :: Δ ⊢ B : .sort v) ∧
-        WF Δ d ∧ ShapeFun.WF Δ (WF Δ) f
-  | _+1, .pair a b => WF Δ a ∧ WF Δ b
-  | _+1, .lam f => ShapeFun.WF Δ (WF Δ) f
+      (∃ u, Γ ⊢ A : .sort u) ∧ (∃ v, A :: Γ ⊢ B : .sort v) ∧
+        WF Γ d ∧ ShapeFun.WF Γ (WF Γ) f
+  | _+1, .pair a b => WF Γ a ∧ WF Γ b
+  | _+1, .lam f => ShapeFun.WF Γ (WF Γ) f
 
 /-! ## The order
 
-`Shape.LE Δ` compares labels up to definitional equality in `Δ`, so it is
+`Shape.LE Γ` compares labels up to definitional equality in `Γ`, so it is
 indexed by a context and lives in `Prop`. An entry is covered when some
 entry of the larger graph has a definitionally equal label, a smaller
 input and a larger output; an entry with a bottom output is covered
@@ -169,12 +169,12 @@ vacuously. -/
 
 /-- Entry-wise coverage of one graph by another, parameterised by the
 order `R` at the previous level. -/
-def ShapeFun.LE (Δ : List Term) (R : Shape n → Shape n → Prop) (f f' : ShapeFun n) : Prop :=
+def ShapeFun.LE (Γ : List Term) (R : Shape n → Shape n → Prop) (f f' : ShapeFun n) : Prop :=
   ∀ e ∈ f, R e.out .bot ∨
-    ∃ e' ∈ f', LabelEq Δ e'.ty e'.tm e.ty e.tm ∧ R e'.inp e.inp ∧ R e.out e'.out
+    ∃ e' ∈ f', LabelEq Γ e'.ty e'.tm e.ty e.tm ∧ R e'.inp e.inp ∧ R e.out e'.out
 
 /-- The approximation order, by recursion on the level. -/
-def Shape.LE (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
+def Shape.LE (Γ : List Term) : ∀ {n}, Shape n → Shape n → Prop
   | 0, .bot, _ => True
   | 0, .sort r, .sort r' => r = r'
   | 0, _, _ => False
@@ -183,30 +183,30 @@ def Shape.LE (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
   | _+1, .unit r, .unit r' => r = r'
   | _+1, .nat, .nat => True
   | _+1, .zero, .zero => True
-  | _+1, .succ v, .succ v' => LE Δ v v'
-  | _+1, .refl w, .refl w' => LE Δ w w'
-  | _+1, .id r A a b, .id r' A' a' b' => r = r' ∧ IdLabelEq Δ A a b A' a' b'
+  | _+1, .succ v, .succ v' => LE Γ v v'
+  | _+1, .refl w, .refl w' => LE Γ w w'
+  | _+1, .id r A a b, .id r' A' a' b' => r = r' ∧ IdLabelEq Γ A a b A' a' b'
   | _+1, .forallE A B d f, .forallE A' B' d' f' =>
-      PiLabelEq Δ A B A' B' ∧ LE Δ d d' ∧ ShapeFun.LE Δ (LE Δ) f f'
+      PiLabelEq Γ A B A' B' ∧ LE Γ d d' ∧ ShapeFun.LE Γ (LE Γ) f f'
   | _+1, .sigma A B d f, .sigma A' B' d' f' =>
-      PiLabelEq Δ A B A' B' ∧ LE Δ d d' ∧ ShapeFun.LE Δ (LE Δ) f f'
-  | _+1, .pair a b, .pair a' b' => LE Δ a a' ∧ LE Δ b b'
-  | _+1, .lam f, .lam f' => ShapeFun.LE Δ (LE Δ) f f'
+      PiLabelEq Γ A B A' B' ∧ LE Γ d d' ∧ ShapeFun.LE Γ (LE Γ) f f'
+  | _+1, .pair a b, .pair a' b' => LE Γ a a' ∧ LE Γ b b'
+  | _+1, .lam f, .lam f' => ShapeFun.LE Γ (LE Γ) f f'
   -- a λ-shape with only bottom outputs is below anything
-  | _+1, .lam f, _ => ∀ e ∈ f, LE Δ e.out .bot
+  | _+1, .lam f, _ => ∀ e ∈ f, LE Γ e.out .bot
   | _+1, _, _ => False
 
-@[simp] theorem Shape.LE.bot {s : Shape n} : Shape.LE Δ .bot s := by
+@[simp] theorem Shape.LE.bot {s : Shape n} : Shape.LE Γ .bot s := by
   cases n <;> trivial
 
-theorem Shape.LE.refl_aux : ∀ {n} {s : Shape n}, Shape.WF Δ s → Shape.LE Δ s s := by
+theorem Shape.LE.refl_aux : ∀ {n} {s : Shape n}, Shape.WF Γ s → Shape.LE Γ s s := by
   intro n
   induction n with
   | zero => intro s _; cases s <;> trivial
   | succ n ih =>
     intro s hs
-    have hfun : ∀ f : ShapeFun n, ShapeFun.WF Δ (Shape.WF Δ) f →
-        ShapeFun.LE Δ (Shape.LE Δ) f f := fun f hf e he =>
+    have hfun : ∀ f : ShapeFun n, ShapeFun.WF Γ (Shape.WF Γ) f →
+        ShapeFun.LE Γ (Shape.LE Γ) f f := fun f hf e he =>
       have ⟨⟨_, hty⟩, htm, hin, hout⟩ := hf e he
       .inr ⟨e, he, LabelEq.refl hty htm, ih hin, ih hout⟩
     cases s with
@@ -229,14 +229,49 @@ theorem Shape.LE.refl_aux : ∀ {n} {s : Shape n}, Shape.WF Δ s → Shape.LE Δ
     | pair a b => exact ⟨ih hs.1, ih hs.2⟩
     | lam f => exact hfun f hs
 
+/-- `s ≤ ⊥` is exactly `IsBot s`, so the `R e.out .bot` escape in
+`ShapeFun.LE` is the same condition as the other repo's
+`Entry.bottom : IsBottom y → Entry g name x y`. -/
+theorem Shape.le_bot_iff : ∀ {n} {s : Shape n}, Shape.LE Δ s .bot ↔ s.IsBot := by
+  intro n
+  induction n with
+  | zero => intro s; cases s <;> simp [Shape.LE, Shape.IsBot]
+  | succ n ih =>
+    intro s
+    cases s with
+    | lam f =>
+      show (∀ e ∈ f, Shape.LE Δ e.out .bot) ↔ _
+      exact ⟨fun h e he => ih.1 (h e he), fun h e he => ih.2 (h e he)⟩
+    | _ => simp [Shape.LE, Shape.IsBot]
+
+/-- An information-free shape is below everything (the other repo's
+`LE.collapse`). -/
+theorem Shape.IsBot.le : ∀ {n} {s t : Shape n}, s.IsBot → Shape.LE Δ s t := by
+  intro n
+  induction n with
+  | zero =>
+    intro s t h
+    cases s with
+    | bot => trivial
+    | sort => exact absurd h id
+  | succ n ih =>
+    intro s t h
+    cases s with
+    | bot => trivial
+    | lam f =>
+      cases t with
+      | lam f' => exact fun e he => .inl (Shape.le_bot_iff.2 (h e he))
+      | _ => exact fun e he => Shape.le_bot_iff.2 (h e he)
+    | _ => exact absurd h id
+
 /-- Composing coverage of graphs.  This is the step that forces the label
 to carry its type: the two `LabelEq` proofs are chained by
 `LabelEq.trans`, whose sort-typed component is handled by `IsDefEq.trans'`.
 With a type-free label (`TmEq`) this is exactly where the argument stalls. -/
-theorem ShapeFun.LE.trans_of {Δ : List Term} {n} {f f' f'' : ShapeFun n}
-    (ih : ∀ {a b c : Shape n}, Shape.LE Δ a b → Shape.LE Δ b c → Shape.LE Δ a c)
-    (h₁ : ShapeFun.LE Δ (Shape.LE Δ) f f') (h₂ : ShapeFun.LE Δ (Shape.LE Δ) f' f'') :
-    ShapeFun.LE Δ (Shape.LE Δ) f f'' := by
+theorem ShapeFun.LE.trans_of {Γ : List Term} {n} {f f' f'' : ShapeFun n}
+    (ih : ∀ {a b c : Shape n}, Shape.LE Γ a b → Shape.LE Γ b c → Shape.LE Γ a c)
+    (h₁ : ShapeFun.LE Γ (Shape.LE Γ) f f') (h₂ : ShapeFun.LE Γ (Shape.LE Γ) f' f'') :
+    ShapeFun.LE Γ (Shape.LE Γ) f f'' := by
   intro e he
   match h₁ e he with
   | .inl hb => exact .inl hb
@@ -247,48 +282,43 @@ theorem ShapeFun.LE.trans_of {Δ : List Term} {n} {f f' f'' : ShapeFun n}
       exact .inr ⟨e'', he'', hlab'.trans hlab, ih hin' hin, ih hout hout'⟩
 
 /-- Transitivity of the order. -/
-theorem Shape.LE.trans_aux (hΔ : ⊢ Δ) :
-    ∀ {n} {s t u : Shape n}, Shape.LE Δ s t → Shape.LE Δ t u → Shape.LE Δ s u := by
-  intro n
+theorem Shape.LE.trans_aux (hΓ : ⊢ Γ) {n} {s t u : Shape n}
+    (h₁ : Shape.LE Γ s t) (h₂ : Shape.LE Γ t u) : Shape.LE Γ s u := by
   induction n with
-  | zero =>
-    intro s t u h₁ h₂
-    cases s <;> cases t <;> cases u <;> simp_all [Shape.LE]
-  | succ n ih =>
-    intro s t u h₁ h₂
-    cases s with
-    | bot => trivial
-    | lam f =>
-      cases t with
-      | lam f' =>
-        cases u with
-        | lam f'' => exact ShapeFun.LE.trans_of ih h₁ h₂
-        | _ =>
-          intro e he
-          match h₁ e he with
-          | .inl hb => exact hb
-          | .inr ⟨e', he', _, _, hout⟩ => exact ih hout (h₂ e' he')
+  | zero => cases s <;> cases t <;> cases u <;> simp_all [Shape.LE]
+  | succ n ih
+  cases s with
+  | bot => trivial
+  | lam f =>
+    cases t with
+    | lam f' =>
+      cases u with
+      | lam f'' => exact h₁.trans_of ih h₂
       | _ =>
-        cases u with
-        | lam f'' => exact fun e he => .inl (h₁ e he)
-        | _ => exact h₁
-    | succ v => cases t <;> cases u <;> first | exact absurd h₁ id | exact absurd h₂ id
-                                              | exact ih h₁ h₂
-    | refl w => cases t <;> cases u <;> first | exact absurd h₁ id | exact absurd h₂ id
-                                              | exact ih h₁ h₂
-    | pair a b => cases t <;> cases u <;> first | exact absurd h₁ id | exact absurd h₂ id
-                                                | exact ⟨ih h₁.1 h₂.1, ih h₁.2 h₂.2⟩
-    | id r A a b =>
-      cases t <;> cases u <;> first | exact absurd h₁ id | exact absurd h₂ id
-                                    | exact ⟨h₁.1.trans h₂.1, h₁.2.trans h₂.2⟩
-    | forallE A B d f =>
-      cases t <;> cases u <;> first | exact absurd h₁ id | exact absurd h₂ id
-                                    | exact ⟨h₁.1.trans hΔ h₂.1, ih h₁.2.1 h₂.2.1,
-                                        ShapeFun.LE.trans_of ih h₁.2.2 h₂.2.2⟩
-    | sigma A B d f =>
-      cases t <;> cases u <;> first | exact absurd h₁ id | exact absurd h₂ id
-                                    | exact ⟨h₁.1.trans hΔ h₂.1, ih h₁.2.1 h₂.2.1,
-                                        ShapeFun.LE.trans_of ih h₁.2.2 h₂.2.2⟩
-    | _ => cases t <;> cases u <;> simp_all [Shape.LE]
+        intro e he
+        match h₁ e he with
+        | .inl hb => exact hb
+        | .inr ⟨e', he', _, _, hout⟩ => exact ih hout (h₂ e' he')
+    | _ =>
+      cases u with
+      | lam f'' => exact fun e he => .inl (h₁ e he)
+      | _ => exact h₁
+  | succ | refl =>
+    cases t <;> try cases h₁
+    cases u <;> try cases h₂
+    exact ih h₁ h₂
+  | pair a b =>
+    cases t <;> cases h₁
+    cases u <;> cases h₂
+    exact ⟨ih ‹_› ‹_›, ih ‹_› ‹_›⟩
+  | id r A a b =>
+    cases t <;> cases h₁
+    cases u <;> cases h₂
+    exact ⟨.trans ‹_› ‹_›, .trans ‹_› ‹_›⟩
+  | forallE | sigma =>
+    cases t <;> cases h₁; rename_i h₁₁ h₁₂
+    cases u <;> cases h₂; rename_i h₂₁ h₂₂
+    exact ⟨h₁₁.trans hΓ h₂₁, ih h₁₂.1 h₂₂.1, h₁₂.2.trans_of ih h₂₂.2⟩
+  | _ => cases t <;> cases u <;> simp_all [Shape.LE]
 
 end DomainSemantics
