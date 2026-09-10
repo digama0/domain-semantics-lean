@@ -631,3 +631,61 @@ Everything in A.2 exists to make naturality and monotonicity hold by
 construction; everything in A.3/A.4 is basis-defined. That is the
 justification for §4: a single relation on finite shapes, with
 naturality/monotonicity/join/substitution as lemmas, loses nothing.
+
+## Appendix B. Two experiments on the shape order
+
+Both run on the branch; the first settled a question, the second is a
+design option that is still open.
+
+### B.1 Type-free entry labels: rejected
+
+`Entry` was first written with a bare `tm : Term` and label equality
+`TmEq Δ a a' := ∃ A, Δ ⊢ a ≡ a' : A` (`Label.lean`). Everything works
+except **transitivity**: chaining `Δ ⊢ a ≡ a' : A` with `Δ ⊢ a' ≡ a'' : B`
+needs `Δ ⊢ A ≡ B`, i.e. uniqueness of the type of `a'` — the theorem the
+model exists to prove. `IsDefEq.trans'` does not help, being heterogeneous
+only for *sort*-typed equations. Transitivity of the shape order reduces
+to exactly this (`ShapeFun.LE.trans_of`), so the label must carry its
+type: `Entry` has `ty` and `tm`, and `LabelEq` is used. `TmEq` is kept in
+`Label.lean` with its `trans` sorry'd, as the record of the obstruction.
+
+Note the same problem does *not* affect Π/Σ or Id labels: their type
+components are types, whose "type" is a sort, so `trans'` applies. That is
+why `PiLabelEq`/`IdLabelEq` need no stored type.
+
+### B.2 Plain defeq, no syntactic escape clause
+
+The label relations originally had a syntactic-equality disjunct
+(`(A = A' ∧ a = a') ∨ …`) to stay reflexive on ill-typed labels. Dropped:
+they are now plain definitional equality, hence partial equivalence
+relations, and reflexivity of the order holds exactly on **well-formed**
+shapes. `Shape.WF Δ` (every label well-typed in `Δ`) is the new
+side condition of `Shape.LE.refl`. Unlike the old `ShapeFun.WF`, this is a
+real invariant of the model: interpretations only ever produce well-typed
+labels.
+
+### B.3 One inductive relation instead of the recursive order
+
+`Shape.LE` is currently defined by recursion on the level, with the label
+relations named (`LabelEq`, `PiLabelEq`, `IdLabelEq`). The alternative is
+a single inductive relation with the defeq premises inlined, which would
+give inversion by `cases` for free.
+
+The naive version is **rejected by the kernel**: the graph-coverage
+premise nests the relation under `Or`/`Exists`
+(`∀ e ∈ f, LE e.out ⊥ ∨ ∃ e' ∈ f', …`), and Lean reports
+`invalid nested inductive datatype 'Or'`.
+
+It does work with the standard sum-index trick — one inductive family over
+`(Shape n × Shape n) ⊕ (ShapeFun n × Entry (Shape n))`, so that the
+disjunction and the existential become *extra constructors* rather than
+nested types, with `abbrev`s recovering the two readable names. Verified
+by a spike (kept at
+`scratchpad/spike-inductive-le.lean`): the kernel accepts it and
+`induction` works on it.
+
+Open: whether to switch. In favour, one relation and free inversion.
+Against, `refl`/`trans` need reworking, and the named label relations are
+wanted anyway downstream (graph lookup in `Evaluates`, the coherence
+condition, the `app` rule of `Interp` all compare labels), so inlining
+them into the order does not actually remove them from the development.

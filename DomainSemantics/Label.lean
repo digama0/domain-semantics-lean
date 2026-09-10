@@ -5,101 +5,118 @@ import DomainSemantics.Term
 Shapes in the gluing model carry syntactic labels (raw terms). Labels are
 compared up to definitional equality in a context `Δ`; this file defines
 the three label relations (term labels `(A, a)`, Π/Σ labels `(A, B)`,
-Id labels `(A, a, b)`) and proves that they are equivalence relations
-preserved by typed substitution. The syntactic-equality disjunct keeps
-them reflexive on ill-typed labels, so the order on shapes stays a
-preorder on all shapes. -/
+Id labels `(A, a, b)`) and proves that they are partial equivalence
+relations preserved by typed substitution.
+
+These are *plain* definitional equality: there is no syntactic-equality
+escape clause, so they are symmetric and transitive but **not reflexive**
+on arbitrary terms. Reflexivity holds exactly on well-typed labels, which
+is why the order on shapes is reflexive only on well-formed shapes
+(`Shape.WF`), and why every reflexivity lemma downstream takes a context. -/
 
 namespace DomainSemantics
 
-/-! ## Label equality
-
-Labels are compared up to definitional equality in a context `Δ`. The
-syntactic-equality disjunct makes the relation reflexive on ill-typed
-labels too, so that `LE Δ` is a preorder on *all* shapes; on well-typed
-labels it is subsumed by the defeq disjunct. -/
-
-/-- Equality of term labels `(A, a)` (a term `a` of type `A`) in `Δ`. -/
+/-- Equality of term labels: `a` and `a'` are the same argument, at the
+same type. -/
 def LabelEq (Δ : List Term) (A a A' a' : Term) : Prop :=
-  (A = A' ∧ a = a') ∨ ((∃ u, Δ ⊢ A ≡ A' : .sort u) ∧ Δ ⊢ a ≡ a' : A)
+  (∃ u, Δ ⊢ A ≡ A' : .sort u) ∧ Δ ⊢ a ≡ a' : A
 
-/-- Equality of Π-labels `(A, B)` in `Δ`. -/
+/-- Equality of Π/Σ labels `(A, B)`. Componentwise, which is a priori finer
+than `Δ ⊢ Π A B ≡ Π A' B'`; that the two agree is the inversion theorem. -/
 def PiLabelEq (Δ : List Term) (A B A' B' : Term) : Prop :=
-  (A = A' ∧ B = B') ∨ ((∃ u, Δ ⊢ A ≡ A' : .sort u) ∧ ∃ v, A :: Δ ⊢ B ≡ B' : .sort v)
+  (∃ u, Δ ⊢ A ≡ A' : .sort u) ∧ ∃ v, A :: Δ ⊢ B ≡ B' : .sort v
 
-/-- Equality of Id-labels `(A, a, b)` in `Δ`. -/
+/-- Equality of Id labels `(A, a, b)`. -/
 def IdLabelEq (Δ : List Term) (A a b A' a' b' : Term) : Prop :=
-  (A = A' ∧ a = a' ∧ b = b') ∨
-    ((∃ u, Δ ⊢ A ≡ A' : .sort u) ∧ Δ ⊢ a ≡ a' : A ∧ Δ ⊢ b ≡ b' : A)
+  (∃ u, Δ ⊢ A ≡ A' : .sort u) ∧ Δ ⊢ a ≡ a' : A ∧ Δ ⊢ b ≡ b' : A
 
 namespace LabelEq
 
-theorem refl : LabelEq Δ A a A a := .inl ⟨rfl, rfl⟩
+theorem refl (hA : Δ ⊢ A : .sort u) (ha : Δ ⊢ a : A) : LabelEq Δ A a A a := ⟨⟨u, hA⟩, ha⟩
 
 theorem symm : LabelEq Δ A a A' a' → LabelEq Δ A' a' A a
-  | .inl ⟨h1, h2⟩ => .inl ⟨h1.symm, h2.symm⟩
-  | .inr ⟨⟨u, h1⟩, h2⟩ => .inr ⟨⟨u, h1.symm⟩, h1.defeqDF h2.symm⟩
+  | ⟨⟨u, h1⟩, h2⟩ => ⟨⟨u, h1.symm⟩, h1.defeqDF h2.symm⟩
 
 theorem trans : LabelEq Δ A a A' a' → LabelEq Δ A' a' A'' a'' → LabelEq Δ A a A'' a''
-  | .inl ⟨rfl, rfl⟩, h => h
-  | h, .inl ⟨rfl, rfl⟩ => h
-  | .inr ⟨⟨u, h1⟩, h2⟩, .inr ⟨⟨_, h3⟩, h4⟩ =>
-    .inr ⟨⟨u, h1.trans' h3⟩, h2.trans (h1.symm.defeqDF h4)⟩
+  | ⟨⟨u, h1⟩, h2⟩, ⟨⟨_, h3⟩, h4⟩ => ⟨⟨u, h1.trans' h3⟩, h2.trans (h1.symm.defeqDF h4)⟩
 
 /-- Labels are stable under typed substitution. -/
 theorem subst (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
     LabelEq Δ A a A' a' → LabelEq Θ (A.subst τ) (a.subst τ) (A'.subst τ) (a'.subst τ)
-  | .inl ⟨rfl, rfl⟩ => .inl ⟨rfl, rfl⟩
-  | .inr ⟨⟨u, h1⟩, h2⟩ => .inr ⟨⟨u, h1.subst hΘ W⟩, h2.subst hΘ W⟩
+  | ⟨⟨u, h1⟩, h2⟩ => ⟨⟨u, h1.subst hΘ W⟩, h2.subst hΘ W⟩
 
 end LabelEq
 
 namespace PiLabelEq
 
-theorem refl : PiLabelEq Δ A B A B := .inl ⟨rfl, rfl⟩
+theorem refl (hA : Δ ⊢ A : .sort u) (hB : A :: Δ ⊢ B : .sort v) : PiLabelEq Δ A B A B :=
+  ⟨⟨u, hA⟩, v, hB⟩
 
 theorem symm (hΔ : ⊢ Δ) : PiLabelEq Δ A B A' B' → PiLabelEq Δ A' B' A B
-  | .inl ⟨h1, h2⟩ => .inl ⟨h1.symm, h2.symm⟩
-  | .inr ⟨⟨u, h1⟩, v, h2⟩ => .inr ⟨⟨u, h1.symm⟩, v, (h1.defeqDF_l hΔ h2).symm⟩
+  | ⟨⟨u, h1⟩, v, h2⟩ => ⟨⟨u, h1.symm⟩, v, (h1.defeqDF_l hΔ h2).symm⟩
 
 theorem trans (hΔ : ⊢ Δ) :
     PiLabelEq Δ A B A' B' → PiLabelEq Δ A' B' A'' B'' → PiLabelEq Δ A B A'' B''
-  | .inl ⟨rfl, rfl⟩, h => h
-  | h, .inl ⟨rfl, rfl⟩ => h
-  | .inr ⟨⟨u, h1⟩, v, h2⟩, .inr ⟨⟨_, h3⟩, _, h4⟩ =>
-    .inr ⟨⟨u, h1.trans' h3⟩, v, h2.trans' (h1.symm.defeqDF_l hΔ h4)⟩
+  | ⟨⟨u, h1⟩, v, h2⟩, ⟨⟨_, h3⟩, _, h4⟩ =>
+    ⟨⟨u, h1.trans' h3⟩, v, h2.trans' (h1.symm.defeqDF_l hΔ h4)⟩
 
 theorem subst (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
     PiLabelEq Δ A B A' B' → PiLabelEq Θ (A.subst τ) (B.subst τ.lift) (A'.subst τ) (B'.subst τ.lift)
-  | .inl ⟨rfl, rfl⟩ => .inl ⟨rfl, rfl⟩
-  | .inr ⟨⟨u, h1⟩, v, h2⟩ =>
+  | ⟨⟨u, h1⟩, v, h2⟩ =>
     have hA := h1.hasType.1.subst hΘ W
     have hΘA : ⊢ A.subst τ :: Θ := ⟨hΘ, _, hA⟩
-    .inr ⟨⟨u, h1.subst hΘ W⟩, v, h2.subst hΘA (W.lift h1.hasType.1 hA)⟩
+    ⟨⟨u, h1.subst hΘ W⟩, v, h2.subst hΘA (W.lift h1.hasType.1 hA)⟩
 
 end PiLabelEq
 
 namespace IdLabelEq
 
-theorem refl : IdLabelEq Δ A a b A a b := .inl ⟨rfl, rfl, rfl⟩
+theorem refl (hA : Δ ⊢ A : .sort u) (ha : Δ ⊢ a : A) (hb : Δ ⊢ b : A) :
+    IdLabelEq Δ A a b A a b := ⟨⟨u, hA⟩, ha, hb⟩
 
 theorem symm : IdLabelEq Δ A a b A' a' b' → IdLabelEq Δ A' a' b' A a b
-  | .inl ⟨h1, h2, h3⟩ => .inl ⟨h1.symm, h2.symm, h3.symm⟩
-  | .inr ⟨⟨u, h1⟩, h2, h3⟩ => .inr ⟨⟨u, h1.symm⟩, h1.defeqDF h2.symm, h1.defeqDF h3.symm⟩
+  | ⟨⟨u, h1⟩, h2, h3⟩ => ⟨⟨u, h1.symm⟩, h1.defeqDF h2.symm, h1.defeqDF h3.symm⟩
 
 theorem trans : IdLabelEq Δ A a b A' a' b' → IdLabelEq Δ A' a' b' A'' a'' b'' →
     IdLabelEq Δ A a b A'' a'' b''
-  | .inl ⟨rfl, rfl, rfl⟩, h => h
-  | h, .inl ⟨rfl, rfl, rfl⟩ => h
-  | .inr ⟨⟨u, h1⟩, h2, h3⟩, .inr ⟨⟨_, h4⟩, h5, h6⟩ =>
-    .inr ⟨⟨u, h1.trans' h4⟩, h2.trans (h1.symm.defeqDF h5), h3.trans (h1.symm.defeqDF h6)⟩
+  | ⟨⟨u, h1⟩, h2, h3⟩, ⟨⟨_, h4⟩, h5, h6⟩ =>
+    ⟨⟨u, h1.trans' h4⟩, h2.trans (h1.symm.defeqDF h5), h3.trans (h1.symm.defeqDF h6)⟩
 
 theorem subst (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
     IdLabelEq Δ A a b A' a' b' →
     IdLabelEq Θ (A.subst τ) (a.subst τ) (b.subst τ) (A'.subst τ) (a'.subst τ) (b'.subst τ)
-  | .inl ⟨rfl, rfl, rfl⟩ => .inl ⟨rfl, rfl, rfl⟩
-  | .inr ⟨⟨u, h1⟩, h2, h3⟩ => .inr ⟨⟨u, h1.subst hΘ W⟩, h2.subst hΘ W, h3.subst hΘ W⟩
+  | ⟨⟨u, h1⟩, h2, h3⟩ => ⟨⟨u, h1.subst hΘ W⟩, h2.subst hΘ W, h3.subst hΘ W⟩
 
 end IdLabelEq
+
+/-! ## Type-free labels: why they do not work
+
+Recorded because it is the first thing one tries. If an entry stored only
+the argument term `a` and not its type, "the labels agree" would have to
+be the relation below. It is reflexive on typed terms, symmetric, and
+stable under substitution, but **transitivity fails**: chaining
+`Δ ⊢ a ≡ a' : A` with `Δ ⊢ a' ≡ a'' : B` needs `Δ ⊢ A ≡ B`, i.e.
+uniqueness of the type of `a'`, which is downstream of the whole
+development. `IsDefEq.trans'` does not help — it is heterogeneous only for
+*sort*-typed equations, which is exactly why the sort-typed components of
+`PiLabelEq`/`IdLabelEq` above are fine. -/
+def TmEq (Δ : List Term) (a a' : Term) : Prop := ∃ A, Δ ⊢ a ≡ a' : A
+
+namespace TmEq
+
+theorem refl (h : Δ ⊢ a : A) : TmEq Δ a a := ⟨A, h⟩
+
+theorem symm : TmEq Δ a a' → TmEq Δ a' a
+  | ⟨A, h⟩ => ⟨A, h.symm⟩
+
+theorem subst (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
+    TmEq Δ a a' → TmEq Θ (a.subst τ) (a'.subst τ)
+  | ⟨A, h⟩ => ⟨A.subst τ, h.subst hΘ W⟩
+
+theorem trans : TmEq Δ a a' → TmEq Δ a' a'' → TmEq Δ a a''
+  -- needs `HasType.uniq` for `a'`; circular.  See the comment above.
+  | ⟨_, _⟩, ⟨_, _⟩ => sorry
+
+end TmEq
 
 end DomainSemantics
