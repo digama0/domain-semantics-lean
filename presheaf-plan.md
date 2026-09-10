@@ -495,9 +495,12 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
 
 ## 6. Obligations, roughly ordered
 
-1. Syntax: port the flagged equality from the `eq` worktree into
-   `Term.lean` (syntactic lemmas only; their `Sound`/`Adequacy` changes are
-   irrelevant here).
+1. ~~Syntax: port the flagged equality from the `eq` worktree into
+   `Term.lean`.~~ **Done** (commit `a4a5f60`). The whole `eq` diff was
+   applied, semantic side included, so the old proof keeps building; it
+   carries one `sorry` in `Adequacy.lean` (the `r = false` transport
+   case), which is precisely what this branch replaces. `not_UIP` is
+   unaffected and stays axiom-clean. `Shape.lean` is now `ShapeOld.lean`.
 2. `Shape.lean`: labels on entries/`forallE`/`sigma`/`id`, `LE Δ` with
    `LabelEq`, `Prop`-valued `Compat`, preservation of `LE`/`Compat`/`join`
    under typed substitution, `IsCode`, hereditary coherence. Copy the old
