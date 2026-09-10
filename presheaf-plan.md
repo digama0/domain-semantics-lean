@@ -67,14 +67,13 @@ of labels, and soundness of `appDF` (`a ≡ a'` ⇒ same lookup) needs labels
 to be identified up to defeq.
 
 **Boil-down.** Keep raw `List Term` contexts and raw substitutions; make the
-*order on shapes* compare labels up to defeq in a context (`LabelEq Δ`),
-and put `⊢ Θ`, `Θ ⊢ τ : Δ` as hypotheses on every reindexing lemma. The
-category laws we need (`(t[σ])[τ] = t[σ.comp τ]`, identity) hold on the
-nose for raw substitutions; invariance under `σ ≡ σ'` is only needed where
-labels are compared, which the order now handles. (Alternative kept in
-reserve: labels as `Quotient` of raw pairs by defeq — `Quot` is in core
-Lean; costs typing witnesses inside *definitions* such as `Shape.reindex`.
-See §7.)
+*order on shapes* compare labels up to defeq in a context (`LabelEq Δ`,
+`DomainSemantics/Label.lean`), and put `⊢ Θ`, `Θ ⊢ τ : Δ` as hypotheses on
+every reindexing lemma. The category laws we need (`(t[σ])[τ] =
+t[σ.comp τ]`, identity) hold on the nose for raw substitutions; invariance
+under `σ ≡ σ'` is only needed where labels are compared, which the order
+handles. This is the "preservation lemmas instead of a quotient" policy of
+§4.
 
 ### 2.2 `ΩLower`, `ΩIdeal` (`Presheaf/Lower/Basic.lean`, `Presheaf/Ideal.lean`)
 
@@ -91,9 +90,10 @@ structure Val where
   lower   : LE Θ x y → mem Θ τ y → mem Θ τ x
 ```
 
-Note `Val` needs **no home context index**: `mem Θ τ x` is meaningful when
-`Θ ⊢ τ : Γ` for the intended home `Γ`, but nothing in the structure
-mentions `Γ`. Operations: `pullback σ V` (`mem Θ τ x := V.mem Θ (σ.comp τ) x`),
+(This structure is *not* used in the boil-down, see §4: the only lower sets
+in the proof are principal ones from the valuation and the interpretation
+itself, so `mem` is replaced by the single relation `Interp`. The box above
+is what `ΩLower` amounts to.) Operations: `pullback σ V` (`mem Θ τ x := V.mem Θ (σ.comp τ) x`),
 `principal a` (`mem Θ τ x := LE Θ x (a.subst τ)`), `⊥`, arbitrary unions
 (`iSup`, with the `x ≤ ⊥ ∨ …` guard so the union is never empty), `bind`
 (`mem f b := ∃ a, I.mem f a ∧ (F a).mem id b`, i.e. Kleisli extension of
@@ -109,8 +109,8 @@ The **presheaf/functor-hom layer** (`Functor.HomObj`, `parameterizedHom`,
 say "natural family of monotone maps" for: valuations → values
 (`RawFamily`), (label, shape) → value (`BasisAction`), (label, value) →
 value (`IdealAction`), value → value (`IdealOperator`), etc. In the
-boil-down each of these is a plain function together with a *naturality
-lemma stated with typing hypotheses*; no structures needed except `Val`.
+boil-down each of these becomes a lemma about the relation `Interp`
+(naturality along typed substitutions); no structures at all.
 
 ### 2.3 Shapes, coherence, joins (`Basis/*.lean`, ~1.6k lines)
 
@@ -141,16 +141,9 @@ graph   ::= k entries (names : Fin k → (A : Ty Γ) × Tm Γ A) (ins outs : Fin
   types in universe `r`: `sort`, `forallE` (in `type`; in `prop` iff all
   graph outputs are prop-codes), `nat`, `id` (both), bottoms.
 
-**Boil-down.** Shapes become *context-free* trees with raw terms as labels
-(`DomainSemantics/Presheaf/Basis.lean`, started): `pi (A B : Term) dom g`,
-`id (A a b : Term)`, `lam g`, `sort`, `unit`; graphs as a mutual inductive
-list of `(A, a, x, y)`. `LE Δ` compares labels with `LabelEq Δ` (= syntactic
-equality ∨ typed defeq; the first disjunct keeps `LE Δ` reflexive on
-ill-typed labels). Coherence and compatibility become predicates
-`Coherent Δ x` (hereditary: quantified over typed `τ`) and `Compat Δ a b :=
-∃ c, a ≤ c ∧ b ≤ c`; the join is a total structural function `Shape.join`
-proved to be a lub on compatible pairs. Whether coherence is a subtype or a
-property carried by "ideal" is open (§7).
+**Boil-down.** Superseded by §4.1: we keep our stratified `Shape.lean`
+and add labels; coherence and joins are our existing `WF`/`Compat`/`join`
+with `LabelEq Δ` in the entry order.
 
 ### 2.4 Application, abstraction, Π (`Domain/Evaluation.lean`, `Domain/Action*.lean`, `Domain/Pi.lean`)
 
@@ -329,137 +322,195 @@ If every operator is **defined on basis elements and extended by `bind`**
 (as `CodeAssignment`, `rawExtend`, `application`, `abstraction` already
 are), continuity is automatic and the retraction equation only needs the
 *argument* `X` to be directed. So the boil-down defines all operators as
-`Shape → Val` (per stage) and never states finitarity. The price: `Y` (see
+relations on shapes (per stage) and never states finitarity. The price: `Y` (see
 §5) needs continuity of `⟦t⟧` *in the valuation*, which we would then prove
 as one lemma by induction on terms when we get there.
 
-## 4. The boiled-down design
+## 4. The boiled-down design (revised after discussion)
 
-Files (new; nothing existing is modified):
+Decisions so far:
 
-* `DomainSemantics/Presheaf/Basis.lean` — shapes with term labels,
-  substitution action, `LabelEq`/`PiLabelEq`/`IdLabelEq`, `IsBottom`,
-  `LE Δ`/`GraphLE Δ`/`Entry Δ`, preorder, `LE.subst`, `rank`, `join`,
-  `Compat`, `Coherent`, `IsCode`. (Started; order defined, proofs pending.)
-* `DomainSemantics/Presheaf.lean` (next to `Sound.lean`) — `Val` (inlined
-  `ΩLower`), `IsIdeal`, valuations, the semantic operations, the decoder,
-  `interp`, `Adm`, the properties and `RawJudgment`. Split later if it
-  grows.
-* `DomainSemantics/PresheafSound.lean`, `PresheafInversion.lean` — the
-  soundness induction and the inversion theorems in the interface
-  `Consequences.lean` expects (`forallE_inv`, `sort_inv`, `id_inv`,
-  no-confusion).
+* **No quotients, preservation lemmas instead.** Contexts are `List Term`,
+  substitutions are `Subst`, labels are raw terms. Wherever his
+  construction relies on `Ctx`/`Ty`/`Tm` being quotients by defeq, we
+  instead prove that the notion in question is preserved by the defeq
+  relation, with WF side conditions — the same policy `Term.lean` already
+  follows for contexts and terms modulo defeq (`IsDefEq.subst`,
+  `defeqDF_l`, `SubstEq`). Concretely the relation enters in exactly one
+  definition, the order on shapes (`LabelEq Δ` inside `LE Δ`), and the
+  preservation lemmas are `LabelEq.subst`, `LE.subst`, and the naturality
+  lemma for the interpretation, all along *typed* substitutions
+  (`⊢ Θ`, `Θ ⊢ τ : Δ`), because defeq is only stable under those.
+* **Keep our `Shape.lean`**, with its level stratification
+  (`Shape (n+1) = ShapeS (Shape n)`, `WShape`, `TShape`), and add the
+  gluing data: graph entries of `lam`/`forallE`/`sigma` carry a syntactic
+  label `(A, a) : Term × Term`; `forallE`/`sigma` carry the syntactic pair
+  `(A, B)`; `id` carries the syntactic triple `(A, a, b)` (plus the
+  relevance flag, see §5); `unit r` is an atom. The old file is kept as
+  `Shape.old.lean` for reference; `Sound`/`LogRel`/`Adequacy` will break
+  and are to be deleted on this branch. The level index replaces his
+  `rank` and makes the decoder's fixed point a recursion on `n` (no
+  `piStage`/`piLimit`/rank-stability).
+* **No `Val`/`ΩLower` structure.** The only sources of lower sets in his
+  proof are the valuation and compositional constructions; nothing
+  quantifies over arbitrary natural assignments. So, as in `Sound.lean`,
+  valuations are single shapes `ρ : Nat → TShape` (principal ideals) and
+  the whole model is **one inductively defined relation**
 
-### 4.1 Values
+  ```
+  Interp Γ : Term → (Δ : List Term) → Subst → (Nat → TShape) → TShape → Prop
+  --  Interp Γ t Δ σ ρ x : "x is an approximant of ⟦t⟧ at stage σ : Δ → Γ under ρ"
+  ```
 
-`Val` as in §2.2, unindexed. Derived: `pullback`, `principal`, `⊥`,
-`iSup`, `IsIdeal V := ∀ Θ τ, directed (V.mem Θ τ) ∧ (coherence, see §7)`.
-Convenience: "local families". Most values are of the form
-`mem Θ τ y := L Θ τ y` for a predicate `L` on (stage, shape) that is
-hereditary under typed substitution; a constructor `Val.ofLocal` packages
-naturality/bottom/lower once.
+  plus one shape-level relation `Decode` (§4.2). Directedness (`join`),
+  monotonicity in `ρ`, naturality along typed `τ`, and the substitution
+  lemma (with its `∃ ρ'` + join trick, which is the finitarity argument
+  done once) become lemmas by induction on derivations, exactly as
+  `LE_Interp.mono/join/subst` today.
+* **Inductive, not recursive, `Interp`.** `Y` (and later `natCase`) is
+  not structural; an inductive definition gives the least fixed point for
+  free — a shape is in `⟦Y A b⟧` iff finitely many unfoldings produce it —
+  and every lemma about `Y` is just another case of the derivation
+  induction. A recursive definition would need `⋃ₙ Fⁿ ⊥` plus continuity
+  of `⟦b⟧` in `ρ` and an inner induction on `n` in every lemma. Positivity
+  holds: all occurrences of `Interp` in premises are positive (`app`,
+  `tr` are `∃`/`∧`; binder validity is `∀ e ∈ g.entries` over a finite
+  graph, i.e. over data); `Decode` is defined before terms and never
+  mentions `Interp`.
 
-### 4.2 Operations (all per stage, all basis-defined)
+### 4.1 Shapes (modifications to `Shape.lean`)
 
 ```
-Evaluates Θ (F : Val) (ℓ : Term × Term) : Shape → Shape → Prop     -- at stage τ inside F
-app  (F : Val) (ℓ : Term × Term) (X : Val) : Val   -- mem Θ τ y := ∃ x, X.mem Θ τ x ∧ Evaluates Θ (F∣τ) (ℓ[τ]) x y
-GraphValid Θ τ (act : List Term → Subst → Term×Term → Shape → Val) (g : Graph) : Prop
-abs  (act) : Val                                   -- mem Θ τ q := ∃ g, GraphValid Θ τ act g ∧ LE Θ q (lam g)
-piVal (A B : Term) (D : Val) (act) : Val           -- mem Θ τ q := ∃ a g, D.mem Θ τ a ∧ GraphValid … g ∧ LE Θ q (pi (A[τ]) (B[τ.lift]) a g)
-sortVal u := principal (sort u);  idVal A a b := principal (id A a b);  unitVal r
-restrict (r : Bool) (X : Val) : Val                -- members that are r-codes
+ShapeS X ::= bot | sort r | unit r
+           | forallE (A B : Term) (dom : X) (f : LFun X)      -- label (A,B)
+           | sigma   (A B : Term) (dom : X) (f : LFun X)
+           | lam  (f : LFun X) | pair (a b : X)
+           | id (r : Bool) (A a b : Term)                      -- label only
+           | refl (w : X)                                      -- kept (proof-relevant Id)
+           | nat | zero | succ (label) (w : X)
+LFun X := List ((Term × Term) × X × X)                         -- entries ((A,a), in, out)
 ```
 
-Actions are raw functions `(Θ, τ, ℓ, x) ↦ Val` plus a naturality lemma;
-no `Act` structure.
+Order: as now, plus `LabelEq Δ` on labels, so `Shape.LE` becomes
+`Shape.LE Δ` (context-indexed). The `Bool`-valued `ble`/`Compat` become
+`Prop`s (label defeq is not decidable); `lift`/`olift`/`join`/`WF` carry
+labels through unchanged. Coherence (his `IsCoherent`, our `WF` +
+`Compat`) becomes the hereditary condition on graphs: entries with defeq
+labels and compatible inputs, at every typed later stage, have compatible
+outputs. `IsCode r` as in his `UniverseShape.lean`.
 
-### 4.3 Decoder
+### 4.2 `Decode` (the retraction), by recursion on the level
 
-`decodeN : ℕ → (Θ : List Term) → (code x : Shape) → Shape → Prop` by
-recursion on the fuel (his `piStage`), where
+```
+Decode (Δ) : ∀ {n}, WShape n → TShape → TShape → Prop     -- Decode c x y : y approximates the retraction of x along code c
+```
 
-* `sort r ↦ fun x y => LE Θ y x ∧ IsCode r y`,
-* `pi _ _ a g ↦` the arrow retraction, with `P := decodeN n Θ a`,
-  `Q(ℓ)(X,Y) := ⋃_{c ∈ app ⟨lam g⟩ ℓ X, y ∈ Y} decodeN n Θ c y` (all made
-  into `Val`s via the local-family constructor),
-* everything else (`bot`, `lam`, `unit`, `id`, prop-codes) `↦ ⊥`.
+* `sort r`: `y ≤ x ∧ IsCode r y`.
+* `forallE (A,B) d f` (level `n+1`, `d f` at level `n`): `y ≤ lam h` for a
+  graph `h` all of whose entries `((A',t), x, y')` are *valid*: exists
+  `x'` with `Decode d x x'` (input retracted along the domain code), a
+  family code `c` with `c ∈ app(f, (A',t), x')` (the graph `f` of codes,
+  looked up at the label with `LabelEq Δ` and input `x'`), and
+  `Decode c (app(x, (A',t), x')) y'` (output retracted along `c`). All
+  codes involved are at level `n`, so this is structural in `n`.
+* `sigma`: componentwise; `id r …`: `y ≤ x` and `y` is `⊥` or a `refl`
+  shape (`r = true`) / `y ≤ ⊥` (`r = false`); `unit`, `nat`: as expected;
+  everything else: `y ≤ ⊥`.
 
-`decodeAt Θ c := decodeN (rank c + 1) Θ c`; `decodeVal c x : Val` with
-`mem Θ τ y := decodeAt Θ (c[τ]) (x[τ]) y`; `extend (C X : Val) : Val` =
-`bind₂`: `mem Θ τ y := ∃ c x, C.mem Θ τ c ∧ X.mem Θ τ x ∧ decodeAt Θ c x y`.
-Needed lemmas: hereditary (naturality), rank stability, idempotence,
-strictness (`extend C ⊥ = ⊥`), prop-codes decode to `⊥`, and the decoding
-equations for `sort`/`pi`.
+Needed lemmas: monotone in `x`, lower-closed in `y`, idempotent,
+strict (`Decode c ⊥ y → y ≤ ⊥`), hereditary along typed `τ`, `join`.
+"`x` is typed at `A`" is then `∃ c, Interp A … c ∧ Decode c x x`, our
+old `InterpTyped`/`HasType`, and his `HasFixedness` is "every
+approximant of `t` is typed at `A`".
 
-### 4.4 Interpretation
+### 4.3 `Interp` (one constructor per term former, as `LE_Interp`)
 
-`interp (Γ : List Term) : Term → (Δ : List Term) → Subst → (ℕ → Val) → Val`
-following §2.6 verbatim, with sections replaced by the typing side
-condition `∃ u, Θ ⊢ A'[τ] ≡ A[σ∘τ] : sort u` ∧ `Θ ⊢ t[τ] : A'[τ]` and the
-stage `σ.cons t`. Constructs not yet modelled (`sigma`, `pair`, `fst`,
-`snd`, `nat`, `zero`, `succ`, `natCase`, `Y`) interpret to `⊥` for now.
+Stage `(Δ, σ)`; `ρ` a single-shape valuation at `Δ`; labels are the
+current-stage terms `A[σ]`, `a[σ]`.
 
-### 4.5 Admissibility, properties, `RawJudgment`
+* `bot`, `bvar` (`x ≤ ρ i`), `sort`, `unit`, `star ↦ ⊥`, `nat`, `zero`.
+* `app f a`: `Interp f … F`, `Interp a … x`, `Γ ⊢ A : sort u`,
+  `Γ ⊢ a : A`, `m ≤ F.app ((A[σ], a[σ])) x` (graph lookup at the label
+  with `LabelEq Δ`, our `ShapeFun.app` with label matching).
+* `lam A b`: `Interp A … d`, `m ≤ lam' g`, and every entry
+  `((A', t), x, y)` of `g` is valid: `∃ u, Δ ⊢ A' ≡ A[σ] : sort u`,
+  `Δ ⊢ t : A'`, `∃ x', Decode d x x' ∧ Interp b Δ (σ.cons t) (ρ.push x') y`.
+  The label term `t` is substituted for the bound variable *in the
+  stage*; the decoded approximant `x'` is pushed on the valuation (his
+  normalized body action, with a single approximant instead of the
+  retracted ideal — fine since the decoded set is directed and `Interp`
+  is monotone in `ρ`).
+* `forallE A B`: `m ≤ forallE (A[σ], B[σ.lift]) d g` with `d ∈ ⟦A⟧` and
+  `g` valid for `B` as above (its outputs are codes for `B(t)`).
+* `sigma`/`pair`/`fst`/`snd`: as Π/λ/app, with the label of the pair.
+* `id r A a b ↦ id r (A[σ]) (a[σ]) (b[σ])` (label only, no sub-shapes);
+  `refl true a`: `m ≤ refl v` with `v ∈ ⟦a⟧`; `refl false a ↦ ⊥`.
+* `tr r A a b C x h` (our constructor, with `Decode` for `HasType`):
+  `m' ∈ ⟦x⟧`, `v ∈ ⟦a⟧ ∩ ⟦b⟧`, `c ∈ ⟦C⟧ Δ (σ.cons b) (ρ.push v)`,
+  `Decode c m' m`, and `(r = true → refl v ∈ ⟦h⟧)`. Sound for `tr_refl`
+  exactly as today (`Sound.lean:2734`); `r = false` ignores the proof, as
+  intgrah does.
+* `natCase`, `Y`: `Y` as `Interp (Y A b) … x' → Interp b Δ (σ.cons (Y A b)) (ρ.push x') y → Interp (Y A b) … y`.
+* `proofIrrel` needs nothing: prop-typed approximants are `⊥` because
+  prop-codes decode to `⊥` (`Decode` on `sort false` codes).
 
-Verbatim from §2.7 with raw data: `Adm : (Γ : List Term) → (Δ : List Term)
-→ Subst → (ℕ → Val) → Prop` by recursion on `Γ` (tail = `σ.tail`,
-`ρ.tail`); the five properties as `∀ Δ σ ρ, ⊢Δ → Δ ⊢ σ : Γ → Adm Γ Δ σ ρ → …`;
-`RawJudgment` as a structure of Props.
+### 4.4 Admissibility, properties, soundness
 
-## 5. Language coverage (master `Term.lean`)
+`Adm Γ Δ σ ρ` by recursion on `Γ` (our `Valuation.Fits` with `Decode`):
+for `A :: Γ`, `Adm Γ Δ σ.tail ρ.tail` and `ρ 0` typed at `A` at stage
+`σ.tail`. The properties of §2.7 restated over the relation (all
+"`∀ Δ σ ρ, ⊢Δ → Δ ⊢ σ : Γ → Adm Γ Δ σ ρ → …`"): equality of the
+approximant sets (`HasEquality`), typedness of every approximant
+(`HasFixedness`), the substitution lemma (`HasSubstitution`), and
+`PiReady` collapses into the join/directedness lemmas. `RawJudgment` as a
+structure of these Props, in `DomainSemantics/Presheaf.lean` next to
+`Sound.lean`; the induction on `IsDefEq` in `PresheafSound.lean`;
+inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
 
-| construct | model | status in plan |
+## 5. Language coverage (master `Term.lean` + the flagged equality)
+
+| construct | model | status |
 |---|---|---|
-| `sort`, `forallE`, `lam`, `app`, `proofIrrel` | as his | core of the work |
-| `id A a b` (`type`-valued, proof-relevant on master) | label atom `id A a b`; `refl ↦ ⊥`; `tr ↦ extend ⟦C[b]⟧ ⟦x⟧`; id-codes decode to `⊥` | cheap; `tr_refl` is fixedness of `x`; gives `id_inv` from labels; the model validates UIP semantically, which is harmless for inversion |
-| `unit r`, `star r`, `unit_eta` | atom `unit r` (an `r`-code), `star ↦ ⊥`, decodes to `⊥` | cheap |
-| `sigma`, `pair`, `fst`, `snd` | Σ-shape with `(A,B)` label + dom + graph, pair shapes; retraction = componentwise | later; mirrors Π |
-| `nat`, `zero`, `succ`, `natCase` | his `Nat/*` (1.3k lines) | later |
-| `Y A b`, `Y_unfold` | `⨆ₙ Fⁿ ⊥` with `F X := ⟦b⟧ (ρ.push X)`; unfolding needs continuity of `⟦b⟧` in `ρ` | later; the one place continuity is genuinely needed |
+| `sort`, `forallE`, `lam`, `app`, `proofIrrel` | as his, on our shapes | core of the work |
+| `id r A a b`, `refl r a`, `tr r …` (the `eq` worktree's syntax: one `Bool` flag, `id r A a b : sort r`) | label-only `id r` shape; `refl` shape kept for `r = true`; `tr` inspects the proof only when `r = true` | both equalities at once; syntactic side (Term.lean, substitution lemmas) to be taken from the `eq` worktree's uncommitted diff (`/home/mario/claude-test/domain-semantics-lean-2`, 141 changed lines in `Term.lean`); keeps `not_UIP` for `r = true` |
+| `unit r`, `star r`, `unit_eta` | atom, `star ↦ ⊥`, decodes to `⊥` | cheap |
+| `sigma`, `pair`, `fst`, `snd` | Σ-shape with `(A,B)` label, componentwise retraction | mirrors Π |
+| `nat`, `zero`, `succ`, `natCase` | our shapes; `natCase` inductive like `Y` | after Π |
+| `Y A b`, `Y_unfold` | inductive constructor, least fixed point for free | after Π |
 
 ## 6. Obligations, roughly ordered
 
-1. Basis: `LE` preorder (mutual recursion on the *middle* shape, since
-   `induction` does not support mutual inductives), `LE.subst`,
-   `IsBottom` lemmas, `join` is a lub on compatible pairs, `rank` and
-   `rank_join`, `Coherent` hereditary, `IsCode` closure. (~his 1.6k lines,
-   expect ~800.)
-2. `Val` and operations with naturality; `app`/`abs`/`piVal` directedness
-   under coherence; `mem_piAtom_piVal_iff`, `sortAtom_le_iff`. (~600.)
-3. Decoder: fuel recursion, hereditary, rank stability, idempotence,
-   strictness, decoding equations, retraction equation
-   `app (R G) ℓ X = Q(P X, app G ℓ (P X))` for directed `X`. (~1000.)
-4. `interp`, `Adm`, `bottom_admissible`, `Adm.pullback`/`push`. (~300.)
-5. Soundness cases: structural (`bvar`, `sort`, `defeqDF`, `symm/trans`),
-   `HasSubstitution`/`HasRenaming` for each constructor, binders
-   (`lamDF`, `forallEDF`, `LambdaFixed`), `appDF`, `beta`, `eta`,
-   `proofIrrel`, id/unit rules. (~his 2.6k + parts of Interpretation; the
-   bulk of the work.)
-6. Inversion + hooking into `Consequences.lean` (parametrise it over the
-   inversion lemmas, or duplicate the small bridge). (~100.)
+1. Syntax: port the flagged equality from the `eq` worktree into
+   `Term.lean` (syntactic lemmas only; their `Sound`/`Adequacy` changes are
+   irrelevant here).
+2. `Shape.lean`: labels on entries/`forallE`/`sigma`/`id`, `LE Δ` with
+   `LabelEq`, `Prop`-valued `Compat`, preservation of `LE`/`Compat`/`join`
+   under typed substitution, `IsCode`, hereditary coherence. Copy the old
+   file to `Shape.old.lean` first.
+3. `Decode` by level recursion, with monotonicity, idempotence,
+   strictness, hereditary, `join`, and the retraction equation for
+   graph lookup (`app (R x) ℓ y = …`, directed argument only).
+4. `Interp` inductive, `Adm`, and the structural lemmas: `mono` (in the
+   shape and in `ρ`), `join`, naturality along typed `τ`, `weak`, `subst`
+   (the `∃ ρ'` form), `inst`.
+5. `RawJudgment` and the soundness induction: structural rules, binders
+   (`lamDF`, `forallEDF`, λ fixed under Π), `appDF`, `beta`, `eta`,
+   `proofIrrel`, id/unit rules, then Σ, Nat, `Y`.
+6. Inversion (`forallE_inv`, `sort_inv`, `id_inv`, `sigma_inv`,
+   no-confusion) against the *statement* of soundness first, then hook up
+   `Consequences.lean`; delete `Sound`/`LogRel`/`Adequacy`.
 
-The inversion theorem (6) can be proved against the *statement* of
-soundness first, so the branch is useful before (5) is complete.
+## 7. Remaining open points
 
-## 7. Open choices (for discussion)
-
-1. **Labels: defeq-aware order vs `Quot`.** Chosen: order compares labels
-   up to defeq in `Δ`; every reindexing lemma takes `⊢Θ`, `Θ ⊢ τ : Δ`.
-   `LE Δ` is then only a preorder, but so is his. The alternative
-   (`Quotient` of raw pairs by defeq, core-Lean `Quot`) makes `Entry` a
-   plain equality but forces typing witnesses into `Shape.subst`.
-2. **Coherence: subtype vs property.** His `CoherentShape` subtype makes
-   every element coherent by construction. With context-dependent
-   coherence a subtype would re-index shapes by `Δ`; the alternative is
-   `IsIdeal := directed ∧ coherent members`, and prove coherence of
-   outputs where needed. Leaning towards the property.
-3. **Directedness at all?** Needed only for the retraction equation
-   (argument side) and hence for β; η goes through "both sides are
-   abstractions of the same action". Could not find a way to drop it.
-4. **Stage `σ` vs valuation `ρ`.** Kept independent (as his). The
-   inversion argument runs at `σ = id`, `ρ = ⊥`; no "syntactic valuation"
-   is ever needed.
-5. **Id semantics.** `⊥`-inhabited, label-only shape (§5). If we later
-   want the model to refute UIP semantically, `refl` would need a real
-   shape and `tr` a case split — not needed for inversion.
+1. **Coherence: where to put it.** His `CoherentShape` subtype vs our
+   `WShape.WF` + `Compat`. With context-dependent labels, "internally
+   directed at every typed later stage" cannot be a context-free `WF`
+   predicate; it is either a `Δ`-indexed predicate on shapes or a lemma
+   about interpretations ("approximants of typed terms are coherent").
+   Leaning to the latter, since we never form arbitrary ideals.
+2. **Directedness.** Needed for the retraction equation (argument side)
+   and hence β; η goes through "both sides are abstractions of the same
+   body action". No way found to drop it; it is the `join` lemma.
+3. **`Bool` vs `Prop` in `Shape.lean`.** `ble`/`Compat` are decidable
+   today; with defeq in labels they become `Prop`s. Small mechanical
+   change, but it touches most of the file.
