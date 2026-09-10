@@ -514,3 +514,90 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
 3. **`Bool` vs `Prop` in `Shape.lean`.** `ble`/`Compat` are decidable
    today; with defeq in labels they become `Prop`s. Small mechanical
    change, but it touches most of the file.
+
+## Appendix A. Catalogue of the definitions behind `rawInterpret`
+
+Layered from the bottom. "Ours" = what the definition becomes in the
+relational design of §4 (`Interp`/`Decode` over our shapes).
+
+### A.0 Basis (`Basis/*`)
+
+| his | what it is | ours |
+|---|---|---|
+| `Shape Γ`, `Graph Γ` | labelled finite approximants; graph = `k` entries `(name, in, out)` with `name : (A : Ty Γ) × Tm Γ A` | `Shape n` with labels (§4.1) |
+| `LE`, `Entry`, `IsBottom` | preorder; entry coverage by label equality; bottom-collapse | `Shape.LE Δ` with `LabelEq Δ` |
+| `IsCoherent`, `CoherentShape`, `CoherentGraph` | hereditary internal directedness of graphs; subtype | `WF` + hereditary `Compat` (open point §7.1) |
+| `Compatible`, `sup a b h` | structural compatibility and lub | `Compat`, `join` |
+| `piAtom l`, `piGenerator l a f`, `lamGenerator f`, `sortAtom`, `natAtom`, `identityMap` | the shape constructors as coherent shapes | constructors of `WShape` |
+| `IsCode r` | which shapes are codes of `r`-types | same |
+| `rank` | depth, for the decoder fixed point | the level `n` |
+
+### A.1 Values (`Presheaf/*`, `Basis/Join.lean`)
+
+| his | what it is | ours |
+|---|---|---|
+| `RawValue Γ := ΩLower pointedOrder Γ` | Kripke lower set of coherent shapes: `mem σ x` for every `σ : Γ₁ ⟶ Γ`; natural, lower, contains `⊥` | not a datum; "`x ∈ V`" is an instance of `Interp`/`Decode`, or `x ≤ ρ i` |
+| `Domain Γ := ΩIdeal …` | directed `RawValue` | the `join` lemma |
+| `principalIdeal a` | `{x ∣ x ≤ a[σ]}` at every stage | `x ≤ a` (principal valuations) |
+| `⊥`, `⨆`, `⊔` | `x ≤ ⊥ ∨ ∃ i, …` (never empty) | `bot` constructor / `∃` |
+| `pullback σ` | restage: `mem τ := mem (σ ≫ τ)` | the stage arguments `(Δ, σ)` of `Interp` |
+| `bind`, `bind₂`, `map₃` | Kleisli extension of a basis-defined map to lower sets | `∃ x ∈ X, …` |
+
+### A.2 Stage-indexed families (`Interpretation/Family.lean`, `Action.lean`, `ActionFamily.lean`, `Domain/Action*.lean`, `Decoder/Operator.lean`)
+
+These are all "natural monotone families of maps", one per kind of
+argument. They exist so that the interpretation is a *presheaf map* and
+naturality is automatic; each one is a shape of lemma for us.
+
+| his | what it is | ours |
+|---|---|---|
+| `RawValuation Γ := ℕ → RawValue Γ` with `pullback`, `push`, `tail`, `replace` | semantic environment | `ρ : ℕ → TShape` with `push`/`tail` (as `Sound.lean`) |
+| **`RawFamily Γ`** `:= (RawValuation.presheaf.functorHom (ΩLower.presheaf)).obj Γ` | for every stage `σ : Γ₁ ⟶ Γ` a monotone map `RawValuation Γ₁ → RawValue Γ₁`, natural: `(F σ ρ).pullback τ = F (σ ≫ τ) (ρ.pullback τ)`. **The type of `⟦t⟧`**: a term denotes a stage-indexed function from environments to values. `IsFinitary F`: continuous in each `ρ i`. | `Interp Γ t : (Δ) → Subst → (ℕ → TShape) → TShape → Prop` plus lemmas `mono` (in `ρ`), `natural` (along typed `τ`), `subst` (finitarity) |
+| `RawAction Γ` (`arguments := Tm.presheaf ⊗ ΩLower.presheaf`) | for every stage a monotone map `(label, RawValue) → RawValue`; "a function seen through its label-indexed graph". `IsFinitary`, `IsIdealValued`, `onBasis`, `GraphValid`, `abstraction` | a predicate `Act Δ τ (A,a) x y` on shapes; validity of an entry is one instance of it |
+| `RawActionFamily Γ` `:= functorHom RawValuation.presheaf RawAction.presheaf` | `ρ ↦ RawAction`, natural; the *body action* of a binder as a function of the environment | the body clause of the `lam`/`forallE` constructors |
+| `BasisAction Γ` | `RawAction` restricted to basis inputs (`(stage, label, shape) ↦ RawValue`) | same predicate |
+| `IdealAction Γ`, `IdealOperator Γ`, `DependentOperator Γ` | ideal-valued, finitary versions: `(label, Domain) → Domain`, `Domain → Domain`, `(label, Domain, Domain) → Domain` | `Decode` and the arrow clause |
+| `CodeAssignment := order ⟶ IdealOperator.presheaf` | code (basis shape) ↦ operator, natural and monotone; `eval`, `rawExtend`, `extend`, `decode`, `IsIdempotent`, `IsPayloadStrict` | `Decode : WShape n → TShape → TShape → Prop` by recursion on `n` |
+
+### A.3 Semantic operations (`Domain/*`)
+
+| his | definition | ours |
+|---|---|---|
+| `OutputAtom I l x y` | some graph in `I` (current stage) has an entry with label `= l`, input `≤ x`, output `= y` | entry lookup with `LabelEq Δ` |
+| `Evaluates I l x y` | closure of `OutputAtom` under `⊥`, lowering, compatible joins | `ShapeFun.app` (join of matching outputs) |
+| `application I l X` | `{y ∣ ∃ x ∈ X, Evaluates (I∣σ) (l[σ]) x y}` | `F.app l x` on shapes |
+| `rawApplication F Q X` | `⨆_{l ∈ Q} bind₂ F X (stepApplication l)` — application at every label of the query set | `∃ label ∈ query, …` |
+| `BasisAction.abstraction F` | `{q ∣ ∃ f, GraphValid F σ f ∧ q ≤ lam f}` | `m ≤ lam' g ∧ ∀ e ∈ g, valid e` |
+| `BasisAction.pi l A B`, `rawPi`, `pi` | `{q ∣ ∃ a ∈ A, valid f for B, q ≤ piGenerator l a f}` | `m ≤ forallE l d g ∧ d ∈ ⟦A⟧ ∧ ∀ e ∈ g, valid e` |
+| `RawValue.identity A X Y` | `{z ∣ ∃ a x y ∈ A X Y, z ≤ identityMap a x y}` | label-only `id r A a b` shape (no sub-shapes) |
+| `succ l X`, `natProjection`, `natOperator`, `zeroAtom` | Nat shapes and their retraction | our Nat shapes |
+| `universeIdeal r X`, `universeOperator r` | restrict to `IsCode r` | `Decode (sort r) x y := y ≤ x ∧ IsCode r y` |
+| `rawExtend F T X`, `extend`, `decode F T` | `{y ∣ ∃ c ∈ T, x ∈ X, y ∈ F c ⟨x⟩}` | `∃ c ∈ ⟦A⟧, x ∈ ⟦t⟧, Decode c x y` |
+| `resultOperator F B` | `(X, Y) ↦ extend F (B(l)(X)) Y` | output clause of the arrow |
+| `arrowAction Q P G`, `arrow Q P`, `piOperator F A B`, `graphAction f`, `piGeneratorOperator` | the Π retraction (§2.5) | `Decode (forallE l d f)` clause (§4.2) |
+| `piStep`, `piStage n`, `piLimit` | fixed point by rank | recursion on the level |
+| `NatRecLabelRelation`, `RawAction.natRec`, `NatEvaluates` | the Nat iterator | inductive `natCase` clause |
+
+### A.4 Family constructors used directly in `rawInterpret` (`Interpretation/*`)
+
+| his | `⟦·⟧ σ ρ =` | ours (constructor of `Interp`) |
+|---|---|---|
+| `lookup i` | `ρ i` | `bvar : x ≤ ρ i` |
+| `constant I` | `I.pullback σ` | principal atoms |
+| `sort r`, `nat`, `zero` | `constant ⟨atom⟩` | `sort`, `nat`, `zero` |
+| `succ l X` | `succ (l[σ]) (X σ ρ)` | `succ` |
+| `application F X Q` with `sourceQuery Γ a := {(A,a) ∣ Γ ⊢ A : sort u, Γ ⊢ a : A}` | `rawApplication (F σ ρ) (Q[σ]) (X σ ρ)` | `app` with the typing premises `Γ ⊢ A : sort u`, `Γ ⊢ a : A` and label `(A[σ], a[σ])` |
+| `sectionDomain hA σ l` / `bodySection` / `sectionValue hA B σ ρ l I` | "`⊥` unless a section `s` over `σ` with label `l` exists, then `B s.hom (ρ.push I)`" | the premises `Δ ⊢ A' ≡ A[σ]`, `Δ ⊢ t : A'`, and the stage `σ.cons t` |
+| `normalizedBody D hA C B` / `normalizedSectionValue` / `normalizedBodyAction` | `sectionValue` at the retracted input `rawExtend D (C σ ρ) I` | `∃ x', Decode d x x' ∧ … (ρ.push x')` |
+| `abstraction D hA C B` `= normalizedBody ∘ abstractionHom` | `(normalizedBodyAction σ ρ).abstraction` | `lam` |
+| `pi D hA l C B` `= pair(C, normalizedBody) ∘ rawPiHom` | `rawPi (l[σ]) (C σ ρ) (normalizedBodyAction σ ρ)` | `forallE` |
+| `identity A X Y` | `RawValue.identity (A σ ρ) (X σ ρ) (Y σ ρ)` | `id` (label only) |
+| `⊥` (for `refl`) | `⊥` | `refl false ↦ bot`; `refl true`: `m ≤ refl v`, `v ∈ ⟦a⟧` |
+| `instantiate B s X` | `B (σ ≫ s) (ρ.push (X σ ρ))` — evaluate the body at the section of the substituted term | the stage `σ.cons b` and `ρ.push v` in `tr` |
+| `decode D C X` | `rawExtend D (C σ ρ) (X σ ρ)` | `Decode c m' m` in `tr` |
+| `natRec D …` | `(RawActionFamily.natRec …).apply M (label of M)` | `natCase` |
+
+Everything in A.2 exists to make naturality and monotonicity hold by
+construction; everything in A.3/A.4 is basis-defined. That is the
+justification for §4: a single relation on finite shapes, with
+naturality/monotonicity/join/substitution as lemmas, loses nothing.
