@@ -502,18 +502,24 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
 
 ## 7. Remaining open points
 
-1. **Coherence: where to put it.** The condition (his `Graph.Compatible`,
-   `InternallyCompatible`) for entries `(a₁,u₁,v₁) ∈ f`, `(a₂,u₂,v₂) ∈ g`
-   of two graphs approximating the same function is hereditary and
-   syntax-aware:
-   `∀ Θ τ, ⊢Θ → Θ ⊢ τ : Δ → a₁[τ] ≡_Θ a₂[τ] → Compat Θ (u₁[τ]) (u₂[τ]) → Compat Θ (v₁[τ]) (v₂[τ])`
-   (substitution can create new label equalities and new compatibilities,
-   since `Compat` inspects nested labels). Decision: define `Coherent Δ`
-   in this form but do **not** put it in the shape type; prove
-   "approximants of well-typed terms are coherent" once, from per-entry
-   validity + monotonicity in `ρ` + stage-defeq preservation + the `join`
-   lemma, and use it only in the `join` case for `app`. `WShape.WF`
-   (graph WF, `HasDom`, `NonZero`) goes away; `WShape` becomes `Shape`.
+1. **Coherence (decided).** Typed functions are genuinely label-sensitive
+   (`λx:type. Πy:x.y` must output Π-shapes labelled by the argument, or
+   Π-inversion through β fails), so whether two entries may have
+   incompatible outputs depends on whether their labels can ever be
+   identified by a typed substitution. Hence no context-free WF works and
+   "prove it from typing" would make `join`/`compat` typed-only. The
+   invariant is hereditary coherence relative to a context:
+   `Coherent Δ x := ∀ Θ τ, ⊢Θ → Θ ⊢ τ : Δ → LocallyCoherent Θ (x[τ])`, with
+   `LocallyCoherent Θ y` = for entries `(a₁,u₁,v₁)`, `(a₂,u₂,v₂)` of any
+   graph inside `y` (and, for joins, of two graphs approximating the same
+   function): `a₁ ≡_Θ a₂ → Compat Θ u₁ u₂ → Compat Θ v₁ v₂`, recursively.
+   Needed lemmas: downward closed under `LE Δ`, closed under compatible
+   joins, preserved by typed substitution. It is imposed **as a premise
+   `Coherent Δ m` on every constructor of `Interp`** and on admissible
+   valuations, so shapes stay context-free and the structural lemmas
+   hold for all raw terms as in `Sound.lean`; the alternative is his
+   context-indexed subtype `WShape Δ n`. The old `WShape.WF` (graph WF,
+   `HasDom`, `NonZero`) goes away.
 2. **Directedness.** Needed for the retraction equation (argument side)
    and hence β; η goes through "both sides are abstractions of the same
    body action". No way found to drop it; it is the `join` lemma.
