@@ -57,13 +57,30 @@ def ShapeFun.HasDom (Δ : List Term) (T : Shape n → Shape n → Prop)
     Shape.LE Δ e'.inp e.inp ∧ Shape.LE Δ e.out e'.out ∧ T e'.inp d
 
 /-- `m` is a well-typed inhabitant of the type-shape `a`.  Structural
-recursion on the level. -/
+recursion on the level.
+
+Following master, the `⊥` clauses are given **per type former** rather
+than blanket, and the `lam`/`pair` clauses carry the well-formedness of
+the Π/Σ type they inhabit.  Both are needed for `isType`
+(`HasType m a → HasType a .type`), without which `mono_r` cannot be
+stated, let alone proved: a blanket `HasType ⊥ a = True` would make `⊥`
+an inhabitant of shapes that are not types at all. -/
 def Shape.HasType (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
-  -- `⊥` inhabits every type; a type shape is a type when its parts are
-  | 0, .bot, _ => True
+  -- `⊥` inhabits every *type*
+  | 0, .bot, .bot => True
+  | 0, .bot, .sort _ => True
   | 0, .sort _, .sort j => j = true
   | 0, _, _ => False
-  | _+1, .bot, _ => True
+  | _+1, .bot, .bot => True
+  | _+1, .bot, .sort _ => True
+  | _+1, .bot, .unit _ => True
+  | _+1, .bot, .nat => True
+  | _+1, .bot, .id _ _ _ _ => True
+  | _+1, .bot, .forallE _ _ d f =>
+      ShapeFun.HasDom Δ (HasType Δ) f d ∧ ∀ e ∈ f, HasType Δ e.out .type
+  | _+1, .bot, .sigma _ _ d f =>
+      ShapeFun.HasDom Δ (HasType Δ) f d ∧ ∀ e ∈ f, HasType Δ e.out .type
+  | _+1, .bot, _ => False
   | _+1, .sort _, .sort j => j = true
   | _+1, .unit r, .sort j => r ≤ j
   | _+1, .nat, .sort j => j = true
@@ -80,17 +97,21 @@ def Shape.HasType (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
       ShapeFun.HasDom Δ (HasType Δ) f d ∧ ∀ e ∈ f, HasType Δ e.out (.sort r)
   | _+1, .sigma _ _ d f, .sort j =>
       j = true ∧ ShapeFun.HasDom Δ (HasType Δ) f d ∧ ∀ e ∈ f, HasType Δ e.out .type
-  -- a λ-shape inhabits a Π-type when every entry's output is typed at a
-  -- code the codomain family yields at that entry's label and input
+  -- a λ-shape inhabits a Π-type when that Π-type is well-formed and every
+  -- entry's output is typed at a code the codomain family yields at that
+  -- entry's label and input
   | _+1, .lam g, .forallE _ _ d f =>
-      ShapeFun.HasDom Δ (HasType Δ) g d ∧
+      (ShapeFun.HasDom Δ (HasType Δ) f d ∧ ∀ e ∈ f, HasType Δ e.out .type) ∧
+        ShapeFun.HasDom Δ (HasType Δ) g d ∧
         ∀ e ∈ g, ∃ c, Evaluates Δ f e.ty e.tm e.inp c ∧ HasType Δ e.out c
   -- TODO(Σ): the codomain family is a *labelled* graph, so a `pair` shape
   -- must carry the term label of its first component, exactly as `forallE`
   -- and `lam` do, before the second component can be typed at
   -- `Evaluates Δ f (label) x`.  Σ is deferred (§5), so only the first
   -- component is checked here.
-  | _+1, .pair x _, .sigma _ _ d _ => HasType Δ x d
+  | _+1, .pair x _, .sigma _ _ d f =>
+      (ShapeFun.HasDom Δ (HasType Δ) f d ∧ ∀ e ∈ f, HasType Δ e.out .type) ∧
+        HasType Δ x d
   -- with a label-only Id shape there is nothing semantic left to check
   | _+1, .refl _, .id r _ _ _ => r = true
   | _+1, _, _ => False
@@ -112,6 +133,8 @@ never needs `HasType · (sort r)` to be downward closed.) -/
 
 private theorem Bool.eq_true_of_le {r s : Bool} (h : r = true) (hrs : r ≤ s) : s = true := by
   subst h; revert hrs; cases s <;> decide
+
+private theorem Bool.le_true' (r : Bool) : r ≤ true := by cases r <;> decide
 
 private theorem Bool.le_tr {t r s : Bool} (h₁ : t ≤ r) (h₂ : r ≤ s) : t ≤ s := by
   revert h₁ h₂; cases t <;> cases r <;> cases s <;> decide
@@ -138,9 +161,59 @@ theorem Shape.HasType.cumul : ∀ {n} {a : Shape n} {r s : Bool},
     | sigma A B d f => exact ⟨Bool.eq_true_of_le h.1 hrs, h.2⟩
     | _ => exact absurd h id
 
-/-- `⊥` inhabits every shape. -/
-theorem Shape.HasType.bot {a : Shape n} : Shape.HasType Δ .bot a := by
-  cases n <;> trivial
+/-- `⊥` inhabits every type (master's form: the hypothesis is what the
+blanket version silently assumed). -/
+theorem Shape.HasType.bot : ∀ {n} {a : Shape n},
+    Shape.HasType Δ a .type → Shape.HasType Δ .bot a := by
+  intro n
+  cases n with
+  | zero => intro a _; cases a <;> trivial
+  | succ n =>
+    intro a h
+    cases a with
+    | bot | sort | unit | nat | id => trivial
+    | forallE A B d f => exact h
+    | sigma A B d f => exact h.2
+    | _ => exact absurd h id
+
+/-- Anything typed has a type that is itself a type.  This is the lemma the
+per-former `⊥` clauses and the Π-well-formedness conjuncts exist for. -/
+theorem Shape.HasType.isType : ∀ {n} {m a : Shape n},
+    Shape.HasType Δ m a → Shape.HasType Δ a .type := by
+  intro n
+  induction n with
+  | zero => intro m a h; cases m <;> cases a <;> simp_all [Shape.HasType]
+  | succ n ih =>
+    intro m a h
+    cases m with
+    | bot =>
+      cases a with
+      | bot | sort | nat => trivial
+      | unit r => exact Bool.le_true' r
+      | id r _ _ _ => exact Bool.le_true' r
+      | forallE A B d f => exact h
+      | sigma A B d f => exact ⟨rfl, h⟩
+      | _ => exact absurd h id
+    | sort s => cases a <;> first | exact absurd h id | trivial
+    | unit s => cases a <;> first | exact absurd h id | trivial
+    | nat => cases a <;> first | exact absurd h id | trivial
+    | zero => cases a <;> first | exact absurd h id | trivial
+    | succ v => cases a <;> first | exact absurd h id | trivial
+    | id s A a' b' => cases a <;> first | exact absurd h id | trivial
+    | refl w =>
+      cases a with
+      | id r _ _ _ => exact Bool.le_true' r
+      | _ => exact absurd h id
+    | forallE A B d f => cases a <;> first | exact absurd h id | trivial
+    | sigma A B d f => cases a <;> first | exact absurd h id | trivial
+    | lam g =>
+      cases a with
+      | forallE A B d f => exact h.1
+      | _ => exact absurd h id
+    | pair x y =>
+      cases a with
+      | sigma A B d f => exact ⟨rfl, h.1⟩
+      | _ => exact absurd h id
 
 /-! ## Substitution -/
 
@@ -179,9 +252,24 @@ theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
   induction n with
   | zero => intro m a h; cases m <;> cases a <;> simp_all [Shape.HasType, Shape.subst]
   | succ n ih =>
+    -- the "this Π/Σ type is well-formed" conjunct, substituted
+    have hpi : ∀ {f : ShapeFun n} {d : Shape n},
+        (ShapeFun.HasDom Δ (Shape.HasType Δ) f d ∧ ∀ e ∈ f, Shape.HasType Δ e.out .type) →
+        (ShapeFun.HasDom Θ (Shape.HasType Θ) (ShapeFun.subst (Shape.subst · τ) τ f)
+            (d.subst τ) ∧
+          ∀ e ∈ ShapeFun.subst (Shape.subst · τ) τ f, Shape.HasType Θ e.out .type) := by
+      intro f d h
+      refine ⟨ShapeFun.HasDom.subst_of hΘ W ih h.1, fun e' he' => ?_⟩
+      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
+      simpa using ih (h.2 e he)
     intro m a h
     cases m with
-    | bot => trivial
+    | bot =>
+      cases a with
+      | bot | sort | unit | nat | id => trivial
+      | forallE A B d f => exact hpi h
+      | sigma A B d f => exact hpi h
+      | _ => exact absurd h id
     | sort s => cases a <;> first | exact absurd h id | exact h
     | unit s => cases a <;> first | exact absurd h id | exact h
     | nat => cases a <;> first | exact absurd h id | exact h
@@ -210,12 +298,14 @@ theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     | lam g =>
       cases a with
       | forallE A B d f =>
-        refine ⟨ShapeFun.HasDom.subst_of hΘ W ih h.1, fun e' he' => ?_⟩
+        refine ⟨hpi h.1, ShapeFun.HasDom.subst_of hΘ W ih h.2.1, fun e' he' => ?_⟩
         obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
-        have ⟨c, hev, hty⟩ := h.2 e he
+        have ⟨c, hev, hty⟩ := h.2.2 e he
         exact ⟨c.subst τ, Evaluates.subst hΘ W hev, ih hty⟩
       | _ => exact absurd h id
     | pair x y =>
       cases a with
-      | sigma A B d f => exact ih h
+      | sigma A B d f => exact ⟨hpi h.1, ih h.2⟩
       | _ => exact absurd h id
+
+end DomainSemantics
