@@ -632,8 +632,8 @@ reading.
 | graph | `k` + `names`/`ins`/`outs` families, `names : Σ A : Ty Γ, Tm Γ A` | `List (Shape n × Shape n)` | ✱ `List (Entry (Shape n))`, `Entry` = `(ty, tm, inp, out)` |
 | argument label | intrinsic: a typed term in the quotient | — | ✱ raw `(ty, tm)`, compared by `LabelEq Δ` |
 | Π label | `Σ A : Ty Γ, Ty (Γ.extend A)` | — | ✱ raw `(A, B)`, compared by `PiLabelEq Δ` |
-| Id shape | `id (ty lhs rhs : Shape Γ)` | `id (rel) (A a b : Shape n)` | ✱ `id (rel) (A a b : Term)` — labels only |
-| `refl` | nullary | `refl (w : Shape n)` | `refl (w : Shape n)`, unchanged |
+| Id shape | `id (ty lhs rhs : Shape Γ)`, no relevance flag — its Id is proof-*irrelevant* | `id (rel) (A a b : Shape n)` | ✱ `id (rel) (A a b : Term)` — labels only |
+| `refl` | **none**: no such constructor, `⟦refl a⟧ = ⊥`, forced by proof irrelevance | `refl (w : Shape n)` | master's `refl (w : Shape n)`, used only at `rel = true`; at `rel = false` the interpretation is `⊥`, as in the other repo |
 | depth device | `rank` + `piStage`/`piLimit` fixed point | the level index | the level index (so no fixed point) |
 | substitution on shapes | reindexing along `σ : Γ₁ ⟶ Γ` (functorial) | — (shapes are context-free) | ✱ `Shape.subst`, structural, no typing hypotheses |
 
