@@ -96,6 +96,8 @@ abbrev ShapeFun (n) := List (Entry (Shape n))
   | 0 => Shape0.sort rel
   | _+1 => ShapeS.sort rel
 
+@[match_pattern] abbrev Shape.unit {n} (rel : Bool) : Shape (n+1) := ShapeS.unit rel
+@[match_pattern] abbrev Shape.lam {n} (f : List (Entry (Shape n))) : Shape (n+1) := ShapeS.lam f
 @[match_pattern] abbrev Shape.nat {n} : Shape (n+1) := ShapeS.nat
 @[match_pattern] abbrev Shape.zero {n} : Shape (n+1) := ShapeS.zero
 @[match_pattern] abbrev Shape.succ {n} (v : Shape n) : Shape (n+1) := ShapeS.succ v
@@ -482,5 +484,144 @@ theorem Shape.LE.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.
                         | exact ⟨h.1.subst hΘ W, ih h.2.1,
                             ShapeFun.LE.subst_of hΘ W ih hbot h.2.2⟩
     | _ => cases t <;> simp_all [Shape.LE, Shape.subst]
+
+/-! ## The join is a least upper bound
+
+Split as usual: `join_le` (least) needs nothing, while the upper-bound
+direction needs `Compat Δ` — to know the labels agree — and `WF`, since
+the order is reflexive only on well-formed shapes. -/
+
+theorem ShapeFun.LE.append {Δ : List Term} {n} {f f' g : ShapeFun n}
+    (h₁ : ShapeFun.LE Δ (Shape.LE Δ) f g) (h₂ : ShapeFun.LE Δ (Shape.LE Δ) f' g) :
+    ShapeFun.LE Δ (Shape.LE Δ) (f ++ f') g := by
+  intro e he
+  match List.mem_append.1 he with
+  | .inl he => exact h₁ e he
+  | .inr he => exact h₂ e he
+
+theorem ShapeFun.LE.append_bot {Δ : List Term} {n} {f f' : ShapeFun n}
+    (h₁ : ∀ e ∈ f, Shape.LE Δ e.out .bot) (h₂ : ∀ e ∈ f', Shape.LE Δ e.out .bot) :
+    ∀ e ∈ f ++ f', Shape.LE Δ e.out .bot := by
+  intro e he
+  match List.mem_append.1 he with
+  | .inl he => exact h₁ e he
+  | .inr he => exact h₂ e he
+
+theorem Shape.join_le : ∀ {n} {x y w : Shape n},
+    Shape.LE Δ x w → Shape.LE Δ y w → Shape.LE Δ (x.join y) w := by
+  intro n
+  induction n with
+  | zero =>
+    intro x y w h₁ h₂
+    cases x with
+    | bot => exact h₂
+    | sort r =>
+      cases y with
+      | bot => exact h₁
+      | sort r' =>
+        cases w with
+        | bot => exact absurd h₁ id
+        | sort s =>
+          show Shape.LE Δ (if r = r' then Shape.sort r else .bot) (.sort s)
+          rw [if_pos (show r = r' from (h₁ : r = s).trans (h₂ : r' = s).symm)]
+          exact h₁
+  | succ n ih =>
+    intro x y w h₁ h₂
+    cases x with
+    | bot => exact h₂
+    | sort r =>
+      cases y with
+      | bot => exact h₁
+      | sort r' =>
+        cases w with
+        | sort s =>
+          show Shape.LE Δ (if r = r' then Shape.sort r else .bot) (.sort s)
+          rw [if_pos (show r = r' from (h₁ : r = s).trans (h₂ : r' = s).symm)]
+          exact h₁
+        | _ => exact absurd h₁ id
+      | _ => trivial
+    | unit r =>
+      cases y with
+      | bot => exact h₁
+      | unit r' =>
+        cases w with
+        | unit s =>
+          show Shape.LE Δ (if r = r' then Shape.unit r else .bot) (.unit s)
+          rw [if_pos (show r = r' from (h₁ : r = s).trans (h₂ : r' = s).symm)]
+          exact h₁
+        | _ => exact absurd h₁ id
+      | _ => trivial
+    | nat => cases y with | bot => exact h₁ | nat => exact h₁ | _ => trivial
+    | zero => cases y with | bot => exact h₁ | zero => exact h₁ | _ => trivial
+    | succ v =>
+      cases y with
+      | bot => exact h₁
+      | succ v' => cases w <;> first | exact absurd h₁ id | exact ih h₁ h₂
+      | _ => trivial
+    | refl u =>
+      cases y with
+      | bot => exact h₁
+      | refl u' => cases w <;> first | exact absurd h₁ id | exact ih h₁ h₂
+      | _ => trivial
+    | pair a b =>
+      cases y with
+      | bot => exact h₁
+      | pair a' b' =>
+        cases w <;> first | exact absurd h₁ id | exact ⟨ih h₁.1 h₂.1, ih h₁.2 h₂.2⟩
+      | _ => trivial
+    | id r A a b =>
+      cases y with
+      | bot => exact h₁
+      | id r' A' a' b' => cases w <;> first | exact absurd h₁ id | exact h₁
+      | _ => trivial
+    | lam f =>
+      cases y with
+      | bot => exact h₁
+      | lam f' =>
+        cases w with
+        | lam g => exact ShapeFun.LE.append h₁ h₂
+        | _ => exact ShapeFun.LE.append_bot h₁ h₂
+      | _ => trivial
+    | forallE A B d f =>
+      cases y with
+      | bot => exact h₁
+      | forallE A' B' d' f' =>
+        cases w with
+        | forallE A'' B'' d'' f'' =>
+          exact ⟨h₁.1, ih h₁.2.1 h₂.2.1, ShapeFun.LE.append h₁.2.2 h₂.2.2⟩
+        | _ => exact absurd h₁ id
+      | _ => trivial
+    | sigma A B d f =>
+      cases y with
+      | bot => exact h₁
+      | sigma A' B' d' f' =>
+        cases w with
+        | sigma A'' B'' d'' f'' =>
+          exact ⟨h₁.1, ih h₁.2.1 h₂.2.1, ShapeFun.LE.append h₁.2.2 h₂.2.2⟩
+        | _ => exact absurd h₁ id
+      | _ => trivial
+
+/-- **The `join` function is not always a least upper bound**, which is why
+`Join` is a relation (and why `Evaluates` closes under `Join`, not under
+`join`).  If `x = sort r` and `y` is a λ-shape with only bottom outputs
+then `Compat Δ x y` holds — `y` is information-free — but the heads do not
+match, so `join x y = ⊥`, which is not above `x`.  The lub there is `x`
+itself.
+
+Away from that case the function does work: `Compat Δ x y` together with
+`¬ x.IsBot` and `¬ y.IsBot` forces the heads to agree, since every
+mixed-head clause of `Compat` demands that one side be `IsBot`.  So the
+existence lemma to prove next is
+
+```
+theorem Shape.exists_join (hΔ : ⊢ Δ) (hx : WF Δ x) (hy : WF Δ y) (h : Compat Δ x y) :
+    ∃ z, Shape.Join Δ x y z
+```
+
+by three cases: `x.IsBot` (witness `y`), `y.IsBot` (witness `x`), and
+otherwise `join x y`, the last needing `le_join_left`/`le_join_right`
+(which consume `WF` for reflexivity of the label relations and `Compat`
+for their symmetry) together with `join_le` above. -/
+theorem Shape.exists_join : True := trivial
 
 end DomainSemantics

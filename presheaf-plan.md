@@ -532,10 +532,19 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    on entries/`forallE`/`sigma`/`id`; `WF`; `LE Δ` with `LabelEq`, proved
    reflexive (under `WF`) and transitive; `le_bot_iff` and the collapse
    lemma; `Compat` carrying the coherence implication; the `Join` relation
-   and a `join` witness; `Shape.subst` and `LE.subst`.  **Left:**
-   `Compat`/`Join` under substitution, the lub lemmas for `join`
-   (`le_join_left/right` under `Compat` + `WF`, `join_le`), and the
-   hereditary form of coherence.
+   and a `join` witness; `Shape.subst` and `LE.subst`; `join_le`.
+   **Left:** `Compat`/`Join` under substitution, `exists_join` (see
+   below), and the hereditary form of coherence.
+
+   Note found while proving this: the `join` **function** is not a least
+   upper bound in general.  If `x = sort r` and `y` is a λ-shape with only
+   bottom outputs then `Compat Δ x y` holds but the heads differ, so
+   `join x y = ⊥`, which is not above `x`; the lub is `x`.  Away from that
+   case `Compat` plus `¬ x.IsBot` and `¬ y.IsBot` forces the heads to
+   agree, since every mixed-head clause of `Compat` demands one side be
+   `IsBot`.  So the lemma to prove is existence of a `Join`, by three
+   cases, rather than lub-ness of the function.  This vindicates making
+   `Join` relational (and `Evaluates` close under `Join`, not `join`).
 3. `HasType` on labelled shapes: **defined** (`55f6a68`), with `Evaluates`
    as the relational graph lookup and `HasDom`.  **Left:** all of its
    lemmas, i.e. the five obligations of §4.2 — `⊥` typed at everything and
