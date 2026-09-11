@@ -370,15 +370,15 @@ theorem Evaluates.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A
 an entry output, a join of those, or an explicitly well-formed lowering.
 The `WF` premise on `lower` is exactly what makes this hold — `WF` is not
 downward closed, so unconstrained lowering would break it. -/
-theorem Evaluates.wf {Δ : List Term} {n} {f : ShapeFun n} {A a : Term} {x : Shape n}
-    (hf : ∀ e ∈ f, Shape.WF Δ e.out) :
+theorem Evaluates.wf {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term}
+    {x : Shape n} (hf : ∀ e ∈ f, Shape.WF Δ e.out) :
     ∀ {y : Shape n}, Evaluates Δ f A a x y → Shape.WF Δ y := by
   intro y h
   induction h with
   | bot => cases n <;> trivial
   | entry e he _ _ => exact hf e he
   | lower hw _ _ _ => exact hw
-  | join _ _ _ ih₁ ih₂ => exact Shape.WF.join ih₁ ih₂
+  | join hc _ _ ih₁ ih₂ => exact Shape.WF.join hΔ hc ih₁ ih₂
 
 /-- The lookup is **monotone in the graph**: a larger graph returns at
 least as much.  Master gets this from `app_mono_l`, its lookup being a
@@ -408,7 +408,7 @@ theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFu
     have ⟨z', hz', hlez⟩ := ih₂
     have hc : Shape.Compat Δ y' z' := Evaluates.compat hΔ hf' hx hy' hz'
     have ⟨hu₁, hu₂⟩ :=
-      Shape.le_join hΔ (Evaluates.wf hwf hy') (Evaluates.wf hwf hz') hc
+      Shape.le_join hΔ (Evaluates.wf hΔ hwf hy') (Evaluates.wf hΔ hwf hz') hc
     exact ⟨y'.join z', .join hc hy' hz',
       Shape.join_le (Shape.LE.trans_aux hΔ hley hu₁) (Shape.LE.trans_aux hΔ hlez hu₂)⟩
 
