@@ -40,8 +40,12 @@ inductive Evaluates (Δ : List Term) {n} (f : ShapeFun n) (A a : Term) (x : Shap
   | bot : Evaluates Δ f A a x .bot
   | entry (e : Entry (Shape n)) : e ∈ f → LabelEq Δ e.ty e.tm A a →
       Shape.LE Δ e.inp x → Evaluates Δ f A a x e.out
-  | lower {y z} : Shape.LE Δ y z → Evaluates Δ f A a x z → Evaluates Δ f A a x y
-  -- now that the `join` *function* is correct (no information-free λ-shapes),
+  -- **no `lower` constructor**: this is the *exact* value of the lookup, the
+  -- join of the matching entries, as master's `ShapeFun.app` is.  Lowering
+  -- belongs at the use site, in the `m ≤ …` premise of an `Interp`
+  -- constructor, exactly as master does it.  Keeping the lookup exact is
+  -- what makes everything it returns well-formed (`Evaluates.wf`).
+  -- Now that the `join` *function* is correct (no information-free λ-shapes),
   -- closing under it rather than under the `Join` relation is what makes
   -- `Evaluates` transport along a substitution: `join` commutes with
   -- substitution on the nose, whereas `Join Θ` quantifies over more shapes
@@ -237,7 +241,6 @@ theorem Evaluates.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx
   | entry e he hlab hin =>
     exact .entry _ (ShapeFun.mem_subst.2 ⟨e, he, rfl⟩) (hlab.subst hΘ W)
       (Shape.LE.subst hΘ W hin)
-  | lower hle _ ih => exact .lower (Shape.LE.subst hΘ W hle) ih
   | join hc _ _ ih₁ ih₂ =>
     exact Shape.join_subst ▸ .join (Shape.Compat.subst hΘ W hc) ih₁ ih₂
 
@@ -347,7 +350,6 @@ theorem Evaluates.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A
         (by simpa using hlab.trans (LabelEq.symm hlab'))
         (by simpa using Shape.Compat.of_common_upper hΔ hx hin hin')
       simpa using key
-    | lower hle _ ih => exact Shape.Compat.anti_right hΔ ih hle
     | join _ _ _ ih₁ ih₂ =>
       exact Shape.Compat.symm hΔ
         (Shape.join_compat hΔ (Shape.Compat.symm hΔ ih₁) (Shape.Compat.symm hΔ ih₂))
@@ -355,23 +357,31 @@ theorem Evaluates.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A
   induction hy with
   | bot => exact Shape.Compat.bot_left
   | entry e he hlab hin => exact atom he hlab hin hz
-  | lower hle _ ih => exact Shape.Compat.symm hΔ (Shape.Compat.anti_right hΔ
-      (Shape.Compat.symm hΔ ih) hle)
   | join _ _ _ ih₁ ih₂ => exact Shape.join_compat hΔ ih₁ ih₂
+
+/-- Everything the lookup returns is well formed, structurally: it is `⊥`,
+an entry output, or a join of those.  This works only because the lookup
+is exact — with a `lower` constructor it would be false, `WF` not being
+downward closed (a smaller λ-shape may have a bottom output). -/
+theorem Evaluates.wf {Δ : List Term} {n} {f : ShapeFun n} {A a : Term} {x : Shape n}
+    (hf : ∀ e ∈ f, Shape.WF Δ e.out) :
+    ∀ {y : Shape n}, Evaluates Δ f A a x y → Shape.WF Δ y := by
+  intro y h
+  induction h with
+  | bot => cases n <;> trivial
+  | entry e he _ _ => exact hf e he
+  | join _ _ _ ih₁ ih₂ => exact Shape.WF.join ih₁ ih₂
 
 /-- The lookup is **monotone in the graph**: a larger graph returns at
 least as much.  Master gets this from `app_mono_l`, its lookup being a
 function; ours has to produce a witness, and the `join` case needs the two
 witnesses to be compatible, which is `Evaluates.compat` on the larger
-graph, and then `le_join` to bound them — which is where well-formedness
-of what the lookup returns is consumed, hence the `hwf` hypothesis.  It is
-a hypothesis rather than a consequence of `WF Δ (lam f')` because `WF` is
-not downward closed: `Evaluates` closes under `lower`, and a smaller
-λ-shape may have a bottom output, which non-degeneracy forbids. -/
+graph, and then `le_join` to bound them, whose well-formedness side
+condition is discharged by `Evaluates.wf`. -/
 theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFun n}
     {A a : Term} {x : Shape n}
     (hf' : ShapeFun.Compat Shape.Compat Δ f' f') (hx : Shape.Compat Δ x x)
-    (hwf : ∀ {y : Shape n}, Evaluates Δ f' A a x y → Shape.WF Δ y)
+    (hwf : ∀ e ∈ f', Shape.WF Δ e.out)
     (hff' : ShapeFun.LE Δ (Shape.LE Δ) f f') :
     ∀ {c : Shape n}, Evaluates Δ f A a x c →
       ∃ c', Evaluates Δ f' A a x c' ∧ Shape.LE Δ c c' := by
@@ -382,14 +392,12 @@ theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFu
     have ⟨e', he', hlab', hin', hout'⟩ := hff' e he
     exact ⟨e'.out, .entry e' he' (hlab'.trans hlab)
       (Shape.LE.trans_aux hΔ hin' hin), hout'⟩
-  | lower hle _ ih =>
-    have ⟨c', hc', hle'⟩ := ih
-    exact ⟨c', hc', Shape.LE.trans_aux hΔ hle hle'⟩
   | join _ _ _ ih₁ ih₂ =>
     have ⟨y', hy', hley⟩ := ih₁
     have ⟨z', hz', hlez⟩ := ih₂
     have hc : Shape.Compat Δ y' z' := Evaluates.compat hΔ hf' hx hy' hz'
-    have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ (hwf hy') (hwf hz') hc
+    have ⟨hu₁, hu₂⟩ :=
+      Shape.le_join hΔ (Evaluates.wf hwf hy') (Evaluates.wf hwf hz') hc
     exact ⟨y'.join z', .join hc hy' hz',
       Shape.join_le (Shape.LE.trans_aux hΔ hley hu₁) (Shape.LE.trans_aux hΔ hlez hu₂)⟩
 

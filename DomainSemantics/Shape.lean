@@ -1339,3 +1339,62 @@ theorem Shape.join_compat : ∀ {n} {Δ : List Term} {y z d : Shape n}, ⊢ Δ �
     | sigma A B d f =>
       show ShapeS.sigma _ _ _ _ = _
       rw [ih, hf, DomainSemantics.subst_id, id_lift, DomainSemantics.subst_id]
+
+/-- Well-formedness survives joining.  Needs no compatibility: the join
+keeps the left labels, appends graphs, and recurses. -/
+theorem Shape.WF.join : ∀ {n} {Δ : List Term} {y z : Shape n},
+    Shape.WF Δ y → Shape.WF Δ z → Shape.WF Δ (y.join z) := by
+  intro n
+  induction n with
+  | zero => intro Δ y z hy hz; cases y <;> cases z <;> trivial
+  | succ n ih =>
+    intro Δ y z hy hz
+    cases y with
+    | bot => exact hz
+    | lam f =>
+      cases z with
+      | bot => exact hy
+      | lam g =>
+        refine ⟨?_, ?_, ?_⟩
+        · intro hnil; exact hy.1 (List.append_eq_nil_iff.1 hnil).1
+        · intro e he
+          match List.mem_append.1 he with
+          | .inl he => exact hy.2.1 e he
+          | .inr he => exact hz.2.1 e he
+        · intro e he
+          match List.mem_append.1 he with
+          | .inl he => exact hy.2.2 e he
+          | .inr he => exact hz.2.2 e he
+      | _ => exact hy
+    | forallE A B d f =>
+      cases z with
+      | bot => exact hy
+      | forallE A' B' d' g =>
+        refine ⟨hy.1, hy.2.1, ih hy.2.2.1 hz.2.2.1, ?_⟩
+        intro e he
+        match List.mem_append.1 he with
+        | .inl he => exact hy.2.2.2 e he
+        | .inr he => exact hz.2.2.2 e he
+      | _ => exact hy
+    | sigma A B d f =>
+      cases z with
+      | bot => exact hy
+      | sigma A' B' d' g =>
+        refine ⟨hy.1, hy.2.1, ih hy.2.2.1 hz.2.2.1, ?_⟩
+        intro e he
+        match List.mem_append.1 he with
+        | .inl he => exact hy.2.2.2 e he
+        | .inr he => exact hz.2.2.2 e he
+      | _ => exact hy
+    | succ v => cases z with | bot => exact hy | succ w => exact ih hy hz | _ => exact hy
+    | refl v => cases z with | bot => exact hy | refl w => exact ih hy hz | _ => exact hy
+    | pair a b =>
+      cases z with
+      | bot => exact hy
+      | pair a' b' => exact ⟨ih hy.1 hz.1, ih hy.2 hz.2⟩
+      | _ => exact hy
+    | sort r => cases z with | bot => exact hy | _ => exact hy
+    | unit r => cases z with | bot => exact hy | _ => exact hy
+    | nat => cases z with | bot => exact hy | _ => exact hy
+    | zero => cases z with | bot => exact hy | _ => exact hy
+    | id r A a b => cases z with | bot => exact hy | _ => exact hy
