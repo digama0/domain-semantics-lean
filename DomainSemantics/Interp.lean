@@ -240,3 +240,95 @@ theorem Interp.mono_val {Γ : List Term} {t : Term} {σ} {ρ ρ' : Valuation} {m
     exact .tr hle (ihX hΔ hρ) (iha hΔ hρ) (ihb hΔ hρ) (ihA hΔ hρ) hwv hvA
       (ihC hΔ (Valuation.LE.push.2 ⟨hρ, TShape.LE.refl hwv⟩)) hm'
       (fun hr => ihH hr hΔ hρ)
+
+/-! ## Constructors at the canonical shape
+
+Master's primed forms.  Each takes the well-formedness that `LE` needs to
+be reflexive, which master gets from its shapes being a `WF` subtype. -/
+
+theorem Interp.bvar' {Γ : List Term} {Δ σ ρ i} (h : TShape.WF Δ (ρ i)) :
+    Interp Γ (.bvar i) Δ σ ρ (ρ i) := .bvar (TShape.LE.refl h)
+
+theorem Interp.sort' {Γ : List Term} {Δ σ ρ r} :
+    Interp Γ (.sort r) Δ σ ρ (TShape.sort r) :=
+  .sort (TShape.LE.refl (a := TShape.sort r) trivial)
+
+theorem Interp.unit' {Γ : List Term} {Δ σ ρ r} :
+    Interp Γ (.unit r) Δ σ ρ (TShape.unit r) :=
+  .unit (TShape.LE.refl (a := TShape.unit r) trivial)
+
+theorem Interp.nat' {Γ : List Term} {Δ σ ρ} : Interp Γ .nat Δ σ ρ TShape.nat :=
+  .nat (TShape.LE.refl (a := TShape.nat) trivial)
+
+theorem Interp.zero' {Γ : List Term} {Δ σ ρ} : Interp Γ .zero Δ σ ρ TShape.zero :=
+  .zero (TShape.LE.refl (a := TShape.zero) trivial)
+
+theorem Interp.succ' {Γ : List Term} {Δ σ ρ N} {n} {v : Shape n}
+    (hv : Interp Γ N Δ σ ρ (Shape.T v)) (h : Shape.WF Δ v) :
+    Interp Γ (.succ N) Δ σ ρ (Shape.T (n := n+1) (ShapeS.succ v)) :=
+  .succ hv (TShape.LE.refl (a := Shape.T (n := n+1) (ShapeS.succ v)) h)
+
+/-! ## Inversion for the atoms
+
+Every rule but `bot` pins the head of the term, so these are one `cases`
+each.  They are what the soundness induction reads a subderivation with,
+and — for `forallE` — what eventually yields Π-injectivity, since the
+shape it returns carries the syntactic pair. -/
+
+theorem Interp.le_sort {Γ : List Term} {Δ σ ρ m r}
+    (H : Interp Γ (.sort r) Δ σ ρ m) : TShape.LE Δ m (TShape.sort r) := by
+  cases H with
+  | bot => exact TShape.bot_le' rfl
+  | sort h => exact h
+
+theorem Interp.le_unit {Γ : List Term} {Δ σ ρ m r}
+    (H : Interp Γ (.unit r) Δ σ ρ m) : TShape.LE Δ m (TShape.unit r) := by
+  cases H with
+  | bot => exact TShape.bot_le' rfl
+  | unit h => exact h
+
+theorem Interp.le_nat {Γ : List Term} {Δ σ ρ m}
+    (H : Interp Γ .nat Δ σ ρ m) : TShape.LE Δ m TShape.nat := by
+  cases H with
+  | bot => exact TShape.bot_le' rfl
+  | nat h => exact h
+
+theorem Interp.le_zero {Γ : List Term} {Δ σ ρ m}
+    (H : Interp Γ .zero Δ σ ρ m) : TShape.LE Δ m TShape.zero := by
+  cases H with
+  | bot => exact TShape.bot_le' rfl
+  | zero h => exact h
+
+theorem Interp.le_id {Γ : List Term} {Δ σ ρ m r A a b}
+    (H : Interp Γ (.id r A a b) Δ σ ρ m) :
+    TShape.LE Δ m
+      (Shape.T (n := 1) (ShapeS.id r (A.subst σ) (a.subst σ) (b.subst σ))) := by
+  cases H with
+  | bot => exact TShape.bot_le' rfl
+  | id h => exact h
+
+theorem Interp.bvar_iff {Γ : List Term} {Δ σ ρ m i} :
+    Interp Γ (.bvar i) Δ σ ρ m ↔ TShape.LE Δ m (ρ i) :=
+  ⟨fun H => by cases H with | bot => exact TShape.bot_le' rfl | bvar h => exact h, .bvar⟩
+
+theorem Interp.le_succ {Γ : List Term} {Δ σ ρ m N}
+    (H : Interp Γ (.succ N) Δ σ ρ m) :
+    ∃ n, ∃ v : Shape n, Interp Γ N Δ σ ρ (Shape.T v) ∧
+      TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.succ v)) := by
+  cases H with
+  | bot => exact ⟨0, .bot, .bot, TShape.bot_le' rfl⟩
+  | succ hv h => exact ⟨_, _, hv, h⟩
+
+/-- The Π case.  The shape the interpretation lands in **records the
+syntactic pair** `(A[σ], B[σ.lift])`, which is what makes injectivity of
+`forallE` a projection out of soundness rather than a consequence of
+adequacy. -/
+theorem Interp.le_forallE {Γ : List Term} {Δ σ ρ m A B}
+    (H : Interp Γ (.forallE A B) Δ σ ρ m) :
+    m.2 = Shape.bot ∨
+      ∃ n, ∃ d : Shape n, ∃ g : ShapeFun n,
+        TShape.LE Δ m
+          (Shape.T (n := n+1) (ShapeS.forallE (A.subst σ) (B.subst σ.lift) d g)) := by
+  cases H with
+  | bot => exact .inl rfl
+  | forallE _ _ _ _ h => exact .inr ⟨_, _, _, h⟩

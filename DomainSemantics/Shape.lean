@@ -1721,3 +1721,12 @@ theorem TShape.le_bot {Δ : List Term} {a b : TShape} (hb : b.2 = Shape.bot)
     show (Shape.bot : Shape (max a.1 b.1)) = (Shape.bot : Shape a.1).lift _ from
       Shape.lift_bot.symm] at h'
   exact Shape.le_bot_iff.1 ((Shape.lift_le_lift hk).1 h')
+
+/-- `⊥` at any level is below everything.  The companion of
+`TShape.le_bot`, for the same reason: `Interp`'s `bot` rule is indexed by
+a level, so its witness is not literally `TShape.bot`. -/
+theorem TShape.bot_le' {Δ : List Term} {a b : TShape} (ha : a.2 = Shape.bot) :
+    TShape.LE Δ a b := by
+  refine (TShape.LE.def (Nat.le_max_left ..) (Nat.le_max_right ..)).2 ?_
+  rw [ha, Shape.lift_bot]
+  exact Shape.LE.bot
