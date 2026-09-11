@@ -108,6 +108,63 @@ abbrev Shape.prop : Shape n := .sort false
 
 instance : Inhabited (Shape n) := ⟨.bot⟩
 
+/-! ## Lifting between levels
+
+Master's `lift`, with labels carried through unchanged.  Lifting *down*
+(to a level too small to hold the shape) collapses to `⊥`, as it does
+there.  This is what lets the level index be hidden behind a total shape
+type `TShape`, which the interpretation quantifies over. -/
+
+def ShapeFun.lift (g : α → β) (f : List (Entry α)) : List (Entry β) :=
+  f.map fun e => ⟨e.ty, e.tm, g e.inp, g e.out⟩
+
+@[simp] theorem ShapeFun.mem_lift {g : α → β} {f} {e' : Entry β} :
+    e' ∈ ShapeFun.lift g f ↔ ∃ e ∈ f, e' = ⟨e.ty, e.tm, g e.inp, g e.out⟩ := by
+  simp [ShapeFun.lift, eq_comm]
+
+def Shape.lift : ∀ {n} (m : Nat), Shape n → Shape m
+  | 0, _, .sort r | _+1, _, .sort r => .sort r
+  | 0, _, .bot | _+1, _, .bot | _, 0, _ => .bot
+  | _+1, _+1, .unit r => .unit r
+  | _+1, _+1, .forallE A B d f => .forallE A B (lift _ d) (ShapeFun.lift (lift _) f)
+  | _+1, _+1, .lam f => .lam (ShapeFun.lift (lift _) f)
+  | _+1, _+1, .sigma A B d f => .sigma A B (lift _ d) (ShapeFun.lift (lift _) f)
+  | _+1, _+1, .pair a b => .pair (lift _ a) (lift _ b)
+  | _+1, _+1, .nat => .nat
+  | _+1, _+1, .zero => .zero
+  | _+1, _+1, .succ v => .succ (lift _ v)
+  | _+1, _+1, .id r A a b => .id r A a b
+  | _+1, _+1, .refl w => .refl (lift _ w)
+
+@[simp] theorem Shape.lift_bot {n m : Nat} : (Shape.bot : Shape n).lift m = .bot := by
+  cases n <;> [rfl; cases m <;> rfl]
+
+@[simp] theorem Shape.lift_sort {n m : Nat} {r : Bool} :
+    (Shape.sort r : Shape n).lift m = .sort r := by
+  cases n <;> [rfl; cases m <;> rfl]
+
+theorem Shape.lift_self : ∀ {n} {s : Shape n}, s.lift n = s := by
+  intro n
+  induction n with
+  | zero => intro s; cases s <;> rfl
+  | succ n ih =>
+    intro s
+    have hf : ∀ f : ShapeFun n, ShapeFun.lift (Shape.lift n) f = f := by
+      intro f
+      induction f with
+      | nil => rfl
+      | cons e f ihf =>
+        simp only [ShapeFun.lift, List.map_cons] at ihf ⊢
+        rw [ih, ih, ihf]
+    cases s with
+    | bot | sort | unit | nat | zero | id => rfl
+    | succ v => show ShapeS.succ _ = _; rw [ih]
+    | refl w => show ShapeS.refl _ = _; rw [ih]
+    | pair a b => show ShapeS.pair _ _ = _; rw [ih, ih]
+    | lam f => show ShapeS.lam _ = _; rw [hf]
+    | forallE A B d f => show ShapeS.forallE _ _ _ _ = _; rw [ih, hf]
+    | sigma A B d f => show ShapeS.sigma _ _ _ _ = _; rw [ih, hf]
+
 /-! ## Bottom shapes
 
 A λ-shape all of whose outputs are bottom carries no information, so it is
@@ -137,7 +194,7 @@ the whole "no quotient, preservation lemmas instead" policy in miniature.
 Note `B` in a Π/Σ label lives under a binder, hence `σ.lift`. -/
 
 /-- Substitute in a graph, given the action on the shapes at this level. -/
-def ShapeFun.substWith (g : Shape n → Shape n) (σ : Subst) (f : ShapeFun n) : ShapeFun n :=
+def ShapeFun.subst (g : Shape n → Shape n) (σ : Subst) (f : ShapeFun n) : ShapeFun n :=
   f.map fun e => ⟨e.ty.subst σ, e.tm.subst σ, g e.inp, g e.out⟩
 
 def Shape.subst : ∀ {n}, Shape n → Subst → Shape n
@@ -152,11 +209,11 @@ def Shape.subst : ∀ {n}, Shape n → Subst → Shape n
   | _+1, .refl w, σ => .refl (subst w σ)
   | _+1, .id r A a b, σ => .id r (A.subst σ) (a.subst σ) (b.subst σ)
   | _+1, .forallE A B d f, σ =>
-      .forallE (A.subst σ) (B.subst σ.lift) (subst d σ) (ShapeFun.substWith (subst · σ) σ f)
+      .forallE (A.subst σ) (B.subst σ.lift) (subst d σ) (ShapeFun.subst (subst · σ) σ f)
   | _+1, .sigma A B d f, σ =>
-      .sigma (A.subst σ) (B.subst σ.lift) (subst d σ) (ShapeFun.substWith (subst · σ) σ f)
+      .sigma (A.subst σ) (B.subst σ.lift) (subst d σ) (ShapeFun.subst (subst · σ) σ f)
   | _+1, .pair a b, σ => .pair (subst a σ) (subst b σ)
-  | _+1, .lam f, σ => .lam (ShapeFun.substWith (subst · σ) σ f)
+  | _+1, .lam f, σ => .lam (ShapeFun.subst (subst · σ) σ f)
 
 @[simp] theorem Shape.subst_bot {n} {τ : Subst} : (Shape.bot (n := n)).subst τ = .bot := by
   cases n <;> rfl
@@ -164,10 +221,10 @@ def Shape.subst : ∀ {n}, Shape n → Subst → Shape n
 @[simp] theorem Shape.subst_sort {n} {r : Bool} {τ : Subst} :
     (Shape.sort r : Shape n).subst τ = .sort r := by cases n <;> rfl
 
-@[simp] theorem ShapeFun.mem_substWith {g : Shape n → Shape n} {σ f} {e' : Entry (Shape n)} :
-    e' ∈ ShapeFun.substWith g σ f ↔
+@[simp] theorem ShapeFun.mem_subst {g : Shape n → Shape n} {σ f} {e' : Entry (Shape n)} :
+    e' ∈ ShapeFun.subst g σ f ↔
       ∃ e ∈ f, e' = ⟨e.ty.subst σ, e.tm.subst σ, g e.inp, g e.out⟩ := by
-  simp [ShapeFun.substWith, eq_comm]
+  simp [ShapeFun.subst, eq_comm]
 
 /-! ## Well-formed shapes
 
@@ -302,13 +359,37 @@ theorem Shape.subst_subst {σ τ : Subst} : ∀ {n} {x : Shape n},
       simp [DomainSemantics.subst_subst]
     | lam f =>
       show ShapeS.lam _ = ShapeS.lam _
-      simp [ShapeFun.substWith, DomainSemantics.subst_subst, ih]
+      simp [ShapeFun.subst, DomainSemantics.subst_subst, ih]
     | forallE A B d f =>
       show ShapeS.forallE _ _ _ _ = ShapeS.forallE _ _ _ _
-      simp [ShapeFun.substWith, DomainSemantics.subst_subst, Subst.comp_lift, ih]
+      simp [ShapeFun.subst, DomainSemantics.subst_subst, Subst.comp_lift, ih]
     | sigma A B d f =>
       show ShapeS.sigma _ _ _ _ = ShapeS.sigma _ _ _ _
-      simp [ShapeFun.substWith, DomainSemantics.subst_subst, Subst.comp_lift, ih]
+      simp [ShapeFun.subst, DomainSemantics.subst_subst, Subst.comp_lift, ih]
+
+/-- The total shape domain: a shape together with its level, as master's
+`TShape`.  The interpretation quantifies over this, so that the level
+index never appears in the statement of a soundness lemma. -/
+def TShape := Σ n, Shape n
+
+/-- Inject a shape into `TShape` by remembering its level. -/
+abbrev Shape.T {n} (s : Shape n) : TShape := ⟨n, s⟩
+
+namespace TShape
+
+def LE (Δ : List Term) (a b : TShape) : Prop :=
+  Shape.LE Δ (a.2.lift (max a.1 b.1)) (b.2.lift (max a.1 b.1))
+
+def WF (Δ : List Term) (a : TShape) : Prop := Shape.WF Δ a.2
+
+def bot : TShape := Shape.T (n := 0) .bot
+
+def sort (r : Bool) : TShape := Shape.T (n := 0) (.sort r)
+
+abbrev type : TShape := sort true
+abbrev prop : TShape := sort false
+
+end TShape
 
 /-! ## Compatibility and join
 
@@ -446,12 +527,12 @@ theorem ShapeFun.LE.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f f' : ShapeF
     (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
     (ih : ∀ {a b : Shape n}, Shape.LE Δ a b → Shape.LE Θ (a.subst τ) (b.subst τ))
     (h : ShapeFun.LE Δ (Shape.LE Δ) f f') :
-    ShapeFun.LE Θ (Shape.LE Θ) (ShapeFun.substWith (Shape.subst · τ) τ f)
-      (ShapeFun.substWith (Shape.subst · τ) τ f') := by
+    ShapeFun.LE Θ (Shape.LE Θ) (ShapeFun.subst (Shape.subst · τ) τ f)
+      (ShapeFun.subst (Shape.subst · τ) τ f') := by
   intro d hd
-  obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+  obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
   have ⟨e', he', hlab, hin, hout⟩ := h e he
-  exact ⟨_, ShapeFun.mem_substWith.2 ⟨e', he', rfl⟩, hlab.subst hΘ W, ih hin, ih hout⟩
+  exact ⟨_, ShapeFun.mem_subst.2 ⟨e', he', rfl⟩, hlab.subst hΘ W, ih hin, ih hout⟩
 
 theorem Shape.LE.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
     ∀ {n} {s t : Shape n}, Shape.LE Δ s t → Shape.LE Θ (s.subst τ) (t.subst τ) := by
@@ -689,9 +770,9 @@ theorem Shape.isBot_subst_iff {τ : Subst} : ∀ {n} {s : Shape n},
     | lam f =>
       constructor
       · intro h e he
-        exact ih.1 (h _ (ShapeFun.mem_substWith.2 ⟨e, he, rfl⟩))
+        exact ih.1 (h _ (ShapeFun.mem_subst.2 ⟨e, he, rfl⟩))
       · intro h d hd
-        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
         exact ih.2 (h e he)
     | _ => exact Iff.rfl
 
@@ -707,9 +788,9 @@ theorem ShapeFun.WF.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f : ShapeFun 
     (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
     (ih : ∀ {a : Shape n}, Shape.WF Δ a → Shape.WF Θ (a.subst τ))
     (hf : ShapeFun.WF Δ (Shape.WF Δ) f) :
-    ShapeFun.WF Θ (Shape.WF Θ) (ShapeFun.substWith (Shape.subst · τ) τ f) := by
+    ShapeFun.WF Θ (Shape.WF Θ) (ShapeFun.subst (Shape.subst · τ) τ f) := by
   intro d hd
-  obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+  obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
   have ⟨⟨u, hty⟩, htm, hin, hout⟩ := hf e he
   exact ⟨⟨u, hty.subst hΘ W⟩, htm.subst hΘ W, ih hin, ih hout⟩
 
@@ -730,9 +811,9 @@ theorem Shape.WF.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.
       exact ⟨⟨u, hA.subst hΘ W⟩, ha.subst hΘ W, hb.subst hΘ W⟩
     | lam f =>
       refine ⟨?_, ?_, ShapeFun.WF.subst_of hΘ W ih hs.2.2⟩
-      · intro hnil; simp [ShapeFun.substWith] at hnil; exact hs.1 hnil
+      · intro hnil; simp [ShapeFun.subst] at hnil; exact hs.1 hnil
       · intro d hd
-        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
         exact fun hb => hs.2.1 e he (Shape.isBot_subst_iff.1 hb)
     | forallE A B d f =>
       have ⟨⟨u, hA⟩, ⟨v, hB⟩, hd, hf⟩ := hs
@@ -761,7 +842,7 @@ theorem Shape.IsBot.subst {τ : Subst} : ∀ {n} {s : Shape n}, s.IsBot → (s.s
     | bot => trivial
     | lam f =>
       intro d hd
-      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
       exact ih (h e he)
     | _ => exact absurd h id
 
@@ -772,11 +853,11 @@ theorem Shape.Compat.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (W : Ctx.SubstEq Θ τ τ Δ) : ∀ {n} {x y : Shape n},
     Shape.Compat Δ x y → Shape.Compat Θ (x.subst τ) (y.subst τ) := by
   have hfun : ∀ {n} {f f' : ShapeFun n}, ShapeFun.Compat Shape.Compat Δ f f' →
-      ShapeFun.Compat Shape.Compat Θ (ShapeFun.substWith (Shape.subst · τ) τ f)
-        (ShapeFun.substWith (Shape.subst · τ) τ f') := by
+      ShapeFun.Compat Shape.Compat Θ (ShapeFun.subst (Shape.subst · τ) τ f)
+        (ShapeFun.subst (Shape.subst · τ) τ f') := by
     intro n f f' h d hd d' hd' Ξ υ hΞ V hlab hin
-    obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
-    obtain ⟨e', he', rfl⟩ := ShapeFun.mem_substWith.1 hd'
+    obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
+    obtain ⟨e', he', rfl⟩ := ShapeFun.mem_subst.1 hd'
     have hcomp : Ctx.SubstEq Ξ (τ.comp υ) (τ.comp υ) Δ := Ctx.SubstEq.comp hΞ V W
     simp only [DomainSemantics.subst_subst,
       Shape.subst_subst] at hlab hin ⊢
@@ -866,21 +947,21 @@ theorem Shape.join_subst {τ : Subst} : ∀ {n} {x y : Shape n},
     | lam f =>
       cases y with
       | bot => rfl
-      | lam f' => show Shape.lam _ = Shape.lam _; simp [ShapeFun.substWith]
+      | lam f' => show Shape.lam _ = Shape.lam _; simp [ShapeFun.subst]
       | _ => rfl
     | forallE A B d f =>
       cases y with
       | bot => rfl
       | forallE A' B' d' f' =>
         show ShapeS.forallE _ _ _ _ = ShapeS.forallE _ _ _ _
-        simp [ShapeFun.substWith, ih]
+        simp [ShapeFun.subst, ih]
       | _ => rfl
     | sigma A B d f =>
       cases y with
       | bot => rfl
       | sigma A' B' d' f' =>
         show ShapeS.sigma _ _ _ _ = ShapeS.sigma _ _ _ _
-        simp [ShapeFun.substWith, ih]
+        simp [ShapeFun.subst, ih]
       | _ => rfl
     | succ v =>
       cases y with
@@ -924,5 +1005,3 @@ def Shape.decIsBot : ∀ {n} (s : Shape n), Decidable s.IsBot
   | _+1, .id _ _ _ _ | _+1, .forallE _ _ _ _ | _+1, .sigma _ _ _ _ => .isFalse id
 
 instance {n} {s : Shape n} : Decidable s.IsBot := Shape.decIsBot s
-
-end DomainSemantics

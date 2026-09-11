@@ -65,7 +65,3 @@ theorem liftVar_comp : (comp l₁ l₂).liftVar n = l₂.liftVar (l₁.liftVar n
 
 theorem liftVar_depth_zero (H : depth l = 0) : l.liftVar n = n := by
   induction l generalizing n <;> [skip; skip; cases n] <;> simp_all [depth]
-
-end Lift
-
-end DomainSemantics

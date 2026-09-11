@@ -593,7 +593,23 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    (c) `HasType`'s `succ` clause uses a nested match on the level, as
    master's does; splitting the outer level pattern stops the final
    catch-all from reducing.
-4. `Interp` inductive, `Adm`, and the structural lemmas: `mono` (in the
+4. Prerequisites **done**: `Shape.lift` / `ShapeFun.lift` / `lift_self`, the
+   total shape domain `TShape := Σ n, Shape n` with `TShape.LE`, `WF`,
+   `bot`, `sort` (master's, labels carried through; lifting *down*
+   collapses to `⊥`).  **Positivity verified** by a spike
+   (`scratchpad/spike-interp.lean`): the inductive `Interp` over
+   `Term → (Δ : List Term) → Subst → Valuation → TShape → Prop`
+   elaborates, including the `lam` premise quantified over graph entries
+   and the self-referential `Y` constructor, and `induction` works on it.
+
+   The technique that makes it go through: **split every conjunction into
+   separate premises**.  The kernel rejects a nested inductive occurrence
+   under `And`, `Or` or `Exists` (as it did for `LE`, appendix B.3), so the
+   `lam` clause is written as several `∀ e ∈ g, …` premises in a row
+   rather than one premise with a conjunction inside, leaving the `Interp`
+   occurrences under `∀` and `→` only.
+
+   Then `Interp`, `Adm`, and the structural lemmas: `mono` (in the
    shape and in `ρ`), `join`, naturality along typed `τ`, `weak`, `subst`
    (the `∃ ρ'` form), `inst`.
 5. `RawJudgment` and the soundness induction: structural rules, binders
