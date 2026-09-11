@@ -722,10 +722,20 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    occurrences under `∀` and `→` only.
 
    **`Interp` is defined** (`Interp.lean`), with `Valuation` (`nil`,
-   `push`, `LE`, `WF` and their lemmas) and the atoms `TShape.unit`,
-   `TShape.nat`, `TShape.zero`.  Proved: `Interp.mono` (down in the shape)
-   and `Interp.mono_val` (up in the valuation).  **Left:** `Adm`, `join`,
-   naturality along typed `τ`, `weak`, `subst` (the `∃ ρ'` form), `inst`.
+   `push`, `tail`, `subst`, `LE`, `WF` and their lemmas) and the atoms
+   `TShape.unit`, `TShape.nat`, `TShape.zero`.  Proved: `Interp.mono`
+   (down in the shape), `Interp.mono_val` (up in the valuation), the
+   primed constructors, atom inversion, the Π-label probe
+   (`Interp.piAtom` / `Interp.le_piAtom`), and **`Interp.natural`** —
+   naturality in the stage, the presheaf property itself.  Each case of
+   `natural` is the corresponding `subst` lemma one level down, which is
+   what the whole lifting-and-substitution layer was built for; for the
+   other repo the same fact is functoriality of `ΩLower` and costs
+   nothing.  Note the term's own context does not move in `natural`, only
+   the stage; that is what makes it independent of the substitution lemma
+   for terms, which moves the context and leaves the stage alone.
+   **Left:** directedness (`join`), `weak`, `subst` (the `∃ ρ'` form),
+   `inst`.
 
    Three things came out of writing it down.
 

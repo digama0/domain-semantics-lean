@@ -791,3 +791,14 @@ theorem TShape.HasType.T {Δ : List Term} {n} {m a : Shape n} :
     TShape.HasType Δ (Shape.T m) (Shape.T a) ↔ Shape.HasType Δ m a := by
   show Shape.HasType Δ (m.lift (max n n)) (a.lift (max n n)) ↔ _
   rw [Nat.max_self, Shape.lift_self, Shape.lift_self]
+
+/-- Typing at the total level transports along a typed substitution of the
+context.  The level is untouched, so the canonical level is too, and the
+statement is `Shape.HasType.subst` with `lift_subst` on each side. -/
+theorem TShape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) {m a : TShape} (H : TShape.HasType Δ m a) :
+    TShape.HasType Θ (m.subst τ) (a.subst τ) := by
+  show Shape.HasType Θ (Shape.lift (max m.1 a.1) (m.2.subst τ))
+    (Shape.lift (max m.1 a.1) (a.2.subst τ))
+  rw [Shape.lift_subst, Shape.lift_subst]
+  exact Shape.HasType.subst hΘ W H

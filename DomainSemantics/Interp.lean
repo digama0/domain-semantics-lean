@@ -392,3 +392,84 @@ theorem Interp.le_piAtom {Γ : List Term} {Δ σ ρ} {A B A' B' : Term}
     rw [show (Shape.T (n := 1) (Shape.piAtom A' B')).2 = Shape.piAtom A' B' from rfl,
       Shape.lift_piAtom, Shape.lift_self] at h'
     exact Shape.piAtom_le_forallE h'
+
+/-! ## Naturality in the stage
+
+The presheaf property, and the reason every shape-level notion had to be
+shown stable under `Shape.subst` first.  For the other repo this is
+functoriality of `ΩLower` and costs nothing; here the stage is raw syntax,
+so it is an induction, and each case is the corresponding `subst` lemma
+one level down.
+
+Note the term's own context `Γ` does not move: only the stage does.  That
+is what makes this independent of the substitution lemma for terms, which
+moves `Γ` and leaves the stage's shape alone. -/
+
+theorem Interp.natural {Γ : List Term} {t : Term} {Δ : List Term} {σ ρ m}
+    (H : Interp Γ t Δ σ ρ m) : ∀ {Θ τ}, ⊢ Θ → Ctx.SubstEq Θ τ τ Δ →
+      Interp Γ t Θ (σ.comp τ) (ρ.subst τ) (m.subst τ) := by
+  induction H with
+  | bot => intro Θ τ _ _; simp only [TShape.subst_T, Shape.subst_bot]; exact .bot
+  | bvar h1 => intro Θ τ hΘ W; exact .bvar (TShape.LE.subst hΘ W h1)
+  | sort h1 => intro Θ τ hΘ W; exact .sort (by simpa using TShape.LE.subst hΘ W h1)
+  | unit h1 => intro Θ τ hΘ W; exact .unit (TShape.LE.subst hΘ W h1)
+  | nat h1 => intro Θ τ hΘ W; exact .nat (TShape.LE.subst hΘ W h1)
+  | zero h1 => intro Θ τ hΘ W; exact .zero (TShape.LE.subst hΘ W h1)
+  | succ _ h1 ihv => intro Θ τ hΘ W; exact .succ (ihv hΘ W) (TShape.LE.subst hΘ W h1)
+  | app _ _ hA hty hev h1 ihF iha =>
+    intro Θ τ hΘ W
+    refine .app (ihF hΘ W) (iha hΘ W) hA hty ?_ (TShape.LE.subst hΘ W h1)
+    have := Evaluates.subst hΘ W hev
+    rwa [subst_subst, subst_subst] at this
+  | lam _ hwf hlab _ h1 ihA ihbody =>
+    intro Θ τ hΘ W
+    refine .lam (ihA hΘ W) (Shape.WF.subst hΘ W hwf) ?_ ?_ (TShape.LE.subst hΘ W h1)
+    · intro e' he'
+      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
+      have ⟨u, hu⟩ := hlab e he
+      exact ⟨u, by rw [← subst_subst]; exact hu.subst hΘ W⟩
+    · intro e' he'
+      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
+      have := ihbody e he hΘ W
+      rwa [Subst.cons_comp, Valuation.subst_push, TShape.subst_T] at this
+  | forallE _ hwf hlab _ h1 ihA ihbody =>
+    intro Θ τ hΘ W
+    have hwf' := Shape.WF.subst hΘ W hwf
+    have h1' := TShape.LE.subst hΘ W h1
+    simp only [TShape.subst_T, Shape.subst, subst_subst, ← Subst.comp_lift] at hwf' h1'
+    refine .forallE (ihA hΘ W) hwf' ?_ ?_ h1'
+    · intro e' he'
+      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
+      have ⟨u, hu⟩ := hlab e he
+      exact ⟨u, by rw [← subst_subst]; exact hu.subst hΘ W⟩
+    · intro e' he'
+      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
+      have := ihbody e he hΘ W
+      rwa [Subst.cons_comp, Valuation.subst_push, TShape.subst_T] at this
+  | natCase_zero _ _ ihM iha =>
+    intro Θ τ hΘ W; exact .natCase_zero (by simpa using ihM hΘ W) (iha hΘ W)
+  | natCase_succ _ hwv heq _ ihM ihb =>
+    intro Θ τ hΘ W
+    have heq' := heq.subst hΘ W
+    rw [subst_subst] at heq'
+    refine .natCase_succ (ihM hΘ W) (Shape.WF.subst hΘ W hwv) heq' ?_
+    have := ihb hΘ W
+    rwa [Subst.cons_comp, Valuation.subst_push, TShape.subst_T] at this
+  | Y _ hwx _ ihself ihb =>
+    intro Θ τ hΘ W
+    refine .Y (ihself hΘ W) (TShape.WF.subst hΘ W hwx) ?_
+    have := ihb hΘ W
+    rwa [Subst.cons_comp, subst_subst, Valuation.subst_push] at this
+  | id h1 =>
+    intro Θ τ hΘ W
+    have := TShape.LE.subst hΘ W h1
+    simp only [TShape.subst_T, Shape.subst, subst_subst] at this
+    exact .id this
+  | refl _ h1 ihv => intro Θ τ hΘ W; exact .refl (ihv hΘ W) (TShape.LE.subst hΘ W h1)
+  | tr hle _ _ _ _ hwv hvA _ hm' _ ihX iha ihb ihA ihC ihH =>
+    intro Θ τ hΘ W
+    refine .tr (TShape.LE.subst hΘ W hle) (ihX hΘ W) (iha hΘ W) (ihb hΘ W) (ihA hΘ W)
+      (TShape.WF.subst hΘ W hwv) (TShape.HasType.subst hΘ W hvA) ?_
+      (TShape.HasType.subst hΘ W hm') (fun hr => ihH hr hΘ W)
+    have := ihC hΘ W
+    rwa [Subst.cons_comp, subst_subst, Valuation.subst_push] at this
