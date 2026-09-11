@@ -523,3 +523,93 @@ theorem Interp.natural {Δ Γ : List Term} {t : Term} {σ ρ m}
       (TShape.HasType.subst hΘ W hm') (fun hr => ihH hr hΘ W)
     have := ihC hΘ W
     rwa [Subst.cons_comp, subst_subst, Valuation.subst_push] at this
+
+/-! ## Weakening
+
+Master's `weak'_iff`, in the direction that builds.  A renaming `l` of the
+term is matched by a stage `σ'` and valuation `ρ'` that agree with `σ` and
+`ρ` along it; the labels are then literally the same terms, since
+`(t.lift' l).subst σ' = t.subst σ` once `σ = σ' ∘ l`.
+
+The term's context moves freely here, and that is worth saying plainly:
+with the `app` rule's typing premises gone (they were redundant), no rule
+mentions `Γ` other than to thread it, so it carries no information.  It is
+kept as an index because it is where those premises belong if they are
+ever wanted back, and because it documents which context each
+subderivation is about. -/
+
+theorem Subst.lift_l_cons {l : Lift} {σ : Subst} {e : Term} :
+    (Subst.lift_l l σ).cons e = Subst.lift_l l.cons (σ.cons e) := by
+  funext i; cases i <;> rfl
+
+theorem Interp.weak' {Δ : List Term} : ∀ {Γ t σ ρ m}, Interp Δ Γ t σ ρ m →
+    ∀ {Γ' l σ' ρ'}, σ = Subst.lift_l l σ' →
+      (∀ i, ρ i = ρ' (Lift.liftVar l i)) →
+      Interp Δ Γ' (t.lift' l) σ' ρ' m := by
+  intro _ _ _ _ _ H
+  induction H with
+  | bot => intro Γ' l σ' ρ' _ _; exact .bot
+  | bvar hw h1 => intro Γ' l σ' ρ' _ hρ; exact .bvar hw (hρ _ ▸ h1)
+  | sort hw h1 => intro Γ' l σ' ρ' _ _; exact .sort hw h1
+  | unit hw h1 => intro Γ' l σ' ρ' _ _; exact .unit hw h1
+  | nat hw h1 => intro Γ' l σ' ρ' _ _; exact .nat hw h1
+  | zero hw h1 => intro Γ' l σ' ρ' _ _; exact .zero hw h1
+  | succ _ hw h1 ihv => intro Γ' l σ' ρ' hσ hρ; exact .succ (ihv hσ hρ) hw h1
+  | app _ _ hev hw h1 ihF iha =>
+    intro Γ' l σ' ρ' hσ hρ
+    subst hσ
+    rw [← subst_lift'] at hev
+    exact .app (ihF rfl hρ) (iha rfl hρ) hev hw h1
+  | lam _ hwf hlab _ hw h1 ihA ihbody =>
+    intro Γ' l σ' ρ' hσ hρ
+    subst hσ
+    refine .lam (ihA rfl hρ) hwf ?_ ?_ hw h1
+    · intro e he
+      have ⟨u, hu⟩ := hlab e he
+      exact ⟨u, by rwa [subst_lift']⟩
+    · intro e he
+      refine ihbody e he (l := l.cons) Subst.lift_l_cons (fun i => ?_)
+      cases i <;> simp_all [Valuation.push]
+  | forallE _ hwf hlab _ hw h1 ihA ihbody =>
+    intro Γ' l σ' ρ' hσ hρ
+    subst hσ
+    rw [Subst.lift_l_lift, ← subst_lift', ← subst_lift'] at hwf h1
+    refine .forallE (ihA rfl hρ) hwf ?_ ?_ hw h1
+    · intro e he
+      have ⟨u, hu⟩ := hlab e he
+      exact ⟨u, by rwa [subst_lift']⟩
+    · intro e he
+      refine ihbody e he (l := l.cons) Subst.lift_l_cons (fun i => ?_)
+      cases i <;> simp_all [Valuation.push]
+  | natCase_zero _ _ ihM iha =>
+    intro Γ' l σ' ρ' hσ hρ; exact .natCase_zero (ihM hσ hρ) (iha hσ hρ)
+  | natCase_succ _ hwv heq _ ihM ihb =>
+    intro Γ' l σ' ρ' hσ hρ
+    subst hσ
+    rw [← subst_lift'] at heq
+    refine .natCase_succ (ihM rfl hρ) hwv heq ?_
+    refine ihb (l := l.cons) Subst.lift_l_cons (fun i => ?_)
+    cases i <;> simp_all [Valuation.push]
+  | Y _ hwx _ ihself ihb =>
+    intro Γ' l σ' ρ' hσ hρ
+    subst hσ
+    refine .Y (ihself rfl hρ) hwx ?_
+    refine ihb (l := l.cons) ?_ (fun i => ?_)
+    · rw [← Subst.lift_l_cons]
+      exact congrArg _ (subst_lift' (e := Term.Y _ _)).symm
+    · cases i <;> simp_all [Valuation.push]
+  | id hw h1 =>
+    intro Γ' l σ' ρ' hσ hρ
+    subst hσ
+    simp only [← subst_lift'] at h1
+    exact .id hw h1
+  | refl _ hw h1 ihv => intro Γ' l σ' ρ' hσ hρ; exact .refl (ihv hσ hρ) hw h1
+  | tr hw hle _ _ _ _ hwv hvA _ hm' _ ihX iha ihb ihA ihC ihH =>
+    intro Γ' l σ' ρ' hσ hρ
+    subst hσ
+    refine .tr hw hle (ihX rfl hρ) (iha rfl hρ) (ihb rfl hρ) (ihA rfl hρ) hwv hvA ?_ hm'
+      (fun hr => ihH hr rfl hρ)
+    refine ihC (l := l.cons) ?_ (fun i => ?_)
+    · rw [← Subst.lift_l_cons]
+      exact congrArg _ (subst_lift').symm
+    · cases i <;> simp_all [Valuation.push]

@@ -734,8 +734,39 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    nothing.  Note the term's own context does not move in `natural`, only
    the stage; that is what makes it independent of the substitution lemma
    for terms, which moves the context and leaves the stage alone.
-   **Left:** directedness (`join`), `weak`, `subst` (the `∃ ρ'` form),
-   `inst`.
+   Also proved: **`Interp.wf`** and **`Interp.weak'`** (weakening along a
+   renaming, in the direction that builds).
+
+   `Interp.subst` in master's `∃ ρ'` form turned out to need three things
+   first, and the first two are done.
+
+   * **Reflexivity of the order at an arbitrary approximant.**  Master's
+     variable case picks `ρ' := fun k => if k = j then m else ⊥` and needs
+     `m ≤ m`, which is free there because `WShape` bundles `WF`.  Ours is
+     reflexive only on well-formed shapes, so `Interp` now carries
+     `TShape.WF Δ m` on every rule whose subject is only bounded from
+     above, and `Interp.wf` is structural.  `Interp.mono` correspondingly
+     takes the `WF` of the lower shape.
+   * **Weakening**, for the `lam` case of the `←` direction: the body's
+     valuation gains a slot, so each `ρ' i` has to be reinterpreted one
+     context deeper.  `Interp.weak'` is master's `weak'_iff` in the
+     building direction, with the stage and valuation matched along the
+     renaming.  Stating the hypothesis as the equation
+     `σ = Subst.lift_l l σ'` rather than pointwise is what makes it go: a
+     `subst` then puts every label in the form `subst_lift'` wants.
+   * **Directedness** (master's `compat_join`, ~300 lines), for the `→`
+     direction, where two subderivations return two valuations that have
+     to be merged.  Still to do; `Interp.wf` is what unblocks it, since
+     the graph coherence `Evaluates.compat` wants is a conjunct of the
+     `WF` of the λ-shape the function is interpreted at.
+
+   **Left:** directedness, then `subst`, then `inst`.
+
+   One consequence of dropping the `app` rule's redundant typing premises
+   is that **`Γ` no longer carries information**: no rule mentions it
+   except to thread it.  It is kept as an index because it is where those
+   premises belong if they are wanted back, and because it records which
+   context each subderivation is about.
 
    Three things came out of writing it down.
 
