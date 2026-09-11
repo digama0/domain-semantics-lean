@@ -566,12 +566,13 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    got shorter.
 
 3. `HasType` on labelled shapes: **defined**, with `Evaluates` as the
-   relational graph lookup and `HasDom`; `HasType.bot`; `IsCode` with
-   `IsCode.of_le`.  **Left:** typed joins, prop collapse
-   (`IsCode false a → HasType Δ x a → x.IsBot`, by induction through
-   `Evaluates` using `of_le`), and `HasType.subst`; plus the Σ label (§5).
+   relational graph lookup and `HasDom`.  Proved: `HasType.bot` (master's
+   conditional form), `HasType.cumul`, `HasType.isType`, `Evaluates.subst`,
+   `HasDom.subst`, `HasType.subst`.  **Left:** `mono_r`, typed joins, and
+   prop collapse (`HasType Δ a .prop → HasType Δ x a → x = ⊥`, master's
+   `HasType.proofIrrel`); plus the Σ label (§5).
 
-   Corrections made while starting these.
+   Corrections made along the way.
 
    (a) **`HasType` is not monotone on the left** (in the subject), and no
    attempt should be made to make it so.  Where downward closure is
@@ -585,14 +586,55 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    cumulative in the model.  `HasType.cumul` is proved.  (I briefly added
    an `IsCode` copied from the other repo, which needs one because it has
    no typing relation on shapes at all; with `HasType` available master's
-   route is right.)  The lemma that does the work where downward closure
-   was wanted is master's `mono_r`, monotone on the *right*, carrying the
-   hypothesis that the larger type is itself a type — which is how it
-   avoids needing left-monotonicity.
+   route is right.)
 
    (c) `HasType`'s `succ` clause uses a nested match on the level, as
    master's does; splitting the outer level pattern stops the final
    catch-all from reducing.
+
+   (d) **`isType` forced two further corrections**, both restoring
+   master's shape: the `⊥` clauses are given per type former rather than
+   blanket, and the `lam`/`pair` clauses carry the well-formedness of the
+   Π/Σ type they inhabit.  Without these, `HasType ⊥ a` holds for shapes
+   `a` that are not types at all, and `isType` — hence `mono_r`, hence
+   prop collapse — cannot even be stated.
+
+   (e) `Evaluates` closes under the `join` **function** rather than the
+   `Join` relation.  That was impossible while the function was wrong, and
+   is what makes `Evaluates.subst`, hence `HasType.subst`, go through:
+   `join` commutes with substitution on the nose, whereas `Join Θ`
+   quantifies over more shapes than the image of the substitution.
+
+   **The obstruction remaining in `mono_r`, analysed.**  Its λ case needs
+   two things beyond what is proved:
+
+   * `HasType Δ d' .type` for the *larger* Π's domain.  Master gets this
+     from `HasDom.isType`, which works there only because saturation makes
+     every graph contain a `⊥`-input entry, so the domain has an
+     inhabitant.  We dropped saturation.  **Fix: state it**, adding
+     `HasType Δ d .type` as a conjunct of the Π/Σ type clauses; immediate
+     rather than derived.
+   * `Evaluates.mono_graph`: `ShapeFun.LE Δ f f' → Evaluates Δ f ℓ x c →
+     ∃ c', Evaluates Δ f' ℓ x c' ∧ LE Δ c c'`.  The `bot`, `entry` and
+     `lower` cases go through (the `entry` case composes the two `LabelEq`
+     proofs and the two `LE` proofs).  The **`join` case needs
+     `Compat Δ y' z'` for the images**, which does not follow from
+     `Compat Δ y z`, compatibility not being inherited upwards.  It *does*
+     follow if `f'` is internally coherent, since `y'` and `z'` then come
+     from entries of `f'` with definitionally equal labels and inputs
+     below a common `x`.  **Fix: add internal coherence
+     (`ShapeFun.Compat Compat Δ f f`) to `Shape.WF` for every graph.**
+     This is the other repo's `IsCoherent`, and it is exactly where §7.1
+     predicted it would be consumed.  It transports, by `Compat.subst`,
+     and append preserves it precisely when the two graphs are mutually
+     compatible — which is already the hypothesis of `exists_join`, so the
+     two line up.
+
+   Master avoids both because its saturated `ShapeFun.app` is a
+   *function*, monotone by `app_mono_l`, so there is no existential to
+   re-join.  That is the real price of dropping saturation, and it is
+   payable.
+
 4. Prerequisites **done**: `Shape.lift` / `ShapeFun.lift` / `lift_self`, the
    total shape domain `TShape := Σ n, Shape n` with `TShape.LE`, `WF`,
    `bot`, `sort` (master's, labels carried through; lifting *down*
