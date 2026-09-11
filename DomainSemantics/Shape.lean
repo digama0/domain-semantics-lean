@@ -125,6 +125,45 @@ def Shape.IsBot : ∀ {n}, Shape n → Prop
 @[simp] theorem Shape.isBot_lam {f : ShapeFun n} :
     Shape.IsBot (n := n+1) (ShapeS.lam f) ↔ ∀ e ∈ f, e.out.IsBot := Iff.rfl
 
+/-! ## Substitution
+
+Shapes carry syntactic labels, so a substitution acts on them.  The action
+is purely structural (the semantic components are untouched apart from
+recursing), and since it does not inspect the labels it needs no typing
+hypotheses; those appear only in the *preservation* lemmas below, which is
+the whole "no quotient, preservation lemmas instead" policy in miniature.
+Note `B` in a Π/Σ label lives under a binder, hence `σ.lift`. -/
+
+/-- Substitute in a graph, given the action on the shapes at this level. -/
+def ShapeFun.substWith (g : Shape n → Shape n) (σ : Subst) (f : ShapeFun n) : ShapeFun n :=
+  f.map fun e => ⟨e.ty.subst σ, e.tm.subst σ, g e.inp, g e.out⟩
+
+def Shape.subst : ∀ {n}, Shape n → Subst → Shape n
+  | 0, .bot, _ => .bot
+  | 0, .sort r, _ => .sort r
+  | _+1, .bot, _ => .bot
+  | _+1, .sort r, _ => .sort r
+  | _+1, .unit r, _ => .unit r
+  | _+1, .nat, _ => .nat
+  | _+1, .zero, _ => .zero
+  | _+1, .succ v, σ => .succ (subst v σ)
+  | _+1, .refl w, σ => .refl (subst w σ)
+  | _+1, .id r A a b, σ => .id r (A.subst σ) (a.subst σ) (b.subst σ)
+  | _+1, .forallE A B d f, σ =>
+      .forallE (A.subst σ) (B.subst σ.lift) (subst d σ) (ShapeFun.substWith (subst · σ) σ f)
+  | _+1, .sigma A B d f, σ =>
+      .sigma (A.subst σ) (B.subst σ.lift) (subst d σ) (ShapeFun.substWith (subst · σ) σ f)
+  | _+1, .pair a b, σ => .pair (subst a σ) (subst b σ)
+  | _+1, .lam f, σ => .lam (ShapeFun.substWith (subst · σ) σ f)
+
+@[simp] theorem Shape.subst_bot {n} {τ : Subst} : (Shape.bot (n := n)).subst τ = .bot := by
+  cases n <;> rfl
+
+@[simp] theorem ShapeFun.mem_substWith {g : Shape n → Shape n} {σ f} {e' : Entry (Shape n)} :
+    e' ∈ ShapeFun.substWith g σ f ↔
+      ∃ e ∈ f, e' = ⟨e.ty.subst σ, e.tm.subst σ, g e.inp, g e.out⟩ := by
+  simp [ShapeFun.substWith, eq_comm]
+
 /-! ## Well-formed shapes
 
 Labels are compared by plain definitional equality, which is reflexive
@@ -304,7 +343,7 @@ proofs: it is context-sensitive, insensitive to which of two definitionally
 equal labels a witness happens to carry, and does not presuppose that a
 join exists.  The function `join` below is merely one witness. -/
 def Shape.Join (Δ : List Term) {n} (x y z : Shape n) : Prop :=
-  ∀ w, Shape.LE Δ z w ↔ (Shape.LE Δ x w ∧ Shape.LE Δ y w)
+  ∀ w, Shape.LE Δ z w ↔ Shape.LE Δ x w ∧ Shape.LE Δ y w
 
 /-- A concrete join.  Total, context-free, `⊥` on mismatched heads; it
 witnesses `Join Δ` only for compatible well-formed shapes.  Labels of the
@@ -386,5 +425,62 @@ theorem Shape.LE.trans_aux (hΓ : ⊢ Γ) {n} {s t u : Shape n}
     cases u <;> cases h₂; rename_i h₂₁ h₂₂
     exact ⟨h₁₁.trans hΓ h₂₁, ih h₁₂.1 h₂₂.1, h₁₂.2.trans_of ih h₂₂.2⟩
   | _ => cases t <;> cases u <;> simp_all [Shape.LE]
+
+/-! ## Preservation under typed substitution
+
+The order is stable along a typed substitution.  This is where the label
+relations' `subst` lemmas are consumed, and it is the reason every
+reindexing statement in the development carries `⊢ Θ` and `Θ ⊢ τ : Δ`:
+definitional equality is only stable under typed substitutions. -/
+
+theorem ShapeFun.LE.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f f' : ShapeFun n}
+    (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
+    (ih : ∀ {a b : Shape n}, Shape.LE Δ a b → Shape.LE Θ (a.subst τ) (b.subst τ))
+    (hbot : ∀ {a : Shape n}, Shape.LE Δ a .bot → Shape.LE Θ (a.subst τ) .bot)
+    (h : ShapeFun.LE Δ (Shape.LE Δ) f f') :
+    ShapeFun.LE Θ (Shape.LE Θ) (ShapeFun.substWith (Shape.subst · τ) τ f)
+      (ShapeFun.substWith (Shape.subst · τ) τ f') := by
+  intro d hd
+  obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+  match h e he with
+  | .inl hb => exact .inl (hbot hb)
+  | .inr ⟨e', he', hlab, hin, hout⟩ =>
+    exact .inr ⟨_, ShapeFun.mem_substWith.2 ⟨e', he', rfl⟩,
+      hlab.subst hΘ W, ih hin, ih hout⟩
+
+theorem Shape.LE.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
+    ∀ {n} {s t : Shape n}, Shape.LE Δ s t → Shape.LE Θ (s.subst τ) (t.subst τ) := by
+  intro n
+  induction n with
+  | zero => intro s t h; cases s <;> cases t <;> simp_all [Shape.LE, Shape.subst]
+  | succ n ih =>
+    have hbot : ∀ {a : Shape n}, Shape.LE Δ a .bot → Shape.LE Θ (a.subst τ) .bot := by
+      intro a h
+      have := ih h
+      rwa [Shape.subst_bot] at this
+    intro s t h
+    cases s with
+    | bot => trivial
+    | lam f =>
+      cases t with
+      | lam f' => exact ShapeFun.LE.subst_of hΘ W ih hbot h
+      | _ =>
+        intro d hd
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+        exact hbot (h e he)
+    | succ v => cases t <;> first | exact absurd h id | exact ih h
+    | refl w => cases t <;> first | exact absurd h id | exact ih h
+    | pair a b => cases t <;> first | exact absurd h id | exact ⟨ih h.1, ih h.2⟩
+    | id r A a b =>
+      cases t <;> first | exact absurd h id | exact ⟨h.1, h.2.subst hΘ W⟩
+    | forallE A B d f =>
+      cases t <;> first | exact absurd h id
+                        | exact ⟨h.1.subst hΘ W, ih h.2.1,
+                            ShapeFun.LE.subst_of hΘ W ih hbot h.2.2⟩
+    | sigma A B d f =>
+      cases t <;> first | exact absurd h id
+                        | exact ⟨h.1.subst hΘ W, ih h.2.1,
+                            ShapeFun.LE.subst_of hΘ W ih hbot h.2.2⟩
+    | _ => cases t <;> simp_all [Shape.LE, Shape.subst]
 
 end DomainSemantics

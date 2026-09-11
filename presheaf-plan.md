@@ -528,12 +528,19 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    carries one `sorry` in `Adequacy.lean` (the `r = false` transport
    case), which is precisely what this branch replaces. `not_UIP` is
    unaffected and stays axiom-clean. `Shape.lean` is now `ShapeOld.lean`.
-2. `Shape.lean`: labels on entries/`forallE`/`sigma`/`id`, `LE Δ` with
-   `LabelEq`, `Prop`-valued `Compat`, preservation of `LE`/`Compat`/`join`
-   under typed substitution, `IsCode`, hereditary coherence. Copy the old
-   file to `Shape.old.lean` first.
-3. `HasType` on labelled shapes, with the relational graph lookup, plus
-   monotonicity, `join`, and preservation under typed substitution.
+2. `Shape.lean`: **mostly done** (`4a4c007`, `87736ee`, `55f6a68`).  Labels
+   on entries/`forallE`/`sigma`/`id`; `WF`; `LE Δ` with `LabelEq`, proved
+   reflexive (under `WF`) and transitive; `le_bot_iff` and the collapse
+   lemma; `Compat` carrying the coherence implication; the `Join` relation
+   and a `join` witness; `Shape.subst` and `LE.subst`.  **Left:**
+   `Compat`/`Join` under substitution, the lub lemmas for `join`
+   (`le_join_left/right` under `Compat` + `WF`, `join_le`), and the
+   hereditary form of coherence.
+3. `HasType` on labelled shapes: **defined** (`55f6a68`), with `Evaluates`
+   as the relational graph lookup and `HasDom`.  **Left:** all of its
+   lemmas, i.e. the five obligations of §4.2 — `⊥` typed at everything and
+   the typed set lower-closed, typed joins, prop collapse, preservation
+   under typed substitution — plus the Σ label (§5).
 4. `Interp` inductive, `Adm`, and the structural lemmas: `mono` (in the
    shape and in `ρ`), `join`, naturality along typed `τ`, `weak`, `subst`
    (the `∃ ρ'` form), `inst`.
