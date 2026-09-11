@@ -743,29 +743,19 @@ theorem ShapeFun.LE.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f f' : ShapeF
 
 theorem Shape.LE.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
     {n} {s t : Shape n} (h : Shape.LE Δ s t) : Shape.LE Θ (s.subst τ) (t.subst τ) := by
-  induction n with
-  | zero => cases s <;> cases t <;> simp_all [Shape.LE, Shape.subst]
-  | succ n ih =>
-    cases s with
-    | bot => trivial
-    | lam f =>
-      cases t with
-      | lam f' => exact ShapeFun.LE.subst_of hΘ W ih h
-      | _ => exact absurd h id
-    | succ v => cases t <;> first | exact absurd h id | exact ih h
-    | refl w => cases t <;> first | exact absurd h id | exact ih h
-    | pair a b => cases t <;> first | exact absurd h id | exact ⟨ih h.1, ih h.2⟩
-    | id r A a b =>
-      cases t <;> first | exact absurd h id | exact ⟨h.1, h.2.subst hΘ W⟩
-    | forallE A B d f =>
-      cases t <;> first | exact absurd h id
-                        | exact ⟨h.1.subst hΘ W, ih h.2.1,
-                            ShapeFun.LE.subst_of hΘ W ih h.2.2⟩
-    | sigma A B d f =>
-      cases t <;> first | exact absurd h id
-                        | exact ⟨h.1.subst hΘ W, ih h.2.1,
-                            ShapeFun.LE.subst_of hΘ W ih h.2.2⟩
-    | _ => cases t <;> simp_all [Shape.LE, Shape.subst]
+  induction n with | zero => cases s <;> cases t <;> simp_all [Shape.LE, Shape.subst] | succ n ih
+  cases s with
+  | bot => trivial
+  | lam =>
+    cases t with | lam => ?_ | _ => cases h
+    exact ShapeFun.LE.subst_of hΘ W ih h
+  | succ | refl => cases t <;> (try cases h); exact ih h
+  | pair => cases t <;> cases h; exact ⟨ih ‹_›, ih ‹_›⟩
+  | id => cases t <;> cases h; exact ⟨‹_›, .subst hΘ W ‹_›⟩
+  | forallE | sigma =>
+    cases t <;> cases h; rename_i h₁ h₂
+    exact ⟨h₁.subst hΘ W, ih h₂.1, ShapeFun.LE.subst_of hΘ W ih h₂.2⟩
+  | _ => cases t <;> simp_all [Shape.LE, Shape.subst]
 
 /-! ## The join is a least upper bound
 
@@ -1719,3 +1709,15 @@ theorem join.T {n} {s t : Shape n} :
     Shape.lift_self, Shape.lift_self]
 
 end TShape
+
+/-- Anything below an information-free shape is information-free.  The
+`TShape` form of `Shape.le_bot_iff`, needed because `Interp`'s `bot` rule
+is indexed by a level. -/
+theorem TShape.le_bot {Δ : List Term} {a b : TShape} (hb : b.2 = Shape.bot)
+    (h : TShape.LE Δ a b) : a.2 = Shape.bot := by
+  have hk : a.1 ≤ max a.1 b.1 := Nat.le_max_left ..
+  have h' := (TShape.LE.def (Nat.le_max_left ..) (Nat.le_max_right ..)).1 h
+  rw [hb, Shape.lift_bot,
+    show (Shape.bot : Shape (max a.1 b.1)) = (Shape.bot : Shape a.1).lift _ from
+      Shape.lift_bot.symm] at h'
+  exact Shape.le_bot_iff.1 ((Shape.lift_le_lift hk).1 h')

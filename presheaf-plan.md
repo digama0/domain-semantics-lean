@@ -721,9 +721,41 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    rather than one premise with a conjunction inside, leaving the `Interp`
    occurrences under `∀` and `→` only.
 
-   Then `Interp`, `Adm`, and the structural lemmas: `mono` (in the
-   shape and in `ρ`), `join`, naturality along typed `τ`, `weak`, `subst`
-   (the `∃ ρ'` form), `inst`.
+   **`Interp` is defined** (`Interp.lean`), with `Valuation` (`nil`,
+   `push`, `LE`, `WF` and their lemmas) and the atoms `TShape.unit`,
+   `TShape.nat`, `TShape.zero`.  Proved: `Interp.mono` (down in the shape)
+   and `Interp.mono_val` (up in the valuation).  **Left:** `Adm`, `join`,
+   naturality along typed `τ`, `weak`, `subst` (the `∃ ρ'` form), `inst`.
+
+   Three things came out of writing it down.
+
+   (a) **Every binder rule extends the stage with a label term**, not just
+   the valuation with a shape.  For `lam` and `forallE` the label is the
+   graph entry's own `e.tm`, which is exactly what the gluing supplies.
+   For `Y` it is `(Y A b)[σ]`.  For `natCase` there is **no syntactic
+   predecessor former**, so the label term is a premise, carried with the
+   definitional equation `Δ ⊢ M[σ] ≡ succ t : nat` that justifies it.  That
+   premise is discharged by `rfl` at the reduction rule, and it is the
+   general shape of the gluing discipline: a semantic step comes with the
+   syntactic witness that licenses it.
+
+   (b) **`Interp`'s binder rules carry `Shape.WF`.**  Master gets this for
+   free, its shapes being the subtype `WShape n := {s // WF s}`; ours
+   cannot bundle, `WF` being context-dependent.  The rules need it because
+   `mono_val` pushes the *same* shape on both sides of the valuation
+   order, and `Shape.LE` is reflexive only on well-formed shapes.  So
+   `lam` and `forallE` carry the `WF` of the whole shape they produce
+   (which also supplies the internal coherence that the `app` rule's
+   `Evaluates` lemmas will want), and `natCase_succ`, `Y` and `tr` carry
+   the `WF` of the shape they push.  Note `Interp` itself is *not*
+   `WF`-closed — it is a lower set by design, and `WF` is not downward
+   closed — so there is no `Interp.wf` lemma to lean on instead.
+
+   (c) The `bot` rule is **indexed by a level**, as master's is, so that
+   `⊥` at any level approximates everything.  `mono`'s `bot` case then
+   needs `TShape.le_bot` (anything below an information-free shape is
+   information-free) rather than the `TShape.bot`-specific
+   `le_bot_iff`.
 5. `RawJudgment` and the soundness induction: structural rules, binders
    (`lamDF`, `forallEDF`, λ fixed under Π), `appDF`, `beta`, `eta`,
    `proofIrrel`, id/unit rules, then Σ, Nat, `Y`.
