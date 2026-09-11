@@ -749,15 +749,24 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    general shape of the gluing discipline: a semantic step comes with the
    syntactic witness that licenses it.
 
-   (a') **The term's own context is not an index of `Interp`.**  The first
-   draft carried it as a parameter, which is wrong: a parameter cannot
-   grow, so under a binder the `app` rule demanded its typing premises in
-   the *outer* context.  Everything those premises are for — making the
-   argument label a legitimate `LabelEq` witness — is said in `Δ` instead,
-   where the stage does grow correctly.  The rule now reads
-   `Δ ⊢ A : sort u`, `Δ ⊢ a[σ] : A`, and the soundness proof instantiates
-   `A` to `A₀[σ]` using the typed `σ`.  Master has no context in
-   `LE_Interp` either, for the same reason.
+   (a') **`Interp Δ Γ t σ ρ m`: the stage context is a parameter, the
+   term's context an index.**  `Δ` is genuinely a single fixed context —
+   no rule changes it, so the whole relation is one object of the
+   presheaf, and `Interp.natural` is the only place it moves.  `Γ` *does*
+   change: the binder rules extend it, to `A :: Γ` for `lam`, `forallE`,
+   `Y` and the motive of `tr`, and to `nat :: Γ` for the successor branch
+   of `natCase`, with the stage growing in step by `σ.cons` at the label
+   term.
+
+   The first draft had these the wrong way round, with the term's context
+   as a *parameter*.  A parameter cannot grow, so under a binder the `app`
+   rule demanded its typing premises in the outer context: for
+   `lam A (app f (bvar 0))` at `Γ = []` it asked for `[] ⊢ bvar 0 : A'`,
+   which is uninhabited, so that term had no interpretation but `⊥`.  Not
+   unsound, but incomplete in exactly the case the binder rule exists for.
+   Making `Δ` a parameter also removes the `⊢ Δ` threading that `induction`
+   used to force through every inductive hypothesis in `mono`,
+   `mono_val` and `natural`.
 
    (b) **`Interp`'s binder rules carry `Shape.WF`.**  Master gets this for
    free, its shapes being the subtype `WShape n := {s // WF s}`; ours

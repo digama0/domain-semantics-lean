@@ -33,7 +33,7 @@ theorem forallE_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {s : Bool}
   have ⟨u, hA₀⟩ := H.forallE_dom
   have ⟨v, hB₀⟩ := H.forallE_cod
   -- the probe: the Π's own label, with nothing else in it
-  have hprobe : Interp (.forallE A₀ B₀) Γ Subst.id Valuation.nil
+  have hprobe : Interp Γ Γ (.forallE A₀ B₀) Subst.id Valuation.nil
       (Shape.T (n := 1) (Shape.piAtom (A₀.subst Subst.id) (B₀.subst Subst.id.lift))) := by
     refine Interp.piAtom (u := u) (v := v) ?_ ?_
     · simpa using hA₀
