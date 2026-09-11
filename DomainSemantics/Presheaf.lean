@@ -36,23 +36,47 @@ namespace DomainSemantics
 
 /-! ## Admissibility
 
-Master's `Valuation.Fits`, by recursion on the context rather than as an
-inductive, and with the stage threaded through.  His `SourceAdmissible`
-asks the same of each slot: the slot is a genuine value, it is a fixed
-point of the decoder of its type, and the type's own interpretation is
-saturated.  Here "fixed point of the decoder" is `TShape.HasType`, and
-"saturated" is the `∃ b'` clause — master's, and the place where the
-downward closure that `HasType` does not have is put in by hand. -/
+Master's `Valuation.Fits`, with the stage threaded through.  The shape is
+master's and it matters: `Fits` is **indexed by a base context** and grows
+the valuated part with `cons`, rather than recursing on all of `Γ` with a
+condition per slot.  That is what makes `nil` a constructor, and hence
+what makes the all-`⊥` valuation admissible for free — which is how both
+master and the other repo run inversion.  Recursing on `Γ` instead loses
+it, and with it every inversion theorem.
 
-def Adm (Δ : List Term) : List Term → Subst → Valuation → Prop
-  | [], _, ρ => ρ = Valuation.nil
-  | A :: Γ, σ, ρ =>
-      Adm Δ Γ σ.tail ρ.tail ∧
-      TShape.WF Δ (ρ 0) ∧
-      (∃ a, Interp Γ A Δ σ.tail ρ.tail a ∧ TShape.HasType Δ (ρ 0) a) ∧
-      ∀ b, Interp Γ A Δ σ.tail ρ.tail b →
-        ∃ b', TShape.LE Δ b b' ∧ Interp Γ A Δ σ.tail ρ.tail b' ∧
-          TShape.HasType Δ b' TShape.type
+So `Adm Δ Γ₀ Γ σ ρ` reads: at the stage `(Δ, σ)`, `ρ` is an admissible
+valuation for `Γ`, relative to the base `Γ₀` that `Γ` extends.  Slots
+below the base get `⊥`.
+
+Each `cons` asks what his `SourceAdmissible` asks of a slot: the type's own
+interpretation is saturated (the `b'` premise, which is where the
+downward closure `HasType` does not have is put in by hand), the slot has
+a type among the type's approximants, and the slot is a fixed point of the
+decoder of that type — here, `TShape.HasType`.  The `WF` premise is what
+master gets for free from its shapes being a `WF` subtype. -/
+
+inductive Adm (Δ : List Term) : List Term → List Term → Subst → Valuation → Prop where
+  | nil {Γ σ} : Adm Δ Γ Γ σ Valuation.nil
+  | cons {Γ₀ Γ A σ ρ x a} :
+      Adm Δ Γ₀ Γ σ.tail ρ →
+      (∀ b, Interp Γ A Δ σ.tail ρ b →
+        ∃ b', TShape.LE Δ b b' ∧ Interp Γ A Δ σ.tail ρ b' ∧
+          TShape.HasType Δ b' TShape.type) →
+      Interp Γ A Δ σ.tail ρ a →
+      TShape.WF Δ x →
+      TShape.HasType Δ x a →
+      Adm Δ Γ₀ (A :: Γ) σ (ρ.push x)
+
+/-- The all-bottom valuation is admissible, for free.  This is the whole
+reason for the base-context index, and the hypothesis every inversion
+theorem is run under. -/
+theorem Adm.bot {Δ Γ : List Term} {σ : Subst} : Adm Δ Γ Γ σ Valuation.nil := .nil
+
+/-- Admissible valuations are well formed, slotwise. -/
+theorem Adm.wf {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) : Valuation.WF Δ ρ := by
+  induction h with
+  | nil => intro i; exact trivial
+  | cons _ _ _ hx _ ih => exact Valuation.WF.push ih hx
 
 /-! ## The saturated form of typing
 
@@ -80,30 +104,30 @@ the presheaf structure. -/
 `SoundEq`, his `HasEquality`, and the semantic content of a definitional
 equality. -/
 def SoundEq (Γ : List Term) (t t' : Term) : Prop :=
-  ∀ {{Δ σ ρ}}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ σ ρ →
+  ∀ {{Δ Γ₀ σ ρ}}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
     ∀ {m}, Interp Γ t Δ σ ρ m ↔ Interp Γ t' Δ σ ρ m
 
 /-- Every approximant of `t` is below a typed one: master's `SoundTy`, his
 `HasFixedness`. -/
 def SoundTy (Γ : List Term) (t A : Term) : Prop :=
-  ∀ {{Δ σ ρ}}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ σ ρ →
+  ∀ {{Δ Γ₀ σ ρ}}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
     ∀ {m}, Interp Γ t Δ σ ρ m → InterpTyped Γ t A Δ σ ρ m
 
 theorem SoundEq.refl {Γ : List Term} {t : Term} : SoundEq Γ t t :=
-  fun _ _ _ _ _ _ => Iff.rfl
+  fun _ _ _ _ _ _ _ => Iff.rfl
 
 theorem SoundEq.symm {Γ : List Term} {t t' : Term} (h : SoundEq Γ t t') : SoundEq Γ t' t :=
-  fun _ _ _ hΔ W hA => (h hΔ W hA).symm
+  fun _ _ _ _ hΔ W hA => (h hΔ W hA).symm
 
 theorem SoundEq.trans {Γ : List Term} {t t' t'' : Term}
     (h : SoundEq Γ t t') (h' : SoundEq Γ t' t'') : SoundEq Γ t t'' :=
-  fun _ _ _ hΔ W hA => (h hΔ W hA).trans (h' hΔ W hA)
+  fun _ _ _ _ hΔ W hA => (h hΔ W hA).trans (h' hΔ W hA)
 
 /-- Typing transports along a semantic equality, which is what lets the
 soundness induction state `SoundTy` for the left-hand term only. -/
 theorem SoundTy.of_eq {Γ : List Term} {t t' A : Term}
     (he : SoundEq Γ t t') (h : SoundTy Γ t A) : SoundTy Γ t' A := by
-  intro Δ σ ρ hΔ W hA m hm
+  intro Δ Γ₀ σ ρ hΔ W hA m hm
   have ⟨m', a, hle, hm', ha, hty⟩ := h hΔ W hA ((he hΔ W hA).2 hm)
   exact ⟨m', a, hle, (he hΔ W hA).1 hm', ha, hty⟩
 

@@ -984,15 +984,22 @@ rough order of load:
    Π clause, the other two components being discharged by `⊥ ≤ d` and
    `[] ≤ f`.  What is left is `forallE_inv` itself, which composes the two
    across a definitional equality and so needs soundness and item 3.
-3. **`bottom_admissible`** (`Adm Δ Γ σ Valuation.nil`).  Without it
-   inversion cannot be run at the `⊥` valuation, which is how both he and
-   master run it.  **This needs `Adm` restructured.**  Master's
-   `Valuation.Fits Γ₀ Δ ρ` has `nil : Fits Γ Γ .nil` as a *constructor*, so
-   the `⊥` valuation is admissible for free; our `Adm` recurses on all of
-   `Γ` with a condition per slot, which loses that.  The fix is master's
-   shape: index by an ambient context and build the valuated part up with
-   `cons`, so the unvaluated tail costs nothing.  Until then `SoundEq` and
-   `SoundTy` are stated over a hypothesis nothing can currently discharge.
+3. ~~**`bottom_admissible`**~~ **done.**  `Adm` now has master's `Fits`
+   shape: `Adm Δ Γ₀ Γ σ ρ` is an inductive indexed by a **base context**
+   `Γ₀` that `Γ` extends, with `nil` a constructor and `cons` growing the
+   valuated part.  `Adm.bot : Adm Δ Γ Γ σ Valuation.nil` is then `.nil`,
+   free, which is the hypothesis every inversion theorem is run under.
+   The first draft recursed on all of `Γ` with a condition per slot and
+   lost exactly this, leaving `SoundEq`/`SoundTy` stated over a hypothesis
+   nothing could discharge.  `Adm.wf` (admissible valuations are
+   well formed slotwise) comes along with it.
+
+   What `forallE_inv` still needs beyond soundness: the probe
+   `Interp.piAtom` asks for `Δ ⊢ A[σ] : sort u` and
+   `A[σ] :: Δ ⊢ B[σ.lift] : sort v`, i.e. a *syntactic* regularity lemma
+   inverting `Γ ⊢ forallE A B : sort s`.  Master gets those from
+   `forallE_inv` itself (out of adequacy), so they have to be recovered
+   here by induction on the typing derivation instead.
 4. **The Π-retraction equation** (`application_piOperator`,
    `app (R G) ℓ X = Q(ℓ)(P X, app G ℓ (P X))`).  We have the retraction
    *clauses* inside `HasType` but not the equation that β and η rest on.
