@@ -59,10 +59,10 @@ inductive Adm (Δ : List Term) : List Term → List Term → Subst → Valuation
   | nil {Γ σ} : Adm Δ Γ Γ σ Valuation.nil
   | cons {Γ₀ Γ A σ ρ x a} :
       Adm Δ Γ₀ Γ σ.tail ρ →
-      (∀ b, Interp Γ A Δ σ.tail ρ b →
-        ∃ b', TShape.LE Δ b b' ∧ Interp Γ A Δ σ.tail ρ b' ∧
+      (∀ b, Interp A Δ σ.tail ρ b →
+        ∃ b', TShape.LE Δ b b' ∧ Interp A Δ σ.tail ρ b' ∧
           TShape.HasType Δ b' TShape.type) →
-      Interp Γ A Δ σ.tail ρ a →
+      Interp A Δ σ.tail ρ a →
       TShape.WF Δ x →
       TShape.HasType Δ x a →
       Adm Δ Γ₀ (A :: Γ) σ (ρ.push x)
@@ -88,7 +88,7 @@ every approximant is *below* one that is typed.  This is master's
 
 def InterpTyped (Γ : List Term) (t A : Term) (Δ : List Term) (σ : Subst)
     (ρ : Valuation) (m : TShape) : Prop :=
-  ∃ m' a, TShape.LE Δ m m' ∧ Interp Γ t Δ σ ρ m' ∧ Interp Γ A Δ σ ρ a ∧
+  ∃ m' a, TShape.LE Δ m m' ∧ Interp t Δ σ ρ m' ∧ Interp A Δ σ ρ a ∧
     TShape.HasType Δ m' a
 
 /-! ## What soundness says
@@ -105,13 +105,13 @@ the presheaf structure. -/
 equality. -/
 def SoundEq (Γ : List Term) (t t' : Term) : Prop :=
   ∀ {{Δ Γ₀ σ ρ}}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
-    ∀ {m}, Interp Γ t Δ σ ρ m ↔ Interp Γ t' Δ σ ρ m
+    ∀ {m}, Interp t Δ σ ρ m ↔ Interp t' Δ σ ρ m
 
 /-- Every approximant of `t` is below a typed one: master's `SoundTy`, his
 `HasFixedness`. -/
 def SoundTy (Γ : List Term) (t A : Term) : Prop :=
   ∀ {{Δ Γ₀ σ ρ}}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
-    ∀ {m}, Interp Γ t Δ σ ρ m → InterpTyped Γ t A Δ σ ρ m
+    ∀ {m}, Interp t Δ σ ρ m → InterpTyped Γ t A Δ σ ρ m
 
 theorem SoundEq.refl {Γ : List Term} {t : Term} : SoundEq Γ t t :=
   fun _ _ _ _ _ _ _ => Iff.rfl

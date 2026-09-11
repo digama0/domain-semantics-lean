@@ -749,6 +749,16 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    general shape of the gluing discipline: a semantic step comes with the
    syntactic witness that licenses it.
 
+   (a') **The term's own context is not an index of `Interp`.**  The first
+   draft carried it as a parameter, which is wrong: a parameter cannot
+   grow, so under a binder the `app` rule demanded its typing premises in
+   the *outer* context.  Everything those premises are for — making the
+   argument label a legitimate `LabelEq` witness — is said in `Δ` instead,
+   where the stage does grow correctly.  The rule now reads
+   `Δ ⊢ A : sort u`, `Δ ⊢ a[σ] : A`, and the soundness proof instantiates
+   `A` to `A₀[σ]` using the typed `σ`.  Master has no context in
+   `LE_Interp` either, for the same reason.
+
    (b) **`Interp`'s binder rules carry `Shape.WF`.**  Master gets this for
    free, its shapes being the subtype `WShape n := {s // WF s}`; ours
    cannot bundle, `WF` being context-dependent.  The rules need it because

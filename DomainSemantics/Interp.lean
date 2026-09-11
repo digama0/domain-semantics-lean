@@ -2,7 +2,7 @@ import DomainSemantics.HasType
 
 /-! # The interpretation relation
 
-`Interp Γ t Δ σ ρ m` says that the shape `m` is a lower bound on an
+`Interp t Δ σ ρ m` says that the shape `m` is a lower bound on an
 interpretation of the term `t` at the **stage** `(Δ, σ)`, under the
 valuation `ρ`.  It is master's `LE_Interp`, with two changes.
 
@@ -96,32 +96,33 @@ end TShape
 /-! ## The relation -/
 
 /-- `m` approximates the interpretation of `t` at stage `(Δ, σ)` under `ρ`. -/
-inductive Interp (Γ : List Term) :
-    Term → List Term → Subst → Valuation → TShape → Prop where
+inductive Interp : Term → List Term → Subst → Valuation → TShape → Prop where
   /-- `⊥` approximates everything, including the terms Σ is deferred on. -/
-  | bot {n} : Interp Γ t Δ σ ρ (Shape.T (n := n) Shape.bot)
-  | bvar : TShape.LE Δ m (ρ i) → Interp Γ (.bvar i) Δ σ ρ m
-  | sort : TShape.LE Δ m (TShape.sort r) → Interp Γ (.sort r) Δ σ ρ m
-  | unit : TShape.LE Δ m (TShape.unit r) → Interp Γ (.unit r) Δ σ ρ m
+  | bot {n} : Interp t Δ σ ρ (Shape.T (n := n) Shape.bot)
+  | bvar : TShape.LE Δ m (ρ i) → Interp (.bvar i) Δ σ ρ m
+  | sort : TShape.LE Δ m (TShape.sort r) → Interp (.sort r) Δ σ ρ m
+  | unit : TShape.LE Δ m (TShape.unit r) → Interp (.unit r) Δ σ ρ m
   -- `star r` has only the `bot` rule: the unit type's inhabitant carries
   -- no information, which is what makes `unit_eta` sound
-  | nat : TShape.LE Δ m TShape.nat → Interp Γ .nat Δ σ ρ m
-  | zero : TShape.LE Δ m TShape.zero → Interp Γ .zero Δ σ ρ m
+  | nat : TShape.LE Δ m TShape.nat → Interp .nat Δ σ ρ m
+  | zero : TShape.LE Δ m TShape.zero → Interp .zero Δ σ ρ m
   | succ {n} {v : Shape n} :
-      Interp Γ N Δ σ ρ (Shape.T v) →
+      Interp N Δ σ ρ (Shape.T v) →
       TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.succ v)) →
-      Interp Γ (.succ N) Δ σ ρ m
+      Interp (.succ N) Δ σ ρ m
   /-- Application is the **graph lookup at the syntactic label**.  The
-  argument's type has to be named, since the label is `(A[σ], a[σ])` and
-  `Term.app` does not record it; the typing premises are what make the
-  label a legitimate `LabelEq` witness in `Δ` once `σ` is typed. -/
+  argument's type has to be named, since `Term.app` does not record it,
+  and it is named as a term of `Δ`: the label is `(A, a[σ])` and the two
+  typing premises, both in `Δ`, are what make it a legitimate `LabelEq`
+  witness.  In the soundness proof `A` is instantiated to `A₀[σ]` for the
+  syntactic argument type `A₀`, which the typed `σ` supplies. -/
   | app {n} {g : ShapeFun n} {x y : Shape n} {A : Term} {u : Bool} :
-      Interp Γ F Δ σ ρ (Shape.T (n := n+1) (ShapeS.lam g)) →
-      Interp Γ a Δ σ ρ (Shape.T x) →
-      Γ ⊢ A : .sort u → Γ ⊢ a : A →
-      Evaluates Δ g (A.subst σ) (a.subst σ) x y →
+      Interp F Δ σ ρ (Shape.T (n := n+1) (ShapeS.lam g)) →
+      Interp a Δ σ ρ (Shape.T x) →
+      Δ ⊢ A : .sort u → Δ ⊢ a.subst σ : A →
+      Evaluates Δ g A (a.subst σ) x y →
       TShape.LE Δ m (Shape.T y) →
-      Interp Γ (.app F a) Δ σ ρ m
+      Interp (.app F a) Δ σ ρ m
   /-- The binder rule.  Each entry of the graph is a *probe*: a label term
   `e.tm` at a type definitionally equal to the domain, together with the
   body's interpretation at the stage extended by that term.  The premises
@@ -129,78 +130,78 @@ inductive Interp (Γ : List Term) :
   occurrence stays under `∀` and `→` only and the kernel accepts the
   definition. -/
   | lam {n} {g : ShapeFun n} {d : TShape} {A b : Term} :
-      Interp Γ A Δ σ ρ d →
+      Interp A Δ σ ρ d →
       Shape.WF Δ (Shape.lam g) →
       (∀ e ∈ g, ∃ u, Δ ⊢ e.ty ≡ A.subst σ : .sort u) →
-      (∀ e ∈ g, Interp Γ b Δ (σ.cons e.tm) (ρ.push (Shape.T e.inp)) (Shape.T e.out)) →
+      (∀ e ∈ g, Interp b Δ (σ.cons e.tm) (ρ.push (Shape.T e.inp)) (Shape.T e.out)) →
       TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.lam g)) →
-      Interp Γ (.lam A b) Δ σ ρ m
+      Interp (.lam A b) Δ σ ρ m
   /-- The Π-shape carries the syntactic pair `(A[σ], B[σ.lift])`.  That
   label is the whole gluing trick: Π-injectivity falls out of soundness by
   projecting it. -/
   | forallE {n} {g : ShapeFun n} {d : Shape n} {A B : Term} :
-      Interp Γ A Δ σ ρ (Shape.T d) →
+      Interp A Δ σ ρ (Shape.T d) →
       Shape.WF (n := n+1) Δ (ShapeS.forallE (A.subst σ) (B.subst σ.lift) d g) →
       (∀ e ∈ g, ∃ u, Δ ⊢ e.ty ≡ A.subst σ : .sort u) →
-      (∀ e ∈ g, Interp Γ B Δ (σ.cons e.tm) (ρ.push (Shape.T e.inp)) (Shape.T e.out)) →
+      (∀ e ∈ g, Interp B Δ (σ.cons e.tm) (ρ.push (Shape.T e.inp)) (Shape.T e.out)) →
       TShape.LE Δ m
         (Shape.T (n := n+1) (ShapeS.forallE (A.subst σ) (B.subst σ.lift) d g)) →
-      Interp Γ (.forallE A B) Δ σ ρ m
+      Interp (.forallE A B) Δ σ ρ m
   | natCase_zero :
-      Interp Γ M Δ σ ρ TShape.zero →
-      Interp Γ a Δ σ ρ m →
-      Interp Γ (.natCase C M a b) Δ σ ρ m
+      Interp M Δ σ ρ TShape.zero →
+      Interp a Δ σ ρ m →
+      Interp (.natCase C M a b) Δ σ ρ m
   /-- There is no syntactic predecessor former, so the label term for the
   body's binder is supplied as a premise, together with the definitional
   equation that makes it the right one. -/
   | natCase_succ {n} {v : Shape n} {t : Term} :
-      Interp Γ M Δ σ ρ (Shape.T (n := n+1) (ShapeS.succ v)) →
+      Interp M Δ σ ρ (Shape.T (n := n+1) (ShapeS.succ v)) →
       Shape.WF Δ v →
       Δ ⊢ M.subst σ ≡ .succ t : .nat →
-      Interp Γ b Δ (σ.cons t) (ρ.push (Shape.T v)) m →
-      Interp Γ (.natCase C M a b) Δ σ ρ m
+      Interp b Δ (σ.cons t) (ρ.push (Shape.T v)) m →
+      Interp (.natCase C M a b) Δ σ ρ m
   /-- The fixed point is a least fixed point for free: the constructor
   refers to the relation it is defining, so only finitely many unfoldings
   can ever produce a given approximant. -/
   | protected Y {A b : Term} {x : TShape} :
-      Interp Γ (.Y A b) Δ σ ρ x →
+      Interp (.Y A b) Δ σ ρ x →
       TShape.WF Δ x →
-      Interp Γ b Δ (σ.cons ((Term.Y A b).subst σ)) (ρ.push x) m →
-      Interp Γ (.Y A b) Δ σ ρ m
+      Interp b Δ (σ.cons ((Term.Y A b).subst σ)) (ρ.push x) m →
+      Interp (.Y A b) Δ σ ρ m
   /-- The identity type is **label-only**: no sub-shapes, so the shape
   records nothing but the syntax. -/
   | id : TShape.LE Δ m
         (Shape.T (n := 1) (ShapeS.id r (A.subst σ) (a.subst σ) (b.subst σ))) →
-      Interp Γ (.id r A a b) Δ σ ρ m
+      Interp (.id r A a b) Δ σ ρ m
   /-- `refl` has a shape only in the proof-relevant sort; at `r = false`
   the `bot` rule is all there is, which is proof irrelevance. -/
   | refl {n} {v : Shape n} :
-      Interp Γ a Δ σ ρ (Shape.T v) →
+      Interp a Δ σ ρ (Shape.T v) →
       TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.refl v)) →
-      Interp Γ (.refl true a) Δ σ ρ m
+      Interp (.refl true a) Δ σ ρ m
   /-- Transport.  Master's constructor, with the motive evaluated at the
   stage extended by `b`, which is the label term the motive's binder is
   instantiated with. -/
   | tr {v vA m' cb : TShape} {r : Bool} {A a b C X H : Term} :
       TShape.LE Δ m m' →
-      Interp Γ X Δ σ ρ m' →
-      Interp Γ a Δ σ ρ v →
-      Interp Γ b Δ σ ρ v →
-      Interp Γ A Δ σ ρ vA →
+      Interp X Δ σ ρ m' →
+      Interp a Δ σ ρ v →
+      Interp b Δ σ ρ v →
+      Interp A Δ σ ρ vA →
       TShape.WF Δ v →
       TShape.HasType Δ v vA →
-      Interp Γ C Δ (σ.cons (b.subst σ)) (ρ.push v) cb →
+      Interp C Δ (σ.cons (b.subst σ)) (ρ.push v) cb →
       TShape.HasType Δ m' cb →
-      (r = true → Interp Γ H Δ σ ρ (Shape.T (n := v.1+1) (ShapeS.refl v.2))) →
-      Interp Γ (.tr r A a b C X H) Δ σ ρ m
+      (r = true → Interp H Δ σ ρ (Shape.T (n := v.1+1) (ShapeS.refl v.2))) →
+      Interp (.tr r A a b C X H) Δ σ ρ m
 
 /-! ## Monotonicity
 
 Both directions master has: down in the shape, up in the valuation.
 Neither touches the stage, so both are the same induction as there. -/
 
-theorem Interp.mono {Γ : List Term} (hΔ : ⊢ Δ) {t : Term} {σ ρ} {m m' : TShape}
-    (h : TShape.LE Δ m m') (H : Interp Γ t Δ σ ρ m') : Interp Γ t Δ σ ρ m := by
+theorem Interp.mono (hΔ : ⊢ Δ) {t : Term} {σ ρ} {m m' : TShape}
+    (h : TShape.LE Δ m m') (H : Interp t Δ σ ρ m') : Interp t Δ σ ρ m := by
   induction H generalizing m with
   | bot =>
     obtain ⟨k, s⟩ := m
@@ -227,8 +228,8 @@ theorem Interp.mono {Γ : List Term} (hΔ : ⊢ Δ) {t : Term} {σ ρ} {m m' : T
   | tr hle hX ha hb hA hwv hvA hC hm' hH _ _ _ _ _ _ =>
     exact .tr (TShape.LE.trans hΔ h hle) hX ha hb hA hwv hvA hC hm' hH
 
-theorem Interp.mono_val {Γ : List Term} {t : Term} {σ} {ρ ρ' : Valuation} {m : TShape}
-    (hΔ : ⊢ Δ) (hρ : ρ.LE Δ ρ') (H : Interp Γ t Δ σ ρ m) : Interp Γ t Δ σ ρ' m := by
+theorem Interp.mono_val {t : Term} {σ} {ρ ρ' : Valuation} {m : TShape}
+    (hΔ : ⊢ Δ) (hρ : ρ.LE Δ ρ') (H : Interp t Δ σ ρ m) : Interp t Δ σ ρ' m := by
   induction H generalizing ρ' with
   | bot => exact .bot
   | bvar h1 => exact .bvar (TShape.LE.trans hΔ h1 (hρ _))
@@ -262,26 +263,26 @@ theorem Interp.mono_val {Γ : List Term} {t : Term} {σ} {ρ ρ' : Valuation} {m
 Master's primed forms.  Each takes the well-formedness that `LE` needs to
 be reflexive, which master gets from its shapes being a `WF` subtype. -/
 
-theorem Interp.bvar' {Γ : List Term} {Δ σ ρ i} (h : TShape.WF Δ (ρ i)) :
-    Interp Γ (.bvar i) Δ σ ρ (ρ i) := .bvar (TShape.LE.refl h)
+theorem Interp.bvar' {Δ σ ρ i} (h : TShape.WF Δ (ρ i)) :
+    Interp (.bvar i) Δ σ ρ (ρ i) := .bvar (TShape.LE.refl h)
 
-theorem Interp.sort' {Γ : List Term} {Δ σ ρ r} :
-    Interp Γ (.sort r) Δ σ ρ (TShape.sort r) :=
+theorem Interp.sort' {Δ σ ρ r} :
+    Interp (.sort r) Δ σ ρ (TShape.sort r) :=
   .sort (TShape.LE.refl (a := TShape.sort r) trivial)
 
-theorem Interp.unit' {Γ : List Term} {Δ σ ρ r} :
-    Interp Γ (.unit r) Δ σ ρ (TShape.unit r) :=
+theorem Interp.unit' {Δ σ ρ r} :
+    Interp (.unit r) Δ σ ρ (TShape.unit r) :=
   .unit (TShape.LE.refl (a := TShape.unit r) trivial)
 
-theorem Interp.nat' {Γ : List Term} {Δ σ ρ} : Interp Γ .nat Δ σ ρ TShape.nat :=
+theorem Interp.nat' {Δ σ ρ} : Interp .nat Δ σ ρ TShape.nat :=
   .nat (TShape.LE.refl (a := TShape.nat) trivial)
 
-theorem Interp.zero' {Γ : List Term} {Δ σ ρ} : Interp Γ .zero Δ σ ρ TShape.zero :=
+theorem Interp.zero' {Δ σ ρ} : Interp .zero Δ σ ρ TShape.zero :=
   .zero (TShape.LE.refl (a := TShape.zero) trivial)
 
-theorem Interp.succ' {Γ : List Term} {Δ σ ρ N} {n} {v : Shape n}
-    (hv : Interp Γ N Δ σ ρ (Shape.T v)) (h : Shape.WF Δ v) :
-    Interp Γ (.succ N) Δ σ ρ (Shape.T (n := n+1) (ShapeS.succ v)) :=
+theorem Interp.succ' {Δ σ ρ N} {n} {v : Shape n}
+    (hv : Interp N Δ σ ρ (Shape.T v)) (h : Shape.WF Δ v) :
+    Interp (.succ N) Δ σ ρ (Shape.T (n := n+1) (ShapeS.succ v)) :=
   .succ hv (TShape.LE.refl (a := Shape.T (n := n+1) (ShapeS.succ v)) h)
 
 /-! ## Inversion for the atoms
@@ -291,45 +292,45 @@ each.  They are what the soundness induction reads a subderivation with,
 and — for `forallE` — what eventually yields Π-injectivity, since the
 shape it returns carries the syntactic pair. -/
 
-theorem Interp.le_sort {Γ : List Term} {Δ σ ρ m r}
-    (H : Interp Γ (.sort r) Δ σ ρ m) : TShape.LE Δ m (TShape.sort r) := by
+theorem Interp.le_sort {Δ σ ρ m r}
+    (H : Interp (.sort r) Δ σ ρ m) : TShape.LE Δ m (TShape.sort r) := by
   cases H with
   | bot => exact TShape.bot_le' rfl
   | sort h => exact h
 
-theorem Interp.le_unit {Γ : List Term} {Δ σ ρ m r}
-    (H : Interp Γ (.unit r) Δ σ ρ m) : TShape.LE Δ m (TShape.unit r) := by
+theorem Interp.le_unit {Δ σ ρ m r}
+    (H : Interp (.unit r) Δ σ ρ m) : TShape.LE Δ m (TShape.unit r) := by
   cases H with
   | bot => exact TShape.bot_le' rfl
   | unit h => exact h
 
-theorem Interp.le_nat {Γ : List Term} {Δ σ ρ m}
-    (H : Interp Γ .nat Δ σ ρ m) : TShape.LE Δ m TShape.nat := by
+theorem Interp.le_nat {Δ σ ρ m}
+    (H : Interp .nat Δ σ ρ m) : TShape.LE Δ m TShape.nat := by
   cases H with
   | bot => exact TShape.bot_le' rfl
   | nat h => exact h
 
-theorem Interp.le_zero {Γ : List Term} {Δ σ ρ m}
-    (H : Interp Γ .zero Δ σ ρ m) : TShape.LE Δ m TShape.zero := by
+theorem Interp.le_zero {Δ σ ρ m}
+    (H : Interp .zero Δ σ ρ m) : TShape.LE Δ m TShape.zero := by
   cases H with
   | bot => exact TShape.bot_le' rfl
   | zero h => exact h
 
-theorem Interp.le_id {Γ : List Term} {Δ σ ρ m r A a b}
-    (H : Interp Γ (.id r A a b) Δ σ ρ m) :
+theorem Interp.le_id {Δ σ ρ m r A a b}
+    (H : Interp (.id r A a b) Δ σ ρ m) :
     TShape.LE Δ m
       (Shape.T (n := 1) (ShapeS.id r (A.subst σ) (a.subst σ) (b.subst σ))) := by
   cases H with
   | bot => exact TShape.bot_le' rfl
   | id h => exact h
 
-theorem Interp.bvar_iff {Γ : List Term} {Δ σ ρ m i} :
-    Interp Γ (.bvar i) Δ σ ρ m ↔ TShape.LE Δ m (ρ i) :=
+theorem Interp.bvar_iff {Δ σ ρ m i} :
+    Interp (.bvar i) Δ σ ρ m ↔ TShape.LE Δ m (ρ i) :=
   ⟨fun H => by cases H with | bot => exact TShape.bot_le' rfl | bvar h => exact h, .bvar⟩
 
-theorem Interp.le_succ {Γ : List Term} {Δ σ ρ m N}
-    (H : Interp Γ (.succ N) Δ σ ρ m) :
-    ∃ n, ∃ v : Shape n, Interp Γ N Δ σ ρ (Shape.T v) ∧
+theorem Interp.le_succ {Δ σ ρ m N}
+    (H : Interp (.succ N) Δ σ ρ m) :
+    ∃ n, ∃ v : Shape n, Interp N Δ σ ρ (Shape.T v) ∧
       TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.succ v)) := by
   cases H with
   | bot => exact ⟨0, .bot, .bot, TShape.bot_le' rfl⟩
@@ -339,8 +340,8 @@ theorem Interp.le_succ {Γ : List Term} {Δ σ ρ m N}
 syntactic pair** `(A[σ], B[σ.lift])`, which is what makes injectivity of
 `forallE` a projection out of soundness rather than a consequence of
 adequacy. -/
-theorem Interp.le_forallE {Γ : List Term} {Δ σ ρ m A B}
-    (H : Interp Γ (.forallE A B) Δ σ ρ m) :
+theorem Interp.le_forallE {Δ σ ρ m A B}
+    (H : Interp (.forallE A B) Δ σ ρ m) :
     m.2 = Shape.bot ∨
       ∃ n, ∃ d : Shape n, ∃ g : ShapeFun n,
         TShape.LE Δ m
@@ -371,9 +372,9 @@ will go. -/
 
 /-- The probe exists: a well-typed Π has its own label-only atom among its
 approximants. -/
-theorem Interp.piAtom {Γ : List Term} {Δ σ ρ} {A B : Term} {u v}
+theorem Interp.piAtom {Δ σ ρ} {A B : Term} {u v}
     (hA : Δ ⊢ A.subst σ : .sort u) (hB : A.subst σ :: Δ ⊢ B.subst σ.lift : .sort v) :
-    Interp Γ (.forallE A B) Δ σ ρ
+    Interp (.forallE A B) Δ σ ρ
       (Shape.T (n := 1) (Shape.piAtom (A.subst σ) (B.subst σ.lift))) :=
   .forallE (d := (Shape.bot : Shape 0)) .bot (Shape.WF.piAtom hA hB)
     (fun _ he => absurd he List.not_mem_nil)
@@ -383,8 +384,8 @@ theorem Interp.piAtom {Γ : List Term} {Δ σ ρ} {A B : Term} {u v}
 /-- And the probe reports: if the atom approximates `⟦forallE A B⟧`, its
 label is definitionally the Π's own label.  Π-injectivity is this plus
 soundness, with no adequacy in between. -/
-theorem Interp.le_piAtom {Γ : List Term} {Δ σ ρ} {A B A' B' : Term}
-    (H : Interp Γ (.forallE A B) Δ σ ρ (Shape.T (n := 1) (Shape.piAtom A' B'))) :
+theorem Interp.le_piAtom {Δ σ ρ} {A B A' B' : Term}
+    (H : Interp (.forallE A B) Δ σ ρ (Shape.T (n := 1) (Shape.piAtom A' B'))) :
     PiLabelEq Δ A' B' (A.subst σ) (B.subst σ.lift) := by
   cases H with
   | forallE _ _ _ _ h =>
@@ -405,9 +406,9 @@ Note the term's own context `Γ` does not move: only the stage does.  That
 is what makes this independent of the substitution lemma for terms, which
 moves `Γ` and leaves the stage's shape alone. -/
 
-theorem Interp.natural {Γ : List Term} {t : Term} {Δ : List Term} {σ ρ m}
-    (H : Interp Γ t Δ σ ρ m) : ∀ {Θ τ}, ⊢ Θ → Ctx.SubstEq Θ τ τ Δ →
-      Interp Γ t Θ (σ.comp τ) (ρ.subst τ) (m.subst τ) := by
+theorem Interp.natural {t : Term} {Δ : List Term} {σ ρ m}
+    (H : Interp t Δ σ ρ m) : ∀ {Θ τ}, ⊢ Θ → Ctx.SubstEq Θ τ τ Δ →
+      Interp t Θ (σ.comp τ) (ρ.subst τ) (m.subst τ) := by
   induction H with
   | bot => intro Θ τ _ _; simp only [TShape.subst_T, Shape.subst_bot]; exact .bot
   | bvar h1 => intro Θ τ hΘ W; exact .bvar (TShape.LE.subst hΘ W h1)
@@ -418,9 +419,11 @@ theorem Interp.natural {Γ : List Term} {t : Term} {Δ : List Term} {σ ρ m}
   | succ _ h1 ihv => intro Θ τ hΘ W; exact .succ (ihv hΘ W) (TShape.LE.subst hΘ W h1)
   | app _ _ hA hty hev h1 ihF iha =>
     intro Θ τ hΘ W
-    refine .app (ihF hΘ W) (iha hΘ W) hA hty ?_ (TShape.LE.subst hΘ W h1)
+    have hty' := hty.subst hΘ W
+    rw [subst_subst] at hty'
+    refine .app (ihF hΘ W) (iha hΘ W) (hA.subst hΘ W) hty' ?_ (TShape.LE.subst hΘ W h1)
     have := Evaluates.subst hΘ W hev
-    rwa [subst_subst, subst_subst] at this
+    rwa [subst_subst] at this
   | lam _ hwf hlab _ h1 ihA ihbody =>
     intro Θ τ hΘ W
     refine .lam (ihA hΘ W) (Shape.WF.subst hΘ W hwf) ?_ ?_ (TShape.LE.subst hΘ W h1)
