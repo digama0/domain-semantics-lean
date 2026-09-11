@@ -536,8 +536,23 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    lemma; `Compat` carrying the coherence implication; the `Join` relation
    and a `join` witness; `Shape.subst` and `LE.subst`; `join_le`,
    `le_join` and `exists_join`; `WF.subst`, `IsBot.subst`, `join_subst`,
-   `subst_subst`, hereditary `Compat` with `Compat.subst`.  Plus
-   `Ctx.SubstEq.comp` in `Term.lean`.  **Done**, modulo the Σ label (§5).
+   `subst_subst`, hereditary `Compat` with `Compat.subst`; `IsBot`
+   decidable and `isBot_subst_iff`.  Plus `Ctx.SubstEq.comp` in
+   `Term.lean`.  **Done**, modulo the Σ label (§5).
+
+   Final shape of the collapse story: rather than carrying
+   information-free λ-shapes around and giving `LE`, `Compat` and `join`
+   collapse clauses for them, `Shape.WF` now excludes them — a λ-graph
+   must be non-empty with no bottom output.  This is master's `NonZero`,
+   strengthened from "some entry is non-bottom" to "every entry is",
+   which is what lets the bottom escape disappear from `ShapeFun.LE` as
+   well.  Legitimate where saturation was not: being information-free is
+   structural, never inspects a label, and so is invariant under
+   substitution in both directions (`isBot_subst_iff`) and decidable.
+   Net effect: the escape clause, the `LE` collapse clause, both mixed-`lam`
+   clauses of `Compat`, both of `join`, and the lemmas `IsBot.le` and
+   `ShapeFun.LE.append_bot` are all gone, and `le_bot_iff` strengthens to
+   `s ≤ ⊥ ↔ s = ⊥`.
 
    A bug found and fixed while proving `le_join`: the first `join` returned
    `⊥` whenever the heads differed, which is wrong when one side is an
@@ -643,11 +658,11 @@ reading.
 |---|---|---|---|
 | order | `LE` judgement, `Prop` | `ble`, `Bool`, decidable | ✱ `Shape.LE Δ`, `Prop`, context-indexed |
 | entry coverage | `Entry` judgement, `bottom` + `mem` | inside `ble`, no bottom escape | `ShapeFun.LE` with the `out ≤ ⊥` escape |
-| information-free λ | `IsBottom` + `LE.collapse` | normalised away: `NonZero` / `lam'` | ✱ `IsBot` + collapse clause in `LE` (no normalisation) |
-| graph well-formedness | coherence only | ✱ saturation: `⊥`-input entry, join-closed inputs, monotone samples | **none** — saturation dropped (label classes merge under substitution) |
+| information-free λ | `IsBottom` + `LE.collapse` | normalised away: `NonZero` / `lam'` | excluded by `WF`: a λ-graph is non-empty with no bottom output |
+| graph well-formedness | coherence only | saturation: `⊥`-input entry, join-closed inputs, monotone samples | ✱ non-degeneracy only (master's `NonZero`, per entry); saturation dropped, since label classes merge under substitution |
 | compatibility | `Compatible σ`, hereditary *inside the graph clause* | `Compat`, `Bool`, structural, local | ✱ `Compat Δ`, `Prop`, hereditary inside the graph clause (copied from the other repo) |
 | coherence | `IsCoherent` / `InternallyCompatible` (separate) | part of `Compat`/`WF` | part of `Compat Δ` |
-| join | `cSup` + `sup` for compatible pairs | `join` re-applying both graphs (needs saturation) | ✱ copy of `cSup`: append on graphs, mixed-`lam` clauses return the other side |
+| join | `cSup` + `sup` for compatible pairs | `join` re-applying both graphs (needs saturation) | ✱ append on graphs; no mixed-`lam` clauses, since a well-formed λ is never information-free |
 | join as relation | `CondSemilatticeSup` instance | `WShape.Join` | `Shape.Join Δ`, with `exists_join` |
 | preservation under substitution | functoriality, free | — | ✱ `LE.subst`, `WF.subst`, `IsBot.subst`, `Compat.subst`, `join_subst` |
 
