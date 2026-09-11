@@ -548,11 +548,22 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    equality; the definition is now a faithful copy of `cSup` and `join_le`
    got shorter.
 
-3. `HasType` on labelled shapes: **defined** (`55f6a68`), with `Evaluates`
-   as the relational graph lookup and `HasDom`.  **Left:** all of its
-   lemmas, i.e. the five obligations of §4.2 — `⊥` typed at everything and
-   the typed set lower-closed, typed joins, prop collapse, preservation
-   under typed substitution — plus the Σ label (§5).
+3. `HasType` on labelled shapes: **defined**, with `Evaluates` as the
+   relational graph lookup and `HasDom`; `HasType.bot`; `IsCode` with
+   `IsCode.of_le`.  **Left:** typed joins, prop collapse
+   (`IsCode false a → HasType Δ x a → x.IsBot`, by induction through
+   `Evaluates` using `of_le`), and `HasType.subst`; plus the Σ label (§5).
+
+   Two corrections made while starting these.  (a) `IsCode r` must **not**
+   be `HasType · (sort r)`: it has to be downward closed, since `Evaluates`
+   closes under `lower`, and `HasType` is not, because `HasDom` is a
+   condition internal to a graph and is not inherited by a graph sitting
+   below it.  So `IsCode` is a separate predicate without `HasDom`, as in
+   the other repo (`Basis/UniverseShape.lean`), and `of_le` is proved.
+   (b) The obligation "the typed set is lower-closed" was misstated: it is
+   `InterpTyped` that is lower-closed, and *by construction*, since it
+   reads `∃ m' a, m ≤ m' ∧ …`.  `HasType` itself need not be, for the same
+   `HasDom` reason.
 4. `Interp` inductive, `Adm`, and the structural lemmas: `mono` (in the
    shape and in `ρ`), `join`, naturality along typed `τ`, `weak`, `subst`
    (the `∃ ρ'` form), `inst`.

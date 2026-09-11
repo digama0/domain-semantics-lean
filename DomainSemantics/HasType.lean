@@ -25,6 +25,8 @@ because the recursion is structural in the level. -/
 
 namespace DomainSemantics
 
+variable {Δ : List Term}
+
 /-- Relational graph lookup: `Evaluates Δ f A a x y` says `y` approximates
 the result of applying the graph `f`, at the argument label `(A, a)`, to an
 input at least `x`.  It is the set of outputs of matching entries, closed
@@ -84,8 +86,85 @@ def Shape.HasType (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
   | _+1, .refl _, .id r _ _ _ => r = true
   | _+1, _, _ => False
 
-/-- Codes of universe `r`: the shapes that are types at `sort r`. -/
-abbrev Shape.IsCode (Δ : List Term) (r : Bool) (a : Shape n) : Prop :=
-  Shape.HasType Δ a (.sort r)
+/-! ## Codes
+
+`IsCode r a` says `a` is a code of universe `r`.  It is deliberately *not*
+`HasType · (sort r)`: it omits the `HasDom` condition, and that is what
+makes it **downward closed** (`IsCode.of_le`).  Downward closure is
+essential, because `Evaluates` closes under `lower`, so anything read out
+of a family graph has to stay a code.  The other repo splits these the
+same way (`IsCode` in `Basis/UniverseShape.lean` versus its decoder).
+
+Following master, the `Bool` order is used where a proof-irrelevant former
+also counts as a proof-relevant code (`unit`, `id`). -/
+def Shape.IsCode : ∀ {n}, Bool → Shape n → Prop
+  | 0, _, .bot => True
+  | 0, r, .sort _ => r = true
+  | _+1, _, .bot => True
+  | _+1, r, .sort _ => r = true
+  | _+1, r, .unit s => s ≤ r
+  | _+1, r, .nat => r = true
+  | _+1, r, .id s _ _ _ => s ≤ r
+  | _+1, r, .sigma _ _ _ _ => r = true
+  | _+1, true, .forallE _ _ _ _ => True
+  | _+1, false, .forallE _ _ _ f => ∀ e ∈ f, IsCode false e.out
+  -- an information-free λ-shape is a code, as it is `⊥`
+  | _+1, _, .lam f => ∀ e ∈ f, Shape.IsBot e.out
+  | _+1, _, _ => False
+
+theorem Shape.IsCode.bot {r : Bool} : Shape.IsCode (n := n) r .bot := by
+  cases n <;> trivial
+
+/-- Codes are downward closed.  This is the property `HasType · (sort r)`
+would *not* have, since `HasDom` is a condition internal to a graph and so
+is not inherited by a graph that merely sits below it. -/
+theorem Shape.IsCode.of_le (hΔ : ⊢ Δ) : ∀ {n} {r : Bool} {a b : Shape n},
+    Shape.LE Δ a b → Shape.IsCode r b → Shape.IsCode r a := by
+  intro n
+  induction n with
+  | zero => intro r a b hab hb; cases a <;> cases b <;> simp_all [Shape.IsCode, Shape.LE]
+  | succ n ih =>
+    intro r a b hab hb
+    cases a with
+    | bot => trivial
+    | lam f =>
+      cases b with
+      | lam g =>
+        intro e he
+        match hab e he with
+        | .inl hbot => exact Shape.le_bot_iff.1 hbot
+        | .inr ⟨e', he', _, _, hout⟩ =>
+          exact Shape.le_bot_iff.1 (Shape.LE.trans_aux hΔ hout (Shape.le_bot_iff.2 (hb e' he')))
+      | _ => exact fun e he => Shape.le_bot_iff.1 (hab e he)
+    | forallE A B d f =>
+      cases r with
+      | true => trivial
+      | false =>
+        cases b with
+        | forallE A' B' d' f' =>
+          intro e he
+          match hab.2.2 e he with
+          | .inl hbot => exact ih hbot Shape.IsCode.bot
+          | .inr ⟨e', he', _, _, hout⟩ => exact ih hout (hb e' he')
+        | _ => exact absurd hab id
+    | sort s => cases b <;> first | exact absurd hab id | exact hb
+    | unit s =>
+      cases b with
+      | unit s' => exact (show s = s' from hab) ▸ hb
+      | _ => exact absurd hab id
+    | nat => cases b <;> first | exact absurd hab id | exact hb
+    | zero => cases b <;> first | exact absurd hab id | exact hb
+    | succ v => cases b <;> first | exact absurd hab id | exact hb
+    | refl w => cases b <;> first | exact absurd hab id | exact hb
+    | pair x y => cases b <;> first | exact absurd hab id | exact hb
+    | sigma A B d f => cases b <;> first | exact absurd hab id | exact hb
+    | id s A a' b' =>
+      cases b with
+      | id s' A'' a'' b'' => exact hab.1 ▸ hb
+      | _ => exact absurd hab id
+
+/-- `⊥` inhabits every shape. -/
+theorem Shape.HasType.bot {a : Shape n} : Shape.HasType Δ .bot a := by
+  cases n <;> trivial
 
 end DomainSemantics
