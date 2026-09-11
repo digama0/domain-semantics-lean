@@ -219,6 +219,10 @@ theorem Subst.comp_lift {σ σ' : Subst} : (σ.comp σ').lift = σ.lift.comp σ'
   funext i; cases i <;> simp! [comp, Term.lift]
   rw [Term.lift, Term.lift, lift'_subst, subst_lift']; rfl
 
+theorem Subst.cons_comp {sig tau : Subst} {e : Term} :
+    (sig.cons e).comp tau = (sig.comp tau).cons (e.subst tau) := by
+  funext i; cases i <;> rfl
+
 theorem subst_subst {e : Term} : (e.subst σ).subst σ' = subst e (.comp σ σ') := by
   induction e generalizing σ σ' <;> simp! [*, Subst.comp, Subst.comp_lift]
 

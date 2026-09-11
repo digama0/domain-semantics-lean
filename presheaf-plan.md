@@ -975,12 +975,24 @@ rough order of load:
 
 1. **Soundness itself** (`rawSoundness` is `sorry`), and the per-rule
    lemmas — the bulk of his 2.6k `Soundness/*` lines.
-2. **`piAtom` and `mem_piAtom_pi_iff`**, his inversion payload, and the
-   inversion theorems that read the Π label off it.  This is the single
-   most load-bearing missing lemma: it is what the whole labelling is for.
-3. **`bottom_admissible`** (`Adm Δ Γ σ Valuation.nil`) and the strictness
-   fact it rests on (`IsPayloadStrict`).  Without it inversion cannot be
-   run at the `⊥` valuation, which is how he runs it.
+2. ~~**`piAtom` and `mem_piAtom_pi_iff`**~~ **done.**  `Shape.piAtom` is
+   the label-only Π shape; `Shape.piAtom_le_forallE` and `Shape.piAtom_le`
+   are the two directions at the order level, and `Interp.piAtom` /
+   `Interp.le_piAtom` at the interpretation level.  Both are cheap, and
+   neither needs soundness: the probe is built by the `forallE` rule with
+   `d = ⊥` and an empty graph, and the projection is `.1` of the order's
+   Π clause, the other two components being discharged by `⊥ ≤ d` and
+   `[] ≤ f`.  What is left is `forallE_inv` itself, which composes the two
+   across a definitional equality and so needs soundness and item 3.
+3. **`bottom_admissible`** (`Adm Δ Γ σ Valuation.nil`).  Without it
+   inversion cannot be run at the `⊥` valuation, which is how both he and
+   master run it.  **This needs `Adm` restructured.**  Master's
+   `Valuation.Fits Γ₀ Δ ρ` has `nil : Fits Γ Γ .nil` as a *constructor*, so
+   the `⊥` valuation is admissible for free; our `Adm` recurses on all of
+   `Γ` with a condition per slot, which loses that.  The fix is master's
+   shape: index by an ambient context and build the valuated part up with
+   `cons`, so the unvaluated tail costs nothing.  Until then `SoundEq` and
+   `SoundTy` are stated over a hypothesis nothing can currently discharge.
 4. **The Π-retraction equation** (`application_piOperator`,
    `app (R G) ℓ X = Q(ℓ)(P X, app G ℓ (P X))`).  We have the retraction
    *clauses* inside `HasType` but not the equation that β and η rest on.

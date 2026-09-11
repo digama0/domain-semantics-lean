@@ -42,6 +42,22 @@ def Valuation.push (ρ : Valuation) (u : TShape) : Valuation
   | 0 => u
   | n+1 => ρ n
 
+/-- Drop the head, for going under a binder in the context. -/
+def Valuation.tail (ro : Valuation) : Valuation := fun i => ro (i+1)
+
+/-- Reindex a valuation along a substitution of the stage: the action of
+the presheaf on morphisms, which for us is `Shape.subst` slotwise. -/
+def Valuation.subst (ro : Valuation) (tau : Subst) : Valuation := fun i => (ro i).subst tau
+
+@[simp] theorem Valuation.tail_push {ro : Valuation} {u} : (ro.push u).tail = ro := rfl
+
+@[simp] theorem Valuation.subst_apply {ro : Valuation} {tau i} :
+    ro.subst tau i = (ro i).subst tau := rfl
+
+@[simp] theorem Valuation.subst_push {ro : Valuation} {tau u} :
+    (ro.push u).subst tau = (ro.subst tau).push (u.subst tau) := by
+  funext i; cases i <;> rfl
+
 /-- Pointwise order on valuations, at a stage. -/
 def Valuation.LE (Δ : List Term) (ρ ρ' : Valuation) : Prop := ∀ i, TShape.LE Δ (ρ i) (ρ' i)
 
@@ -332,3 +348,47 @@ theorem Interp.le_forallE {Γ : List Term} {Δ σ ρ m A B}
   cases H with
   | bot => exact .inl rfl
   | forallE _ _ _ _ h => exact .inr ⟨_, _, _, h⟩
+
+/-! ## The Π label, in and out
+
+This is the other repo's `mem_piAtom_pi_iff`, and the point of the whole
+labelling.  He proves that the label-only Π atom is a member of a Π value
+**iff** its label is the reindexed label; equality of labels there is
+equality in his quotient, which is definitional equality, which is our
+`PiLabelEq`.
+
+Master has nothing like this.  In its place master carries
+`StrongSoundCore`, a second inductive with one constructor per term former
+running in lockstep with the semantics, so that the logical relation can
+read the head former back out — and then needs `LogRel.lean` plus
+`Adequacy.lean` to connect it to reduction.  Here the head former is
+*inside the shape*, so reading it back is a projection out of the order.
+
+Both directions hold, and neither needs soundness: `piAtom` builds the
+probe, `le_piAtom` reads the label off it.  Soundness is what lets the two
+be composed across a definitional equality, which is how `forallE_inv`
+will go. -/
+
+/-- The probe exists: a well-typed Π has its own label-only atom among its
+approximants. -/
+theorem Interp.piAtom {Γ : List Term} {Δ σ ρ} {A B : Term} {u v}
+    (hA : Δ ⊢ A.subst σ : .sort u) (hB : A.subst σ :: Δ ⊢ B.subst σ.lift : .sort v) :
+    Interp Γ (.forallE A B) Δ σ ρ
+      (Shape.T (n := 1) (Shape.piAtom (A.subst σ) (B.subst σ.lift))) :=
+  .forallE (d := (Shape.bot : Shape 0)) .bot (Shape.WF.piAtom hA hB)
+    (fun _ he => absurd he List.not_mem_nil)
+    (fun _ he => absurd he List.not_mem_nil)
+    (TShape.LE.T.2 (Shape.LE.refl (Shape.WF.piAtom hA hB)))
+
+/-- And the probe reports: if the atom approximates `⟦forallE A B⟧`, its
+label is definitionally the Π's own label.  Π-injectivity is this plus
+soundness, with no adequacy in between. -/
+theorem Interp.le_piAtom {Γ : List Term} {Δ σ ρ} {A B A' B' : Term}
+    (H : Interp Γ (.forallE A B) Δ σ ρ (Shape.T (n := 1) (Shape.piAtom A' B'))) :
+    PiLabelEq Δ A' B' (A.subst σ) (B.subst σ.lift) := by
+  cases H with
+  | forallE _ _ _ _ h =>
+    have h' := (TShape.LE.def (Nat.succ_le_succ (Nat.zero_le _)) (Nat.le_refl _)).1 h
+    rw [show (Shape.T (n := 1) (Shape.piAtom A' B')).2 = Shape.piAtom A' B' from rfl,
+      Shape.lift_piAtom, Shape.lift_self] at h'
+    exact Shape.piAtom_le_forallE h'

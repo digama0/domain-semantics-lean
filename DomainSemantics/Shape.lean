@@ -1730,3 +1730,59 @@ theorem TShape.bot_le' {Δ : List Term} {a b : TShape} (ha : a.2 = Shape.bot) :
   refine (TShape.LE.def (Nat.le_max_left ..) (Nat.le_max_right ..)).2 ?_
   rw [ha, Shape.lift_bot]
   exact Shape.LE.bot
+
+/-- Reindexing the total shape domain along a typed substitution.  The
+`TShape` forms of `Shape.LE.subst` and `Shape.WF.subst`: the level is
+untouched, so the canonical level of the pair is untouched too. -/
+@[simp] theorem TShape.subst_fst {a : TShape} {τ : Subst} : (a.subst τ).1 = a.1 := rfl
+
+@[simp] theorem TShape.subst_T {n} {s : Shape n} {τ : Subst} :
+    (Shape.T s).subst τ = Shape.T (s.subst τ) := rfl
+
+@[simp] theorem TShape.subst_bot {τ : Subst} : TShape.bot.subst τ = TShape.bot := rfl
+
+@[simp] theorem TShape.subst_sort {r : Bool} {τ : Subst} :
+    (TShape.sort r).subst τ = TShape.sort r := rfl
+
+theorem TShape.LE.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) {a b : TShape} (h : TShape.LE Δ a b) :
+    TShape.LE Θ (a.subst τ) (b.subst τ) := by
+  refine (TShape.LE.def (Nat.le_max_left ..) (Nat.le_max_right ..)).2 ?_
+  show Shape.LE Θ (Shape.lift (max a.1 b.1) (a.2.subst τ))
+    (Shape.lift (max a.1 b.1) (b.2.subst τ))
+  rw [Shape.lift_subst, Shape.lift_subst]
+  exact Shape.LE.subst hΘ W ((TShape.LE.def (Nat.le_max_left ..) (Nat.le_max_right ..)).1 h)
+
+theorem TShape.WF.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) {a : TShape} (h : TShape.WF Δ a) :
+    TShape.WF Θ (a.subst τ) := Shape.WF.subst hΘ W h
+
+/-- The **label-only Π shape**: the other repo's `piAtom`.  A Π-shape with
+no information in it but the syntactic pair.  It is the probe that reads a
+label back out of a Π type, and the reason is the order: a `piAtom` is
+below `forallE A B d f` exactly when the labels are definitionally equal,
+because the other two components of the clause are discharged by `⊥ ≤ d`
+and `[] ≤ f`. -/
+abbrev Shape.piAtom {n} (A B : Term) : Shape (n+1) := ShapeS.forallE A B .bot []
+
+theorem Shape.piAtom_le_forallE {Δ : List Term} {n} {A B A' B' : Term}
+    {d : Shape n} {f : ShapeFun n}
+    (h : Shape.LE Δ (Shape.piAtom A B) (ShapeS.forallE A' B' d f : Shape (n+1))) :
+    PiLabelEq Δ A B A' B' := h.1
+
+theorem Shape.piAtom_le {Δ : List Term} {n} {A B A' B' : Term}
+    {d : Shape n} {f : ShapeFun n} (h : PiLabelEq Δ A B A' B') :
+    Shape.LE Δ (Shape.piAtom A B) (ShapeS.forallE A' B' d f : Shape (n+1)) :=
+  ⟨h, Shape.LE.bot, fun _ he => absurd he (List.not_mem_nil)⟩
+
+@[simp] theorem Shape.lift_piAtom {n m} {A B : Term} :
+    (Shape.piAtom (n := n) A B).lift (m+1) = Shape.piAtom A B := by
+  show ShapeS.forallE _ _ _ _ = _
+  rw [Shape.lift_bot]; rfl
+
+theorem Shape.WF.piAtom {Δ : List Term} {n} {A B : Term} {u v}
+    (hA : Δ ⊢ A : .sort u) (hB : A :: Δ ⊢ B : .sort v) :
+    Shape.WF Δ (Shape.piAtom (n := n) A B) :=
+  ⟨⟨u, hA⟩, ⟨v, hB⟩, by cases n <;> trivial,
+    fun _ he => absurd he (List.not_mem_nil),
+    fun _ he => absurd he (List.not_mem_nil)⟩
