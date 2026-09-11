@@ -99,27 +99,33 @@ end TShape
 inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation → TShape → Prop where
   /-- `⊥` approximates everything, including the terms Σ is deferred on. -/
   | bot {n} : Interp Δ Γ t σ ρ (Shape.T (n := n) Shape.bot)
-  | bvar : TShape.LE Δ m (ρ i) → Interp Δ Γ (.bvar i) σ ρ m
-  | sort : TShape.LE Δ m (TShape.sort r) → Interp Δ Γ (.sort r) σ ρ m
-  | unit : TShape.LE Δ m (TShape.unit r) → Interp Δ Γ (.unit r) σ ρ m
+  | bvar : TShape.WF Δ m → TShape.LE Δ m (ρ i) → Interp Δ Γ (.bvar i) σ ρ m
+  | sort : TShape.WF Δ m → TShape.LE Δ m (TShape.sort r) → Interp Δ Γ (.sort r) σ ρ m
+  | unit : TShape.WF Δ m → TShape.LE Δ m (TShape.unit r) → Interp Δ Γ (.unit r) σ ρ m
   -- `star r` has only the `bot` rule: the unit type's inhabitant carries
   -- no information, which is what makes `unit_eta` sound
-  | nat : TShape.LE Δ m TShape.nat → Interp Δ Γ .nat σ ρ m
-  | zero : TShape.LE Δ m TShape.zero → Interp Δ Γ .zero σ ρ m
+  | nat : TShape.WF Δ m → TShape.LE Δ m TShape.nat → Interp Δ Γ .nat σ ρ m
+  | zero : TShape.WF Δ m → TShape.LE Δ m TShape.zero → Interp Δ Γ .zero σ ρ m
   | succ {n} {v : Shape n} :
       Interp Δ Γ N σ ρ (Shape.T v) →
+      TShape.WF Δ m →
       TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.succ v)) →
       Interp Δ Γ (.succ N) σ ρ m
   /-- Application is the **graph lookup at the syntactic label**.  The
-  argument's type has to be named, since `Term.app` does not record it;
-  the two typing premises are in the term's own context `Γ`, and a typed
-  `σ` carries them to `Δ`, which is what makes the label `(A[σ], a[σ])` a
-  legitimate `LabelEq` witness there. -/
-  | app {n} {g : ShapeFun n} {x y : Shape n} {A : Term} {u : Bool} :
+  argument's type has to be named, since `Term.app` does not record it,
+  and it is named as a term of `Δ`: the label is `(A, a[σ])`.
+
+  No typing premise is needed on `A`.  `Evaluates` only returns something
+  other than `⊥` through its `entry` rule, whose `LabelEq` premise already
+  forces `Δ ⊢ A ≡ e.ty : sort u` and `Δ ⊢ a[σ] ≡ e.tm : e.ty`, so the
+  typing comes from the graph.  Naming the type in `Δ` rather than in `Γ`
+  is also what makes `Interp.subst` an equivalence: a substitution in the
+  term leaves the label's type alone. -/
+  | app {n} {g : ShapeFun n} {x y : Shape n} {A : Term} :
       Interp Δ Γ F σ ρ (Shape.T (n := n+1) (ShapeS.lam g)) →
       Interp Δ Γ a σ ρ (Shape.T x) →
-      Γ ⊢ A : .sort u → Γ ⊢ a : A →
-      Evaluates Δ g (A.subst σ) (a.subst σ) x y →
+      Evaluates Δ g A (a.subst σ) x y →
+      TShape.WF Δ m →
       TShape.LE Δ m (Shape.T y) →
       Interp Δ Γ (.app F a) σ ρ m
   /-- The binder rule.  Each entry of the graph is a *probe*: a label term
@@ -133,6 +139,7 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
       Shape.WF Δ (Shape.lam g) →
       (∀ e ∈ g, ∃ u, Δ ⊢ e.ty ≡ A.subst σ : .sort u) →
       (∀ e ∈ g, Interp Δ (A :: Γ) b (σ.cons e.tm) (ρ.push (Shape.T e.inp)) (Shape.T e.out)) →
+      TShape.WF Δ m →
       TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.lam g)) →
       Interp Δ Γ (.lam A b) σ ρ m
   /-- The Π-shape carries the syntactic pair `(A[σ], B[σ.lift])`.  That
@@ -143,6 +150,7 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
       Shape.WF (n := n+1) Δ (ShapeS.forallE (A.subst σ) (B.subst σ.lift) d g) →
       (∀ e ∈ g, ∃ u, Δ ⊢ e.ty ≡ A.subst σ : .sort u) →
       (∀ e ∈ g, Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push (Shape.T e.inp)) (Shape.T e.out)) →
+      TShape.WF Δ m →
       TShape.LE Δ m
         (Shape.T (n := n+1) (ShapeS.forallE (A.subst σ) (B.subst σ.lift) d g)) →
       Interp Δ Γ (.forallE A B) σ ρ m
@@ -169,19 +177,22 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
       Interp Δ Γ (.Y A b) σ ρ m
   /-- The identity type is **label-only**: no sub-shapes, so the shape
   records nothing but the syntax. -/
-  | id : TShape.LE Δ m
+  | id : TShape.WF Δ m →
+      TShape.LE Δ m
         (Shape.T (n := 1) (ShapeS.id r (A.subst σ) (a.subst σ) (b.subst σ))) →
       Interp Δ Γ (.id r A a b) σ ρ m
   /-- `refl` has a shape only in the proof-relevant sort; at `r = false`
   the `bot` rule is all there is, which is proof irrelevance. -/
   | refl {n} {v : Shape n} :
       Interp Δ Γ a σ ρ (Shape.T v) →
+      TShape.WF Δ m →
       TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.refl v)) →
       Interp Δ Γ (.refl true a) σ ρ m
   /-- Transport.  Master's constructor, with the motive evaluated at the
   stage extended by `b`, which is the label term the motive's binder is
   instantiated with. -/
   | tr {v vA m' cb : TShape} {r : Bool} {A a b C X H : Term} :
+      TShape.WF Δ m →
       TShape.LE Δ m m' →
       Interp Δ Γ X σ ρ m' →
       Interp Δ Γ a σ ρ v →
@@ -199,61 +210,83 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
 Both directions master has: down in the shape, up in the valuation.
 Neither touches the stage, so both are the same induction as there. -/
 
+theorem Interp.wf {Δ Γ : List Term} {t : Term} {σ ρ m}
+    (H : Interp Δ Γ t σ ρ m) : TShape.WF Δ m := by
+  induction H with
+  | bot => exact TShape.WF.bot
+  | bvar hw _ => exact hw
+  | sort hw _ => exact hw
+  | unit hw _ => exact hw
+  | nat hw _ => exact hw
+  | zero hw _ => exact hw
+  | succ _ hw _ => exact hw
+  | app _ _ _ hw _ => exact hw
+  | lam _ _ _ _ hw _ => exact hw
+  | forallE _ _ _ _ hw _ => exact hw
+  | id hw _ => exact hw
+  | refl _ hw _ => exact hw
+  | tr hw _ _ _ _ _ _ _ _ _ _ => exact hw
+  | natCase_zero _ _ _ iha => exact iha
+  | natCase_succ _ _ _ _ _ ihb => exact ihb
+  | Y _ _ _ _ ihb => exact ihb
+
 theorem Interp.mono (hΔ : ⊢ Δ) {Γ : List Term} {t : Term} {σ ρ} {m m' : TShape}
-    (h : TShape.LE Δ m m') (H : Interp Δ Γ t σ ρ m') : Interp Δ Γ t σ ρ m := by
+    (hw : TShape.WF Δ m) (h : TShape.LE Δ m m') (H : Interp Δ Γ t σ ρ m') :
+    Interp Δ Γ t σ ρ m := by
   induction H generalizing m with
   | bot =>
     obtain ⟨k, s⟩ := m
     have hs : s = Shape.bot := TShape.le_bot rfl h
     subst hs
     exact .bot
-  | bvar h1 => exact .bvar (TShape.LE.trans hΔ h h1)
-  | sort h1 => exact .sort (TShape.LE.trans hΔ h h1)
-  | unit h1 => exact .unit (TShape.LE.trans hΔ h h1)
-  | nat h1 => exact .nat (TShape.LE.trans hΔ h h1)
-  | zero h1 => exact .zero (TShape.LE.trans hΔ h h1)
-  | succ hv h1 => exact .succ hv (TShape.LE.trans hΔ h h1)
-  | app hF ha hA hty hev h1 =>
-    exact .app hF ha hA hty hev (TShape.LE.trans hΔ h h1)
-  | lam hA hwf hlab hbody h1 =>
-    exact .lam hA hwf hlab hbody (TShape.LE.trans hΔ h h1)
-  | forallE hA hwf hlab hbody h1 =>
-    exact .forallE hA hwf hlab hbody (TShape.LE.trans hΔ h h1)
-  | natCase_zero hM _ _ iha => exact .natCase_zero hM (iha h)
-  | natCase_succ hM hwv heq _ _ ihb => exact .natCase_succ hM hwv heq (ihb h)
-  | Y hself hwx _ _ ihb => exact .Y hself hwx (ihb h)
-  | id h1 => exact .id (TShape.LE.trans hΔ h h1)
-  | refl hv h1 => exact .refl hv (TShape.LE.trans hΔ h h1)
-  | tr hle hX ha hb hA hwv hvA hC hm' hH _ _ _ _ _ _ =>
-    exact .tr (TShape.LE.trans hΔ h hle) hX ha hb hA hwv hvA hC hm' hH
+  | bvar _ h1 => exact .bvar hw (TShape.LE.trans hΔ h h1)
+  | sort _ h1 => exact .sort hw (TShape.LE.trans hΔ h h1)
+  | unit _ h1 => exact .unit hw (TShape.LE.trans hΔ h h1)
+  | nat _ h1 => exact .nat hw (TShape.LE.trans hΔ h h1)
+  | zero _ h1 => exact .zero hw (TShape.LE.trans hΔ h h1)
+  | succ hv _ h1 => exact .succ hv hw (TShape.LE.trans hΔ h h1)
+  | app hF ha hev _ h1 => exact .app hF ha hev hw (TShape.LE.trans hΔ h h1)
+  | lam hA hwf hlab hbody _ h1 =>
+    exact .lam hA hwf hlab hbody hw (TShape.LE.trans hΔ h h1)
+  | forallE hA hwf hlab hbody _ h1 =>
+    exact .forallE hA hwf hlab hbody hw (TShape.LE.trans hΔ h h1)
+  | natCase_zero hM _ _ iha => exact .natCase_zero hM (iha hw h)
+  | natCase_succ hM hwv heq _ _ ihb => exact .natCase_succ hM hwv heq (ihb hw h)
+  | Y hself hwx _ _ ihb => exact .Y hself hwx (ihb hw h)
+  | id _ h1 => exact .id hw (TShape.LE.trans hΔ h h1)
+  | refl hv _ h1 => exact .refl hv hw (TShape.LE.trans hΔ h h1)
+  | tr _ hle hX ha hb hA hwv hvA hC hm' hH _ _ _ _ _ _ =>
+    exact .tr hw (TShape.LE.trans hΔ h hle) hX ha hb hA hwv hvA hC hm' hH
 
 theorem Interp.mono_val {Γ : List Term} {t : Term} {σ} {ρ ρ' : Valuation} {m : TShape}
     (hΔ : ⊢ Δ) (hρ : ρ.LE Δ ρ') (H : Interp Δ Γ t σ ρ m) : Interp Δ Γ t σ ρ' m := by
   induction H generalizing ρ' with
   | bot => exact .bot
-  | bvar h1 => exact .bvar (TShape.LE.trans hΔ h1 (hρ _))
-  | sort h1 => exact .sort h1
-  | unit h1 => exact .unit h1
-  | nat h1 => exact .nat h1
-  | zero h1 => exact .zero h1
-  | succ _ h1 ihv => exact .succ (ihv hρ) h1
-  | app _ _ hA hty hev h1 ihF iha => exact .app (ihF hρ) (iha hρ) hA hty hev h1
-  | lam _ hwf hlab _ h1 ihA ihbody =>
+  | bvar hw h1 => exact .bvar hw (TShape.LE.trans hΔ h1 (hρ _))
+  | sort hw h1 => exact .sort hw h1
+  | unit hw h1 => exact .unit hw h1
+  | nat hw h1 => exact .nat hw h1
+  | zero hw h1 => exact .zero hw h1
+  | succ _ hw h1 ihv => exact .succ (ihv hρ) hw h1
+  | app _ _ hev hw h1 ihF iha => exact .app (ihF hρ) (iha hρ) hev hw h1
+  | lam _ hwf hlab _ hw h1 ihA ihbody =>
     exact .lam (ihA hρ) hwf hlab (fun e he => ihbody e he
-      (Valuation.LE.push.2 ⟨hρ, TShape.LE.refl (a := Shape.T e.inp) (hwf.2.2.1 e he).2.2.1⟩)) h1
-  | forallE _ hwf hlab _ h1 ihA ihbody =>
+      (Valuation.LE.push.2 ⟨hρ, TShape.LE.refl (a := Shape.T e.inp) (hwf.2.2.1 e he).2.2.1⟩))
+      hw h1
+  | forallE _ hwf hlab _ hw h1 ihA ihbody =>
     exact .forallE (ihA hρ) hwf hlab (fun e he => ihbody e he
-      (Valuation.LE.push.2 ⟨hρ, TShape.LE.refl (a := Shape.T e.inp) (hwf.2.2.2.1 e he).2.2.1⟩)) h1
+      (Valuation.LE.push.2 ⟨hρ, TShape.LE.refl (a := Shape.T e.inp) (hwf.2.2.2.1 e he).2.2.1⟩))
+      hw h1
   | natCase_zero _ _ ihM iha => exact .natCase_zero (ihM hρ) (iha hρ)
   | natCase_succ _ hwv heq _ ihM ihb =>
     exact .natCase_succ (ihM hρ) hwv heq
       (ihb (Valuation.LE.push.2 ⟨hρ, TShape.LE.refl (a := Shape.T _) hwv⟩))
   | Y _ hwx _ ihself ihb =>
     exact .Y (ihself hρ) hwx (ihb (Valuation.LE.push.2 ⟨hρ, TShape.LE.refl hwx⟩))
-  | id h1 => exact .id h1
-  | refl _ h1 ihv => exact .refl (ihv hρ) h1
-  | tr hle _ _ _ _ hwv hvA _ hm' _ ihX iha ihb ihA ihC ihH =>
-    exact .tr hle (ihX hρ) (iha hρ) (ihb hρ) (ihA hρ) hwv hvA
+  | id hw h1 => exact .id hw h1
+  | refl _ hw h1 ihv => exact .refl (ihv hρ) hw h1
+  | tr hw hle _ _ _ _ hwv hvA _ hm' _ ihX iha ihb ihA ihC ihH =>
+    exact .tr hw hle (ihX hρ) (iha hρ) (ihb hρ) (ihA hρ) hwv hvA
       (ihC (Valuation.LE.push.2 ⟨hρ, TShape.LE.refl hwv⟩)) hm'
       (fun hr => ihH hr hρ)
 
@@ -263,26 +296,26 @@ Master's primed forms.  Each takes the well-formedness that `LE` needs to
 be reflexive, which master gets from its shapes being a `WF` subtype. -/
 
 theorem Interp.bvar' {Δ Γ σ ρ i} (h : TShape.WF Δ (ρ i)) :
-    Interp Δ Γ (.bvar i) σ ρ (ρ i) := .bvar (TShape.LE.refl h)
+    Interp Δ Γ (.bvar i) σ ρ (ρ i) := .bvar h (TShape.LE.refl h)
 
 theorem Interp.sort' {Δ Γ σ ρ r} :
     Interp Δ Γ (.sort r) σ ρ (TShape.sort r) :=
-  .sort (TShape.LE.refl (a := TShape.sort r) trivial)
+  .sort trivial (TShape.LE.refl (a := TShape.sort r) trivial)
 
 theorem Interp.unit' {Δ Γ σ ρ r} :
     Interp Δ Γ (.unit r) σ ρ (TShape.unit r) :=
-  .unit (TShape.LE.refl (a := TShape.unit r) trivial)
+  .unit trivial (TShape.LE.refl (a := TShape.unit r) trivial)
 
 theorem Interp.nat' {Δ Γ σ ρ} : Interp Δ Γ .nat σ ρ TShape.nat :=
-  .nat (TShape.LE.refl (a := TShape.nat) trivial)
+  .nat trivial (TShape.LE.refl (a := TShape.nat) trivial)
 
 theorem Interp.zero' {Δ Γ σ ρ} : Interp Δ Γ .zero σ ρ TShape.zero :=
-  .zero (TShape.LE.refl (a := TShape.zero) trivial)
+  .zero trivial (TShape.LE.refl (a := TShape.zero) trivial)
 
 theorem Interp.succ' {Δ Γ σ ρ N} {n} {v : Shape n}
     (hv : Interp Δ Γ N σ ρ (Shape.T v)) (h : Shape.WF Δ v) :
     Interp Δ Γ (.succ N) σ ρ (Shape.T (n := n+1) (ShapeS.succ v)) :=
-  .succ hv (TShape.LE.refl (a := Shape.T (n := n+1) (ShapeS.succ v)) h)
+  .succ hv h (TShape.LE.refl (a := Shape.T (n := n+1) (ShapeS.succ v)) h)
 
 /-! ## Inversion for the atoms
 
@@ -295,25 +328,25 @@ theorem Interp.le_sort {Δ Γ σ ρ m r}
     (H : Interp Δ Γ (.sort r) σ ρ m) : TShape.LE Δ m (TShape.sort r) := by
   cases H with
   | bot => exact TShape.bot_le' rfl
-  | sort h => exact h
+  | sort _ h => exact h
 
 theorem Interp.le_unit {Δ Γ σ ρ m r}
     (H : Interp Δ Γ (.unit r) σ ρ m) : TShape.LE Δ m (TShape.unit r) := by
   cases H with
   | bot => exact TShape.bot_le' rfl
-  | unit h => exact h
+  | unit _ h => exact h
 
 theorem Interp.le_nat {Δ Γ σ ρ m}
     (H : Interp Δ Γ .nat σ ρ m) : TShape.LE Δ m TShape.nat := by
   cases H with
   | bot => exact TShape.bot_le' rfl
-  | nat h => exact h
+  | nat _ h => exact h
 
 theorem Interp.le_zero {Δ Γ σ ρ m}
     (H : Interp Δ Γ .zero σ ρ m) : TShape.LE Δ m TShape.zero := by
   cases H with
   | bot => exact TShape.bot_le' rfl
-  | zero h => exact h
+  | zero _ h => exact h
 
 theorem Interp.le_id {Δ Γ σ ρ m r A a b}
     (H : Interp Δ Γ (.id r A a b) σ ρ m) :
@@ -321,11 +354,14 @@ theorem Interp.le_id {Δ Γ σ ρ m r A a b}
       (Shape.T (n := 1) (ShapeS.id r (A.subst σ) (a.subst σ) (b.subst σ))) := by
   cases H with
   | bot => exact TShape.bot_le' rfl
-  | id h => exact h
+  | id _ h => exact h
 
 theorem Interp.bvar_iff {Δ Γ σ ρ m i} :
-    Interp Δ Γ (.bvar i) σ ρ m ↔ TShape.LE Δ m (ρ i) :=
-  ⟨fun H => by cases H with | bot => exact TShape.bot_le' rfl | bvar h => exact h, .bvar⟩
+    Interp Δ Γ (.bvar i) σ ρ m ↔ TShape.WF Δ m ∧ TShape.LE Δ m (ρ i) :=
+  ⟨fun H => ⟨H.wf, by cases H with
+      | bot => exact TShape.bot_le' rfl
+      | bvar _ h => exact h⟩,
+   fun ⟨hw, h⟩ => .bvar hw h⟩
 
 theorem Interp.le_succ {Δ Γ σ ρ m N}
     (H : Interp Δ Γ (.succ N) σ ρ m) :
@@ -333,7 +369,7 @@ theorem Interp.le_succ {Δ Γ σ ρ m N}
       TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.succ v)) := by
   cases H with
   | bot => exact ⟨0, .bot, .bot, TShape.bot_le' rfl⟩
-  | succ hv h => exact ⟨_, _, hv, h⟩
+  | succ hv _ h => exact ⟨_, _, hv, h⟩
 
 /-- The Π case.  The shape the interpretation lands in **records the
 syntactic pair** `(A[σ], B[σ.lift])`, which is what makes injectivity of
@@ -347,7 +383,7 @@ theorem Interp.le_forallE {Δ Γ σ ρ m A B}
           (Shape.T (n := n+1) (ShapeS.forallE (A.subst σ) (B.subst σ.lift) d g)) := by
   cases H with
   | bot => exact .inl rfl
-  | forallE _ _ _ _ h => exact .inr ⟨_, _, _, h⟩
+  | forallE _ _ _ _ _ h => exact .inr ⟨_, _, _, h⟩
 
 /-! ## The Π label, in and out
 
@@ -378,6 +414,7 @@ theorem Interp.piAtom {Δ Γ σ ρ} {A B : Term} {u v}
   .forallE (d := (Shape.bot : Shape 0)) .bot (Shape.WF.piAtom hA hB)
     (fun _ he => absurd he List.not_mem_nil)
     (fun _ he => absurd he List.not_mem_nil)
+    (Shape.WF.piAtom hA hB)
     (TShape.LE.T.2 (Shape.LE.refl (Shape.WF.piAtom hA hB)))
 
 /-- And the probe reports: if the atom approximates `⟦forallE A B⟧`, its
@@ -387,7 +424,7 @@ theorem Interp.le_piAtom {Δ Γ σ ρ} {A B A' B' : Term}
     (H : Interp Δ Γ (.forallE A B) σ ρ (Shape.T (n := 1) (Shape.piAtom A' B'))) :
     PiLabelEq Δ A' B' (A.subst σ) (B.subst σ.lift) := by
   cases H with
-  | forallE _ _ _ _ h =>
+  | forallE _ _ _ _ _ h =>
     have h' := (TShape.LE.def (Nat.succ_le_succ (Nat.zero_le _)) (Nat.le_refl _)).1 h
     rw [show (Shape.T (n := 1) (Shape.piAtom A' B')).2 = Shape.piAtom A' B' from rfl,
       Shape.lift_piAtom, Shape.lift_self] at h'
@@ -410,21 +447,30 @@ theorem Interp.natural {Δ Γ : List Term} {t : Term} {σ ρ m}
       Interp Θ Γ t (σ.comp τ) (ρ.subst τ) (m.subst τ) := by
   induction H with
   | bot => intro Θ τ _ _; simp only [TShape.subst_T, Shape.subst_bot]; exact .bot
-  | bvar h1 => intro Θ τ hΘ W; exact .bvar (TShape.LE.subst hΘ W h1)
-  | sort h1 => intro Θ τ hΘ W; exact .sort (by simpa using TShape.LE.subst hΘ W h1)
-  | unit h1 => intro Θ τ hΘ W; exact .unit (TShape.LE.subst hΘ W h1)
-  | nat h1 => intro Θ τ hΘ W; exact .nat (TShape.LE.subst hΘ W h1)
-  | zero h1 => intro Θ τ hΘ W; exact .zero (TShape.LE.subst hΘ W h1)
-  | succ _ h1 ihv => intro Θ τ hΘ W; exact .succ (ihv hΘ W) (TShape.LE.subst hΘ W h1)
-  | app _ _ hA hty hev h1 ihF iha =>
+  | bvar hw h1 =>
+    intro Θ τ hΘ W; exact .bvar (TShape.WF.subst hΘ W hw) (TShape.LE.subst hΘ W h1)
+  | sort hw h1 =>
     intro Θ τ hΘ W
-    -- the term's own context does not move, so the typing premises pass through
-    refine .app (ihF hΘ W) (iha hΘ W) hA hty ?_ (TShape.LE.subst hΘ W h1)
-    have := Evaluates.subst hΘ W hev
-    rwa [subst_subst, subst_subst] at this
-  | lam _ hwf hlab _ h1 ihA ihbody =>
+    exact .sort (TShape.WF.subst hΘ W hw) (by simpa using TShape.LE.subst hΘ W h1)
+  | unit hw h1 =>
+    intro Θ τ hΘ W; exact .unit (TShape.WF.subst hΘ W hw) (TShape.LE.subst hΘ W h1)
+  | nat hw h1 =>
+    intro Θ τ hΘ W; exact .nat (TShape.WF.subst hΘ W hw) (TShape.LE.subst hΘ W h1)
+  | zero hw h1 =>
+    intro Θ τ hΘ W; exact .zero (TShape.WF.subst hΘ W hw) (TShape.LE.subst hΘ W h1)
+  | succ _ hw h1 ihv =>
     intro Θ τ hΘ W
-    refine .lam (ihA hΘ W) (Shape.WF.subst hΘ W hwf) ?_ ?_ (TShape.LE.subst hΘ W h1)
+    exact .succ (ihv hΘ W) (TShape.WF.subst hΘ W hw) (TShape.LE.subst hΘ W h1)
+  | app _ _ hev hw h1 ihF iha =>
+    intro Θ τ hΘ W
+    have hev' := Evaluates.subst hΘ W hev
+    rw [subst_subst] at hev'
+    exact .app (ihF hΘ W) (iha hΘ W) hev' (TShape.WF.subst hΘ W hw)
+      (TShape.LE.subst hΘ W h1)
+  | lam _ hwf hlab _ hw h1 ihA ihbody =>
+    intro Θ τ hΘ W
+    refine .lam (ihA hΘ W) (Shape.WF.subst hΘ W hwf) ?_ ?_ (TShape.WF.subst hΘ W hw)
+      (TShape.LE.subst hΘ W h1)
     · intro e' he'
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
       have ⟨u, hu⟩ := hlab e he
@@ -433,12 +479,12 @@ theorem Interp.natural {Δ Γ : List Term} {t : Term} {σ ρ m}
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
       have := ihbody e he hΘ W
       rwa [Subst.cons_comp, Valuation.subst_push, TShape.subst_T] at this
-  | forallE _ hwf hlab _ h1 ihA ihbody =>
+  | forallE _ hwf hlab _ hw h1 ihA ihbody =>
     intro Θ τ hΘ W
     have hwf' := Shape.WF.subst hΘ W hwf
     have h1' := TShape.LE.subst hΘ W h1
     simp only [TShape.subst_T, Shape.subst, subst_subst, ← Subst.comp_lift] at hwf' h1'
-    refine .forallE (ihA hΘ W) hwf' ?_ ?_ h1'
+    refine .forallE (ihA hΘ W) hwf' ?_ ?_ (TShape.WF.subst hΘ W hw) h1'
     · intro e' he'
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
       have ⟨u, hu⟩ := hlab e he
@@ -461,15 +507,18 @@ theorem Interp.natural {Δ Γ : List Term} {t : Term} {σ ρ m}
     refine .Y (ihself hΘ W) (TShape.WF.subst hΘ W hwx) ?_
     have := ihb hΘ W
     rwa [Subst.cons_comp, subst_subst, Valuation.subst_push] at this
-  | id h1 =>
+  | id hw h1 =>
     intro Θ τ hΘ W
     have := TShape.LE.subst hΘ W h1
     simp only [TShape.subst_T, Shape.subst, subst_subst] at this
-    exact .id this
-  | refl _ h1 ihv => intro Θ τ hΘ W; exact .refl (ihv hΘ W) (TShape.LE.subst hΘ W h1)
-  | tr hle _ _ _ _ hwv hvA _ hm' _ ihX iha ihb ihA ihC ihH =>
+    exact .id (TShape.WF.subst hΘ W hw) this
+  | refl _ hw h1 ihv =>
     intro Θ τ hΘ W
-    refine .tr (TShape.LE.subst hΘ W hle) (ihX hΘ W) (iha hΘ W) (ihb hΘ W) (ihA hΘ W)
+    exact .refl (ihv hΘ W) (TShape.WF.subst hΘ W hw) (TShape.LE.subst hΘ W h1)
+  | tr hw hle _ _ _ _ hwv hvA _ hm' _ ihX iha ihb ihA ihC ihH =>
+    intro Θ τ hΘ W
+    refine .tr (TShape.WF.subst hΘ W hw) (TShape.LE.subst hΘ W hle) (ihX hΘ W)
+      (iha hΘ W) (ihb hΘ W) (ihA hΘ W)
       (TShape.WF.subst hΘ W hwv) (TShape.HasType.subst hΘ W hvA) ?_
       (TShape.HasType.subst hΘ W hm') (fun hr => ihH hr hΘ W)
     have := ihC hΘ W

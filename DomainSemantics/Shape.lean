@@ -1786,3 +1786,7 @@ theorem Shape.WF.piAtom {Δ : List Term} {n} {A B : Term} {u v}
   ⟨⟨u, hA⟩, ⟨v, hB⟩, by cases n <;> trivial,
     fun _ he => absurd he (List.not_mem_nil),
     fun _ he => absurd he (List.not_mem_nil)⟩
+
+/-- `⊥` is well formed at every level. -/
+@[simp] theorem TShape.WF.bot {Δ : List Term} {n} :
+    TShape.WF Δ (Shape.T (n := n) Shape.bot) := by cases n <;> trivial
