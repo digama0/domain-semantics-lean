@@ -554,16 +554,28 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    (`IsCode false a → HasType Δ x a → x.IsBot`, by induction through
    `Evaluates` using `of_le`), and `HasType.subst`; plus the Σ label (§5).
 
-   Two corrections made while starting these.  (a) `IsCode r` must **not**
-   be `HasType · (sort r)`: it has to be downward closed, since `Evaluates`
-   closes under `lower`, and `HasType` is not, because `HasDom` is a
-   condition internal to a graph and is not inherited by a graph sitting
-   below it.  So `IsCode` is a separate predicate without `HasDom`, as in
-   the other repo (`Basis/UniverseShape.lean`), and `of_le` is proved.
-   (b) The obligation "the typed set is lower-closed" was misstated: it is
-   `InterpTyped` that is lower-closed, and *by construction*, since it
-   reads `∃ m' a, m ≤ m' ∧ …`.  `HasType` itself need not be, for the same
-   `HasDom` reason.
+   Corrections made while starting these.
+
+   (a) **`HasType` is not monotone on the left** (in the subject), and no
+   attempt should be made to make it so.  Where downward closure is
+   needed, close downwards *explicitly at the use site* — which is exactly
+   what `InterpTyped`'s `∃ m' a, m ≤ m' ∧ …` does.  So the obligation
+   "the typed set is lower-closed" was misstated: `InterpTyped` is lower
+   closed by construction, `HasType` is not.
+
+   (b) There is **no separate `IsCode`**: a shape is a code exactly when
+   it is a type, `HasType a .type`, because the two universes are
+   cumulative in the model.  `HasType.cumul` is proved.  (I briefly added
+   an `IsCode` copied from the other repo, which needs one because it has
+   no typing relation on shapes at all; with `HasType` available master's
+   route is right.)  The lemma that does the work where downward closure
+   was wanted is master's `mono_r`, monotone on the *right*, carrying the
+   hypothesis that the larger type is itself a type — which is how it
+   avoids needing left-monotonicity.
+
+   (c) `HasType`'s `succ` clause uses a nested match on the level, as
+   master's does; splitting the outer level pattern stops the final
+   catch-all from reducing.
 4. `Interp` inductive, `Adm`, and the structural lemmas: `mono` (in the
    shape and in `ρ`), `join`, naturality along typed `τ`, `weak`, `subst`
    (the `∃ ρ'` form), `inst`.

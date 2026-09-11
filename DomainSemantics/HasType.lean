@@ -63,8 +63,12 @@ def Shape.HasType (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
   | _+1, .unit r, .sort j => r ≤ j
   | _+1, .nat, .sort j => j = true
   | _+1, .zero, .nat => True
-  | 1, .succ v, .nat => v = .bot
-  | _+2, .succ v, .nat => HasType Δ v .nat
+  -- nested match, as in master: splitting the outer level pattern would stop
+  -- the final catch-all from reducing for `succ` against a non-`nat` type
+  | n+1, .succ v, .nat =>
+      match n, v with
+      | 0, w => w = .bot
+      | _+1, w => HasType Δ w .nat
   | _+1, .id r _ _ _, .sort j => r ≤ j
   -- a Π-type is in `sort r` when its codomain family lands in `sort r`
   | _+1, .forallE _ _ d f, .sort r =>
@@ -86,82 +90,48 @@ def Shape.HasType (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
   | _+1, .refl _, .id r _ _ _ => r = true
   | _+1, _, _ => False
 
-/-! ## Codes
+/-! ## Codes and cumulativity
 
-`IsCode r a` says `a` is a code of universe `r`.  It is deliberately *not*
-`HasType · (sort r)`: it omits the `HasDom` condition, and that is what
-makes it **downward closed** (`IsCode.of_le`).  Downward closure is
-essential, because `Evaluates` closes under `lower`, so anything read out
-of a family graph has to stay a code.  The other repo splits these the
-same way (`IsCode` in `Basis/UniverseShape.lean` versus its decoder).
+There is no separate `IsCode` predicate: a shape is a code exactly when it
+is a type, `HasType Δ a .type`, because the two universes are **cumulative
+in the model** — a proof-irrelevant former is also a proof-relevant type.
+Cumulativity is built into the clauses that compare sorts with `≤`
+(`unit`, `id`) and is the lemma below for the rest.
 
-Following master, the `Bool` order is used where a proof-irrelevant former
-also counts as a proof-relevant code (`unit`, `id`). -/
-def Shape.IsCode : ∀ {n}, Bool → Shape n → Prop
-  | 0, _, .bot => True
-  | 0, r, .sort _ => r = true
-  | _+1, _, .bot => True
-  | _+1, r, .sort _ => r = true
-  | _+1, r, .unit s => s ≤ r
-  | _+1, r, .nat => r = true
-  | _+1, r, .id s _ _ _ => s ≤ r
-  | _+1, r, .sigma _ _ _ _ => r = true
-  | _+1, true, .forallE _ _ _ _ => True
-  | _+1, false, .forallE _ _ _ f => ∀ e ∈ f, IsCode false e.out
-  -- an information-free λ-shape is a code, as it is `⊥`
-  | _+1, _, .lam f => ∀ e ∈ f, Shape.IsBot e.out
-  | _+1, _, _ => False
+(The other repo does keep a separate `IsCode`, because it has no typing
+relation on shapes at all and needs a downward-closed predicate for its
+universe retraction.  With `HasType` available, master's route is the
+right one: the lemma that replaces downward closure is `mono_r`, which
+carries the hypothesis that the *larger* type is itself a type, and so
+never needs `HasType · (sort r)` to be downward closed.) -/
 
-theorem Shape.IsCode.bot {r : Bool} : Shape.IsCode (n := n) r .bot := by
-  cases n <;> trivial
+private theorem Bool.eq_true_of_le {r s : Bool} (h : r = true) (hrs : r ≤ s) : s = true := by
+  subst h; revert hrs; cases s <;> decide
 
-/-- Codes are downward closed.  This is the property `HasType · (sort r)`
-would *not* have, since `HasDom` is a condition internal to a graph and so
-is not inherited by a graph that merely sits below it. -/
-theorem Shape.IsCode.of_le (hΔ : ⊢ Δ) : ∀ {n} {r : Bool} {a b : Shape n},
-    Shape.LE Δ a b → Shape.IsCode r b → Shape.IsCode r a := by
+private theorem Bool.le_tr {t r s : Bool} (h₁ : t ≤ r) (h₂ : r ≤ s) : t ≤ s := by
+  revert h₁ h₂; cases t <;> cases r <;> cases s <;> decide
+
+/-- The universes are cumulative: a `prop` is also a `type`. -/
+theorem Shape.HasType.cumul : ∀ {n} {a : Shape n} {r s : Bool},
+    Shape.HasType Δ a (.sort r) → r ≤ s → Shape.HasType Δ a (.sort s) := by
   intro n
   induction n with
-  | zero => intro r a b hab hb; cases a <;> cases b <;> simp_all [Shape.IsCode, Shape.LE]
-  | succ n ih =>
-    intro r a b hab hb
+  | zero =>
+    intro a r s h hrs
     cases a with
     | bot => trivial
-    | lam f =>
-      cases b with
-      | lam g =>
-        intro e he
-        match hab e he with
-        | .inl hbot => exact Shape.le_bot_iff.1 hbot
-        | .inr ⟨e', he', _, _, hout⟩ =>
-          exact Shape.le_bot_iff.1 (Shape.LE.trans_aux hΔ hout (Shape.le_bot_iff.2 (hb e' he')))
-      | _ => exact fun e he => Shape.le_bot_iff.1 (hab e he)
-    | forallE A B d f =>
-      cases r with
-      | true => trivial
-      | false =>
-        cases b with
-        | forallE A' B' d' f' =>
-          intro e he
-          match hab.2.2 e he with
-          | .inl hbot => exact ih hbot Shape.IsCode.bot
-          | .inr ⟨e', he', _, _, hout⟩ => exact ih hout (hb e' he')
-        | _ => exact absurd hab id
-    | sort s => cases b <;> first | exact absurd hab id | exact hb
-    | unit s =>
-      cases b with
-      | unit s' => exact (show s = s' from hab) ▸ hb
-      | _ => exact absurd hab id
-    | nat => cases b <;> first | exact absurd hab id | exact hb
-    | zero => cases b <;> first | exact absurd hab id | exact hb
-    | succ v => cases b <;> first | exact absurd hab id | exact hb
-    | refl w => cases b <;> first | exact absurd hab id | exact hb
-    | pair x y => cases b <;> first | exact absurd hab id | exact hb
-    | sigma A B d f => cases b <;> first | exact absurd hab id | exact hb
-    | id s A a' b' =>
-      cases b with
-      | id s' A'' a'' b'' => exact hab.1 ▸ hb
-      | _ => exact absurd hab id
+    | sort => exact Bool.eq_true_of_le h hrs
+  | succ n ih =>
+    intro a r s h hrs
+    cases a with
+    | bot => trivial
+    | sort _ => exact Bool.eq_true_of_le h hrs
+    | nat => exact Bool.eq_true_of_le h hrs
+    | unit t => exact Bool.le_tr h hrs
+    | id t A a' b' => exact Bool.le_tr h hrs
+    | forallE A B d f => exact ⟨h.1, fun e he => ih (h.2 e he) hrs⟩
+    | sigma A B d f => exact ⟨Bool.eq_true_of_le h.1 hrs, h.2⟩
+    | _ => exact absurd h id
 
 /-- `⊥` inhabits every shape. -/
 theorem Shape.HasType.bot {a : Shape n} : Shape.HasType Δ .bot a := by
