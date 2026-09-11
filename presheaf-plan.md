@@ -994,12 +994,27 @@ rough order of load:
    nothing could discharge.  `Adm.wf` (admissible valuations are
    well formed slotwise) comes along with it.
 
-   What `forallE_inv` still needs beyond soundness: the probe
-   `Interp.piAtom` asks for `Δ ⊢ A[σ] : sort u` and
-   `A[σ] :: Δ ⊢ B[σ.lift] : sort v`, i.e. a *syntactic* regularity lemma
-   inverting `Γ ⊢ forallE A B : sort s`.  Master gets those from
-   `forallE_inv` itself (out of adequacy), so they have to be recovered
-   here by induction on the typing derivation instead.
+   The regularity lemma the probe needed is proved:
+   `IsDefEq.forallE_regular` (`Regular.lean`), axiom-free.  It has to be
+   **two-sided** (`e` or `e'` is the Π), for two separate reasons: `symm`
+   and `trans` move a subject across, and the computation rules produce a
+   Π on the right out of a subject that is not one syntactically — `beta`
+   concludes at `e.inst e'`, which is a Π whenever `e` is `bvar 0` and
+   `e'` is a Π.  Each such rule carries a reflexive premise typing its own
+   right-hand side, and that premise's induction hypothesis discharges the
+   case; the same premise covers `eta`, `unit_eta`, `natCase_zero`,
+   `natCase_succ`, `Y_unfold`, `tr_refl`, `pair_fst`, `pair_snd` and
+   `fst_snd`.
+
+   **And `forallE_inv` is proved** (`Inversion.lean`), with master's exact
+   statement, in four steps and about ten lines: the Π is regular, so it
+   has its own `piAtom` among its approximants; soundness moves that
+   approximant to the other side at the identity stage and the `⊥`
+   valuation; reading the label back off it is a projection out of the
+   order; and the label *is* the pair of definitional equalities wanted.
+   `#print axioms` gives `sorryAx` and nothing else unexpected, the only
+   `sorry` it reaches being `IsDefEq.sound`.  Master's route to the same
+   theorem is `LogRel.lean` plus `Adequacy.lean`, 4.9k lines.
 4. **The Π-retraction equation** (`application_piOperator`,
    `app (R G) ℓ X = Q(ℓ)(P X, app G ℓ (P X))`).  We have the retraction
    *clauses* inside `HasType` but not the equation that β and η rest on.
