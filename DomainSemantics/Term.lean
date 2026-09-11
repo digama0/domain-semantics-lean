@@ -1474,6 +1474,20 @@ theorem IsDefEq.subst' (hΓ₀ : ⊢ Γ₀)
     Γ₀ ⊢ e1.subst σ ≡ e2.subst σ' : A.subst σ :=
   (H.substEq' hΓ₀ W).2.2
 
+/-- Composition of substitutions.  Needed to transport hereditary
+conditions (which quantify over all later typed stages) from one context
+to another.  Master had `id`, `lift`, `skip` and `lift_at` but no `comp`. -/
+theorem Ctx.SubstEq.comp {Ξ Θ : List Term} {υ : Subst} (hΞ : ⊢ Ξ)
+    (V : Ctx.SubstEq Ξ υ υ Θ) : ∀ {Δ : List Term} {σ σ' : Subst},
+    Ctx.SubstEq Θ σ σ' Δ → Ctx.SubstEq Ξ (σ.comp υ) (σ'.comp υ) Δ := by
+  intro Δ σ σ' W
+  induction W with
+  | nil => exact .nil
+  | cons _ hA hhead ih =>
+    refine .cons ih hA ?_
+    have h := hhead.subst hΞ V
+    rwa [subst_subst] at h
+
 /-- Substitution at position 0 (single-variable instantiation), derived from
 the general `IsDefEq.subst` lemma using
 `SubstS.cons (SubstS.weak .refl) hA₀ h₀`. -/

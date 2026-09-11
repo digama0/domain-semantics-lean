@@ -533,9 +533,9 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    reflexive (under `WF`) and transitive; `le_bot_iff` and the collapse
    lemma; `Compat` carrying the coherence implication; the `Join` relation
    and a `join` witness; `Shape.subst` and `LE.subst`; `join_le`,
-   `le_join` and `exists_join`; `WF.subst`, `IsBot.subst`, `join_subst`.
-   **Left:** making `Compat` hereditary (see below), which subsumes the
-   "hereditary coherence" item.
+   `le_join` and `exists_join`; `WF.subst`, `IsBot.subst`, `join_subst`,
+   `subst_subst`, hereditary `Compat` with `Compat.subst`.  Plus
+   `Ctx.SubstEq.comp` in `Term.lean`.  **Done**, modulo the Σ label (§5).
 
    A bug found and fixed while proving `le_join`: the first `join` returned
    `⊥` whenever the heads differed, which is wrong when one side is an

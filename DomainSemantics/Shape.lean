@@ -297,6 +297,32 @@ theorem Shape.IsBot.le : ∀ {n} {s t : Shape n}, s.IsBot → Shape.LE Δ s t :=
       | _ => exact fun e he => Shape.le_bot_iff.2 (h e he)
     | _ => cases h
 
+/-- Substitution composes on shapes, as it does on terms. -/
+theorem Shape.subst_subst {σ τ : Subst} : ∀ {n} {x : Shape n},
+    (x.subst σ).subst τ = x.subst (σ.comp τ) := by
+  intro n
+  induction n with
+  | zero => intro x; cases x <;> rfl
+  | succ n ih =>
+    intro x
+    cases x with
+    | bot | sort | unit | nat | zero => rfl
+    | succ v => show ShapeS.succ _ = ShapeS.succ _; rw [ih]
+    | refl w => show ShapeS.refl _ = ShapeS.refl _; rw [ih]
+    | pair a b => show ShapeS.pair _ _ = ShapeS.pair _ _; rw [ih, ih]
+    | id r A a b =>
+      show ShapeS.id _ _ _ _ = ShapeS.id _ _ _ _
+      simp [DomainSemantics.subst_subst]
+    | lam f =>
+      show ShapeS.lam _ = ShapeS.lam _
+      simp [ShapeFun.substWith, DomainSemantics.subst_subst, ih]
+    | forallE A B d f =>
+      show ShapeS.forallE _ _ _ _ = ShapeS.forallE _ _ _ _
+      simp [ShapeFun.substWith, DomainSemantics.subst_subst, Subst.comp_lift, ih]
+    | sigma A B d f =>
+      show ShapeS.sigma _ _ _ _ = ShapeS.sigma _ _ _ _
+      simp [ShapeFun.substWith, DomainSemantics.subst_subst, Subst.comp_lift, ih]
+
 /-! ## Compatibility and join
 
 `Compat Δ x y` says `x` and `y` can be joined.  For graphs it is master's
@@ -311,41 +337,52 @@ On graphs it is **append**, which is the lub for entry-wise coverage; the
 old `ShapeFun.join` re-applied the graphs because they had to stay
 saturated. -/
 
-/-- Entries with defeq labels and compatible inputs have compatible outputs. -/
-def ShapeFun.Compat (Δ : List Term) (R : Shape n → Shape n → Prop) (f f' : ShapeFun n) : Prop :=
-  ∀ e ∈ f, ∀ e' ∈ f', LabelEq Δ e.ty e.tm e'.ty e'.tm → R e.inp e'.inp → R e.out e'.out
+/-- Entries with definitionally equal labels and compatible inputs have
+compatible outputs — **at every later typed stage**.
 
-def Shape.Compat (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
-  | 0, .bot, _ => True
-  | 0, _, .bot => True
-  | 0, .sort r, .sort r' => r = r'
-  | _+1, .bot, _ => True
-  | _+1, _, .bot => True
-  | _+1, .sort r, .sort r' => r = r'
-  | _+1, .unit r, .unit r' => r = r'
-  | _+1, .nat, .nat => True
-  | _+1, .zero, .zero => True
-  | _+1, .succ v, .succ v' => Compat Δ v v'
-  | _+1, .refl w, .refl w' => Compat Δ w w'
-  | _+1, .id r A a b, .id r' A' a' b' => r = r' ∧ IdLabelEq Δ A a b A' a' b'
-  | _+1, .forallE A B d f, .forallE A' B' d' f' =>
-      PiLabelEq Δ A B A' B' ∧ Compat Δ d d' ∧ ShapeFun.Compat Δ (Compat Δ) f f'
-  | _+1, .sigma A B d f, .sigma A' B' d' f' =>
-      PiLabelEq Δ A B A' B' ∧ Compat Δ d d' ∧ ShapeFun.Compat Δ (Compat Δ) f f'
-  | _+1, .pair a b, .pair a' b' => Compat Δ a a' ∧ Compat Δ b b'
-  | _+1, .lam f, .lam f' => ShapeFun.Compat Δ (Compat Δ) f f'
+The quantification over later stages is what makes the condition stable
+under substitution, and it sits inside the graph clause only, exactly as in
+the other repo's `Shape.Compatible σ` (`Basis/InternalCoherence.lean`),
+whose `lam` clause likewise reads `∀ i j Γ₂ (σ₁ : Γ₂ ⟶ _), … (σ₁ ≫ σ) …`.
+It is needed because a substitution can *create* label equalities — two
+distinct variables becoming definitionally equal — so a merely local
+condition would say nothing about the entries that then collide. -/
+def ShapeFun.Compat (R : List Term → Shape n → Shape n → Prop)
+    (Δ : List Term) (f f' : ShapeFun n) : Prop :=
+  ∀ e ∈ f, ∀ e' ∈ f', ∀ (Θ : List Term) (τ : Subst), ⊢ Θ → Ctx.SubstEq Θ τ τ Δ →
+    LabelEq Θ (e.ty.subst τ) (e.tm.subst τ) (e'.ty.subst τ) (e'.tm.subst τ) →
+    R Θ (e.inp.subst τ) (e'.inp.subst τ) → R Θ (e.out.subst τ) (e'.out.subst τ)
+
+def Shape.Compat : ∀ {n}, List Term → Shape n → Shape n → Prop
+  | 0, _, .bot, _ => True
+  | 0, _, _, .bot => True
+  | 0, _, .sort r, .sort r' => r = r'
+  | _+1, _, .bot, _ => True
+  | _+1, _, _, .bot => True
+  | _+1, Δ, .lam f, .lam f' => ShapeFun.Compat Compat Δ f f'
   -- an information-free λ-shape is compatible with anything
-  | _+1, .lam f, _ => ∀ e ∈ f, Shape.IsBot e.out
-  | _+1, _, .lam f' => ∀ e ∈ f', Shape.IsBot e.out
-  | _+1, _, _ => False
+  | _+1, _, .lam f, _ => ∀ e ∈ f, Shape.IsBot e.out
+  | _+1, _, _, .lam f' => ∀ e ∈ f', Shape.IsBot e.out
+  | _+1, _, .sort r, .sort r' => r = r'
+  | _+1, _, .unit r, .unit r' => r = r'
+  | _+1, _, .nat, .nat => True
+  | _+1, _, .zero, .zero => True
+  | _+1, Δ, .succ v, .succ v' => Compat Δ v v'
+  | _+1, Δ, .refl w, .refl w' => Compat Δ w w'
+  | _+1, Δ, .pair a b, .pair a' b' => Compat Δ a a' ∧ Compat Δ b b'
+  | _+1, Δ, .id r A a b, .id r' A' a' b' => r = r' ∧ IdLabelEq Δ A a b A' a' b'
+  | _+1, Δ, .forallE A B d f, .forallE A' B' d' f' =>
+      PiLabelEq Δ A B A' B' ∧ Compat Δ d d' ∧ ShapeFun.Compat Compat Δ f f'
+  | _+1, Δ, .sigma A B d f, .sigma A' B' d' f' =>
+      PiLabelEq Δ A B A' B' ∧ Compat Δ d d' ∧ ShapeFun.Compat Compat Δ f f'
+  | _+1, _, _, _ => False
 
 /-- `Join Δ x y z`: `z` is a least upper bound of `x` and `y` in the
 context `Δ`.  This is master's `WShape.Join`, and it is the form used in
-proofs: it is context-sensitive, insensitive to which of two definitionally
-equal labels a witness happens to carry, and does not presuppose that a
-join exists.  The function `join` below is merely one witness. -/
+proofs: it is insensitive to which of two definitionally equal labels a
+witness happens to carry, and does not presuppose that a join exists. -/
 def Shape.Join (Δ : List Term) {n} (x y z : Shape n) : Prop :=
-  ∀ w, Shape.LE Δ z w ↔ Shape.LE Δ x w ∧ Shape.LE Δ y w
+  ∀ w, Shape.LE Δ z w ↔ (Shape.LE Δ x w ∧ Shape.LE Δ y w)
 
 /-- The join.  Total and context-free.
 
@@ -736,27 +773,6 @@ theorem Shape.WF.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.
       exact ⟨⟨u, hA'⟩, ⟨v, hB.subst hΘA (W.lift hA hA')⟩,
         ih hd, ShapeFun.WF.subst_of hΘ W ih hf⟩
 
-/-! ### Compatibility does **not** transport, and must be made hereditary
-
-`Compat Δ` as defined above is the *local* condition, and it is not stable
-under substitution: to get `Compat Θ` for substituted graphs one would have
-to reflect the hypotheses back along `τ`, but a substitution can **create**
-label equalities (two distinct variables become definitionally equal), so
-entries that were unrelated at `Δ` can collide at `Θ` with no constraint
-relating their outputs.
-
-This is exactly why the other repo's coherence is hereditary.  The fix is
-to keep the clause above as a local relation (`CompatAt`) and define
-
-```
-Compat Δ x y := ∀ Θ τ, ⊢ Θ → Θ ⊢ τ : Δ → CompatAt Θ (x.subst τ) (y.subst τ)
-```
-
-which transports by composing substitutions, and whose instance at `τ = id`
-recovers the local form for `le_join`.  That needs two small additions:
-`Shape.subst_id`, and composition for `Ctx.SubstEq` (master has `id`,
-`lift`, `skip` and `lift_at`, but no `comp`).  Tracked in §6 item 2. -/
-
 theorem Shape.IsBot.subst {τ : Subst} : ∀ {n} {s : Shape n}, s.IsBot → (s.subst τ).IsBot := by
   intro n
   induction n with
@@ -774,6 +790,128 @@ theorem Shape.IsBot.subst {τ : Subst} : ∀ {n} {s : Shape n}, s.IsBot → (s.s
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
       exact ih (h e he)
     | _ => exact absurd h id
+
+/-- Compatibility transports along a typed substitution.  The graph clauses
+go through by *composing* substitutions, which is the whole point of
+quantifying over later stages inside them; the rest is the label lemmas. -/
+theorem Shape.Compat.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) : ∀ {n} {x y : Shape n},
+    Shape.Compat Δ x y → Shape.Compat Θ (x.subst τ) (y.subst τ) := by
+  have hfun : ∀ {n} {f f' : ShapeFun n}, ShapeFun.Compat Shape.Compat Δ f f' →
+      ShapeFun.Compat Shape.Compat Θ (ShapeFun.substWith (Shape.subst · τ) τ f)
+        (ShapeFun.substWith (Shape.subst · τ) τ f') := by
+    intro n f f' h d hd d' hd' Ξ υ hΞ V hlab hin
+    obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+    obtain ⟨e', he', rfl⟩ := ShapeFun.mem_substWith.1 hd'
+    have hcomp : Ctx.SubstEq Ξ (τ.comp υ) (τ.comp υ) Δ := Ctx.SubstEq.comp hΞ V W
+    simp only [DomainSemantics.subst_subst,
+      Shape.subst_subst] at hlab hin ⊢
+    exact h e he e' he' Ξ (τ.comp υ) hΞ hcomp hlab hin
+  intro n
+  induction n with
+  | zero => intro x y h; cases x <;> cases y <;> simp_all [Shape.Compat, Shape.subst]
+  | succ n ih =>
+    intro x y h
+    cases x with
+    | bot => trivial
+    | lam f =>
+      cases y with
+      | bot => trivial
+      | lam f' => exact hfun h
+      | _ =>
+        intro d hd
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+        exact Shape.IsBot.subst (h e he)
+    | forallE A B d f =>
+      cases y with
+      | bot => trivial
+      | lam f' =>
+        intro d hd
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+        exact Shape.IsBot.subst (h e he)
+      | forallE A' B' d' f' => exact ⟨h.1.subst hΘ W, ih h.2.1, hfun h.2.2⟩
+      | _ => exact absurd h id
+    | sigma A B d f =>
+      cases y with
+      | bot => trivial
+      | lam f' =>
+        intro d hd
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+        exact Shape.IsBot.subst (h e he)
+      | sigma A' B' d' f' => exact ⟨h.1.subst hΘ W, ih h.2.1, hfun h.2.2⟩
+      | _ => exact absurd h id
+    | succ v =>
+      cases y with
+      | bot => trivial
+      | lam f' =>
+        intro d hd
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+        exact Shape.IsBot.subst (h e he)
+      | succ v' => exact ih h
+      | _ => exact absurd h id
+    | refl w =>
+      cases y with
+      | bot => trivial
+      | lam f' =>
+        intro d hd
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+        exact Shape.IsBot.subst (h e he)
+      | refl w' => exact ih h
+      | _ => exact absurd h id
+    | pair a b =>
+      cases y with
+      | bot => trivial
+      | lam f' =>
+        intro d hd
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+        exact Shape.IsBot.subst (h e he)
+      | pair a' b' => exact ⟨ih h.1, ih h.2⟩
+      | _ => exact absurd h id
+    | id r A a b =>
+      cases y with
+      | bot => trivial
+      | lam f' =>
+        intro d hd
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+        exact Shape.IsBot.subst (h e he)
+      | id r' A' a' b' => exact ⟨h.1, h.2.subst hΘ W⟩
+      | _ => exact absurd h id
+    | sort r =>
+      cases y with
+      | bot => trivial
+      | lam f' =>
+        intro d hd
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+        exact Shape.IsBot.subst (h e he)
+      | sort r' => exact h
+      | _ => exact absurd h id
+    | unit r =>
+      cases y with
+      | bot => trivial
+      | lam f' =>
+        intro d hd
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+        exact Shape.IsBot.subst (h e he)
+      | unit r' => exact h
+      | _ => exact absurd h id
+    | nat =>
+      cases y with
+      | bot => trivial
+      | lam f' =>
+        intro d hd
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+        exact Shape.IsBot.subst (h e he)
+      | nat => trivial
+      | _ => exact absurd h id
+    | zero =>
+      cases y with
+      | bot => trivial
+      | lam f' =>
+        intro d hd
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+        exact Shape.IsBot.subst (h e he)
+      | zero => trivial
+      | _ => exact absurd h id
 
 theorem Shape.join_subst {τ : Subst} : ∀ {n} {x y : Shape n},
     (x.join y).subst τ = (x.subst τ).join (y.subst τ) := by
