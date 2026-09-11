@@ -1790,3 +1790,56 @@ theorem Shape.WF.piAtom {Δ : List Term} {n} {A B : Term} {u v}
 /-- `⊥` is well formed at every level. -/
 @[simp] theorem TShape.WF.bot {Δ : List Term} {n} :
     TShape.WF Δ (Shape.T (n := n) Shape.bot) := by cases n <;> trivial
+
+/-! ## The join at the total level
+
+The four facts directedness needs, lifted from `Shape` to `TShape`.  Each
+is the level-`n` statement sandwiched between two uses of the `def` lemma
+that replaces the canonical level by a common one. -/
+
+namespace TShape
+
+theorem join_le {Δ : List Term} {x y w : TShape}
+    (h₁ : TShape.LE Δ x w) (h₂ : TShape.LE Δ y w) : TShape.LE Δ (x.join y) w := by
+  have hx : x.1 ≤ max (max x.1 y.1) w.1 :=
+    Nat.le_trans (Nat.le_max_left ..) (Nat.le_max_left ..)
+  have hy : y.1 ≤ max (max x.1 y.1) w.1 :=
+    Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_left ..)
+  have hw : w.1 ≤ max (max x.1 y.1) w.1 := Nat.le_max_right ..
+  refine (TShape.LE.def (Nat.max_le.2 ⟨hx, hy⟩) hw).2 ?_
+  rw [TShape.join.def hx hy]
+  exact Shape.join_le ((TShape.LE.def hx hw).1 h₁) ((TShape.LE.def hy hw).1 h₂)
+
+theorem le_join {Δ : List Term} (hΔ : ⊢ Δ) {x y : TShape}
+    (hx : TShape.WF Δ x) (hy : TShape.WF Δ y) (hc : TShape.Compat Δ x y) :
+    TShape.LE Δ x (x.join y) ∧ TShape.LE Δ y (x.join y) := by
+  have h₁ : x.1 ≤ max x.1 y.1 := Nat.le_max_left ..
+  have h₂ : y.1 ≤ max x.1 y.1 := Nat.le_max_right ..
+  have hj : (x.join y).1 ≤ max x.1 y.1 := Nat.le_refl _
+  have hjx := Shape.le_join hΔ ((TShape.WF.def h₁).1 hx) ((TShape.WF.def h₂).1 hy)
+    ((TShape.Compat.def h₁ h₂).1 hc)
+  rw [← TShape.join.def h₁ h₂] at hjx
+  exact ⟨(TShape.LE.def h₁ hj).2 hjx.1, (TShape.LE.def h₂ hj).2 hjx.2⟩
+
+theorem Compat.of_common_upper {Δ : List Term} (hΔ : ⊢ Δ) {a b c : TShape}
+    (hc : TShape.WF Δ c) (h₁ : TShape.LE Δ a c) (h₂ : TShape.LE Δ b c) :
+    TShape.Compat Δ a b := by
+  have ha : a.1 ≤ max (max a.1 b.1) c.1 :=
+    Nat.le_trans (Nat.le_max_left ..) (Nat.le_max_left ..)
+  have hb : b.1 ≤ max (max a.1 b.1) c.1 :=
+    Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_left ..)
+  have hcc : c.1 ≤ max (max a.1 b.1) c.1 := Nat.le_max_right ..
+  exact (TShape.Compat.def ha hb).2 <| Shape.Compat.of_common_upper hΔ
+    (Shape.WF.coherent ((TShape.WF.def hcc).1 hc))
+    ((TShape.LE.def ha hcc).1 h₁) ((TShape.LE.def hb hcc).1 h₂)
+
+theorem WF.join {Δ : List Term} (hΔ : ⊢ Δ) {y z : TShape}
+    (hc : TShape.Compat Δ y z) (hy : TShape.WF Δ y) (hz : TShape.WF Δ z) :
+    TShape.WF Δ (y.join z) := by
+  have h₁ : y.1 ≤ max y.1 z.1 := Nat.le_max_left ..
+  have h₂ : z.1 ≤ max y.1 z.1 := Nat.le_max_right ..
+  show Shape.WF Δ ((Shape.lift (max y.1 z.1) y.2).join (Shape.lift (max y.1 z.1) z.2))
+  exact Shape.WF.join hΔ ((TShape.Compat.def h₁ h₂).1 hc)
+    ((TShape.WF.def h₁).1 hy) ((TShape.WF.def h₂).1 hz)
+
+end TShape

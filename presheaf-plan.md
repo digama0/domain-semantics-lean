@@ -754,11 +754,10 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
      renaming.  Stating the hypothesis as the equation
      `σ = Subst.lift_l l σ'` rather than pointwise is what makes it go: a
      `subst` then puts every label in the form `subst_lift'` wants.
-   * **Directedness** (master's `compat_join`, ~300 lines), for the `→`
-     direction, where two subderivations return two valuations that have
-     to be merged.  Still to do; `Interp.wf` is what unblocks it, since
-     the graph coherence `Evaluates.compat` wants is a conjunct of the
-     `WF` of the λ-shape the function is interpreted at.
+   * **Directedness** (master's `compat_join`), for the `→` direction,
+     where two subderivations return two valuations that have to be
+     merged.  This one **cannot be a standalone lemma about `Interp`**;
+     see below.
 
    **Left:** directedness, then `subst`, then `inst`.
 
@@ -766,7 +765,51 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    is that **`Γ` no longer carries information**: no rule mentions it
    except to thread it.  It is kept as an index because it is where those
    premises belong if they are wanted back, and because it records which
-   context each subderivation is about.
+   context each subderivation is about.  The next item says why they will
+   be wanted back.
+
+### 4.5 Directedness has to travel with soundness
+
+Attempting `Interp.compat_join` as a standalone lemma fails at the λ case,
+and the failure is structural rather than a missing lemma.
+
+Two derivations of `Interp Δ Γ (lam A b) σ ρ` at shapes with graphs `g₁`
+and `g₂` must be joined by the λ-shape with graph `g₁ ++ g₂`, since
+`Shape.join` on λ-shapes is append and any upper bound has to cover both.
+The `lam` rule demands `Shape.WF Δ (Shape.lam (g₁ ++ g₂))`, whose internal
+coherence conjunct includes the **cross pairs**: for `e₁ ∈ g₁`,
+`e₂ ∈ g₂`, every later typed stage `(Θ, τ)`, equal labels there and
+compatible inputs there force compatible outputs there.
+
+What we have for those entries is the body's interpretation at the two
+stages `σ.cons e₁.tm` and `σ.cons e₂.tm`.  `Interp.natural` moves both to
+`Θ`, but they land at `(σ.comp τ).cons (e₁.tm[τ])` and
+`(σ.comp τ).cons (e₂.tm[τ])`, which are **definitionally equal but not
+equal**.  Closing the gap needs `Interp` to be invariant under replacing
+its stage by a definitionally equal one, and `Interp` carries no typing
+for its stage at all, so that invariance cannot even be stated at this
+level, let alone proved.  Master does not meet this because its `Compat`
+is context-free and structural and its graph entries carry no labels: the
+hereditary, label-sensitive `Compat` we took from the other repo is
+exactly what couples the two.
+
+So directedness belongs **inside** the soundness induction, where the
+stage is typed (`Ctx.SubstEq Δ σ σ Γ` is already a hypothesis of `SoundEq`
+and `SoundTy`) and the label equality can be used.  That is precisely why
+the other repo has `HasIdeality` as a field of `RawTermProperties` rather
+than as a separate theorem, and it is the one place where its bundling is
+forced rather than stylistic.
+
+Two consequences for the definitions:
+
+* `SoundEq`/`SoundTy` gain a companion, directedness, proved by the same
+  induction — three conclusions, not two.
+* The `lam` and `forallE` rules should carry `Γ ⊢ A : sort u`, so that the
+  extended stage `σ.cons e.tm` is typed whenever `σ` is.  That makes `Γ`
+  load-bearing again.  Note this is a premise about the *binder's* domain,
+  not the `app` rule's argument type, so it does not reintroduce the
+  problem that forced the `app` label's type into `Δ`: nothing has to
+  invert a substitution to rebuild it.
 
    Three things came out of writing it down.
 

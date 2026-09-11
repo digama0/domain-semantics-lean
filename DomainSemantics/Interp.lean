@@ -98,19 +98,17 @@ end TShape
 /-- `m` approximates the interpretation of `t` at stage `(Δ, σ)` under `ρ`. -/
 inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation → TShape → Prop where
   /-- `⊥` approximates everything, including the terms Σ is deferred on. -/
-  | bot {n} : Interp Δ Γ t σ ρ (Shape.T (n := n) Shape.bot)
+  | bot {n} : Interp Δ Γ t σ ρ (Shape.T (n := n) .bot)
   | bvar : TShape.WF Δ m → TShape.LE Δ m (ρ i) → Interp Δ Γ (.bvar i) σ ρ m
-  | sort : TShape.WF Δ m → TShape.LE Δ m (TShape.sort r) → Interp Δ Γ (.sort r) σ ρ m
-  | unit : TShape.WF Δ m → TShape.LE Δ m (TShape.unit r) → Interp Δ Γ (.unit r) σ ρ m
+  | sort : TShape.WF Δ m → TShape.LE Δ m (.sort r) → Interp Δ Γ (.sort r) σ ρ m
+  | unit : TShape.WF Δ m → TShape.LE Δ m (.unit r) → Interp Δ Γ (.unit r) σ ρ m
   -- `star r` has only the `bot` rule: the unit type's inhabitant carries
   -- no information, which is what makes `unit_eta` sound
-  | nat : TShape.WF Δ m → TShape.LE Δ m TShape.nat → Interp Δ Γ .nat σ ρ m
-  | zero : TShape.WF Δ m → TShape.LE Δ m TShape.zero → Interp Δ Γ .zero σ ρ m
+  | nat : TShape.WF Δ m → TShape.LE Δ m .nat → Interp Δ Γ .nat σ ρ m
+  | zero : TShape.WF Δ m → TShape.LE Δ m .zero → Interp Δ Γ .zero σ ρ m
   | succ {n} {v : Shape n} :
-      Interp Δ Γ N σ ρ (Shape.T v) →
-      TShape.WF Δ m →
-      TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.succ v)) →
-      Interp Δ Γ (.succ N) σ ρ m
+    Interp Δ Γ N σ ρ v.T → TShape.WF Δ m →
+    TShape.LE Δ m (Shape.T (n := n+1) v.succ) → Interp Δ Γ (.succ N) σ ρ m
   /-- Application is the **graph lookup at the syntactic label**.  The
   argument's type has to be named, since `Term.app` does not record it,
   and it is named as a term of `Δ`: the label is `(A, a[σ])`.
