@@ -689,4 +689,139 @@ theorem Shape.exists_join (hΔ : ⊢ Δ) {n} {x y : Shape n}
   exact fun w => ⟨fun hw => ⟨Shape.LE.trans_aux (Γ := Δ) hΔ hl hw, Shape.LE.trans_aux (Γ := Δ) hΔ hr hw⟩,
     fun ⟨h₁, h₂⟩ => Shape.join_le h₁ h₂⟩
 
+/-! ## Well-formedness, compatibility and join under substitution
+
+`join` commutes with substitution on the nose, being structural and
+context-free.  Combined with `WF.subst`, `Compat.subst` and `exists_join`
+this gives joins at the new stage without needing `Join` itself to
+transport (which it does not: `Join Θ` quantifies over more shapes than
+the image of the substitution). -/
+
+theorem ShapeFun.WF.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f : ShapeFun n}
+    (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
+    (ih : ∀ {a : Shape n}, Shape.WF Δ a → Shape.WF Θ (a.subst τ))
+    (hf : ShapeFun.WF Δ (Shape.WF Δ) f) :
+    ShapeFun.WF Θ (Shape.WF Θ) (ShapeFun.substWith (Shape.subst · τ) τ f) := by
+  intro d hd
+  obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+  have ⟨⟨u, hty⟩, htm, hin, hout⟩ := hf e he
+  exact ⟨⟨u, hty.subst hΘ W⟩, htm.subst hΘ W, ih hin, ih hout⟩
+
+theorem Shape.WF.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
+    ∀ {n} {s : Shape n}, Shape.WF Δ s → Shape.WF Θ (s.subst τ) := by
+  intro n
+  induction n with
+  | zero => intro s _; cases s <;> trivial
+  | succ n ih =>
+    intro s hs
+    cases s with
+    | bot | sort | unit | nat | zero => trivial
+    | succ v => exact ih hs
+    | refl w => exact ih hs
+    | pair a b => exact ⟨ih hs.1, ih hs.2⟩
+    | id r A a b =>
+      have ⟨⟨u, hA⟩, ha, hb⟩ := hs
+      exact ⟨⟨u, hA.subst hΘ W⟩, ha.subst hΘ W, hb.subst hΘ W⟩
+    | lam f => exact ShapeFun.WF.subst_of hΘ W ih hs
+    | forallE A B d f =>
+      have ⟨⟨u, hA⟩, ⟨v, hB⟩, hd, hf⟩ := hs
+      have hA' := hA.subst hΘ W
+      have hΘA : ⊢ A.subst τ :: Θ := ⟨hΘ, _, hA'⟩
+      exact ⟨⟨u, hA'⟩, ⟨v, hB.subst hΘA (W.lift hA hA')⟩,
+        ih hd, ShapeFun.WF.subst_of hΘ W ih hf⟩
+    | sigma A B d f =>
+      have ⟨⟨u, hA⟩, ⟨v, hB⟩, hd, hf⟩ := hs
+      have hA' := hA.subst hΘ W
+      have hΘA : ⊢ A.subst τ :: Θ := ⟨hΘ, _, hA'⟩
+      exact ⟨⟨u, hA'⟩, ⟨v, hB.subst hΘA (W.lift hA hA')⟩,
+        ih hd, ShapeFun.WF.subst_of hΘ W ih hf⟩
+
+/-! ### Compatibility does **not** transport, and must be made hereditary
+
+`Compat Δ` as defined above is the *local* condition, and it is not stable
+under substitution: to get `Compat Θ` for substituted graphs one would have
+to reflect the hypotheses back along `τ`, but a substitution can **create**
+label equalities (two distinct variables become definitionally equal), so
+entries that were unrelated at `Δ` can collide at `Θ` with no constraint
+relating their outputs.
+
+This is exactly why the other repo's coherence is hereditary.  The fix is
+to keep the clause above as a local relation (`CompatAt`) and define
+
+```
+Compat Δ x y := ∀ Θ τ, ⊢ Θ → Θ ⊢ τ : Δ → CompatAt Θ (x.subst τ) (y.subst τ)
+```
+
+which transports by composing substitutions, and whose instance at `τ = id`
+recovers the local form for `le_join`.  That needs two small additions:
+`Shape.subst_id`, and composition for `Ctx.SubstEq` (master has `id`,
+`lift`, `skip` and `lift_at`, but no `comp`).  Tracked in §6 item 2. -/
+
+theorem Shape.IsBot.subst {τ : Subst} : ∀ {n} {s : Shape n}, s.IsBot → (s.subst τ).IsBot := by
+  intro n
+  induction n with
+  | zero =>
+    intro s h
+    cases s with
+    | bot => trivial
+    | sort => exact absurd h id
+  | succ n ih =>
+    intro s h
+    cases s with
+    | bot => trivial
+    | lam f =>
+      intro d hd
+      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+      exact ih (h e he)
+    | _ => exact absurd h id
+
+theorem Shape.join_subst {τ : Subst} : ∀ {n} {x y : Shape n},
+    (x.join y).subst τ = (x.subst τ).join (y.subst τ) := by
+  intro n
+  induction n with
+  | zero => intro x y; cases x <;> cases y <;> rfl
+  | succ n ih =>
+    intro x y
+    cases x with
+    | bot => rfl
+    | lam f =>
+      cases y with
+      | bot => rfl
+      | lam f' => show Shape.lam _ = Shape.lam _; simp [ShapeFun.substWith]
+      | _ => rfl
+    | forallE A B d f =>
+      cases y with
+      | bot => rfl
+      | forallE A' B' d' f' =>
+        show ShapeS.forallE _ _ _ _ = ShapeS.forallE _ _ _ _
+        simp [ShapeFun.substWith, ih]
+      | _ => rfl
+    | sigma A B d f =>
+      cases y with
+      | bot => rfl
+      | sigma A' B' d' f' =>
+        show ShapeS.sigma _ _ _ _ = ShapeS.sigma _ _ _ _
+        simp [ShapeFun.substWith, ih]
+      | _ => rfl
+    | succ v =>
+      cases y with
+      | bot => rfl
+      | succ v' => show Shape.succ _ = Shape.succ _; rw [ih]
+      | _ => rfl
+    | refl u =>
+      cases y with
+      | bot => rfl
+      | refl u' => show Shape.refl _ = Shape.refl _; rw [ih]
+      | _ => rfl
+    | pair a b =>
+      cases y with
+      | bot => rfl
+      | pair a' b' => show ShapeS.pair _ _ = ShapeS.pair _ _; rw [ih, ih]
+      | _ => rfl
+    | sort r => cases y with | bot => rfl | _ => rfl
+    | unit r => cases y with | bot => rfl | _ => rfl
+    | nat => cases y with | bot => rfl | _ => rfl
+    | zero => cases y with | bot => rfl | _ => rfl
+    | id r A a b => cases y with | bot => rfl | _ => rfl
+
 end DomainSemantics
