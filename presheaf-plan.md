@@ -569,9 +569,9 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    relational graph lookup and `HasDom`.  Proved: `HasType.bot` (master's
    conditional form), `HasType.cumul`, `HasType.isType`, `Evaluates.subst`,
    `HasDom.subst`, `HasType.subst`, `Evaluates.compat`, `Evaluates.wf`,
-   `Evaluates.mono_graph`, `HasType.mono_r`, `HasType.join`.  **Left:**
-   prop collapse (`HasType Δ a .prop → HasType Δ x a → x = ⊥`, master's
-   `HasType.proofIrrel`); plus the Σ label (§5).
+   `Evaluates.mono_graph`, `HasType.mono_r`, `HasType.join`,
+   `Evaluates.bounded`, `HasType.bot_r`, `HasType.proofIrrel`.  **Left:**
+   the Σ label (§5).
 
    **`mono_r` and typed joins are mutually recursive on the level** and so
    are proved together, as `HasType.mono_r_join`.  Master proves them
@@ -590,6 +590,22 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    added to `Shape.lean` for the λ case, which has to supply
    `mono_graph`'s `Shape.Compat Δ x x` for the entry input `x`.  It is
    immediate now that internal coherence is a conjunct of `WF`.
+
+   **Prop collapse** (`HasType Δ a .prop → HasType Δ x a → x = ⊥`) is
+   proved as `HasType.proofIrrel`, with `WF` on both arguments.  Every
+   case but Π is a head clash; the Π case is where saturation is missed a
+   third time.  Master reads the codomain off the graph with the function
+   `ShapeFun.app` and recurses on its value.  Here the codomain comes out
+   of `Evaluates`, which may hand back a *lowering* of an entry output,
+   and `HasType · (.sort r)` is **not** downward closed — master's
+   `mono_l` is an equivalence (`m ≤ m'` together with `m' ≤ m`), not
+   monotonicity, so it is no help.  The way round is `Evaluates.bounded`:
+   every witness is below a witness that is a type, which is just
+   `mono_graph` instantiated at `f' = f` (hence the new
+   `ShapeFun.LE.refl_aux`), and `mono_r` retypes the entry output there.
+   The contradiction is then master's, with non-degeneracy standing in for
+   `lam'`: a well-formed λ has a non-`⊥` output, but the recursion says
+   that output is `⊥`.
 
    Corrections made along the way.
 

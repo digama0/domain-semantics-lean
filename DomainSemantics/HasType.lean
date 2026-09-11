@@ -27,6 +27,7 @@ namespace DomainSemantics
 
 variable {Δ : List Term}
 
+variable (Δ : List Term) {n} (f : ShapeFun n) (A a : Term) (x : Shape n) in
 /-- Relational graph lookup: `Evaluates Δ f A a x y` says `y` approximates
 the result of applying the graph `f`, at the argument label `(A, a)`, to an
 input at least `x`.  It is the set of outputs of matching entries, closed
@@ -35,25 +36,22 @@ downwards and under compatible joins — the other repo's `Evaluates`.
 Replacing `ShapeFun.app` (a function) by this (a relation) is what lets us
 drop saturation: the join of several matching entries is available here
 without having to be stored in the graph. -/
-inductive Evaluates (Δ : List Term) {n} (f : ShapeFun n) (A a : Term) (x : Shape n) :
-    Shape n → Prop where
-  | bot : Evaluates Δ f A a x .bot
+inductive Evaluates : Shape n → Prop where
+  | bot : Evaluates .bot
   | entry (e : Entry (Shape n)) : e ∈ f → LabelEq Δ e.ty e.tm A a →
-    Shape.LE Δ e.inp x → Evaluates Δ f A a x e.out
+    Shape.LE Δ e.inp x → Evaluates e.out
   -- the lookup is a lower set, but **lowering is constrained to well-formed
   -- shapes**.  Unrestricted lowering would break `Evaluates.wf`, since `WF`
   -- is not downward closed: a smaller λ-shape may have a bottom output,
   -- which non-degeneracy forbids.  With the constraint the lookup stays an
   -- ideal and everything it returns is still well formed.
-  | lower {y z} : Shape.WF Δ y → Shape.LE Δ y z →
-    Evaluates Δ f A a x z → Evaluates Δ f A a x y
+  | lower {y z} : Shape.WF Δ y → Shape.LE Δ y z → Evaluates z → Evaluates y
   -- Now that the `join` *function* is correct (no information-free λ-shapes),
   -- closing under it rather than under the `Join` relation is what makes
   -- `Evaluates` transport along a substitution: `join` commutes with
   -- substitution on the nose, whereas `Join Θ` quantifies over more shapes
   -- than the image of the substitution
-  | join {y z} : Shape.Compat Δ y z → Evaluates Δ f A a x y → Evaluates Δ f A a x z →
-    Evaluates Δ f A a x (y.join z)
+  | join {y z} : Shape.Compat Δ y z → Evaluates y → Evaluates z → Evaluates (y.join z)
 
 /-- Every entry of a graph is dominated by one whose input is typed at the
 domain shape (master's `HasDom`, with the label premise added). -/
@@ -404,10 +402,10 @@ theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFu
   | entry e he hlab hin =>
     have ⟨e', he', hlab', hin', hout'⟩ := hff' e he
     exact ⟨e'.out, .entry e' he' (hlab'.trans hlab)
-      (Shape.LE.trans_aux hΔ hin' hin), hout', hty e' he'⟩
+      (hin'.trans hΔ hin), hout', hty e' he'⟩
   | lower _ hle _ ih =>
     have ⟨c', hc', hle', hty'⟩ := ih
-    exact ⟨c', hc', Shape.LE.trans_aux hΔ hle hle', hty'⟩
+    exact ⟨c', hc', hle.trans hΔ hle', hty'⟩
   | join _ _ _ ih₁ ih₂ =>
     have ⟨y', hy', hley, htyy⟩ := ih₁
     have ⟨z', hz', hlez, htyz⟩ := ih₂
@@ -416,7 +414,7 @@ theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFu
     have hwz := Evaluates.wf hΔ hwf hz'
     have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwy hwz hc
     exact ⟨y'.join z', .join hc hy' hz',
-      Shape.join_le (Shape.LE.trans_aux hΔ hley hu₁) (Shape.LE.trans_aux hΔ hlez hu₂),
+      Shape.join_le (hley.trans hΔ hu₁) (hlez.trans hΔ hu₂),
       hjoin hwy hwz hc htyy htyz⟩
 
 /-! ## Monotonicity on the right, and typed joins
@@ -440,159 +438,109 @@ theorem Shape.HasType.mono_r_join (hΔ : ⊢ Δ) : ∀ {n},
   intro n
   induction n with
   | zero =>
-    refine ⟨?_, ?_⟩
-    · intro m a a' r _ _ h hle hA
-      cases m with
-      | bot => cases a' <;> trivial
-      | sort s =>
-        cases a with
-        | sort j => cases a' with
-          | sort j' => exact (hle : j = j').symm.trans h
-          | bot => exact absurd hle id
-        | bot => exact absurd h id
-    · intro y z r _ _ _ hy hz
-      cases y with
-      | bot => exact hz
-      | sort s => cases z with | bot => exact hy | sort s' => exact hy
+    refine ⟨fun {m a a' r} _ _ h hle hA => ?_, fun {y z r} _ _ _ hy hz => ?_⟩
+    · cases m with | bot => cases a' <;> trivial | sort s
+      cases a with | bot => cases h | sort j
+      cases a' with | bot => cases hle | sort j'
+      exact (hle : j = j').symm.trans h
+    · cases y with | bot => exact hz | sort s
+      cases z with | bot => exact hy | sort s'
+      exact hy
   | succ n ih =>
     obtain ⟨ihm, ihj⟩ := ih
     refine ⟨?_, ?_⟩
     · -- mono_r
       intro m a a' r hwm hwa h hle hA
       cases m with
-      | bot => exact Shape.HasType.bot (Shape.HasType.cumul hA (Bool.le_true' r))
+      | bot => exact .bot (.cumul hA (Bool.le_true' r))
       | sort s =>
-        cases a with
-        | sort j => cases a' <;> first | exact absurd hle id | exact (hle : j = _).symm.trans h
-        | _ => exact absurd h id
+        cases a with | sort j => ?_ | _ => cases h
+        cases a' <;> cases hle; exact h
       | unit t =>
-        cases a with
-        | sort j => cases a' <;> first | exact absurd hle id
-                                       | exact (hle : j = _) ▸ h
-        | _ => exact absurd h id
+        cases a with | sort j => ?_ | _ => cases h
+        cases a' <;> cases hle; exact h
       | nat =>
-        cases a with
-        | sort j => cases a' <;> first | exact absurd hle id | exact (hle : j = _).symm.trans h
-        | _ => exact absurd h id
+        cases a with | sort j => ?_ | _ => cases h
+        cases a' <;> cases hle; exact h
       | id t A₀ a₀ b₀ =>
-        cases a with
-        | sort j => cases a' <;> first | exact absurd hle id
-                                       | exact (hle : j = _) ▸ h
-        | _ => exact absurd h id
-      | zero => cases a <;> first | exact absurd h id | (cases a' <;> first | exact absurd hle id | trivial)
-      | succ v => cases a <;> first | exact absurd h id | (cases a' <;> first | exact absurd hle id | exact h)
+        cases a with | sort j => ?_ | _ => cases h
+        cases a' <;> cases hle; exact h
+      | zero => cases a <;> cases h; cases a' <;> cases hle; trivial
+      | succ v => cases a <;> (try cases h); cases a' <;> cases hle; trivial
       | refl w =>
-        cases a with
-        | id t A₀ a₀ b₀ =>
-          cases a' with
-          | id t' A₁ a₁ b₁ => exact (hle.1 : t = t').symm.trans h
-          | _ => exact absurd hle id
-        | _ => exact absurd h id
+        cases a with | id t A₀ a₀ b₀ => ?_ | _ => cases h
+        cases a' with | id t' A₁ a₁ b₁ => ?_ | _ => cases hle
+        exact (hle.1 : t = t').symm.trans h
       | forallE A₀ B₀ d f =>
-        cases a with
-        | sort j =>
-          cases a' with
-          | sort j' => exact ((hle : j = j') ▸ h : _)
-          | _ => exact absurd hle id
-        | _ => exact absurd h id
+        cases a with | sort j => ?_ | _ => cases h
+        cases a' with | sort j' => exact ((hle : j = j') ▸ h : _) | _ => cases hle
       | sigma A₀ B₀ d f =>
-        cases a with
-        | sort j =>
-          cases a' with
-          | sort j' => exact ((hle : j = j') ▸ h : _)
-          | _ => exact absurd hle id
-        | _ => exact absurd h id
+        cases a with | sort j => ?_ | _ => cases h
+        cases a' with | sort j' => ?_ | _ => cases hle
+        exact hle ▸ h
       | pair x y =>
-        cases a with
-        | sigma A₀ B₀ d g =>
-          cases a' with
-          | sigma A₁ B₁ d' g' =>
-            refine ⟨hA.2, ihm hwm.1 hwa.2.2.1 h.2 hle.2.1 hA.2.1⟩
-          | _ => exact absurd hle id
-        | _ => exact absurd h id
+        cases a with | sigma A₀ B₀ d g => ?_ | _ => cases h
+        cases a' with | sigma A₁ B₁ d' g' => ?_ | _ => cases hle
+        exact ⟨hA.2, ihm hwm.1 hwa.2.2.1 h.2 hle.2.1 hA.2.1⟩
       | lam g =>
-        cases a with
-        | forallE A₀ B₀ d f =>
-          cases a' with
-          | forallE A₁ B₁ d' f' =>
-            refine ⟨⟨hA.1, hA.2.1, fun e he => Shape.HasType.cumul (hA.2.2 e he)
-                (Bool.le_true' r)⟩, ?_, ?_⟩
-            · intro e he
-              have ⟨e', he', hlab, hin, hout, hty⟩ := h.2.1 e he
-              exact ⟨e', he', hlab, hin, hout,
-                ihm (hwm.2.2.1 e' he').2.2.1 hwa.2.2.1 hty hle.2.1 hA.1⟩
-            · intro e he
-              have ⟨c, hev, hcty⟩ := h.2.2 e he
-              have ⟨c', hev', hcle, hc'ty⟩ :=
-                Evaluates.mono_graph hΔ hwa.2.2.2.2 (Shape.WF.coherent
-                    (hwm.2.2.1 e he).2.2.1)
-                  (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2)
-                  (fun e' he' => hA.2.2 e' he') ihj hle.2.2 hev
-              exact ⟨c', hev', ihm (hwm.2.2.1 e he).2.2.2 (Evaluates.wf hΔ
-                (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2) hev') hcty hcle hc'ty⟩
-          | _ => exact absurd hle id
-        | _ => exact absurd h id
+        cases a with | forallE A₀ B₀ d f => ?_ | _ => cases h
+        cases a' with | forallE A₁ B₁ d' f' => ?_ | _ => cases hle
+        refine ⟨⟨hA.1, hA.2.1, fun e he => .cumul (hA.2.2 e he) (Bool.le_true' r)⟩, ?_, ?_⟩
+        · intro e he
+          have ⟨e', he', hlab, hin, hout, hty⟩ := h.2.1 e he
+          exact ⟨e', he', hlab, hin, hout,
+            ihm (hwm.2.2.1 e' he').2.2.1 hwa.2.2.1 hty hle.2.1 hA.1⟩
+        · intro e he
+          have ⟨c, hev, hcty⟩ := h.2.2 e he
+          have ⟨c', hev', hcle, hc'ty⟩ :=
+            Evaluates.mono_graph hΔ hwa.2.2.2.2 (hwm.2.2.1 e he).2.2.1.coherent
+              (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2)
+              (fun e' he' => hA.2.2 e' he') ihj hle.2.2 hev
+          exact ⟨c', hev', ihm (hwm.2.2.1 e he).2.2.2 (Evaluates.wf hΔ
+            (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2) hev') hcty hcle hc'ty⟩
     · -- typed joins
       intro y z r hwy hwz hc hy hz
       cases y with
       | bot => exact hz
-      | sort s => cases z with | bot => exact hy | _ => exact hy
-      | unit t => cases z with | bot => exact hy | _ => exact hy
-      | nat => cases z with | bot => exact hy | _ => exact hy
-      | id t A₀ a₀ b₀ => cases z with | bot => exact hy | _ => exact hy
       | forallE A₀ B₀ d f =>
-        cases z with
-        | bot => exact hy
-        | forallE A₁ B₁ d' g =>
-          have hdj := ihj hwy.2.2.1 hwz.2.2.1 hc.2.1 hy.1 hz.1
-          have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwy.2.2.1 hwz.2.2.1 hc.2.1
-          refine ⟨hdj, ?_, ?_⟩
-          · intro e he
-            match List.mem_append.1 he with
-            | .inl he =>
-              have ⟨e', he', hlab, hin, hout, hty⟩ := hy.2.1 e he
-              exact ⟨e', List.mem_append.2 (.inl he'), hlab, hin, hout,
-                ihm (hwy.2.2.2.1 e' he').2.2.1 (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1)
-                  hty hu₁ hdj⟩
-            | .inr he =>
-              have ⟨e', he', hlab, hin, hout, hty⟩ := hz.2.1 e he
-              exact ⟨e', List.mem_append.2 (.inr he'), hlab, hin, hout,
-                ihm (hwz.2.2.2.1 e' he').2.2.1 (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1)
-                  hty hu₂ hdj⟩
-          · intro e he
-            match List.mem_append.1 he with
-            | .inl he => exact hy.2.2 e he
-            | .inr he => exact hz.2.2 e he
-        | _ => exact absurd hc id
+        cases z with | bot => exact hy | forallE A₁ B₁ d' g => ?_ | _ => cases hc
+        have hdj := ihj hwy.2.2.1 hwz.2.2.1 hc.2.1 hy.1 hz.1
+        have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwy.2.2.1 hwz.2.2.1 hc.2.1
+        refine ⟨hdj, fun e he => ?_, fun e he => ?_⟩
+        · match List.mem_append.1 he with
+          | .inl he =>
+            have ⟨e', he', hlab, hin, hout, hty⟩ := hy.2.1 e he
+            exact ⟨e', List.mem_append.2 (.inl he'), hlab, hin, hout,
+              ihm (hwy.2.2.2.1 e' he').2.2.1 (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1)
+                hty hu₁ hdj⟩
+          | .inr he =>
+            have ⟨e', he', hlab, hin, hout, hty⟩ := hz.2.1 e he
+            exact ⟨e', List.mem_append.2 (.inr he'), hlab, hin, hout,
+              ihm (hwz.2.2.2.1 e' he').2.2.1 (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1)
+                hty hu₂ hdj⟩
+        · match List.mem_append.1 he with
+          | .inl he => exact hy.2.2 e he
+          | .inr he => exact hz.2.2 e he
       | sigma A₀ B₀ d f =>
-        cases z with
-        | bot => exact hy
-        | sigma A₁ B₁ d' g =>
-          have hdj := ihj hwy.2.2.1 hwz.2.2.1 hc.2.1 hy.2.1 hz.2.1
-          have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwy.2.2.1 hwz.2.2.1 hc.2.1
-          refine ⟨hy.1, hdj, ?_, ?_⟩
-          · intro e he
-            match List.mem_append.1 he with
-            | .inl he =>
-              have ⟨e', he', hlab, hin, hout, hty⟩ := hy.2.2.1 e he
-              exact ⟨e', List.mem_append.2 (.inl he'), hlab, hin, hout,
-                ihm (hwy.2.2.2.1 e' he').2.2.1 (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1)
-                  hty hu₁ hdj⟩
-            | .inr he =>
-              have ⟨e', he', hlab, hin, hout, hty⟩ := hz.2.2.1 e he
-              exact ⟨e', List.mem_append.2 (.inr he'), hlab, hin, hout,
-                ihm (hwz.2.2.2.1 e' he').2.2.1 (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1)
-                  hty hu₂ hdj⟩
-          · intro e he
-            match List.mem_append.1 he with
-            | .inl he => exact hy.2.2.2 e he
-            | .inr he => exact hz.2.2.2 e he
-        | _ => exact absurd hc id
-      | zero => cases z with | bot => exact hy | _ => exact hy
-      | succ v => cases z with | bot => exact hy | _ => exact hy
-      | refl w => cases z with | bot => exact hy | _ => exact hy
-      | lam f => cases z with | bot => exact hy | _ => exact hy
-      | pair a₁ b₁ => cases z with | bot => exact hy | _ => exact hy
+        cases z with | bot => exact hy | sigma A₁ B₁ d' g => ?_ | _ => cases hc
+        have hdj := ihj hwy.2.2.1 hwz.2.2.1 hc.2.1 hy.2.1 hz.2.1
+        have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwy.2.2.1 hwz.2.2.1 hc.2.1
+        refine ⟨hy.1, hdj, fun e he => ?_, fun e he => ?_⟩
+        · match List.mem_append.1 he with
+          | .inl he =>
+            have ⟨e', he', hlab, hin, hout, hty⟩ := hy.2.2.1 e he
+            exact ⟨e', List.mem_append.2 (.inl he'), hlab, hin, hout,
+              ihm (hwy.2.2.2.1 e' he').2.2.1 (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1)
+                hty hu₁ hdj⟩
+          | .inr he =>
+            have ⟨e', he', hlab, hin, hout, hty⟩ := hz.2.2.1 e he
+            exact ⟨e', List.mem_append.2 (.inr he'), hlab, hin, hout,
+              ihm (hwz.2.2.2.1 e' he').2.2.1 (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1)
+                hty hu₂ hdj⟩
+        · match List.mem_append.1 he with
+          | .inl he => exact hy.2.2.2 e he
+          | .inr he => exact hz.2.2.2 e he
+      | _ => cases z <;> exact hy
 
 /-- Typing is monotone on the right. -/
 theorem Shape.HasType.mono_r (hΔ : ⊢ Δ) {n} {m a a' : Shape n} {r : Bool}
@@ -606,4 +554,93 @@ theorem Shape.HasType.join (hΔ : ⊢ Δ) {n} {y z : Shape n} {r : Bool}
     (hy : Shape.HasType Δ y (.sort r)) (hz : Shape.HasType Δ z (.sort r)) :
     Shape.HasType Δ (y.join z) (.sort r) := (Shape.HasType.mono_r_join hΔ).2 hwy hwz hc hy hz
 
-end DomainSemantics
+/-! ## Proof irrelevance
+
+`HasType Δ a .prop → HasType Δ x a → x = ⊥`: a proposition has no
+information in it.  This is master's `HasType.proofIrrel`, and it is the
+shape-level content of the syntactic `proofIrrel` rule.
+
+Only the Π case has anything to it, and it is where dropping saturation
+bites once more.  Master reads the codomain off the graph with the
+function `ShapeFun.app` and recurses on its value directly.  Here the
+codomain comes out of `Evaluates`, which may hand back a *lowering* of an
+entry output, and `HasType · (.sort r)` is not downward closed — master's
+`mono_l` is an equivalence (`m ≤ m'` and `m' ≤ m`), not monotonicity, so
+it does not help either.  `Evaluates.bounded` is the way round: every
+witness is below a witness that is a type, and `mono_r` retypes at that
+one. -/
+
+/-- Everything the lookup returns is below something the lookup returns
+that is a type, in whatever sort the graph's outputs live.  Immediate from
+`mono_graph` at `f' = f`. -/
+theorem Evaluates.bounded (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term} {x : Shape n}
+    {r : Bool} (hwf : ShapeFun.WF Δ (Shape.WF Δ) f)
+    (hco : ShapeFun.Compat Shape.Compat Δ f f) (hx : Shape.Compat Δ x x)
+    (hty : ∀ e ∈ f, Shape.HasType Δ e.out (.sort r))
+    {c : Shape n} (h : Evaluates Δ f A a x c) :
+    ∃ z, Shape.WF Δ z ∧ Shape.LE Δ c z ∧ Shape.HasType Δ z (.sort r) :=
+  have hout : ∀ e ∈ f, Shape.WF Δ e.out := fun e he => (hwf e he).2.2.2
+  have ⟨c', hc', hle, hc'ty⟩ :=
+    Evaluates.mono_graph hΔ hco hx hout hty (Shape.HasType.join hΔ)
+      (ShapeFun.LE.refl_aux hwf) h
+  ⟨c', Evaluates.wf hΔ hout hc', hle, hc'ty⟩
+
+/-- Nothing but `⊥` is typed at `⊥`. -/
+theorem Shape.HasType.bot_r : ∀ {n} {x : Shape n}, Shape.HasType Δ x .bot → x = .bot := by
+  intro n x h
+  cases n <;> cases x <;> first | rfl | exact absurd h id
+
+/-- A proposition is inhabited only by `⊥`. -/
+theorem Shape.HasType.proofIrrel (hΔ : ⊢ Δ) : ∀ {n} {a x : Shape n},
+    Shape.WF Δ a → Shape.WF Δ x →
+    Shape.HasType Δ a .prop → Shape.HasType Δ x a → x = .bot := by
+  intro n
+  induction n with
+  | zero =>
+    intro a x _ _ ha h
+    cases a with
+    | bot => exact Shape.HasType.bot_r h
+    | sort s => exact Bool.noConfusion (ha : false = true)
+  | succ n ih =>
+    intro a x hwa hwx ha h
+    cases a with
+    | bot => exact Shape.HasType.bot_r h
+    | sort s => exact Bool.noConfusion (ha : false = true)
+    | nat => exact Bool.noConfusion (ha : false = true)
+    | sigma => exact Bool.noConfusion (ha.1 : false = true)
+    | zero | succ | lam | pair | refl => exact absurd ha id
+    | unit t =>
+      -- nothing but `⊥` inhabits `unit` at all, so the flag never matters
+      cases x <;> first | rfl | exact absurd h id
+    | id t A₀ a₀ b₀ =>
+      -- `HasType (.id t ..) .prop` forces `t = false`, and `refl` needs `t = true`
+      have ht : t = false := by
+        cases t with
+        | false => rfl
+        | true => exact Bool.noConfusion (Bool.eq_true_of_le (r := true) rfl ha)
+      subst ht
+      cases x with
+      | bot => rfl
+      | refl w => exact Bool.noConfusion (h : false = true)
+      | _ => exact absurd h id
+    | forallE A₀ B₀ d f =>
+      cases x with
+      | bot => rfl
+      | lam g =>
+        -- a well-formed λ carries real information, so it cannot inhabit a
+        -- Π-type whose codomain family is propositional
+        have ⟨hne, hnb, hwg, _⟩ := hwx
+        have ⟨_, _, _, hwf, hco⟩ := hwa
+        cases g with
+        | nil => exact absurd rfl hne
+        | cons e g' =>
+          have he : e ∈ e :: g' := List.mem_cons_self ..
+          have ⟨_, _, hwin, hwout⟩ := hwg e he
+          have ⟨c, hev, hcty⟩ := h.2.2 e he
+          have ⟨z, hwz, hcz, hzty⟩ :=
+            Evaluates.bounded hΔ hwf hco (Shape.WF.coherent hwin) ha.2.2 hev
+          have hbot : e.out = .bot :=
+            ih hwz hwout hzty (Shape.HasType.mono_r hΔ hwout hwz hcty hcz hzty)
+          have hb : Shape.IsBot (Shape.bot : Shape n) := by cases n <;> trivial
+          exact absurd (hbot ▸ hb) (hnb e he)
+      | _ => exact absurd h id
