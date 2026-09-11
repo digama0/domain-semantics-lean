@@ -605,29 +605,36 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    `join` commutes with substitution on the nose, whereas `Join Θ`
    quantifies over more shapes than the image of the substitution.
 
-   **The obstruction remaining in `mono_r`, analysed.**  Its λ case needs
-   two things beyond what is proved:
+   **The two obstructions in `mono_r`: both now discharged.**
 
-   * ~~`HasType Δ d' .type` for the *larger* Π's domain.~~ **Done.**
-     Master derives this from `HasDom.isType`, which works there only
-     because saturation makes every graph contain a `⊥`-input entry, so
-     the domain has an inhabitant.  With saturation gone it is now stated:
-     `HasType Δ d .type` is a conjunct of the Π/Σ type clauses.
-   * `Evaluates.mono_graph`: `ShapeFun.LE Δ f f' → Evaluates Δ f ℓ x c →
-     ∃ c', Evaluates Δ f' ℓ x c' ∧ LE Δ c c'`.  The `bot`, `entry` and
-     `lower` cases go through (the `entry` case composes the two `LabelEq`
-     proofs and the two `LE` proofs).  The **`join` case needs
-     `Compat Δ y' z'` for the images**, which does not follow from
-     `Compat Δ y z`, compatibility not being inherited upwards.  It *does*
-     follow if `f'` is internally coherent, since `y'` and `z'` then come
-     from entries of `f'` with definitionally equal labels and inputs
-     below a common `x`.  **Fix: add internal coherence
-     (`ShapeFun.Compat Compat Δ f f`) to `Shape.WF` for every graph.**
-     This is the other repo's `IsCoherent`, and it is exactly where §7.1
-     predicted it would be consumed.  It transports, by `Compat.subst`,
-     and append preserves it precisely when the two graphs are mutually
-     compatible — which is already the hypothesis of `exists_join`, so the
-     two line up.
+   * ~~`HasType Δ d' .type` for the larger Π's domain.~~ **Done.**  Master
+     derives it from `HasDom.isType`, which works there only because
+     saturation makes every graph contain a `⊥`-input entry, so the domain
+     has an inhabitant.  With saturation gone it is stated: `HasType Δ d
+     .type` is a conjunct of the Π/Σ type clauses.
+   * ~~`Evaluates.mono_graph`, whose `join` case needs the two witnesses to
+     be compatible.~~ **Done** (`d9339ac`), via `Evaluates.compat`: every
+     pair of shapes one lookup returns is compatible, given the graph and
+     the query shape are coherent.  Coherence asks for the two entries'
+     *inputs* to be compatible, and the query supplies exactly that, both
+     lying below the query shape, so `Compat.of_common_upper` applies.
+     Supporting lemmas proved along the way: `Compat.symm`,
+     `Compat.anti_right` (one-sided on purpose — a two-sided induction
+     would need reflexivity of `LE`, which holds only on well-formed
+     shapes and would drag `WF` into every use), `Compat.anti`,
+     `Compat.of_common_upper`, `Shape.join_compat` (the other repo's
+     `cSup_compatible`), and `Shape.subst_id`.
+
+   **One hypothesis left open in `mono_graph`.**  It currently takes the
+   upper-bound property `y ≤ y ⊔ z` for the shapes a lookup returns as a
+   hypothesis rather than deriving it.  `le_join` proves it, but needs
+   `WF`, and `WF` is *not* downward closed — `Evaluates` closes under
+   `lower`, and a smaller λ-shape may have a bottom output, which `WF`
+   forbids.  The fix is to **split `Shape.WF`**: label well-typedness
+   (which *is* downward closed, since `LE` forces labels to be
+   definitionally equal) from non-degeneracy.  `le_join` only ever needs
+   the former, for reflexivity of the label relations.  Then the
+   hypothesis discharges internally.
 
    Master avoids both because its saturated `ShapeFun.app` is a
    *function*, monotone by `app_mono_l`, so there is no existential to
