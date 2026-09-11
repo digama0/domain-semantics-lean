@@ -1005,3 +1005,208 @@ def Shape.decIsBot : ∀ {n} (s : Shape n), Decidable s.IsBot
   | _+1, .id _ _ _ _ | _+1, .forallE _ _ _ _ | _+1, .sigma _ _ _ _ => .isFalse id
 
 instance {n} {s : Shape n} : Decidable s.IsBot := Shape.decIsBot s
+
+/-! ## Compatibility: symmetry, anti-monotonicity, common upper bounds
+
+These are what the relational graph lookup needs.  Master gets away
+without them because its lookup is a saturated max-below *function*; ours
+collects matching entries and joins them, so it has to know the joins
+exist. -/
+
+theorem Shape.Compat.symm : ∀ {n} {Δ : List Term} {a b : Shape n}, ⊢ Δ →
+    Shape.Compat Δ a b → Shape.Compat Δ b a := by
+  intro n
+  induction n with
+  | zero => intro Δ a b _ h; cases a <;> cases b <;> simp_all [Shape.Compat]
+  | succ n ih =>
+    intro Δ a b hΔ h
+    have hfun : ∀ {f g : ShapeFun n}, ShapeFun.Compat Shape.Compat Δ f g →
+        ShapeFun.Compat Shape.Compat Δ g f := by
+      intro f g hfg e he e' he' Θ τ hΘ W hlab hin
+      exact ih hΘ (hfg e' he' e he Θ τ hΘ W hlab.symm (ih hΘ hin))
+    cases a with
+    | bot => cases b <;> trivial
+    | lam f =>
+      cases b with
+      | bot => trivial
+      | lam g => exact hfun h
+      | _ => exact absurd h id
+    | forallE A B d f =>
+      cases b with
+      | bot => trivial
+      | forallE A' B' d' f' => exact ⟨h.1.symm hΔ, ih hΔ h.2.1, hfun h.2.2⟩
+      | _ => exact absurd h id
+    | sigma A B d f =>
+      cases b with
+      | bot => trivial
+      | sigma A' B' d' f' => exact ⟨h.1.symm hΔ, ih hΔ h.2.1, hfun h.2.2⟩
+      | _ => exact absurd h id
+    | succ v => cases b with | bot => trivial | succ v' => exact ih hΔ h | _ => exact absurd h id
+    | refl w => cases b with | bot => trivial | refl w' => exact ih hΔ h | _ => exact absurd h id
+    | pair x y =>
+      cases b with
+      | bot => trivial
+      | pair x' y' => exact ⟨ih hΔ h.1, ih hΔ h.2⟩
+      | _ => exact absurd h id
+    | id r A a' b' =>
+      cases b with
+      | bot => trivial
+      | id r' A'' a'' b'' => exact ⟨h.1.symm, h.2.symm⟩
+      | _ => exact absurd h id
+    | sort r => cases b with | bot => trivial | sort r' => exact Eq.symm h | _ => exact absurd h id
+    | unit r => cases b with | bot => trivial | unit r' => exact Eq.symm h | _ => exact absurd h id
+    | nat => cases b with | bot => trivial | nat => trivial | _ => exact absurd h id
+    | zero => cases b with | bot => trivial | zero => trivial | _ => exact absurd h id
+
+/-- Compatibility is **anti-monotone on the right**.
+
+The graph case is where the hereditary quantification earns its keep: the
+covering entry's label agrees with the query's at the later stage by
+transitivity of `LabelEq`, its input is compatible by the inductive
+hypothesis, so the hypothesis applies there and hands back compatible
+outputs, which the inductive hypothesis pushes back down.
+
+Stated one-sided on purpose.  A two-sided induction would need
+reflexivity of `LE` on the left argument, and reflexivity holds only on
+well-formed shapes, which would drag a `WF` hypothesis into every use. -/
+theorem Shape.Compat.anti_right : ∀ {n} {Δ : List Term} {a b b' : Shape n}, ⊢ Δ →
+    Shape.Compat Δ a b → Shape.LE Δ b' b → Shape.Compat Δ a b' := by
+  intro n
+  induction n with
+  | zero =>
+    intro Δ a b b' _ h hb
+    cases a <;> cases b <;> cases b' <;> simp_all [Shape.Compat, Shape.LE]
+  | succ n ih =>
+    intro Δ a b b' hΔ h hb
+    cases a with
+    | bot => trivial
+    | lam f =>
+      cases b with
+      | bot => cases b' with | bot => trivial | _ => exact absurd hb id
+      | lam g =>
+        cases b' with
+        | bot => trivial
+        | lam g' =>
+            intro e he e' he' Θ τ hΘ W hlab hin
+            have ⟨e₂, he₂, hl₂, hi₂, ho₂⟩ := hb e' he'
+            exact ih hΘ (h e he e₂ he₂ Θ τ hΘ W
+                (hlab.trans (hl₂.subst hΘ W).symm)
+                (ih hΘ hin (Shape.LE.subst hΘ W hi₂)))
+              (Shape.LE.subst hΘ W ho₂)
+        | _ => exact absurd hb id
+      | _ => exact absurd h id
+    | succ v =>
+      cases b with
+      | bot => cases b' with | bot => trivial | _ => exact absurd hb id
+      | succ w =>
+        cases b' with
+        | bot => trivial
+        | succ w' =>
+          exact ih hΔ h hb
+        | _ => exact absurd hb id
+      | _ => exact absurd h id
+    | refl v =>
+      cases b with
+      | bot => cases b' with | bot => trivial | _ => exact absurd hb id
+      | refl w =>
+        cases b' with
+        | bot => trivial
+        | refl w' =>
+          exact ih hΔ h hb
+        | _ => exact absurd hb id
+      | _ => exact absurd h id
+    | pair x y =>
+      cases b with
+      | bot => cases b' with | bot => trivial | _ => exact absurd hb id
+      | pair u v =>
+        cases b' with
+        | bot => trivial
+        | pair u' v' =>
+          exact ⟨ih hΔ h.1 hb.1, ih hΔ h.2 hb.2⟩
+        | _ => exact absurd hb id
+      | _ => exact absurd h id
+    | id r A₀ a₀ b₀ =>
+      cases b with
+      | bot => cases b' with | bot => trivial | _ => exact absurd hb id
+      | id rb Ab ab bb =>
+        cases b' with
+        | bot => trivial
+        | id r' A₁ a₁ b₁ =>
+          exact ⟨h.1.trans hb.1.symm, h.2.trans hb.2.symm⟩
+        | _ => exact absurd hb id
+      | _ => exact absurd h id
+    | forallE A₀ B₀ d f =>
+      cases b with
+      | bot => cases b' with | bot => trivial | _ => exact absurd hb id
+      | forallE Ab Bb db fb =>
+        cases b' with
+        | bot => trivial
+        | forallE A₁ B₁ e' g' =>
+          refine ⟨h.1.trans hΔ (hb.1.symm hΔ), ih hΔ h.2.1 hb.2.1, ?_⟩
+          intro e he e' he' Θ τ hΘ W hlab hin
+          have ⟨e₂, he₂, hl₂, hi₂, ho₂⟩ := hb.2.2 e' he'
+          exact ih hΘ (h.2.2 e he e₂ he₂ Θ τ hΘ W
+              (hlab.trans (hl₂.subst hΘ W).symm)
+              (ih hΘ hin (Shape.LE.subst hΘ W hi₂)))
+            (Shape.LE.subst hΘ W ho₂)
+        | _ => exact absurd hb id
+      | _ => exact absurd h id
+    | sigma A₀ B₀ d f =>
+      cases b with
+      | bot => cases b' with | bot => trivial | _ => exact absurd hb id
+      | sigma Ab Bb db fb =>
+        cases b' with
+        | bot => trivial
+        | sigma A₁ B₁ e' g' =>
+          refine ⟨h.1.trans hΔ (hb.1.symm hΔ), ih hΔ h.2.1 hb.2.1, ?_⟩
+          intro e he e' he' Θ τ hΘ W hlab hin
+          have ⟨e₂, he₂, hl₂, hi₂, ho₂⟩ := hb.2.2 e' he'
+          exact ih hΘ (h.2.2 e he e₂ he₂ Θ τ hΘ W
+              (hlab.trans (hl₂.subst hΘ W).symm)
+              (ih hΘ hin (Shape.LE.subst hΘ W hi₂)))
+            (Shape.LE.subst hΘ W ho₂)
+        | _ => exact absurd hb id
+      | _ => exact absurd h id
+    | sort r =>
+      cases b with
+      | bot => cases b' with | bot => trivial | _ => exact absurd hb id
+      | sort rb =>
+        cases b' with
+        | bot => trivial
+        | sort s => exact (h : r = rb).trans (hb : s = rb).symm
+        | _ => exact absurd hb id
+      | _ => exact absurd h id
+    | unit r =>
+      cases b with
+      | bot => cases b' with | bot => trivial | _ => exact absurd hb id
+      | unit rb =>
+        cases b' with
+        | bot => trivial
+        | unit s => exact (h : r = rb).trans (hb : s = rb).symm
+        | _ => exact absurd hb id
+      | _ => exact absurd h id
+    | nat =>
+      cases b with
+      | bot => cases b' with | bot => trivial | _ => exact absurd hb id
+      | nat => cases b' with | bot => trivial | nat => trivial | _ => exact absurd hb id
+      | _ => exact absurd h id
+    | zero =>
+      cases b with
+      | bot => cases b' with | bot => trivial | _ => exact absurd hb id
+      | zero => cases b' with | bot => trivial | zero => trivial | _ => exact absurd hb id
+      | _ => exact absurd h id
+
+/-- Compatibility is anti-monotone in both arguments. -/
+theorem Shape.Compat.anti {n} {Δ : List Term} {a b a' b' : Shape n} (hΔ : ⊢ Δ)
+    (h : Shape.Compat Δ a b) (ha : Shape.LE Δ a' a) (hb : Shape.LE Δ b' b) :
+    Shape.Compat Δ a' b' :=
+  Shape.Compat.symm hΔ (Shape.Compat.anti_right hΔ
+    (Shape.Compat.symm hΔ (Shape.Compat.anti_right hΔ h hb)) ha)
+
+/-- Two shapes below a common **coherent** upper bound are compatible.
+This is the form the graph lookup needs: whenever two entries are selected
+by the same query their inputs are both below the query shape, so this
+supplies the hypothesis that coherence asks for. -/
+theorem Shape.Compat.of_common_upper {n} {Δ : List Term} {a b c : Shape n} (hΔ : ⊢ Δ)
+    (hc : Shape.Compat Δ c c) (ha : Shape.LE Δ a c) (hb : Shape.LE Δ b c) :
+    Shape.Compat Δ a b := Shape.Compat.anti hΔ hc ha hb

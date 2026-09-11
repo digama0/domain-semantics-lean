@@ -319,3 +319,4 @@ theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
       | _ => exact absurd h id
 
 end DomainSemantics
+
