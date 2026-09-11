@@ -944,3 +944,70 @@ Against, `refl`/`trans` need reworking, and the named label relations are
 wanted anyway downstream (graph lookup in `Evaluates`, the coherence
 condition, the `app` rule of `Interp` all compare labels), so inlining
 them into the order does not actually remove them from the development.
+
+## Appendix C. Definition-by-definition inventory against the other repo
+
+A full pass over the other repo's `DomainSemantics/**` (14.2k lines),
+counting every `def`/`abbrev`/`structure`/`inductive`/`instance` that
+carries content, against this branch as of `Presheaf.lean`.
+
+| status | count |
+|---|---|
+| expressed | 48 |
+| partial | 31 |
+| absent | 55 |
+| total | 134 |
+
+Of the 55 absent, about **34 are deliberate eliminations** — things the
+design says it does not need:
+
+* the quotiented syntax layer (11): `RawCtx`, `homRel`, `Ctx`, `Ty`, `Tm`,
+  their presheaves, comprehension, display maps, `extensionIso`;
+* the category-theory boilerplate (~15): `CondSemilatticeSup` and its
+  category, `Preord` helpers, `Functor.HomObj`, `Presheaf.Comprehension`,
+  `ΩLower`'s lattice instances, `guard`, `memSieve`, `bind`/`map`,
+  `PartialDomain`;
+* finitarity (4): `approximations`, `IsFinitary` at three levels;
+* the fixed point (2): `rank`, `piStep`/`piStage`/`piLimit`.
+
+That leaves **about 21 genuine gaps**, which are the remaining work.  In
+rough order of load:
+
+1. **Soundness itself** (`rawSoundness` is `sorry`), and the per-rule
+   lemmas — the bulk of his 2.6k `Soundness/*` lines.
+2. **`piAtom` and `mem_piAtom_pi_iff`**, his inversion payload, and the
+   inversion theorems that read the Π label off it.  This is the single
+   most load-bearing missing lemma: it is what the whole labelling is for.
+3. **`bottom_admissible`** (`Adm Δ Γ σ Valuation.nil`) and the strictness
+   fact it rests on (`IsPayloadStrict`).  Without it inversion cannot be
+   run at the `⊥` valuation, which is how he runs it.
+4. **The Π-retraction equation** (`application_piOperator`,
+   `app (R G) ℓ X = Q(ℓ)(P X, app G ℓ (P X))`).  We have the retraction
+   *clauses* inside `HasType` but not the equation that β and η rest on.
+5. **Context conversion** (`A :: Γ` against `A' :: Γ` for `A ≡ A'`), which
+   he needs for `lamDF`/`forallEDF` and we have no counterpart for.
+6. **`PiReady` was dropped** into `HasIdeality`, but he also uses it to
+   carry the typing derivations `hA hB` that `forallE_inv`'s conclusion
+   needs.  Our `regular` field is `∃ r, HasFixedness Γ A (.sort r)`, which
+   does not record a derivation; something has to supply them.
+7. **Σ has only the `bot` rule**, and there is **no `natRec`** — we bet on
+   `natCase` + `Y` with no bridge lemma yet.
+8. **`ContextRen` and `SingleSubstitution`** have no bundled counterpart,
+   and `HasNaturality` — free for him, being functoriality — is stated but
+   unproved.
+
+### One open design question
+
+His binder rule pushes the input **retracted at the domain**
+(`rawExtend ⟦A⟧ ⟨x⟩`), and master's quantifies over `x` with
+`x.HasType a`.  Ours pushes `e.inp` **raw**, putting the typing condition
+only in `HasType`'s `HasDom` clause.
+
+This looks right rather than wrong, and deliberately so.  β needs the
+body's interpretation at `ρ.push ⟦a⟧` from the entry's at `ρ.push e.inp`,
+and since the lookup already gives `e.inp ≤ x ≤ ⟦a⟧`, `Interp.mono_val`
+supplies it with no typing anywhere.  Dropping the condition also makes
+`Interp.lam` easier to establish, which is the direction soundness needs.
+The risk is η, where master's typed quantification is what makes the
+re-abstraction hit the same graph; if that bites, the fix is to add
+`TShape.HasType Δ (Shape.T e.inp) d` as a further premise of `lam`.
