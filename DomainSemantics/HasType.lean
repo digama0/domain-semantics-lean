@@ -40,11 +40,13 @@ inductive Evaluates (Δ : List Term) {n} (f : ShapeFun n) (A a : Term) (x : Shap
   | bot : Evaluates Δ f A a x .bot
   | entry (e : Entry (Shape n)) : e ∈ f → LabelEq Δ e.ty e.tm A a →
       Shape.LE Δ e.inp x → Evaluates Δ f A a x e.out
-  -- **no `lower` constructor**: this is the *exact* value of the lookup, the
-  -- join of the matching entries, as master's `ShapeFun.app` is.  Lowering
-  -- belongs at the use site, in the `m ≤ …` premise of an `Interp`
-  -- constructor, exactly as master does it.  Keeping the lookup exact is
-  -- what makes everything it returns well-formed (`Evaluates.wf`).
+  -- the lookup is a lower set, but **lowering is constrained to well-formed
+  -- shapes**.  Unrestricted lowering would break `Evaluates.wf`, since `WF`
+  -- is not downward closed: a smaller λ-shape may have a bottom output,
+  -- which non-degeneracy forbids.  With the constraint the lookup stays an
+  -- ideal and everything it returns is still well formed.
+  | lower {y z} : Shape.WF Δ y → Shape.LE Δ y z →
+      Evaluates Δ f A a x z → Evaluates Δ f A a x y
   -- Now that the `join` *function* is correct (no information-free λ-shapes),
   -- closing under it rather than under the `Join` relation is what makes
   -- `Evaluates` transport along a substitution: `join` commutes with
@@ -241,6 +243,8 @@ theorem Evaluates.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx
   | entry e he hlab hin =>
     exact .entry _ (ShapeFun.mem_subst.2 ⟨e, he, rfl⟩) (hlab.subst hΘ W)
       (Shape.LE.subst hΘ W hin)
+  | lower hw hle _ ih =>
+    exact .lower (Shape.WF.subst hΘ W hw) (Shape.LE.subst hΘ W hle) ih
   | join hc _ _ ih₁ ih₂ =>
     exact Shape.join_subst ▸ .join (Shape.Compat.subst hΘ W hc) ih₁ ih₂
 
@@ -350,6 +354,7 @@ theorem Evaluates.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A
         (by simpa using hlab.trans (LabelEq.symm hlab'))
         (by simpa using Shape.Compat.of_common_upper hΔ hx hin hin')
       simpa using key
+    | lower _ hle _ ih => exact Shape.Compat.anti_right hΔ ih hle
     | join _ _ _ ih₁ ih₂ =>
       exact Shape.Compat.symm hΔ
         (Shape.join_compat hΔ (Shape.Compat.symm hΔ ih₁) (Shape.Compat.symm hΔ ih₂))
@@ -357,12 +362,14 @@ theorem Evaluates.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A
   induction hy with
   | bot => exact Shape.Compat.bot_left
   | entry e he hlab hin => exact atom he hlab hin hz
+  | lower _ hle _ ih =>
+    exact Shape.Compat.symm hΔ (Shape.Compat.anti_right hΔ (Shape.Compat.symm hΔ ih) hle)
   | join _ _ _ ih₁ ih₂ => exact Shape.join_compat hΔ ih₁ ih₂
 
 /-- Everything the lookup returns is well formed, structurally: it is `⊥`,
-an entry output, or a join of those.  This works only because the lookup
-is exact — with a `lower` constructor it would be false, `WF` not being
-downward closed (a smaller λ-shape may have a bottom output). -/
+an entry output, a join of those, or an explicitly well-formed lowering.
+The `WF` premise on `lower` is exactly what makes this hold — `WF` is not
+downward closed, so unconstrained lowering would break it. -/
 theorem Evaluates.wf {Δ : List Term} {n} {f : ShapeFun n} {A a : Term} {x : Shape n}
     (hf : ∀ e ∈ f, Shape.WF Δ e.out) :
     ∀ {y : Shape n}, Evaluates Δ f A a x y → Shape.WF Δ y := by
@@ -370,6 +377,7 @@ theorem Evaluates.wf {Δ : List Term} {n} {f : ShapeFun n} {A a : Term} {x : Sha
   induction h with
   | bot => cases n <;> trivial
   | entry e he _ _ => exact hf e he
+  | lower hw _ _ _ => exact hw
   | join _ _ _ ih₁ ih₂ => exact Shape.WF.join ih₁ ih₂
 
 /-- The lookup is **monotone in the graph**: a larger graph returns at
@@ -392,6 +400,9 @@ theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFu
     have ⟨e', he', hlab', hin', hout'⟩ := hff' e he
     exact ⟨e'.out, .entry e' he' (hlab'.trans hlab)
       (Shape.LE.trans_aux hΔ hin' hin), hout'⟩
+  | lower _ hle _ ih =>
+    have ⟨c', hc', hle'⟩ := ih
+    exact ⟨c', hc', Shape.LE.trans_aux hΔ hle hle'⟩
   | join _ _ _ ih₁ ih₂ =>
     have ⟨y', hy', hley⟩ := ih₁
     have ⟨z', hz', hlez⟩ := ih₂

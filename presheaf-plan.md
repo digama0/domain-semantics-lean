@@ -625,17 +625,15 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
      `Compat.of_common_upper`, `Shape.join_compat` (the other repo's
      `cSup_compatible`), and `Shape.subst_id`.
 
-   **`Evaluates` has no `lower` constructor.**  An earlier version closed
-   the lookup downwards, following the other repo.  That was wrong for us:
-   it made `Evaluates y → WF y` false, since `WF` is not downward closed (a
-   smaller λ-shape may have a bottom output), and so `mono_graph` had to
-   take the `⊔`-upper-bound property as a bare hypothesis.  The fix is to
-   keep the lookup **exact** — the join of the matching entries, as
-   master's `ShapeFun.app` is — and put the lowering where master puts it,
-   in the `m ≤ …` premise of an `Interp` constructor.  Then
-   `Evaluates.wf` is structural (`⊥`, an entry output, or a join of those,
-   using `Shape.WF.join`), `mono_graph` takes only `∀ e ∈ f', WF e.out`
-   and discharges `le_join` itself, and three proofs lose a case.
+   **`Evaluates.lower` carries a `WF` premise.**  The lookup is a lower
+   set, as in the other repo, but lowering is constrained to well-formed
+   shapes.  Unconstrained lowering makes `Evaluates y → WF y` false, `WF`
+   not being downward closed (a smaller λ-shape may have a bottom output),
+   and then `mono_graph` has to take the `⊔`-upper-bound property as a
+   bare hypothesis.  With the premise, `Evaluates.wf` is structural — `⊥`,
+   an entry output, a join of those (`Shape.WF.join`), or an explicitly
+   well-formed lowering — and `mono_graph` takes only
+   `∀ e ∈ f', WF e.out` and discharges `le_join` itself.
 
    Master avoids both because its saturated `ShapeFun.app` is a
    *function*, monotone by `app_mono_l`, so there is no existential to
