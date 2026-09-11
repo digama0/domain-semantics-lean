@@ -568,9 +568,28 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
 3. `HasType` on labelled shapes: **defined**, with `Evaluates` as the
    relational graph lookup and `HasDom`.  Proved: `HasType.bot` (master's
    conditional form), `HasType.cumul`, `HasType.isType`, `Evaluates.subst`,
-   `HasDom.subst`, `HasType.subst`.  **Left:** `mono_r`, typed joins, and
+   `HasDom.subst`, `HasType.subst`, `Evaluates.compat`, `Evaluates.wf`,
+   `Evaluates.mono_graph`, `HasType.mono_r`, `HasType.join`.  **Left:**
    prop collapse (`HasType Δ a .prop → HasType Δ x a → x = ⊥`, master's
    `HasType.proofIrrel`); plus the Σ label (§5).
+
+   **`mono_r` and typed joins are mutually recursive on the level** and so
+   are proved together, as `HasType.mono_r_join`.  Master proves them
+   separately: there, `mono_r`'s λ case moves an entry's code from the
+   smaller graph to the larger one through the *function* `ShapeFun.app`,
+   which is monotone outright.  Here that step is `Evaluates.mono_graph`,
+   and its `join` case must show the joined witness is still a type — that
+   is the typed-join lemma, one level down.  Typed joins in turn need
+   `mono_r` one level down, to retype an entry's domain check from one of
+   the two domain shapes at their join.  Both descend, so a single
+   induction on the level with a conjoined motive does it; `mono_graph`
+   therefore takes the typed-join property as a hypothesis rather than
+   proving it.
+
+   `Shape.WF.coherent` (a well-formed shape is compatible with itself) was
+   added to `Shape.lean` for the λ case, which has to supply
+   `mono_graph`'s `Shape.Compat Δ x x` for the entry input `x`.  It is
+   immediate now that internal coherence is a conjunct of `WF`.
 
    Corrections made along the way.
 

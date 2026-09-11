@@ -1434,3 +1434,27 @@ theorem Shape.WF.join : ∀ {n} {Δ : List Term} {y z : Shape n}, ⊢ Δ →
     | nat => cases z with | bot => exact hy | _ => exact hy
     | zero => cases z with | bot => exact hy | _ => exact hy
     | id r A a b => cases z with | bot => exact hy | _ => exact hy
+
+/-- A well-formed shape is coherent with itself. -/
+theorem Shape.WF.coherent : ∀ {n} {s : Shape n},
+    Shape.WF Δ s → Shape.Compat Δ s s := by
+  intro n
+  induction n with
+  | zero => intro s _; cases s <;> trivial
+  | succ n ih =>
+    intro s hs
+    cases s with
+    | bot | sort | unit | nat | zero => trivial
+    | succ v => exact ih hs
+    | refl w => exact ih hs
+    | pair a b => exact ⟨ih hs.1, ih hs.2⟩
+    | id r A a b =>
+      have ⟨⟨_, hA⟩, ha, hb⟩ := hs
+      exact ⟨rfl, IdLabelEq.refl hA ha hb⟩
+    | lam f => exact hs.2.2.2
+    | forallE A B d f =>
+      have ⟨⟨_, hA⟩, ⟨_, hB⟩, hd, _, hco⟩ := hs
+      exact ⟨PiLabelEq.refl hA hB, ih hd, hco⟩
+    | sigma A B d f =>
+      have ⟨⟨_, hA⟩, ⟨_, hB⟩, hd, _, hco⟩ := hs
+      exact ⟨PiLabelEq.refl hA hB, ih hd, hco⟩
