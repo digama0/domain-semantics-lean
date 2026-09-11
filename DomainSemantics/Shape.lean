@@ -962,4 +962,46 @@ theorem Shape.join_subst {τ : Subst} : ∀ {n} {x y : Shape n},
     | zero => cases y with | bot => rfl | _ => rfl
     | id r A a b => cases y with | bot => rfl | _ => rfl
 
+/-! ### Is `IsBot` a usable invariant?
+
+Two facts decide whether bottom outputs can be forbidden inside graphs
+(master's `NonZero` / `lam'`, strengthened to a per-entry condition).
+Unlike saturation — which failed because substitution merges label classes
+— being information-free is *structural*: it never inspects a label, so it
+is invariant under substitution in **both** directions, and it is
+decidable. -/
+
+def Shape.decIsBot : ∀ {n} (s : Shape n), Decidable s.IsBot
+  | 0, .bot => .isTrue trivial
+  | 0, .sort _ => .isFalse id
+  | _+1, .bot => .isTrue trivial
+  | (n+1), .lam f =>
+      @List.decidableBAll _ (fun e : Entry (Shape n) => Shape.IsBot e.out)
+        (fun e => Shape.decIsBot e.out) f
+  | _+1, .sort _ | _+1, .unit _ | _+1, .nat | _+1, .zero
+  | _+1, .succ _ | _+1, .refl _ | _+1, .pair _ _
+  | _+1, .id _ _ _ _ | _+1, .forallE _ _ _ _ | _+1, .sigma _ _ _ _ => .isFalse id
+
+instance {n} {s : Shape n} : Decidable s.IsBot := Shape.decIsBot s
+
+/-- Being information-free is invariant under substitution, in both
+directions: it is a structural property that never looks at a label. -/
+theorem Shape.isBot_subst_iff {τ : Subst} : ∀ {n} {s : Shape n},
+    (s.subst τ).IsBot ↔ s.IsBot := by
+  intro n
+  induction n with
+  | zero => intro s; cases s <;> exact Iff.rfl
+  | succ n ih =>
+    intro s
+    cases s with
+    | bot => exact Iff.rfl
+    | lam f =>
+      constructor
+      · intro h e he
+        exact ih.1 (h _ (ShapeFun.mem_substWith.2 ⟨e, he, rfl⟩))
+      · intro h d hd
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 hd
+        exact ih.2 (h e he)
+    | _ => exact Iff.rfl
+
 end DomainSemantics
