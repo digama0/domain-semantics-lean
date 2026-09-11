@@ -756,7 +756,26 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    needs `TShape.le_bot` (anything below an information-free shape is
    information-free) rather than the `TShape.bot`-specific
    `le_bot_iff`.
-5. `RawJudgment` and the soundness induction: structural rules, binders
+5. **`RawJudgment` is defined** (`Presheaf.lean`), together with `Adm`,
+   `Stage`, `InterpTyped`, the four properties of a raw term
+   (`HasIdeality`, `HasEquality`, `HasFixedness`, `HasNaturality`,
+   `HasSubstitution`), `TermProperties`, `SoundEq`/`SoundTy`, and
+   `RawJudgment.fixed_right`/`symm`/`trans`.  The target statement
+   `IsDefEq.rawSoundness` is stated with a `sorry`; the induction that
+   proves it is the rest of this item.
+
+   `Stage` bundles what each property quantifies over: `⊢ Δ`, the typing
+   of `σ`, and `Adm`.  His stage is only the substitution, because his
+   contexts are well formed by construction and his substitutions are
+   morphisms; ours carries both facts explicitly, which is the "no
+   quotient, preservation lemmas instead" policy applied to the presheaf
+   structure.  `HasNaturality` is the same point again: for him
+   reindexing is functoriality and costs nothing, whereas for us it is a
+   property to prove, and the reason every shape-level notion had to be
+   shown stable under `Shape.subst`.  `PiReady` has no counterpart; it
+   collapses into `HasIdeality`.
+
+   The soundness induction: structural rules, binders
    (`lamDF`, `forallEDF`, λ fixed under Π), `appDF`, `beta`, `eta`,
    `proofIrrel`, id/unit rules, then Σ, Nat, `Y`.
 6. Inversion (`forallE_inv`, `sort_inv`, `id_inv`, `sigma_inv`,
