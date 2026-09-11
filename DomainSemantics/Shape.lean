@@ -1210,3 +1210,132 @@ supplies the hypothesis that coherence asks for. -/
 theorem Shape.Compat.of_common_upper {n} {Δ : List Term} {a b c : Shape n} (hΔ : ⊢ Δ)
     (hc : Shape.Compat Δ c c) (ha : Shape.LE Δ a c) (hb : Shape.LE Δ b c) :
     Shape.Compat Δ a b := Shape.Compat.anti hΔ hc ha hb
+
+/-- The join of two shapes compatible with `d` is compatible with `d`.
+This is the other repo's `cSup_compatible`, and it is what lets the graph
+lookup be closed under joins without losing coherence. -/
+theorem Shape.join_compat : ∀ {n} {Δ : List Term} {y z d : Shape n}, ⊢ Δ →
+    Shape.Compat Δ y d → Shape.Compat Δ z d → Shape.Compat Δ (y.join z) d := by
+  intro n
+  induction n with
+  | zero =>
+    intro Δ y z d _ hy hz
+    cases y <;> cases z <;> cases d <;> simp_all [Shape.Compat, Shape.join]
+  | succ n ih =>
+    intro Δ y z d hΔ hy hz
+    cases y with
+    | bot => exact hz
+    | lam f =>
+      cases z with
+      | bot => exact hy
+      | lam g =>
+        cases d with
+        | bot => trivial
+        | lam h =>
+          intro e he e' he' Θ τ hΘ W hlab hin
+          match List.mem_append.1 he with
+          | .inl he => exact hy e he e' he' Θ τ hΘ W hlab hin
+          | .inr he => exact hz e he e' he' Θ τ hΘ W hlab hin
+        | _ => exact absurd hy id
+      | _ => exact hy
+    | succ v =>
+      cases z with
+      | bot => exact hy
+      | succ w =>
+        cases d with
+        | bot => trivial
+        | succ u =>
+          exact ih hΔ hy hz
+        | _ => exact absurd hy id
+      | _ => exact hy
+    | refl v =>
+      cases z with
+      | bot => exact hy
+      | refl w =>
+        cases d with
+        | bot => trivial
+        | refl u =>
+          exact ih hΔ hy hz
+        | _ => exact absurd hy id
+      | _ => exact hy
+    | pair x₁ y₁ =>
+      cases z with
+      | bot => exact hy
+      | pair x₂ y₂ =>
+        cases d with
+        | bot => trivial
+        | pair u₁ u₂ =>
+          exact ⟨ih hΔ hy.1 hz.1, ih hΔ hy.2 hz.2⟩
+        | _ => exact absurd hy id
+      | _ => exact hy
+    | forallE A₁ B₁ d₁ f =>
+      cases z with
+      | bot => exact hy
+      | forallE A₂ B₂ d₂ g =>
+        cases d with
+        | bot => trivial
+        | forallE A₃ B₃ d₃ h =>
+          refine ⟨hy.1, ih hΔ hy.2.1 hz.2.1, ?_⟩
+          intro e he e' he' Θ τ hΘ W hlab hin
+          match List.mem_append.1 he with
+          | .inl he => exact hy.2.2 e he e' he' Θ τ hΘ W hlab hin
+          | .inr he => exact hz.2.2 e he e' he' Θ τ hΘ W hlab hin
+        | _ => exact absurd hy id
+      | _ => exact hy
+    | sigma A₁ B₁ d₁ f =>
+      cases z with
+      | bot => exact hy
+      | sigma A₂ B₂ d₂ g =>
+        cases d with
+        | bot => trivial
+        | sigma A₃ B₃ d₃ h =>
+          refine ⟨hy.1, ih hΔ hy.2.1 hz.2.1, ?_⟩
+          intro e he e' he' Θ τ hΘ W hlab hin
+          match List.mem_append.1 he with
+          | .inl he => exact hy.2.2 e he e' he' Θ τ hΘ W hlab hin
+          | .inr he => exact hz.2.2 e he e' he' Θ τ hΘ W hlab hin
+        | _ => exact absurd hy id
+      | _ => exact hy
+    | sort r => cases z with | bot => exact hy | _ => exact hy
+    | unit r => cases z with | bot => exact hy | _ => exact hy
+    | nat => cases z with | bot => exact hy | _ => exact hy
+    | zero => cases z with | bot => exact hy | _ => exact hy
+    | id r A₁ a₁ b₁ => cases z with | bot => exact hy | _ => exact hy
+
+@[simp] theorem Shape.Compat.bot_left {n} {Δ : List Term} {b : Shape n} :
+    Shape.Compat Δ .bot b := by cases n <;> trivial
+
+@[simp] theorem Shape.Compat.bot_right {n} {Δ : List Term} {a : Shape n} :
+    Shape.Compat Δ a .bot := by
+  cases n with
+  | zero => cases a <;> trivial
+  | succ n => cases a <;> trivial
+
+@[simp] theorem Shape.subst_id : ∀ {n} {s : Shape n}, s.subst .id = s := by
+  intro n
+  induction n with
+  | zero => intro s; cases s <;> rfl
+  | succ n ih =>
+    intro s
+    have hf : ∀ f : ShapeFun n, ShapeFun.subst (Shape.subst · .id) .id f = f := by
+      intro f
+      induction f with
+      | nil => rfl
+      | cons e f ihf =>
+        simp only [ShapeFun.subst, List.map_cons] at ihf ⊢
+        rw [ih, ih, ihf, DomainSemantics.subst_id, DomainSemantics.subst_id]
+    cases s with
+    | bot | sort | unit | nat | zero => rfl
+    | succ v => show ShapeS.succ _ = _; rw [ih]
+    | refl w => show ShapeS.refl _ = _; rw [ih]
+    | pair a b => show ShapeS.pair _ _ = _; rw [ih, ih]
+    | id r A a b =>
+      show ShapeS.id _ _ _ _ = _
+      rw [DomainSemantics.subst_id, DomainSemantics.subst_id, DomainSemantics.subst_id]
+    | lam f => show ShapeS.lam _ = _; rw [hf]
+    | forallE A B d f =>
+      show ShapeS.forallE _ _ _ _ = _
+      rw [ih, hf, DomainSemantics.subst_id, id_lift, DomainSemantics.subst_id]
+    | sigma A B d f =>
+      show ShapeS.sigma _ _ _ _ = _
+      rw [ih, hf, DomainSemantics.subst_id, id_lift, DomainSemantics.subst_id]

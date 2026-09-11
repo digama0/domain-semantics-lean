@@ -318,5 +318,76 @@ theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
       | sigma A B d f => exact ⟨hpi h.1, ih h.2⟩
       | _ => exact absurd h id
 
-end DomainSemantics
+/-! ## The lookup is coherent
 
+What the relational lookup owes and master does not: master's lookup is a
+saturated max-below *function*, single-valued, so there is nothing to
+join and nothing to check. -/
+
+/-- Everything a single lookup returns is pairwise compatible, given that
+the graph is internally coherent and the query shape is.
+
+Coherence asks for the two entries' *inputs* to be compatible, and that is
+exactly what the query supplies: both inputs lie below the query shape, so
+`of_common_upper` applies. -/
+theorem Evaluates.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term}
+    {x : Shape n} (hf : ShapeFun.Compat Shape.Compat Δ f f) (hx : Shape.Compat Δ x x) :
+    ∀ {y z : Shape n}, Evaluates Δ f A a x y → Evaluates Δ f A a x z →
+      Shape.Compat Δ y z := by
+  -- an entry output selected by the query is compatible with anything the
+  -- lookup returns
+  have atom : ∀ {e : Entry (Shape n)}, e ∈ f → LabelEq Δ e.ty e.tm A a →
+      Shape.LE Δ e.inp x → ∀ {z}, Evaluates Δ f A a x z →
+      Shape.Compat Δ e.out z := by
+    intro e he hlab hin z hz
+    induction hz with
+    | bot => exact Shape.Compat.bot_right
+    | entry e' he' hlab' hin' =>
+      have key := hf e he e' he' Δ .id hΔ (Ctx.SubstEq.id hΔ)
+        (by simpa using hlab.trans (LabelEq.symm hlab'))
+        (by simpa using Shape.Compat.of_common_upper hΔ hx hin hin')
+      simpa using key
+    | lower hle _ ih => exact Shape.Compat.anti_right hΔ ih hle
+    | join _ _ _ ih₁ ih₂ =>
+      exact Shape.Compat.symm hΔ
+        (Shape.join_compat hΔ (Shape.Compat.symm hΔ ih₁) (Shape.Compat.symm hΔ ih₂))
+  intro y z hy hz
+  induction hy with
+  | bot => exact Shape.Compat.bot_left
+  | entry e he hlab hin => exact atom he hlab hin hz
+  | lower hle _ ih => exact Shape.Compat.symm hΔ (Shape.Compat.anti_right hΔ
+      (Shape.Compat.symm hΔ ih) hle)
+  | join _ _ _ ih₁ ih₂ => exact Shape.join_compat hΔ ih₁ ih₂
+
+/-- The lookup is **monotone in the graph**: a larger graph returns at
+least as much.  Master gets this from `app_mono_l`, its lookup being a
+function; ours has to produce a witness, and the `join` case needs the two
+witnesses to be compatible, which is `Evaluates.compat` on the larger
+graph.  The `⊔`-upper-bound step is where well-formedness is consumed. -/
+theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFun n}
+    {A a : Term} {x : Shape n}
+    (hf' : ShapeFun.Compat Shape.Compat Δ f' f') (hx : Shape.Compat Δ x x)
+    (hwf : ∀ {y z : Shape n}, Evaluates Δ f' A a x y → Evaluates Δ f' A a x z →
+      Shape.LE Δ y (y.join z) ∧ Shape.LE Δ z (y.join z))
+    (hff' : ShapeFun.LE Δ (Shape.LE Δ) f f') :
+    ∀ {c : Shape n}, Evaluates Δ f A a x c →
+      ∃ c', Evaluates Δ f' A a x c' ∧ Shape.LE Δ c c' := by
+  intro c h
+  induction h with
+  | bot => exact ⟨.bot, .bot, Shape.LE.bot⟩
+  | entry e he hlab hin =>
+    have ⟨e', he', hlab', hin', hout'⟩ := hff' e he
+    exact ⟨e'.out, .entry e' he' (hlab'.trans hlab)
+      (Shape.LE.trans_aux hΔ hin' hin), hout'⟩
+  | lower hle _ ih =>
+    have ⟨c', hc', hle'⟩ := ih
+    exact ⟨c', hc', Shape.LE.trans_aux hΔ hle hle'⟩
+  | join _ _ _ ih₁ ih₂ =>
+    have ⟨y', hy', hley⟩ := ih₁
+    have ⟨z', hz', hlez⟩ := ih₂
+    have hc : Shape.Compat Δ y' z' := Evaluates.compat hΔ hf' hx hy' hz'
+    have ⟨hu₁, hu₂⟩ := hwf hy' hz'
+    exact ⟨y'.join z', .join hc hy' hz',
+      Shape.join_le (Shape.LE.trans_aux hΔ hley hu₁) (Shape.LE.trans_aux hΔ hlez hu₂)⟩
+
+end DomainSemantics
