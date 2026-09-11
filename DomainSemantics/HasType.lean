@@ -644,3 +644,150 @@ theorem Shape.HasType.proofIrrel (hΔ : ⊢ Δ) : ∀ {n} {a x : Shape n},
           have hb : Shape.IsBot (Shape.bot : Shape n) := by cases n <;> trivial
           exact absurd (hbot ▸ hb) (hnb e he)
       | _ => exact absurd h id
+
+/-! ## Lifting
+
+`Interp` quantifies over `TShape`, so every notion it mentions has to be
+transportable along `Shape.lift`.  For the order, well-formedness,
+compatibility and the join that transport is an equivalence
+(`Shape.lift_le_lift` and friends).  For typing it is **one-directional**:
+lifting *up* preserves `HasType`, but the converse fails, because
+`Evaluates.lower` can produce a witness at the higher level that is not
+the lift of anything — the order on graphs is contravariant in the input,
+so a shape below a lifted shape need not itself be a lift.  Master has the
+equivalence only because its lookup is a function.
+
+One direction is enough: `TShape.HasType` is defined at the canonical
+level and read off at any higher one. -/
+
+theorem Evaluates.lift {Δ : List Term} {n k} (h : n ≤ k) {f : ShapeFun n} {A a : Term}
+    {x c : Shape n} (H : Evaluates Δ f A a x c) :
+    Evaluates Δ (ShapeFun.lift (Shape.lift k) f) A a (x.lift k) (c.lift k) := by
+  induction H with
+  | bot => rw [Shape.lift_bot]; exact .bot
+  | entry e he hlab hin =>
+    exact .entry ⟨e.ty, e.tm, e.inp.lift k, e.out.lift k⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
+      hlab ((Shape.lift_le_lift h).2 hin)
+  | lower hwf hle _ ih =>
+    exact .lower ((Shape.lift_wf h).2 hwf) ((Shape.lift_le_lift h).2 hle) ih
+  | join hc _ _ ih₁ ih₂ =>
+    rw [← Shape.lift_join h]
+    exact .join ((Shape.lift_compat h).2 hc) ih₁ ih₂
+
+theorem Shape.HasType.lift_mono {Δ : List Term} : ∀ {n k}, n ≤ k → ∀ {m a : Shape n},
+    Shape.HasType Δ m a → Shape.HasType Δ (m.lift k) (a.lift k) := by
+  intro n
+  induction n with
+  | zero =>
+    intro k _ m a
+    cases k with
+    | zero => rw [Shape.lift_self, Shape.lift_self]; exact id
+    | succ k => cases m <;> cases a <;> exact id
+  | succ n ih =>
+    intro k h m a
+    cases k with
+    | zero => exact absurd h (Nat.not_succ_le_zero _)
+    | succ k =>
+      have h' := Nat.le_of_succ_le_succ h
+      have ihs : ∀ {d : Shape n} {r : Bool},
+          Shape.HasType Δ d (.sort r) → Shape.HasType Δ (d.lift k) (.sort r) := by
+        intro d r hd
+        have := ih h' (a := Shape.sort r) hd
+        rwa [Shape.lift_sort] at this
+      have ihdom : ∀ {f : ShapeFun n} {d : Shape n},
+          ShapeFun.HasDom Δ (Shape.HasType Δ) f d →
+          ShapeFun.HasDom Δ (Shape.HasType Δ)
+            (ShapeFun.lift (Shape.lift k) f) (d.lift k) := by
+        intro f d H e'' he''
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
+        have ⟨e', he', hlab, hin, hout, hty⟩ := H e he
+        exact ⟨⟨e'.ty, e'.tm, e'.inp.lift k, e'.out.lift k⟩,
+          ShapeFun.mem_lift.2 ⟨e', he', rfl⟩, hlab,
+          (Shape.lift_le_lift h').2 hin, (Shape.lift_le_lift h').2 hout, ih h' hty⟩
+      have ihout : ∀ {f : ShapeFun n} {r : Bool},
+          (∀ e ∈ f, Shape.HasType Δ e.out (.sort r)) →
+          ∀ e ∈ ShapeFun.lift (Shape.lift k) f, Shape.HasType Δ e.out (.sort r) := by
+        intro f r H e'' he''
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
+        exact ihs (H e he)
+      have ihpi : ∀ {d : Shape n} {f : ShapeFun n} {r : Bool},
+          (Shape.HasType Δ d .type ∧ ShapeFun.HasDom Δ (Shape.HasType Δ) f d ∧
+              ∀ e ∈ f, Shape.HasType Δ e.out (.sort r)) →
+          (Shape.HasType Δ (d.lift k) .type ∧
+            ShapeFun.HasDom Δ (Shape.HasType Δ) (ShapeFun.lift (Shape.lift k) f) (d.lift k) ∧
+            ∀ e ∈ ShapeFun.lift (Shape.lift k) f, Shape.HasType Δ e.out (.sort r)) :=
+        fun ⟨h1, h2, h3⟩ => ⟨ihs h1, ihdom h2, ihout h3⟩
+      intro H
+      cases m with
+      | bot =>
+        cases a with
+        | forallE A B d f => exact ihpi H
+        | sigma A B d f => exact ihpi H
+        | _ => exact H
+      | sort | unit | nat | zero => cases a <;> exact H
+      | id t A₀ a₀ b₀ => cases a <;> exact H
+      | refl w => cases a <;> exact H
+      | succ v =>
+        cases a with
+        | nat =>
+          cases n with
+          | zero =>
+            have hv : v = Shape.bot := H
+            cases k with
+            | zero =>
+              show Shape.lift 0 v = Shape.bot
+              rw [hv, Shape.lift_bot]
+            | succ k =>
+              show Shape.HasType Δ (v.lift (k+1)) Shape.nat
+              rw [hv, Shape.lift_bot]
+              trivial
+          | succ n =>
+            cases k with
+            | zero => exact absurd h' (Nat.not_succ_le_zero _)
+            | succ k =>
+              show Shape.HasType Δ (v.lift (k+1)) Shape.nat
+              exact ih h' (a := Shape.nat) H
+        | _ => exact H
+      | pair x y =>
+        cases a with
+        | sigma A B d f => exact ⟨ihpi H.1, ih h' H.2⟩
+        | _ => exact H
+      | forallE A₀ B₀ d f =>
+        cases a with
+        | sort r => exact ihpi H
+        | _ => exact H
+      | sigma A₀ B₀ d f =>
+        cases a with
+        | sort j => exact ⟨H.1, ihpi H.2⟩
+        | _ => exact H
+      | lam g =>
+        cases a with
+        | forallE A₁ B₁ d f =>
+          refine ⟨ihpi H.1, ihdom H.2.1, ?_⟩
+          intro e'' he''
+          obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
+          have ⟨c, hev, hcty⟩ := H.2.2 e he
+          exact ⟨c.lift k, Evaluates.lift h' hev, ih h' hcty⟩
+        | _ => exact H
+
+/-- Typing at the total level: at the canonical level, and (by
+`lift_mono`) at every level above it. -/
+def TShape.HasType (Δ : List Term) (m a : TShape) : Prop :=
+  Shape.HasType Δ (m.2.lift (max m.1 a.1)) (a.2.lift (max m.1 a.1))
+
+/-- One direction only, for the reason given above: a witness at the
+canonical level can be read at any higher level. -/
+theorem TShape.HasType.def {Δ : List Term} {m a : TShape} {k}
+    (h1 : m.1 ≤ k) (h2 : a.1 ≤ k) (H : TShape.HasType Δ m a) :
+    Shape.HasType Δ (m.2.lift k) (a.2.lift k) := by
+  rw [show m.2.lift k = (m.2.lift (max m.1 a.1)).lift k from
+        (Shape.lift_lift (Nat.le_max_left ..)).symm,
+      show a.2.lift k = (a.2.lift (max m.1 a.1)).lift k from
+        (Shape.lift_lift (Nat.le_max_right ..)).symm]
+  exact Shape.HasType.lift_mono (Nat.max_le.2 ⟨h1, h2⟩) H
+
+/-- At a common level the two agree. -/
+theorem TShape.HasType.T {Δ : List Term} {n} {m a : Shape n} :
+    TShape.HasType Δ (Shape.T m) (Shape.T a) ↔ Shape.HasType Δ m a := by
+  show Shape.HasType Δ (m.lift (max n n)) (a.lift (max n n)) ↔ _
+  rw [Nat.max_self, Shape.lift_self, Shape.lift_self]

@@ -165,6 +165,32 @@ theorem Shape.lift_self : ∀ {n} {s : Shape n}, s.lift n = s := by
     | forallE A B d f => show ShapeS.forallE _ _ _ _ = _; rw [ih, hf]
     | sigma A B d f => show ShapeS.sigma _ _ _ _ = _; rw [ih, hf]
 
+/-- Lifting *up* and then anywhere is lifting anywhere.  Master's
+`lift_lift`, restricted to the disjunct that is actually used: once a
+shape has been lifted to a level that already holds it, no information is
+left to lose on the way to a third level. -/
+theorem Shape.lift_lift {n₁ n₂ n₃} {s : Shape n₁} (h : n₁ ≤ n₂) :
+    (s.lift n₂).lift n₃ = s.lift n₃ := by
+  induction n₁ generalizing n₂ n₃ with | zero => cases s <;> simp [lift] | succ n₁ ih
+  let n₂+1 := n₂; have h' := Nat.le_of_succ_le_succ h
+  cases n₃ with | zero => cases s <;> rfl | succ n₃
+  have ihf (f : ShapeFun n₁) :
+      ShapeFun.lift (Shape.lift n₃) (ShapeFun.lift (Shape.lift n₂) f) =
+      ShapeFun.lift (Shape.lift n₃) f := by
+    induction f with | nil => rfl | cons e f ihl
+    simp only [ShapeFun.lift, List.map_cons] at ihl ⊢
+    rw [ih h', ih h', ihl]
+  cases s with
+  | bot | sort | unit | nat | zero | id => rfl
+  | succ v => show ShapeS.succ _ = ShapeS.succ _; rw [ih h']
+  | refl w => show ShapeS.refl _ = ShapeS.refl _; rw [ih h']
+  | pair a b => show ShapeS.pair _ _ = ShapeS.pair _ _; rw [ih h', ih h']
+  | lam f => show ShapeS.lam _ = ShapeS.lam _; rw [ihf]
+  | forallE A B d f =>
+    show ShapeS.forallE _ _ _ _ = ShapeS.forallE _ _ _ _; rw [ih h', ihf]
+  | sigma A B d f =>
+    show ShapeS.sigma _ _ _ _ = ShapeS.sigma _ _ _ _; rw [ih h', ihf]
+
 /-! ## Bottom shapes
 
 A λ-shape all of whose outputs are bottom carries no information, so it is
@@ -278,13 +304,7 @@ def ShapeFun.WF (Γ : List Term) (W : Shape n → Prop) (f : ShapeFun n) : Prop 
 
 /-- Every label occurring in the shape is well-typed in `Γ`. -/
 def Shape.WF (Γ : List Term) : ∀ {n}, Shape n → Prop
-  | 0, .bot => True
-  | 0, .sort _ => True
-  | _+1, .bot => True
-  | _+1, .sort _ => True
-  | _+1, .unit _ => True
-  | _+1, .nat => True
-  | _+1, .zero => True
+  | 0, .bot | 0, .sort _ | _+1, .bot | _+1, .sort _ | _+1, .unit _ | _+1, .nat | _+1, .zero => True
   | _+1, .succ v => WF Γ v
   | _+1, .refl w => WF Γ w
   | _+1, .id _ A a b => (∃ u, Γ ⊢ A : .sort u) ∧ Γ ⊢ a : A ∧ Γ ⊢ b : A
@@ -326,18 +346,13 @@ def Shape.LE (Γ : List Term) : ∀ {n}, Shape n → Shape n → Prop
   | 0, .bot, _ => True
   | 0, .sort r, .sort r' => r = r'
   | 0, _, _ => False
-  | _+1, .bot, _ => True
-  | _+1, .sort r, .sort r' => r = r'
-  | _+1, .unit r, .unit r' => r = r'
-  | _+1, .nat, .nat => True
-  | _+1, .zero, .zero => True
-  | _+1, .succ v, .succ v' => LE Γ v v'
-  | _+1, .refl w, .refl w' => LE Γ w w'
+  | _+1, .bot, _ | _+1, .nat, .nat | _+1, .zero, .zero => True
+  | _+1, .sort r, .sort r' | _+1, .unit r, .unit r' => r = r'
+  | _+1, .succ v, .succ v' | _+1, .refl v, .refl v' => LE Γ v v'
   | _+1, .id r A a b, .id r' A' a' b' => r = r' ∧ IdLabelEq Γ A a b A' a' b'
-  | _+1, .forallE A B d f, .forallE A' B' d' f' =>
-      PiLabelEq Γ A B A' B' ∧ LE Γ d d' ∧ ShapeFun.LE Γ (LE Γ) f f'
+  | _+1, .forallE A B d f, .forallE A' B' d' f'
   | _+1, .sigma A B d f, .sigma A' B' d' f' =>
-      PiLabelEq Γ A B A' B' ∧ LE Γ d d' ∧ ShapeFun.LE Γ (LE Γ) f f'
+    PiLabelEq Γ A B A' B' ∧ LE Γ d d' ∧ ShapeFun.LE Γ (LE Γ) f f'
   | _+1, .pair a b, .pair a' b' => LE Γ a a' ∧ LE Γ b b'
   | _+1, .lam f, .lam f' => ShapeFun.LE Γ (LE Γ) f f'
   | _+1, _, _ => False
@@ -345,14 +360,12 @@ def Shape.LE (Γ : List Term) : ∀ {n}, Shape n → Shape n → Prop
 @[simp] theorem Shape.LE.bot {s : Shape n} : Shape.LE Γ .bot s := by
   cases n <;> trivial
 
-theorem Shape.LE.refl : ∀ {n} {s : Shape n}, Shape.WF Γ s → Shape.LE Γ s s := by
-  intro n
+theorem Shape.LE.refl {n} {s : Shape n} (hs : Shape.WF Γ s) : Shape.LE Γ s s := by
   induction n with
-  | zero => intro s _; cases s <;> trivial
+  | zero => cases s <;> trivial
   | succ n ih =>
-    intro s hs
-    have hfun : ∀ f : ShapeFun n, ShapeFun.WF Γ (Shape.WF Γ) f →
-        ShapeFun.LE Γ (Shape.LE Γ) f f := fun f hf e he =>
+    have hfun {f : ShapeFun n} (hf : ShapeFun.WF Γ (Shape.WF Γ) f) :
+        ShapeFun.LE Γ (Shape.LE Γ) f f := fun e he =>
       have ⟨⟨_, hty⟩, htm, hin, hout⟩ := hf e he
       ⟨e, he, LabelEq.refl hty htm, ih hin, ih hout⟩
     cases s with
@@ -364,36 +377,204 @@ theorem Shape.LE.refl : ∀ {n} {s : Shape n}, Shape.WF Γ s → Shape.LE Γ s s
       exact ⟨rfl, .refl hA ha hb⟩
     | forallE A B d f =>
       have ⟨⟨_, hA⟩, ⟨_, hB⟩, hd, hf, _⟩ := hs
-      exact ⟨.refl hA hB, ih hd, hfun f hf⟩
+      exact ⟨.refl hA hB, ih hd, hfun hf⟩
     | sigma A B d f =>
       have ⟨⟨_, hA⟩, ⟨_, hB⟩, hd, hf, _⟩ := hs
-      exact ⟨.refl hA hB, ih hd, hfun f hf⟩
+      exact ⟨.refl hA hB, ih hd, hfun hf⟩
     | pair => exact ⟨ih hs.1, ih hs.2⟩
-    | lam => exact hfun _ hs.2.2.1
+    | lam => exact hfun hs.2.2.1
 
 /-- With the collapse clauses gone, only `⊥` is below `⊥`. -/
-theorem Shape.le_bot_iff : ∀ {n} {s : Shape n}, Shape.LE Δ s .bot ↔ s = .bot := by
-  intro n
-  cases n with
+theorem Shape.le_bot_iff {n} {s : Shape n} : Shape.LE Δ s .bot ↔ s = .bot := by
+  cases n <;>
+  · cases s with
+    | bot => exact ⟨fun _ => rfl, fun _ => trivial⟩
+    | _ => exact ⟨fun h => absurd h id, nofun⟩
+
+/-- Lifting *up* is an order embedding.  This is what makes the level
+index invisible to `TShape.LE`: master's `lift_le_lift`, and the reason
+its proof is a plain induction here rather than a `simp` over a `Bool`
+function is that the order is `Prop`-valued. -/
+theorem Shape.lift_le_lift {n m} (h : n ≤ m) {s t : Shape n} :
+    Shape.LE Γ (s.lift m) (t.lift m) ↔ Shape.LE Γ s t := by
+  induction n generalizing m with
   | zero =>
-    intro s
+    cases m with
+    | zero => rw [Shape.lift_self, Shape.lift_self]
+    | succ m => cases s <;> cases t <;> rfl
+  | succ n ih
+  let m+1 := m; have h' := Nat.le_of_succ_le_succ h
+  have ihf : ∀ {f f' : ShapeFun n},
+      ShapeFun.LE Γ (Shape.LE Γ) (ShapeFun.lift (Shape.lift m) f)
+        (ShapeFun.lift (Shape.lift m) f') ↔
+      ShapeFun.LE Γ (Shape.LE Γ) f f' := by
+    intro f f'
+    constructor
+    · intro H e he
+      have ⟨e'', he'', hlab, hin, hout⟩ :=
+        H ⟨e.ty, e.tm, e.inp.lift m, e.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
+      obtain ⟨e', he', rfl⟩ := ShapeFun.mem_lift.1 he''
+      exact ⟨e', he', hlab, (ih h').1 hin, (ih h').1 hout⟩
+    · intro H e'' he''
+      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
+      have ⟨e', he', hlab, hin, hout⟩ := H e he
+      exact ⟨⟨e'.ty, e'.tm, e'.inp.lift m, e'.out.lift m⟩,
+        ShapeFun.mem_lift.2 ⟨e', he', rfl⟩, hlab, (ih h').2 hin, (ih h').2 hout⟩
+  cases s <;> cases t <;> (try rfl)
+  · exact and_congr Iff.rfl (and_congr (ih h') ihf)
+  · exact ihf
+  · exact and_congr Iff.rfl (and_congr (ih h') ihf)
+  · exact and_congr (ih h') (ih h')
+  · exact ih h'
+  · exact ih h'
+
+/-- Lifting is purely structural, so it commutes with substitution at
+every pair of levels. -/
+theorem Shape.lift_subst {n} (m : Nat) {s : Shape n} {τ : Subst} :
+    (s.subst τ).lift m = (s.lift m).subst τ := by
+  induction n generalizing m with
+  | zero => cases s <;> cases m <;> rfl
+  | succ n ih
+  cases m with | zero => cases s <;> rfl | succ m
+  have ihf (f : ShapeFun n) :
+      ShapeFun.lift (Shape.lift m) (ShapeFun.subst (Shape.subst · τ) τ f)
+        = ShapeFun.subst (Shape.subst · τ) τ (ShapeFun.lift (Shape.lift m) f) := by
+    induction f with | nil => rfl | cons e f ihl
+    simp only [ShapeFun.lift, ShapeFun.subst, List.map_cons] at ihl ⊢
+    rw [ih, ih, ihl]
+  cases s with
+  | bot | sort | unit | nat | zero | id => rfl
+  | succ v => show ShapeS.succ _ = ShapeS.succ _; rw [ih]
+  | refl w => show ShapeS.refl _ = ShapeS.refl _; rw [ih]
+  | pair a b => show ShapeS.pair _ _ = ShapeS.pair _ _; rw [ih, ih]
+  | lam f => show ShapeS.lam _ = ShapeS.lam _; rw [ihf]
+  | forallE A B d f => show ShapeS.forallE .. = ShapeS.forallE ..; rw [ih, ihf]
+  | sigma A B d f => show ShapeS.sigma .. = ShapeS.sigma ..; rw [ih, ihf]
+
+/-- Lifting *up* preserves and reflects being information-free. -/
+theorem Shape.lift_isBot {n m} (h : n ≤ m) {s : Shape n} : (s.lift m).IsBot ↔ s.IsBot := by
+  induction n generalizing m with
+  | zero =>
+    cases m with
+    | zero => rw [Shape.lift_self]
+    | succ m => cases s <;> rfl
+  | succ n ih =>
+    let m+1 := m; have h' := Nat.le_of_succ_le_succ h
+    cases s with | lam f => ?_ | _ => rfl
+    constructor
+    · intro H e he
+      exact (ih h').1 (H ⟨e.ty, e.tm, e.inp.lift m, e.out.lift m⟩
+        (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩))
+    · intro H e'' he''
+      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
+      exact (ih h').2 (H e he)
+
+/-- Lifting *up* preserves and reflects compatibility.  The hereditary
+graph clause goes through because lifting commutes with substitution; note
+the context must be generalised in the induction, since that clause moves
+to a later stage `Θ`. -/
+theorem Shape.lift_compat {n m} (h : n ≤ m) {Δ : List Term} {s t : Shape n} :
+    Shape.Compat Δ (s.lift m) (t.lift m) ↔ Shape.Compat Δ s t := by
+  induction n generalizing m Δ with
+  | zero =>
+    cases m with
+    | zero => rw [Shape.lift_self, Shape.lift_self]
+    | succ m => cases s <;> cases t <;> exact Iff.rfl
+  | succ n ih
+  let m+1 := m; have h' := Nat.le_of_succ_le_succ h
+  have ihf {Δ : List Term} {f f' : ShapeFun n} :
+      ShapeFun.Compat Shape.Compat Δ (ShapeFun.lift (Shape.lift m) f)
+        (ShapeFun.lift (Shape.lift m) f') ↔
+      ShapeFun.Compat Shape.Compat Δ f f' := by
+    constructor
+    · intro H e he e' he' Θ τ hΘ W hlab hin
+      have := H ⟨e.ty, e.tm, e.inp.lift m, e.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
+        ⟨e'.ty, e'.tm, e'.inp.lift m, e'.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e', he', rfl⟩)
+        Θ τ hΘ W hlab
+      rw [← Shape.lift_subst, ← Shape.lift_subst, ← Shape.lift_subst,
+        ← Shape.lift_subst] at this
+      exact (ih h').1 (this ((ih h').2 hin))
+    · intro H e'' he'' e''' he''' Θ τ hΘ W hlab hin
+      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
+      obtain ⟨e', he', rfl⟩ := ShapeFun.mem_lift.1 he'''
+      rw [← Shape.lift_subst, ← Shape.lift_subst] at hin ⊢
+      exact (ih h').2 (H e he e' he' Θ τ hΘ W hlab ((ih h').1 hin))
+  cases s <;> cases t <;> (try rfl)
+  · exact and_congr Iff.rfl (and_congr (ih h') ihf)
+  · exact ihf
+  · exact and_congr Iff.rfl (and_congr (ih h') ihf)
+  · exact and_congr (ih h') (ih h')
+  · exact ih h'
+  · exact ih h'
+
+/-- The graph-level companion, in the form the `WF` clauses need. -/
+theorem ShapeFun.lift_compat {n m} (h : n ≤ m) {Δ : List Term} {f f' : ShapeFun n} :
+    ShapeFun.Compat Shape.Compat Δ (ShapeFun.lift (Shape.lift m) f)
+      (ShapeFun.lift (Shape.lift m) f') ↔
+    ShapeFun.Compat Shape.Compat Δ f f' := by
+  constructor
+  · intro H e he e' he' Θ τ hΘ W hlab hin
+    have := H ⟨e.ty, e.tm, e.inp.lift m, e.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
+      ⟨e'.ty, e'.tm, e'.inp.lift m, e'.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e', he', rfl⟩)
+      Θ τ hΘ W hlab
+    rw [← Shape.lift_subst, ← Shape.lift_subst, ← Shape.lift_subst,
+      ← Shape.lift_subst] at this
+    exact (Shape.lift_compat h).1 (this ((Shape.lift_compat h).2 hin))
+  · intro H e₁ he₁ e₂ he₂ Θ τ hΘ W hlab hin
+    obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he₁
+    obtain ⟨e', he', rfl⟩ := ShapeFun.mem_lift.1 he₂
+    rw [← Shape.lift_subst, ← Shape.lift_subst] at hin ⊢
+    exact (Shape.lift_compat h).2 (H e he e' he' Θ τ hΘ W hlab ((Shape.lift_compat h).1 hin))
+
+/-- Lifting *up* preserves and reflects well-formedness. -/
+theorem Shape.lift_wf {n m} (h : n ≤ m) {s : Shape n} :
+    Shape.WF Δ (s.lift m) ↔ Shape.WF Δ s := by
+  induction n generalizing m with
+  | zero =>
+    cases m with
+    | zero => rw [Shape.lift_self]
+    | succ m => cases s <;> exact Iff.rfl
+  | succ n ih =>
+    let m+1 := m; have h' := Nat.le_of_succ_le_succ h
+    have ihf {f : ShapeFun n} :
+        ShapeFun.WF Δ (Shape.WF Δ) (ShapeFun.lift (Shape.lift m) f) ↔
+        ShapeFun.WF Δ (Shape.WF Δ) f := by
+      constructor
+      · intro H e he
+        have ⟨hty, htm, hin, hout⟩ :=
+          H ⟨e.ty, e.tm, e.inp.lift m, e.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
+        exact ⟨hty, htm, (ih h').1 hin, (ih h').1 hout⟩
+      · intro H e'' he''
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
+        have ⟨hty, htm, hin, hout⟩ := H e he
+        exact ⟨hty, htm, (ih h').2 hin, (ih h').2 hout⟩
+    have hnil {f : ShapeFun n} :
+        ShapeFun.lift (Shape.lift m) f ≠ [] ↔ f ≠ [] := by
+      cases f <;> simp [ShapeFun.lift]
+    have hnb {f : ShapeFun n} :
+        (∀ e ∈ ShapeFun.lift (Shape.lift m) f, ¬ e.out.IsBot) ↔ (∀ e ∈ f, ¬ e.out.IsBot) := by
+      constructor
+      · intro H e he hb
+        exact H ⟨e.ty, e.tm, e.inp.lift m, e.out.lift m⟩
+          (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩) ((Shape.lift_isBot h').2 hb)
+      · intro H e'' he'' hb
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
+        exact H e he ((Shape.lift_isBot h').1 hb)
     cases s with
-    | bot => exact ⟨fun _ => rfl, fun _ => trivial⟩
-    | sort => exact ⟨fun h => absurd h id, fun h => nomatch h⟩
-  | succ n =>
-    intro s
-    cases s with
-    | bot => exact ⟨fun _ => rfl, fun _ => trivial⟩
-    | _ => exact ⟨fun h => absurd h id, fun h => nomatch h⟩
+    | bot | sort | unit | nat | zero | id => rfl
+    | succ | refl => exact ih h'
+    | pair => exact and_congr (ih h') (ih h')
+    | lam => exact and_congr hnil (and_congr hnb (and_congr ihf (ShapeFun.lift_compat h')))
+    | forallE | sigma =>
+      exact and_congr Iff.rfl (and_congr Iff.rfl
+        (and_congr (ih h') (and_congr ihf (ShapeFun.lift_compat h'))))
 
 /-- Substitution composes on shapes, as it does on terms. -/
-theorem Shape.subst_subst {σ τ : Subst} : ∀ {n} {x : Shape n},
+theorem Shape.subst_subst {σ τ : Subst} {n} {x : Shape n} :
     (x.subst σ).subst τ = x.subst (σ.comp τ) := by
-  intro n
   induction n with
-  | zero => intro x; cases x <;> rfl
+  | zero => cases x <;> rfl
   | succ n ih =>
-    intro x
     cases x with
     | bot | sort | unit | nat | zero => rfl
     | succ v => show ShapeS.succ _ = ShapeS.succ _; rw [ih]
@@ -433,6 +614,9 @@ def sort (r : Bool) : TShape := Shape.T (n := 0) (.sort r)
 
 abbrev type : TShape := sort true
 abbrev prop : TShape := sort false
+
+/-- Substitution acts levelwise. -/
+def subst (a : TShape) (τ : Subst) : TShape := ⟨a.1, a.2.subst τ⟩
 
 end TShape
 
@@ -477,6 +661,21 @@ def Shape.join : ∀ {n}, Shape n → Shape n → Shape n
   | _+1, .refl w, .refl w' => .refl (join w w')
   | _+1, .pair a b, .pair a' b' => .pair (join a a') (join b b')
   | _+1, a, _ => a
+
+/-- Lifting *up* commutes with the join. -/
+theorem Shape.lift_join {n m} (h : n ≤ m) {s t : Shape n} :
+    (s.lift m).join (t.lift m) = (s.join t).lift m := by
+  induction n generalizing m with
+  | zero =>
+    cases m with
+    | zero => rw [Shape.lift_self, Shape.lift_self, Shape.lift_self]
+    | succ m => cases s <;> cases t <;> rfl
+  | succ n ih =>
+    let m+1 := m; have h' := Nat.le_of_succ_le_succ h
+    have ihf (f f' : ShapeFun n) :
+        ShapeFun.lift (Shape.lift m) f ++ ShapeFun.lift (Shape.lift m) f' =
+        ShapeFun.lift (Shape.lift m) (f ++ f') := (List.map_append ..).symm
+    cases s <;> cases t <;> simp only [Shape.join, Shape.lift, ih h', ihf] <;> rfl
 
 /-- Composing coverage of graphs.  This is the step that forces the label
 to carry its type: the two `LabelEq` proofs are chained by
@@ -542,13 +741,11 @@ theorem ShapeFun.LE.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f f' : ShapeF
   have ⟨e', he', hlab, hin, hout⟩ := h e he
   exact ⟨_, ShapeFun.mem_subst.2 ⟨e', he', rfl⟩, hlab.subst hΘ W, ih hin, ih hout⟩
 
-theorem Shape.LE.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
-    ∀ {n} {s t : Shape n}, Shape.LE Δ s t → Shape.LE Θ (s.subst τ) (t.subst τ) := by
-  intro n
+theorem Shape.LE.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
+    {n} {s t : Shape n} (h : Shape.LE Δ s t) : Shape.LE Θ (s.subst τ) (t.subst τ) := by
   induction n with
-  | zero => intro s t h; cases s <;> cases t <;> simp_all [Shape.LE, Shape.subst]
+  | zero => cases s <;> cases t <;> simp_all [Shape.LE, Shape.subst]
   | succ n ih =>
-    intro s t h
     cases s with
     | bot => trivial
     | lam f =>
@@ -944,13 +1141,11 @@ theorem Shape.WF.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.
         ih hd, ShapeFun.WF.subst_of hΘ W ih hf,
         Shape.Compat.subst hΘ W (n := n+1) (x := .lam f) (y := .lam f) hco⟩
 
-theorem Shape.join_subst {τ : Subst} : ∀ {n} {x y : Shape n},
+theorem Shape.join_subst {τ : Subst} {n} {x y : Shape n} :
     (x.join y).subst τ = (x.subst τ).join (y.subst τ) := by
-  intro n
   induction n with
-  | zero => intro x y; cases x <;> cases y <;> rfl
+  | zero => cases x <;> cases y <;> rfl
   | succ n ih =>
-    intro x y
     cases x with
     | bot => rfl
     | lam f =>
@@ -984,7 +1179,7 @@ Unlike saturation — which failed because substitution merges label classes
 is invariant under substitution in **both** directions, and it is
 decidable. -/
 
-def Shape.decIsBot : ∀ {n} (s : Shape n), Decidable s.IsBot
+instance Shape.decIsBot : ∀ {n} (s : Shape n), Decidable s.IsBot
   | 0, .bot => .isTrue trivial
   | 0, .sort _ => .isFalse id
   | _+1, .bot => .isTrue trivial
@@ -995,8 +1190,6 @@ def Shape.decIsBot : ∀ {n} (s : Shape n), Decidable s.IsBot
   | _+1, .succ _ | _+1, .refl _ | _+1, .pair _ _
   | _+1, .id _ _ _ _ | _+1, .forallE _ _ _ _ | _+1, .sigma _ _ _ _ => .isFalse id
 
-instance {n} {s : Shape n} : Decidable s.IsBot := Shape.decIsBot s
-
 /-! ## Compatibility: symmetry, anti-monotonicity, common upper bounds
 
 These are what the relational graph lookup needs.  Master gets away
@@ -1004,50 +1197,36 @@ without them because its lookup is a saturated max-below *function*; ours
 collects matching entries and joins them, so it has to know the joins
 exist. -/
 
-theorem Shape.Compat.symm : ∀ {n} {Δ : List Term} {a b : Shape n}, ⊢ Δ →
-    Shape.Compat Δ a b → Shape.Compat Δ b a := by
-  intro n
-  induction n with
-  | zero => intro Δ a b _ h; cases a <;> cases b <;> simp_all [Shape.Compat]
+theorem Shape.Compat.symm {n} {Δ : List Term} {a b : Shape n} (hΔ : ⊢ Δ)
+    (h : Shape.Compat Δ a b) : Shape.Compat Δ b a := by
+  induction n generalizing Δ with
+  | zero => cases a <;> cases b <;> simp_all [Shape.Compat]
   | succ n ih =>
-    intro Δ a b hΔ h
     have hfun : ∀ {f g : ShapeFun n}, ShapeFun.Compat Shape.Compat Δ f g →
         ShapeFun.Compat Shape.Compat Δ g f := by
       intro f g hfg e he e' he' Θ τ hΘ W hlab hin
       exact ih hΘ (hfg e' he' e he Θ τ hΘ W hlab.symm (ih hΘ hin))
     cases a with
     | bot => cases b <;> trivial
-    | lam f =>
-      cases b with
-      | bot => trivial
-      | lam g => exact hfun h
-      | _ => exact absurd h id
+    | lam f => cases b with | bot => trivial | lam g => exact hfun h | _ => cases h
     | forallE A B d f =>
-      cases b with
-      | bot => trivial
-      | forallE A' B' d' f' => exact ⟨h.1.symm hΔ, ih hΔ h.2.1, hfun h.2.2⟩
-      | _ => exact absurd h id
+      cases b with | bot => trivial | forallE A' B' d' f' => ?_ | _ => cases h
+      exact ⟨h.1.symm hΔ, ih hΔ h.2.1, hfun h.2.2⟩
     | sigma A B d f =>
-      cases b with
-      | bot => trivial
-      | sigma A' B' d' f' => exact ⟨h.1.symm hΔ, ih hΔ h.2.1, hfun h.2.2⟩
-      | _ => exact absurd h id
-    | succ v => cases b with | bot => trivial | succ v' => exact ih hΔ h | _ => exact absurd h id
-    | refl w => cases b with | bot => trivial | refl w' => exact ih hΔ h | _ => exact absurd h id
+      cases b with | bot => trivial | sigma A' B' d' f' => ?_ | _ => cases h
+      exact ⟨h.1.symm hΔ, ih hΔ h.2.1, hfun h.2.2⟩
+    | succ v => cases b with | bot => trivial | succ v' => exact ih hΔ h | _ => cases h
+    | refl w => cases b with | bot => trivial | refl w' => exact ih hΔ h | _ => cases h
     | pair x y =>
-      cases b with
-      | bot => trivial
-      | pair x' y' => exact ⟨ih hΔ h.1, ih hΔ h.2⟩
-      | _ => exact absurd h id
+      cases b with | bot => trivial | pair x' y' => ?_ | _ => cases h
+      exact ⟨ih hΔ h.1, ih hΔ h.2⟩
     | id r A a' b' =>
-      cases b with
-      | bot => trivial
-      | id r' A'' a'' b'' => exact ⟨h.1.symm, h.2.symm⟩
-      | _ => exact absurd h id
-    | sort r => cases b with | bot => trivial | sort r' => exact Eq.symm h | _ => exact absurd h id
-    | unit r => cases b with | bot => trivial | unit r' => exact Eq.symm h | _ => exact absurd h id
-    | nat => cases b with | bot => trivial | nat => trivial | _ => exact absurd h id
-    | zero => cases b with | bot => trivial | zero => trivial | _ => exact absurd h id
+      cases b with | bot => trivial | id r' A'' a'' b'' => ?_ | _ => cases h
+      exact ⟨h.1.symm, h.2.symm⟩
+    | sort r => cases b with | bot => trivial | sort r' => exact Eq.symm h | _ => cases h
+    | unit r => cases b with | bot => trivial | unit r' => exact Eq.symm h | _ => cases h
+    | nat => cases b with | bot => trivial | nat => trivial | _ => cases h
+    | zero => cases b with | bot => trivial | zero => trivial | _ => cases h
 
 /-- Compatibility is **anti-monotone on the right**.
 
@@ -1438,3 +1617,105 @@ theorem Shape.WF.coherent : ∀ {n} {s : Shape n},
     | sigma A B d f =>
       have ⟨⟨_, hA⟩, ⟨_, hB⟩, hd, _, hco⟩ := hs
       exact ⟨PiLabelEq.refl hA hB, ih hd, hco⟩
+
+/-! ## The total shape domain, continued
+
+These need the order, the join and the lift lemmas, so they come after
+them rather than beside the definition of `TShape`. -/
+
+namespace TShape
+
+/-- Compatibility and the join, at any common level above both. -/
+def Compat (Δ : List Term) (a b : TShape) : Prop :=
+  Shape.Compat Δ (a.2.lift (max a.1 b.1)) (b.2.lift (max a.1 b.1))
+
+def join (a b : TShape) : TShape :=
+  ⟨max a.1 b.1, (a.2.lift (max a.1 b.1)).join (b.2.lift (max a.1 b.1))⟩
+
+/-! The four `def` lemmas below say that the canonical level in each
+definition can be replaced by any level above both arguments.  They are
+what makes the level index invisible, and each is exactly one of the
+`lift_*` lemmas sandwiched between two uses of `lift_lift`. -/
+
+theorem LE.def {Δ : List Term} {a b : TShape} {k} (h1 : a.1 ≤ k) (h2 : b.1 ≤ k) :
+    TShape.LE Δ a b ↔ Shape.LE Δ (a.2.lift k) (b.2.lift k) := by
+  rw [show a.2.lift k = (a.2.lift (max a.1 b.1)).lift k from
+        (Shape.lift_lift (Nat.le_max_left ..)).symm,
+      show b.2.lift k = (b.2.lift (max a.1 b.1)).lift k from
+        (Shape.lift_lift (Nat.le_max_right ..)).symm,
+      Shape.lift_le_lift (Nat.max_le.2 ⟨h1, h2⟩)]
+  exact Iff.rfl
+
+theorem WF.def {Δ : List Term} {a : TShape} {k} (h : a.1 ≤ k) :
+    TShape.WF Δ a ↔ Shape.WF Δ (a.2.lift k) := by
+  rw [Shape.lift_wf h]; exact Iff.rfl
+
+theorem Compat.def {Δ : List Term} {a b : TShape} {k} (h1 : a.1 ≤ k) (h2 : b.1 ≤ k) :
+    TShape.Compat Δ a b ↔ Shape.Compat Δ (a.2.lift k) (b.2.lift k) := by
+  rw [show a.2.lift k = (a.2.lift (max a.1 b.1)).lift k from
+        (Shape.lift_lift (Nat.le_max_left ..)).symm,
+      show b.2.lift k = (b.2.lift (max a.1 b.1)).lift k from
+        (Shape.lift_lift (Nat.le_max_right ..)).symm,
+      Shape.lift_compat (Nat.max_le.2 ⟨h1, h2⟩)]
+  exact Iff.rfl
+
+theorem join.def {a b : TShape} {k} (h1 : a.1 ≤ k) (h2 : b.1 ≤ k) :
+    (TShape.join a b).2.lift k = (a.2.lift k).join (b.2.lift k) := by
+  rw [show a.2.lift k = (a.2.lift (max a.1 b.1)).lift k from
+        (Shape.lift_lift (Nat.le_max_left ..)).symm,
+      show b.2.lift k = (b.2.lift (max a.1 b.1)).lift k from
+        (Shape.lift_lift (Nat.le_max_right ..)).symm,
+      Shape.lift_join (Nat.max_le.2 ⟨h1, h2⟩)]
+  rfl
+
+@[simp] theorem join_fst {a b : TShape} : (TShape.join a b).1 = max a.1 b.1 := rfl
+
+/-! The order at the total level, from the order at each level. -/
+
+theorem LE.refl {Δ : List Term} {a : TShape} (h : TShape.WF Δ a) : TShape.LE Δ a a := by
+  refine (LE.def (Nat.le_refl a.1) (Nat.le_refl a.1)).2 ?_
+  rw [Shape.lift_self]; exact Shape.LE.refl h
+
+theorem LE.trans {Δ : List Term} (hΔ : ⊢ Δ) {a b c : TShape}
+    (h1 : TShape.LE Δ a b) (h2 : TShape.LE Δ b c) : TShape.LE Δ a c := by
+  have ha : a.1 ≤ max (max a.1 b.1) c.1 :=
+    Nat.le_trans (Nat.le_max_left ..) (Nat.le_max_left ..)
+  have hb : b.1 ≤ max (max a.1 b.1) c.1 :=
+    Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_left ..)
+  have hc : c.1 ≤ max (max a.1 b.1) c.1 := Nat.le_max_right ..
+  exact (LE.def ha hc).2 (Shape.LE.trans hΔ ((LE.def ha hb).1 h1) ((LE.def hb hc).1 h2))
+
+@[simp] theorem bot_le {Δ : List Term} {a : TShape} : TShape.LE Δ TShape.bot a := by
+  refine (LE.def (Nat.zero_le _) (Nat.le_refl a.1)).2 ?_
+  rw [show (TShape.bot.2.lift a.1) = Shape.bot from Shape.lift_bot]
+  exact Shape.LE.bot
+
+theorem le_bot_iff {Δ : List Term} {a : TShape} : TShape.LE Δ a TShape.bot ↔ a.2 = .bot := by
+  refine Iff.trans (LE.def (Nat.le_refl a.1) (Nat.zero_le _)) ?_
+  rw [show (TShape.bot.2.lift a.1) = Shape.bot from Shape.lift_bot, Shape.lift_self]
+  exact Shape.le_bot_iff
+
+/-- The order between two shapes at the *same* level is the level's own
+order: the common case, and the one that needs no arithmetic. -/
+theorem LE.T {Δ : List Term} {n} {s t : Shape n} :
+    TShape.LE Δ (Shape.T s) (Shape.T t) ↔ Shape.LE Δ s t := by
+  refine Iff.trans (LE.def (Nat.le_refl n) (Nat.le_refl n)) ?_
+  rw [Shape.lift_self, Shape.lift_self]
+
+theorem WF.T {Δ : List Term} {n} {s : Shape n} :
+    TShape.WF Δ (Shape.T s) ↔ Shape.WF Δ s := Iff.rfl
+
+theorem Compat.T {Δ : List Term} {n} {s t : Shape n} :
+    TShape.Compat Δ (Shape.T s) (Shape.T t) ↔ Shape.Compat Δ s t := by
+  refine Iff.trans (Compat.def (Nat.le_refl n) (Nat.le_refl n)) ?_
+  rw [Shape.lift_self, Shape.lift_self]
+
+/-- The join of two shapes at the same level, read back at that level.
+Stated through `lift` rather than as an equation of `TShape`s because
+`max n n` is only propositionally `n`. -/
+theorem join.T {n} {s t : Shape n} :
+    (TShape.join (Shape.T s) (Shape.T t)).2.lift n = s.join t := by
+  rw [join.def (a := Shape.T s) (b := Shape.T t) (Nat.le_refl n) (Nat.le_refl n),
+    Shape.lift_self, Shape.lift_self]
+
+end TShape

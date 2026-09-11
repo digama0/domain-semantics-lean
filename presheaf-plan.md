@@ -678,7 +678,37 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
 4. Prerequisites **done**: `Shape.lift` / `ShapeFun.lift` / `lift_self`, the
    total shape domain `TShape := Σ n, Shape n` with `TShape.LE`, `WF`,
    `bot`, `sort` (master's, labels carried through; lifting *down*
-   collapses to `⊥`).  **Positivity verified** by a spike
+   collapses to `⊥`).
+
+   The **lifting layer** is now complete, since `Interp` quantifies over
+   `TShape` and so every notion it mentions has to transport along
+   `Shape.lift`: `lift_lift`, `lift_le_lift`, `lift_subst`, `lift_isBot`,
+   `lift_compat` (with `ShapeFun.lift_compat`), `lift_wf`, `lift_join`,
+   `Evaluates.lift`, `HasType.lift_mono`.  On top of them the total level
+   gets `subst`, `Compat`, `join`, `HasType`, the four `def` lemmas that
+   replace the canonical level by any level above both arguments, the
+   same-level forms (`LE.T`, `WF.T`, `Compat.T`, `join.T`, `HasType.T`),
+   and the order itself (`LE.refl`, `LE.trans`, `bot_le`, `le_bot_iff`).
+
+   Two differences from master, both consequences of earlier decisions.
+
+   * `lift_compat` has to **generalise the context** in its induction,
+     because `Compat`'s graph clause is hereditary and moves to a later
+     stage `Θ`.  Master's `Compat` is context-free.
+   * `HasType.lift_mono` is **one-directional**, where master's
+     `HasType.lift` is an equivalence.  Lifting up preserves typing; the
+     converse fails because `Evaluates.lower` can produce a witness at the
+     higher level that is not the lift of anything — the order on graphs
+     is contravariant in the input, so a shape below a lifted shape need
+     not itself be a lift.  Master has the equivalence only because its
+     lookup is a function.  One direction suffices: `TShape.HasType` is
+     defined at the canonical level and read off at any higher one
+     (`TShape.HasType.def`), and constructed at a common level
+     (`TShape.HasType.T`).  For the same reason `join.T` is stated through
+     `lift` rather than as an equation of `TShape`s, `max n n` being only
+     propositionally `n`.
+
+   **Positivity verified** by a spike
    (`scratchpad/spike-interp.lean`): the inductive `Interp` over
    `Term → (Δ : List Term) → Subst → Valuation → TShape → Prop`
    elaborates, including the `lam` premise quantified over graph entries
