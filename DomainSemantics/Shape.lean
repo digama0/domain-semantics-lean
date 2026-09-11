@@ -161,6 +161,9 @@ def Shape.subst : ∀ {n}, Shape n → Subst → Shape n
 @[simp] theorem Shape.subst_bot {n} {τ : Subst} : (Shape.bot (n := n)).subst τ = .bot := by
   cases n <;> rfl
 
+@[simp] theorem Shape.subst_sort {n} {r : Bool} {τ : Subst} :
+    (Shape.sort r : Shape n).subst τ = .sort r := by cases n <;> rfl
+
 @[simp] theorem ShapeFun.mem_substWith {g : Shape n → Shape n} {σ f} {e' : Entry (Shape n)} :
     e' ∈ ShapeFun.substWith g σ f ↔
       ∃ e ∈ f, e' = ⟨e.ty.subst σ, e.tm.subst σ, g e.inp, g e.out⟩ := by

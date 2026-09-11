@@ -41,8 +41,13 @@ inductive Evaluates (Δ : List Term) {n} (f : ShapeFun n) (A a : Term) (x : Shap
   | entry (e : Entry (Shape n)) : e ∈ f → LabelEq Δ e.ty e.tm A a →
       Shape.LE Δ e.inp x → Evaluates Δ f A a x e.out
   | lower {y z} : Shape.LE Δ y z → Evaluates Δ f A a x z → Evaluates Δ f A a x y
-  | join {y z w} : Shape.Join Δ y z w → Evaluates Δ f A a x y → Evaluates Δ f A a x z →
-      Evaluates Δ f A a x w
+  -- now that the `join` *function* is correct (no information-free λ-shapes),
+  -- closing under it rather than under the `Join` relation is what makes
+  -- `Evaluates` transport along a substitution: `join` commutes with
+  -- substitution on the nose, whereas `Join Θ` quantifies over more shapes
+  -- than the image of the substitution
+  | join {y z} : Shape.Compat Δ y z → Evaluates Δ f A a x y → Evaluates Δ f A a x z →
+      Evaluates Δ f A a x (y.join z)
 
 /-- Every entry of a graph is dominated by one whose input is typed at the
 domain shape (master's `HasDom`, with the label premise added). -/
@@ -136,5 +141,83 @@ theorem Shape.HasType.cumul : ∀ {n} {a : Shape n} {r s : Bool},
 /-- `⊥` inhabits every shape. -/
 theorem Shape.HasType.bot {a : Shape n} : Shape.HasType Δ .bot a := by
   cases n <;> trivial
+
+/-! ## Substitution -/
+
+theorem Evaluates.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
+    {n} {f : ShapeFun n} {A a : Term} {x c : Shape n} :
+    Evaluates Δ f A a x c →
+    Evaluates Θ (ShapeFun.substWith (Shape.subst · τ) τ f) (A.subst τ) (a.subst τ)
+      (x.subst τ) (c.subst τ) := by
+  intro h
+  induction h with
+  | bot => simp only [Shape.subst_bot]; exact .bot
+  | entry e he hlab hin =>
+    exact .entry _ (ShapeFun.mem_substWith.2 ⟨e, he, rfl⟩) (hlab.subst hΘ W)
+      (Shape.LE.subst hΘ W hin)
+  | lower hle _ ih => exact .lower (Shape.LE.subst hΘ W hle) ih
+  | join hc _ _ ih₁ ih₂ =>
+    exact Shape.join_subst ▸ .join (Shape.Compat.subst hΘ W hc) ih₁ ih₂
+
+theorem ShapeFun.HasDom.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f : ShapeFun n}
+    {d : Shape n} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
+    (ih : ∀ {m a : Shape n}, Shape.HasType Δ m a → Shape.HasType Θ (m.subst τ) (a.subst τ))
+    (h : ShapeFun.HasDom Δ (Shape.HasType Δ) f d) :
+    ShapeFun.HasDom Θ (Shape.HasType Θ) (ShapeFun.substWith (Shape.subst · τ) τ f)
+      (d.subst τ) := by
+  intro e' he'
+  obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 he'
+  have ⟨g, hg, hlab, hin, hout, hty⟩ := h e he
+  exact ⟨_, ShapeFun.mem_substWith.2 ⟨g, hg, rfl⟩, hlab.subst hΘ W,
+    Shape.LE.subst hΘ W hin, Shape.LE.subst hΘ W hout, ih hty⟩
+
+/-- Typing of shapes is stable along a typed substitution. -/
+theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) : ∀ {n} {m a : Shape n},
+    Shape.HasType Δ m a → Shape.HasType Θ (m.subst τ) (a.subst τ) := by
+  intro n
+  induction n with
+  | zero => intro m a h; cases m <;> cases a <;> simp_all [Shape.HasType, Shape.subst]
+  | succ n ih =>
+    intro m a h
+    cases m with
+    | bot => trivial
+    | sort s => cases a <;> first | exact absurd h id | exact h
+    | unit s => cases a <;> first | exact absurd h id | exact h
+    | nat => cases a <;> first | exact absurd h id | exact h
+    | zero => cases a <;> first | exact absurd h id | exact h
+    | id s A a' b' => cases a <;> first | exact absurd h id | exact h
+    | refl w => cases a <;> first | exact absurd h id | exact h
+    | succ v =>
+      cases a with
+      | nat =>
+        cases n with
+        | zero => cases (h : v = .bot); exact Shape.subst_bot
+        | succ m => exact ih h
+      | _ => exact absurd h id
+    | forallE A B d f =>
+      cases a with
+      | sort r => exact ⟨ShapeFun.HasDom.subst_of hΘ W ih h.1, fun e' he' => by
+          obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 he'
+          simpa using ih (h.2 e he)⟩
+      | _ => exact absurd h id
+    | sigma A B d f =>
+      cases a with
+      | sort r => exact ⟨h.1, ShapeFun.HasDom.subst_of hΘ W ih h.2.1, fun e' he' => by
+          obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 he'
+          simpa using ih (h.2.2 e he)⟩
+      | _ => exact absurd h id
+    | lam g =>
+      cases a with
+      | forallE A B d f =>
+        refine ⟨ShapeFun.HasDom.subst_of hΘ W ih h.1, fun e' he' => ?_⟩
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_substWith.1 he'
+        have ⟨c, hev, hty⟩ := h.2 e he
+        exact ⟨c.subst τ, Evaluates.subst hΘ W hev, ih hty⟩
+      | _ => exact absurd h id
+    | pair x y =>
+      cases a with
+      | sigma A B d f => exact ih h
+      | _ => exact absurd h id
 
 end DomainSemantics
