@@ -363,12 +363,15 @@ theorem Evaluates.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A
 least as much.  Master gets this from `app_mono_l`, its lookup being a
 function; ours has to produce a witness, and the `join` case needs the two
 witnesses to be compatible, which is `Evaluates.compat` on the larger
-graph.  The `⊔`-upper-bound step is where well-formedness is consumed. -/
+graph, and then `le_join` to bound them — which is where well-formedness
+of what the lookup returns is consumed, hence the `hwf` hypothesis.  It is
+a hypothesis rather than a consequence of `WF Δ (lam f')` because `WF` is
+not downward closed: `Evaluates` closes under `lower`, and a smaller
+λ-shape may have a bottom output, which non-degeneracy forbids. -/
 theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFun n}
     {A a : Term} {x : Shape n}
     (hf' : ShapeFun.Compat Shape.Compat Δ f' f') (hx : Shape.Compat Δ x x)
-    (hwf : ∀ {y z : Shape n}, Evaluates Δ f' A a x y → Evaluates Δ f' A a x z →
-      Shape.LE Δ y (y.join z) ∧ Shape.LE Δ z (y.join z))
+    (hwf : ∀ {y : Shape n}, Evaluates Δ f' A a x y → Shape.WF Δ y)
     (hff' : ShapeFun.LE Δ (Shape.LE Δ) f f') :
     ∀ {c : Shape n}, Evaluates Δ f A a x c →
       ∃ c', Evaluates Δ f' A a x c' ∧ Shape.LE Δ c c' := by
@@ -386,7 +389,7 @@ theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFu
     have ⟨y', hy', hley⟩ := ih₁
     have ⟨z', hz', hlez⟩ := ih₂
     have hc : Shape.Compat Δ y' z' := Evaluates.compat hΔ hf' hx hy' hz'
-    have ⟨hu₁, hu₂⟩ := hwf hy' hz'
+    have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ (hwf hy') (hwf hz') hc
     exact ⟨y'.join z', .join hc hy' hz',
       Shape.join_le (Shape.LE.trans_aux hΔ hley hu₁) (Shape.LE.trans_aux hΔ hlez hu₂)⟩
 

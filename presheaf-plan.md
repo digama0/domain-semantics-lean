@@ -625,16 +625,16 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
      `Compat.of_common_upper`, `Shape.join_compat` (the other repo's
      `cSup_compatible`), and `Shape.subst_id`.
 
-   **One hypothesis left open in `mono_graph`.**  It currently takes the
-   upper-bound property `y ≤ y ⊔ z` for the shapes a lookup returns as a
-   hypothesis rather than deriving it.  `le_join` proves it, but needs
-   `WF`, and `WF` is *not* downward closed — `Evaluates` closes under
-   `lower`, and a smaller λ-shape may have a bottom output, which `WF`
-   forbids.  The fix is to **split `Shape.WF`**: label well-typedness
-   (which *is* downward closed, since `LE` forces labels to be
-   definitionally equal) from non-degeneracy.  `le_join` only ever needs
-   the former, for reflexivity of the label relations.  Then the
-   hypothesis discharges internally.
+   **`mono_graph`'s well-formedness hypothesis.**  It takes
+   `∀ y, Evaluates Δ f' A a x y → Shape.WF Δ y` and applies `le_join`
+   internally, rather than assuming the upper-bound property directly.  It
+   is a hypothesis rather than a consequence of `WF Δ (lam f')` because
+   `WF` is not downward closed: `Evaluates` closes under `lower`, and a
+   smaller λ-shape may have a bottom output, which non-degeneracy forbids.
+   If that becomes awkward at the call sites, the fix is to split
+   `Shape.WF` into label well-typedness (which *is* downward closed, since
+   `LE` forces labels to be definitionally equal, and is all `le_join`
+   needs for reflexivity of the label relations) and non-degeneracy.
 
    Master avoids both because its saturated `ShapeFun.app` is a
    *function*, monotone by `app_mono_l`, so there is no existential to
