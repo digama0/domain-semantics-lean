@@ -608,12 +608,11 @@ inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
    **The obstruction remaining in `mono_r`, analysed.**  Its λ case needs
    two things beyond what is proved:
 
-   * `HasType Δ d' .type` for the *larger* Π's domain.  Master gets this
-     from `HasDom.isType`, which works there only because saturation makes
-     every graph contain a `⊥`-input entry, so the domain has an
-     inhabitant.  We dropped saturation.  **Fix: state it**, adding
-     `HasType Δ d .type` as a conjunct of the Π/Σ type clauses; immediate
-     rather than derived.
+   * ~~`HasType Δ d' .type` for the *larger* Π's domain.~~ **Done.**
+     Master derives this from `HasDom.isType`, which works there only
+     because saturation makes every graph contain a `⊥`-input entry, so
+     the domain has an inhabitant.  With saturation gone it is now stated:
+     `HasType Δ d .type` is a conjunct of the Π/Σ type clauses.
    * `Evaluates.mono_graph`: `ShapeFun.LE Δ f f' → Evaluates Δ f ℓ x c →
      ∃ c', Evaluates Δ f' ℓ x c' ∧ LE Δ c c'`.  The `bot`, `entry` and
      `lower` cases go through (the `entry` case composes the two `LabelEq`

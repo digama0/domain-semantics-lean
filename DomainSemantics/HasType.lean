@@ -77,9 +77,11 @@ def Shape.HasType (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
   | _+1, .bot, .nat => True
   | _+1, .bot, .id _ _ _ _ => True
   | _+1, .bot, .forallE _ _ d f =>
-      ShapeFun.HasDom Δ (HasType Δ) f d ∧ ∀ e ∈ f, HasType Δ e.out .type
+      HasType Δ d .type ∧ ShapeFun.HasDom Δ (HasType Δ) f d ∧
+        ∀ e ∈ f, HasType Δ e.out .type
   | _+1, .bot, .sigma _ _ d f =>
-      ShapeFun.HasDom Δ (HasType Δ) f d ∧ ∀ e ∈ f, HasType Δ e.out .type
+      HasType Δ d .type ∧ ShapeFun.HasDom Δ (HasType Δ) f d ∧
+        ∀ e ∈ f, HasType Δ e.out .type
   | _+1, .bot, _ => False
   | _+1, .sort _, .sort j => j = true
   | _+1, .unit r, .sort j => r ≤ j
@@ -93,15 +95,21 @@ def Shape.HasType (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
       | _+1, w => HasType Δ w .nat
   | _+1, .id r _ _ _, .sort j => r ≤ j
   -- a Π-type is in `sort r` when its codomain family lands in `sort r`
+  -- the domain is a type: master derives this from saturation (every graph
+  -- has a `⊥`-input entry, so the domain has an inhabitant); with
+  -- saturation gone it has to be stated
   | _+1, .forallE _ _ d f, .sort r =>
-      ShapeFun.HasDom Δ (HasType Δ) f d ∧ ∀ e ∈ f, HasType Δ e.out (.sort r)
+      HasType Δ d .type ∧ ShapeFun.HasDom Δ (HasType Δ) f d ∧
+        ∀ e ∈ f, HasType Δ e.out (.sort r)
   | _+1, .sigma _ _ d f, .sort j =>
-      j = true ∧ ShapeFun.HasDom Δ (HasType Δ) f d ∧ ∀ e ∈ f, HasType Δ e.out .type
+      j = true ∧ HasType Δ d .type ∧ ShapeFun.HasDom Δ (HasType Δ) f d ∧
+        ∀ e ∈ f, HasType Δ e.out .type
   -- a λ-shape inhabits a Π-type when that Π-type is well-formed and every
   -- entry's output is typed at a code the codomain family yields at that
   -- entry's label and input
   | _+1, .lam g, .forallE _ _ d f =>
-      (ShapeFun.HasDom Δ (HasType Δ) f d ∧ ∀ e ∈ f, HasType Δ e.out .type) ∧
+      (HasType Δ d .type ∧ ShapeFun.HasDom Δ (HasType Δ) f d ∧
+          ∀ e ∈ f, HasType Δ e.out .type) ∧
         ShapeFun.HasDom Δ (HasType Δ) g d ∧
         ∀ e ∈ g, ∃ c, Evaluates Δ f e.ty e.tm e.inp c ∧ HasType Δ e.out c
   -- TODO(Σ): the codomain family is a *labelled* graph, so a `pair` shape
@@ -110,7 +118,8 @@ def Shape.HasType (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
   -- `Evaluates Δ f (label) x`.  Σ is deferred (§5), so only the first
   -- component is checked here.
   | _+1, .pair x _, .sigma _ _ d f =>
-      (ShapeFun.HasDom Δ (HasType Δ) f d ∧ ∀ e ∈ f, HasType Δ e.out .type) ∧
+      (HasType Δ d .type ∧ ShapeFun.HasDom Δ (HasType Δ) f d ∧
+          ∀ e ∈ f, HasType Δ e.out .type) ∧
         HasType Δ x d
   -- with a label-only Id shape there is nothing semantic left to check
   | _+1, .refl _, .id r _ _ _ => r = true
@@ -157,7 +166,7 @@ theorem Shape.HasType.cumul : ∀ {n} {a : Shape n} {r s : Bool},
     | nat => exact Bool.eq_true_of_le h hrs
     | unit t => exact Bool.le_tr h hrs
     | id t A a' b' => exact Bool.le_tr h hrs
-    | forallE A B d f => exact ⟨h.1, fun e he => ih (h.2 e he) hrs⟩
+    | forallE A B d f => exact ⟨h.1, h.2.1, fun e he => ih (h.2.2 e he) hrs⟩
     | sigma A B d f => exact ⟨Bool.eq_true_of_le h.1 hrs, h.2⟩
     | _ => exact absurd h id
 
@@ -254,14 +263,16 @@ theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
   | succ n ih =>
     -- the "this Π/Σ type is well-formed" conjunct, substituted
     have hpi : ∀ {f : ShapeFun n} {d : Shape n},
-        (ShapeFun.HasDom Δ (Shape.HasType Δ) f d ∧ ∀ e ∈ f, Shape.HasType Δ e.out .type) →
-        (ShapeFun.HasDom Θ (Shape.HasType Θ) (ShapeFun.subst (Shape.subst · τ) τ f)
+        (Shape.HasType Δ d .type ∧ ShapeFun.HasDom Δ (Shape.HasType Δ) f d ∧
+            ∀ e ∈ f, Shape.HasType Δ e.out .type) →
+        (Shape.HasType Θ (d.subst τ) .type ∧
+          ShapeFun.HasDom Θ (Shape.HasType Θ) (ShapeFun.subst (Shape.subst · τ) τ f)
             (d.subst τ) ∧
           ∀ e ∈ ShapeFun.subst (Shape.subst · τ) τ f, Shape.HasType Θ e.out .type) := by
       intro f d h
-      refine ⟨ShapeFun.HasDom.subst_of hΘ W ih h.1, fun e' he' => ?_⟩
+      refine ⟨by simpa using ih h.1, ShapeFun.HasDom.subst_of hΘ W ih h.2.1, fun e' he' => ?_⟩
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
-      simpa using ih (h.2 e he)
+      simpa using ih (h.2.2 e he)
     intro m a h
     cases m with
     | bot =>
@@ -285,15 +296,14 @@ theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
       | _ => exact absurd h id
     | forallE A B d f =>
       cases a with
-      | sort r => exact ⟨ShapeFun.HasDom.subst_of hΘ W ih h.1, fun e' he' => by
+      | sort r => exact ⟨by simpa using ih h.1,
+          ShapeFun.HasDom.subst_of hΘ W ih h.2.1, fun e' he' => by
           obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
-          simpa using ih (h.2 e he)⟩
+          simpa using ih (h.2.2 e he)⟩
       | _ => exact absurd h id
     | sigma A B d f =>
       cases a with
-      | sort r => exact ⟨h.1, ShapeFun.HasDom.subst_of hΘ W ih h.2.1, fun e' he' => by
-          obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
-          simpa using ih (h.2.2 e he)⟩
+      | sort r => exact ⟨h.1, hpi h.2⟩
       | _ => exact absurd h id
     | lam g =>
       cases a with
