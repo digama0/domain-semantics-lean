@@ -48,4 +48,80 @@ theorem forallE_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {s : Bool}
   obtain ⟨v', hv⟩ := hlab.2
   exact ⟨u', v', hu, hv⟩
 
+/-! ## The rest of the inversion principles
+
+`Consequences.lean` consumes eighteen of these from `Adequacy.lean`.  Each
+is the same four-step argument as `forallE_inv`: regularity gives a
+label-only probe, soundness moves it to the other side at the identity
+stage and the `⊥` valuation, and the order reads the label back.  For the
+no-confusion family the last step is trivial, since the order between two
+different heads is `False`; those need no regularity lemma either, only a
+probe for one of the two heads.
+
+They are stated here so the endpoint of the branch is explicit.  Once they
+are proved, `Consequences.lean` can be re-pointed at this file and
+`Adequacy.lean`, `LogRel.lean` and `Sound.lean` deleted. -/
+
+theorem sort_inv {Γ : List Term} {u v : Bool} {V : Term}
+    (hΓ : ⊢ Γ) (H : Γ ⊢ Term.sort u ≡ Term.sort v : V) : u = v := by
+  sorry
+
+theorem sigma_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term}
+    (hΓ : ⊢ Γ) (H : Γ ⊢ Term.sigma A₀ B₀ ≡ Term.sigma A₁ B₁ : .type) :
+    ∃ u v, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ A₀ :: Γ ⊢ B₀ ≡ B₁ : .sort v := by
+  sorry
+
+theorem id_inv {Γ : List Term} {r : Bool} {A₀ a₀ b₀ A₁ a₁ b₁ : Term}
+    (hΓ : ⊢ Γ) (H : Γ ⊢ Term.id r A₀ a₀ b₀ ≡ Term.id r A₁ a₁ b₁ : .sort r) :
+    ∃ u, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ Γ ⊢ a₀ ≡ a₁ : A₀ ∧ Γ ⊢ b₀ ≡ b₁ : A₀ := by
+  sorry
+
+/-! The no-confusion family: two distinct heads are never definitionally
+equal.  Fifteen statements, one argument. -/
+
+theorem sort_forallE_inv {Γ : List Term} {u s : Bool} {A₁ B₁ : Term} :
+    ¬Γ ⊢ Term.sort u ≡ Term.forallE A₁ B₁ : .sort s := by sorry
+
+theorem sort_sigma_inv {Γ : List Term} {u s : Bool} {A₁ B₁ : Term} :
+    ¬Γ ⊢ Term.sort u ≡ Term.sigma A₁ B₁ : .sort s := by sorry
+
+theorem sort_nat_inv {Γ : List Term} {u s : Bool} :
+    ¬Γ ⊢ Term.sort u ≡ Term.nat : .sort s := by sorry
+
+theorem sort_unit_inv {Γ : List Term} {u s : Bool} {r : Bool} :
+    ¬Γ ⊢ Term.sort u ≡ Term.unit r : .sort s := by sorry
+
+theorem sort_id_inv {Γ : List Term} {u s : Bool} {r : Bool} {A a b : Term} :
+    ¬Γ ⊢ Term.sort u ≡ Term.id r A a b : .sort s := by sorry
+
+theorem forallE_sigma_inv {Γ : List Term} {s : Bool} {A₀ B₀ A₁ B₁ : Term} :
+    ¬Γ ⊢ Term.forallE A₀ B₀ ≡ Term.sigma A₁ B₁ : .sort s := by sorry
+
+theorem forallE_nat_inv {Γ : List Term} {s : Bool} {A₀ B₀ : Term} :
+    ¬Γ ⊢ Term.forallE A₀ B₀ ≡ Term.nat : .sort s := by sorry
+
+theorem forallE_unit_inv {Γ : List Term} {s r : Bool} {A₀ B₀ : Term} :
+    ¬Γ ⊢ Term.forallE A₀ B₀ ≡ Term.unit r : .sort s := by sorry
+
+theorem forallE_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term} :
+    ¬Γ ⊢ Term.forallE A₀ B₀ ≡ Term.id r A a b : .sort s := by sorry
+
+theorem sigma_nat_inv {Γ : List Term} {s : Bool} {A₀ B₀ : Term} :
+    ¬Γ ⊢ Term.sigma A₀ B₀ ≡ Term.nat : .sort s := by sorry
+
+theorem sigma_unit_inv {Γ : List Term} {s r : Bool} {A₀ B₀ : Term} :
+    ¬Γ ⊢ Term.sigma A₀ B₀ ≡ Term.unit r : .sort s := by sorry
+
+theorem sigma_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term} :
+    ¬Γ ⊢ Term.sigma A₀ B₀ ≡ Term.id r A a b : .sort s := by sorry
+
+theorem nat_unit_inv {Γ : List Term} {s r : Bool} :
+    ¬Γ ⊢ Term.nat ≡ Term.unit r : .sort s := by sorry
+
+theorem nat_id_inv {Γ : List Term} {s r : Bool} {A a b : Term} :
+    ¬Γ ⊢ Term.nat ≡ Term.id r A a b : .sort s := by sorry
+
+theorem unit_id_inv {Γ : List Term} {s r r' : Bool} {A a b : Term} :
+    ¬Γ ⊢ Term.unit r' ≡ Term.id r A a b : .sort s := by sorry
+
 end DomainSemantics

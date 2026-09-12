@@ -1048,6 +1048,39 @@ wanted anyway downstream (graph lookup in `Evaluates`, the coherence
 condition, the `app` rule of `Interp` all compare labels), so inlining
 them into the order does not actually remove them from the development.
 
+## Appendix D. The remaining obligations, as stated `sorry`s
+
+Every missing lemma is now stated in the tree, so the shape of the work is
+legible and each can be attacked on its own.  Twenty-four, in four groups
+(plus the one inherited `sorry` in `Adequacy.lean`).
+
+**About `Interp` alone** (`Interp.lean`).  `Interp.subst` — substitution in
+the *stage*, which is how this model substitutes at all — and
+`Interp.weak'` are proved.  Left:
+
+| lemma | what it needs |
+|---|---|
+| `Interp.unweak` (hence `weak_iff`) | master's `generalize`-and-case argument; used by `eta` and both `Y` lemmas |
+| `Interp.substTerm` | substitution in the *term*, master's `∃ ρ'` form; `←` needs `weak'`, `→` needs directedness |
+| `Interp.inst` | the single-substitution form `beta` uses |
+| `Interp.stage` | invariance under a definitionally equal stage; the hypothesis is a *typed* substitution equality, so it belongs with soundness |
+
+**Soundness** (`Presheaf.lean`).  `Adm.subst` (admissibility along a stage
+substitution), and `IsDefEq.sound`, now with **three** conclusions:
+`SoundEq`, `SoundTy` and `SoundDir` (directedness), the last for both
+sides.  §4.5 says why directedness cannot be separated.
+
+**Inversion** (`Inversion.lean`).  `forallE_inv` is proved.  Left:
+`sort_inv`, `sigma_inv`, `id_inv`, and the fifteen no-confusion lemmas
+that `Consequences.lean` consumes.  Each is `forallE_inv`'s four steps;
+for the no-confusion family the last step is trivial, the order between
+two different heads being `False`, and no regularity lemma is needed
+either — only a probe for one of the two heads.
+
+Once these are closed, `Consequences.lean` re-points at `Inversion.lean`
+and `Sound.lean`, `LogRel.lean`, `Adequacy.lean` and `ShapeOld.lean` are
+deleted.
+
 ## Appendix C. Definition-by-definition inventory against the other repo
 
 A full pass over the other repo's `DomainSemantics/**` (14.2k lines),

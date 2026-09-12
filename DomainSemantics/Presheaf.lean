@@ -18,9 +18,9 @@ and `SoundTy` — are stated here.
 | his | here |
 |---|---|
 | `SourceAdmissible σ ρ` | `Adm` |
-| `HasIdeality Γ t` | a lemma: `Interp` is directed |
+| `HasIdeality Γ t` | `SoundDir`, proved *with* soundness (§4.5) |
 | `HasRenaming` + `HasSubstitution` | a lemma: `Interp.subst` |
-| reindexing along `σ` (functoriality, free) | a lemma: `Interp.natural` |
+| reindexing along `σ` (functoriality, free) | a lemma: `Interp.subst` |
 | `HasEquality Γ t t'` | `SoundEq` |
 | `HasFixedness Γ t A` | `SoundTy`, via `InterpTyped` |
 | `PiReady Γ A B` | absent; it collapses into directedness |
@@ -131,6 +131,32 @@ theorem SoundTy.of_eq {Γ : List Term} {t t' A : Term}
   have ⟨m', a, hle, hm', ha, hty⟩ := h hΔ W hA ((he hΔ W hA).2 hm)
   exact ⟨m', a, hle, (he hΔ W hA).1 hm', ha, hty⟩
 
+/-- Directedness of the approximant set: his `HasIdeality`, and the third
+conclusion of the soundness induction.
+
+This is not a lemma about `Interp` on its own, and that is forced rather
+than a choice.  Joining two λ-shapes means appending their graphs, and the
+`lam` rule demands the result be well formed, whose coherence conjunct
+includes the cross pairs: entries from the two graphs whose labels become
+definitionally equal at some later stage must have compatible outputs
+there.  Discharging that needs the body's interpretation to be invariant
+under replacing its stage by a definitionally equal one (`Interp.stage`),
+and the hypothesis of *that* is a typed substitution equality, which only
+the soundness statement carries.  §4.5 of `presheaf-plan.md` spells it
+out; it is the one place the other repo's bundling is forced. -/
+def SoundDir (Γ : List Term) (t : Term) : Prop :=
+  ∀ {{Δ Γ₀ σ ρ}}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
+    ∀ {m₁ m₂}, Interp Δ Γ t σ ρ m₁ → Interp Δ Γ t σ ρ m₂ →
+      TShape.Compat Δ m₁ m₂ ∧ Interp Δ Γ t σ ρ (m₁.join m₂)
+
+/-- Admissibility is stable along a substitution of the stage: the
+`Adm`-level companion of `Interp.subst`, needed to move a whole judgment
+to a later stage. -/
+theorem Adm.subst {Δ Θ Γ₀ Γ : List Term} {σ τ : Subst} {ρ : Valuation}
+    (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) (h : Adm Δ Γ₀ Γ σ ρ) :
+    Adm Θ Γ₀ Γ (σ.comp τ) (ρ.subst τ) := by
+  sorry
+
 /-! ## The target
 
 The one theorem this branch is for.  Master needs `LogRel.lean` and
@@ -139,5 +165,6 @@ labels carry the syntax through the model, so the inversion principles of
 §6 are corollaries of this statement alone. -/
 
 theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
-    (hΓ : ⊢ Γ) (H : Γ ⊢ t ≡ t' : A) : SoundEq Γ t t' ∧ SoundTy Γ t A := by
+    (hΓ : ⊢ Γ) (H : Γ ⊢ t ≡ t' : A) :
+    SoundEq Γ t t' ∧ SoundTy Γ t A ∧ SoundDir Γ t ∧ SoundDir Γ t' := by
   sorry
