@@ -144,8 +144,7 @@ theorem ShapeFun.HasPi.cod {Δ : List Term} {n} {T : Shape n → Shape n → Pro
 
 /-- One level of the typing relation, as an inductive family in the typing
 relation `T` of the level below — the same shape as `ShapeFun.HasDom` and
-`ShapeFun.HasPi`, which it uses.  `N` is "is a numeral", which cannot be
-written as `T · .nat` uniformly because `Shape 0` has no `nat`.
+`ShapeFun.HasPi`, which it uses.
 
 Being inductive rather than a match buys the inversion principles: `cases`
 on a derivation replaces the `cases m <;> cases a <;> first | exact absurd
@@ -162,36 +161,36 @@ along `lift`.
 which together with the `bot` constructor is what makes `isType`
 (`HasType m a → HasType a .type`) go through; without it `mono_r` cannot
 be stated, let alone proved. -/
-inductive Shape.HasTypeS (Δ : List Term) {n} (T : Shape n → Shape n → Prop)
-    (N : Shape n → Prop) : Shape (n + 1) → Shape (n + 1) → Prop where
+inductive Shape.HasTypeS (Δ : List Term) {n} (T : Shape n → Shape n → Prop) :
+    Shape (n + 1) → Shape (n + 1) → Prop where
   -- `⊥` inhabits exactly the types.  Being *inductive* is what lets this be
   -- one constructor with a premise at the same level; as a match it had to
   -- be spelled out per type former, because `HasType a .type` is not
   -- structurally smaller than `HasType .bot a`
-  | bot {a} : HasTypeS Δ T N a .type → HasTypeS Δ T N .bot a
-  | sort {r} : HasTypeS Δ T N (.sort r) (.sort true)
-  | unit {r j} : r ≤ j → HasTypeS Δ T N (.unit r) (.sort j)
-  | nat : HasTypeS Δ T N .nat (.sort true)
-  | zero : HasTypeS Δ T N .zero .nat
-  | succ {v} : N v → HasTypeS Δ T N (.succ v) .nat
-  | id {r j A a b} : r ≤ j → HasTypeS Δ T N (.id r A a b) (.sort j)
+  | bot {a} : HasTypeS Δ T a .type → HasTypeS Δ T .bot a
+  | sort {r} : HasTypeS Δ T (.sort r) (.sort true)
+  | unit {r j} : r ≤ j → HasTypeS Δ T (.unit r) (.sort j)
+  | nat : HasTypeS Δ T .nat (.sort true)
+  | zero : HasTypeS Δ T .zero .nat
+  | succ {v} : Shape.IsNumeral v → HasTypeS Δ T (.succ v) .nat
+  | id {r j A a b} : r ≤ j → HasTypeS Δ T (.id r A a b) (.sort j)
   | forallE {A B d f r} :
-    ShapeFun.HasPi Δ T d f (.sort r) → HasTypeS Δ T N (.forallE A B d f) (.sort r)
+    ShapeFun.HasPi Δ T d f (.sort r) → HasTypeS Δ T (.forallE A B d f) (.sort r)
   | sigma {A B d f} :
-    ShapeFun.HasPi Δ T d f .type → HasTypeS Δ T N (.sigma A B d f) (.sort true)
+    ShapeFun.HasPi Δ T d f .type → HasTypeS Δ T (.sigma A B d f) (.sort true)
   -- the graph condition is on a graph *dominating* the λ's own
   | lam {g g₀ A B d f} :
     ShapeFun.HasPi Δ T d f .type → ShapeFun.LE Δ (Shape.LE Δ) g g₀ →
     ShapeFun.HasDom Δ T g₀ d →
     (∀ e ∈ g₀, ∃ c, Evaluates Δ f e.ty e.tm e.inp c ∧ T e.out c) →
-    HasTypeS Δ T N (.lam g) (.forallE A B d f)
+    HasTypeS Δ T (.lam g) (.forallE A B d f)
   -- and here on a first component dominating the pair's own, because the
   -- code is read off at it and the lookup is monotone in its input
   | pair {ty tm x y x₀ c A B d f} :
     ShapeFun.HasPi Δ T d f .type → Shape.LE Δ x x₀ → T x₀ d →
     Evaluates Δ f ty tm x₀ c → T y c →
-    HasTypeS Δ T N (.pair ty tm x y) (.sigma A B d f)
-  | refl {w A a b} : HasTypeS Δ T N (.refl w) (.id true A a b)
+    HasTypeS Δ T (.pair ty tm x y) (.sigma A B d f)
+  | refl {w A a b} : HasTypeS Δ T (.refl w) (.id true A a b)
 
 /-- `m` is a well-typed inhabitant of the type-shape `a`, by iterating
 `HasTypeS` up the levels. -/
@@ -202,12 +201,12 @@ def Shape.HasType (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
       | .bot, .sort _ => True
       | .sort _, .bot => False
       | .sort _, .sort j => j = true
-  | _ + 1 => Shape.HasTypeS Δ (HasType Δ) Shape.IsNumeral
+  | _ + 1 => Shape.HasTypeS Δ (HasType Δ)
 
 /-- The recursion equation at positive level, for `cases` and `rw`, which
 do not unfold definitions. -/
 theorem Shape.hasType_succ {Δ : List Term} {n} {m a : Shape (n + 1)} :
-    Shape.HasType Δ m a ↔ Shape.HasTypeS Δ (Shape.HasType Δ) Shape.IsNumeral m a := Iff.rfl
+    Shape.HasType Δ m a ↔ Shape.HasTypeS Δ (Shape.HasType Δ) m a := Iff.rfl
 
 /-! ## Codes and cumulativity
 
