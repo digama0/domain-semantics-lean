@@ -813,3 +813,11 @@ theorem TShape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (Shape.lift (max m.1 a.1) (a.2.subst τ))
   rw [Shape.lift_subst, Shape.lift_subst]
   exact Shape.HasType.subst hΘ W H
+
+/-- Cumulativity at the total level. -/
+theorem TShape.HasType.cumul {Δ : List Term} {a : TShape} {r s : Bool}
+    (h : TShape.HasType Δ a (TShape.sort r)) (hrs : r ≤ s) :
+    TShape.HasType Δ a (TShape.sort s) := by
+  show Shape.HasType Δ (Shape.lift (max a.1 0) a.2) (Shape.lift (max a.1 0) (Shape.sort s))
+  rw [Shape.lift_sort]
+  exact Shape.HasType.cumul (by rw [← Shape.lift_sort (m := max a.1 0)]; exact h) hrs

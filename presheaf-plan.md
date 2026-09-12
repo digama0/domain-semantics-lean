@@ -527,6 +527,29 @@ Without the new premise there is nothing to supply it, and the body's
 inductive hypothesis is unusable.  With it, `a := d` and the rule's own
 domain premise finish the job.
 
+### 4.5c Level friction in the `TShape` layer
+
+Working the binder congruences surfaced a friction worth recording, because
+it will decide how the rest of the induction is written.
+
+`TShape.HasType Δ m a` is stated at the *canonical* level `max m.1 a.1`, and
+`Shape.HasType.lift_mono` only goes **up** (§4 records why: `Evaluates.lower`
+can return a witness at the higher level that is not the lift of anything).
+So any lemma whose conclusion lives at a *smaller* canonical level than its
+hypotheses cannot be assembled by lifting everything to a common level and
+reading the result off.  `mono_r` is the first casualty: from
+`HasType m a`, `LE a a'` and `HasType a' (sort r)` the natural proof works
+at `max (max m.1 a.1) a'.1`, while the conclusion wants `max m.1 a'.1`.
+
+Restating `TShape.HasType` in the `∀ k` form does not fix it on its own —
+the same gap reappears when a hypothesis mentions a level the conclusion
+does not.  What does fix it is normalising shapes to a common level first:
+`Interp` is closed under replacing a shape by its lift, because a shape and
+its lift are equivalent in the order and `Interp.mono` goes down.  So the
+binder cases should lift every shape in sight to one level before touching
+`HasType`.  `TShape.HasType.cumul` is proved; `mono_r` and the
+sort-approximant analysis wait on that normalisation lemma.
+
 ### 4.6 The soundness induction, case by case
 
 `IsDefEq.sound` is now the induction, with all 34 rules enumerated in the

@@ -321,6 +321,38 @@ theorem Interp.mono_val {Γ : List Term} {t : Term} {σ} {ρ ρ' : Valuation} {m
     refine .tr hw hle (ihX hρ) (iha hρ) (ihb hρ) (ihA hρ) hwv hvA ?_ hm' (fun hr => ihH hr hρ)
     exact ihC (Valuation.LE.push.2 ⟨hρ, .refl hwv⟩)
 
+/-- The term's own context is not load-bearing: no rule mentions `Γ`
+except to thread it, so an interpretation may be read at any context.  The
+binder congruences need this, to move a body's interpretation from
+`A :: Γ` to `A' :: Γ` after the domain has changed. -/
+theorem Interp.ctx {Δ Γ : List Term} {t σ ρ m} (H : Interp Δ Γ t σ ρ m) :
+    ∀ {Γ' : List Term}, Interp Δ Γ' t σ ρ m := by
+  induction H with
+  | bot => exact .bot
+  | bvar hw h => exact .bvar hw h
+  | sort hw h => exact .sort hw h
+  | unit hw h => exact .unit hw h
+  | nat hw h => exact .nat hw h
+  | zero hw h => exact .zero hw h
+  | succ _ hw h ih => exact .succ ih hw h
+  | app _ _ hev hw h ihF iha => exact .app ihF iha hev hw h
+  | lam _ hwf hlab hdom _ hw h ihA ihbody =>
+    exact .lam ihA hwf hlab hdom (fun e he => ihbody e he) hw h
+  | forallE _ hwf hlab hdom _ hw h ihA ihbody =>
+    exact .forallE ihA hwf hlab hdom (fun e he => ihbody e he) hw h
+  | sigma _ hwf hlab hdom _ hw h ihA ihbody =>
+    exact .sigma ihA hwf hlab hdom (fun e he => ihbody e he) hw h
+  | pair _ _ hwf hw h iha ihb => exact .pair iha ihb hwf hw h
+  | fst _ hw h ihp => exact .fst ihp hw h
+  | snd _ hw h ihp => exact .snd ihp hw h
+  | natCase_zero _ _ ihM iha => exact .natCase_zero ihM iha
+  | natCase_succ _ hwv heq _ ihM ihb => exact .natCase_succ ihM hwv heq ihb
+  | Y _ hwx _ ihself ihb => exact .Y ihself hwx ihb
+  | id hw h => exact .id hw h
+  | refl _ hw h ihv => exact .refl ihv hw h
+  | tr hw hle _ _ _ _ hwv hvA _ hm' _ ihX iha ihb ihA ihC ihH =>
+    exact .tr hw hle ihX iha ihb ihA hwv hvA ihC hm' (fun hr => ihH hr)
+
 /-! ## Constructors at the canonical shape
 
 Master's primed forms.  Each takes the well-formedness that `LE` needs to
