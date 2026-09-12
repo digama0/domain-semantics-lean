@@ -1945,3 +1945,20 @@ theorem LE.le_lift {Δ : List Term} {m : TShape} {k} (hk : m.1 ≤ k)
   exact Shape.LE.refl ((Shape.lift_wf hk).2 h)
 
 end TShape
+
+/-- Lifting *up* reflects being `⊥`. -/
+theorem Shape.lift_eq_bot {Δ : List Term} {n k} (h : n ≤ k) {s : Shape n}
+    (hs : s.lift k = Shape.bot) : s = Shape.bot := by
+  refine Shape.le_bot_iff.1 ((Shape.lift_le_lift (Γ := Δ) h).1 ?_)
+  rw [Shape.lift_bot, hs]
+  exact Shape.LE.bot
+
+/-- Anything below `prop` is `⊥` or `prop` itself. -/
+theorem Shape.le_prop_cases {Δ : List Term} : ∀ {n} {x : Shape n},
+    Shape.LE Δ x (Shape.sort false) → x = Shape.bot ∨ x = Shape.sort false := by
+  intro n x h
+  cases n <;> cases x <;>
+    first
+      | exact .inl rfl
+      | exact absurd h id
+      | exact .inr (by rename_i r; cases (h : r = false); rfl)

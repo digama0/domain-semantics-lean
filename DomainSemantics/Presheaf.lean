@@ -205,6 +205,77 @@ theorem sound_of_bot {Γ : List Term} {t t' A : Term}
   · exact ⟨TShape.Compat.of_bot (h' hm₁),
       Interp.of_bot (TShape.join_eq_bot (h' hm₁) (h' hm₂))⟩
 
+/-! ## Proof irrelevance
+
+Everything typed at a proposition collapses to `⊥`, which is what makes
+the `proofIrrel` rule sound: the two proofs have the same approximants
+because both have only `⊥`.
+
+The proof is `Shape.HasType.proofIrrel` reached after **normalising every
+shape to one level**.  That normalisation is forced: `HasType` transports
+only upward (§4.5c), so the argument cannot be assembled at the canonical
+level of the conclusion, and instead every hypothesis is read at a common
+level and the conclusion — an equation with `⊥` — is transported back
+down by `Shape.lift_eq_bot`. -/
+
+theorem Interp.eq_bot_of_prop {Γ : List Term} {p t : Term}
+    (hp : SoundTy Γ p .prop) (ht : SoundTy Γ t p)
+    {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ)
+    (hAdm : Adm Δ Γ₀ Γ σ ρ) {m} (H : Interp Δ Γ t σ ρ m) : m.2 = Shape.bot := by
+  obtain ⟨m', a, hle, hm', ha, hty⟩ := ht hΔ W hAdm H
+  obtain ⟨a', b, hlea, ha', hb, htya⟩ := hp hΔ W hAdm ha
+  have km : m'.1 ≤ max (max m'.1 a.1) (max a'.1 b.1) :=
+    Nat.le_trans (Nat.le_max_left ..) (Nat.le_max_left ..)
+  have ka : a.1 ≤ max (max m'.1 a.1) (max a'.1 b.1) :=
+    Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_left ..)
+  have ka' : a'.1 ≤ max (max m'.1 a.1) (max a'.1 b.1) :=
+    Nat.le_trans (Nat.le_max_left ..) (Nat.le_max_right ..)
+  have kb : b.1 ≤ max (max m'.1 a.1) (max a'.1 b.1) :=
+    Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_right ..)
+  -- everything at one level
+  have hty' := TShape.HasType.def km ka hty
+  have hlea' := (TShape.LE.def ka ka').1 hlea
+  have htya' := TShape.HasType.def ka' kb htya
+  have hble : Shape.LE Δ (b.2.lift (max (max m'.1 a.1) (max a'.1 b.1))) (Shape.sort false) := by
+    have := (TShape.LE.def kb (Nat.zero_le _)).1 (Interp.le_sort hb)
+    rwa [show Shape.lift (max (max m'.1 a.1) (max a'.1 b.1)) (TShape.sort false).2
+        = Shape.sort false from Shape.lift_sort] at this
+  have wm := (Shape.lift_wf km).2 hm'.wf
+  have wa' := (Shape.lift_wf ka').2 ha'.wf
+  -- the collapse, read back down through the order and the lift
+  refine TShape.le_bot ?_ hle
+  refine Shape.lift_eq_bot (Δ := Δ) km ?_
+  rcases Shape.le_prop_cases hble with hbb | hbb
+  · -- the type's type is `⊥`, so everything below collapses outright
+    rw [hbb] at htya'
+    have ha'bot := Shape.HasType.bot_r htya'
+    rw [ha'bot] at hlea'
+    rw [Shape.le_bot_iff.1 hlea'] at hty'
+    exact Shape.HasType.bot_r hty'
+  · rw [hbb] at htya'
+    exact Shape.HasType.proofIrrel hΔ wa' wm htya'
+      (Shape.HasType.mono_r hΔ wm wa' hty' hlea' htya')
+
+/-- Soundness for a congruence whose two sides both collapse to `⊥` at
+every stage.  `sound_of_bot`, with the collapse allowed to depend on the
+stage — which is what proof irrelevance needs, since the collapse is a
+consequence of typing rather than of the term's shape. -/
+theorem sound_of_bot_at {Γ : List Term} {t t' A : Term}
+    (hty : SoundTy Γ t A)
+    (h : ∀ {Δ Γ₀ : List Term} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
+      ∀ {m}, Interp Δ Γ t σ ρ m → m.2 = Shape.bot)
+    (h' : ∀ {Δ Γ₀ : List Term} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
+      ∀ {m}, Interp Δ Γ t' σ ρ m → m.2 = Shape.bot) :
+    SoundEq Γ t t' ∧ SoundTy Γ t A ∧ SoundDir Γ t ∧ SoundDir Γ t' := by
+  refine ⟨fun _ _ _ _ hΔ W hA _ =>
+      ⟨fun hm => Interp.of_bot (h hΔ W hA hm), fun hm => Interp.of_bot (h' hΔ W hA hm)⟩,
+    hty, ?_, ?_⟩ <;>
+    intro Δ Γ₀ σ ρ hΔ W hA m₁ m₂ hm₁ hm₂
+  · exact ⟨TShape.Compat.of_bot (h hΔ W hA hm₁),
+      Interp.of_bot (TShape.join_eq_bot (h hΔ W hA hm₁) (h hΔ W hA hm₂))⟩
+  · exact ⟨TShape.Compat.of_bot (h' hΔ W hA hm₁),
+      Interp.of_bot (TShape.join_eq_bot (h' hΔ W hA hm₁) (h' hΔ W hA hm₂))⟩
+
 /-! ## Atoms
 
 `sort`, `unit`, `nat` and `zero` are interpreted by the shapes below one
@@ -300,4 +371,8 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   | reflDF => sorry
   | trDF => sorry
   | tr_refl => sorry
-  | proofIrrel => sorry
+  -- both proofs collapse to `⊥`, which is exactly what the rule says
+  | proofIrrel _ _ _ ihp ihh ihh' =>
+    exact sound_of_bot_at (ihh hΓ).2.1
+      (fun hΔ W hA _ hm => Interp.eq_bot_of_prop (ihp hΓ).2.1 (ihh hΓ).2.1 hΔ W hA hm)
+      (fun hΔ W hA _ hm => Interp.eq_bot_of_prop (ihp hΓ).2.1 (ihh' hΓ).2.1 hΔ W hA hm)
