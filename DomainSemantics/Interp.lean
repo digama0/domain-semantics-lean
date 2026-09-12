@@ -387,8 +387,8 @@ will go. -/
 
 /-- The probe exists: a well-typed Π has its own label-only atom among its
 approximants. -/
-theorem Interp.piAtom {Δ Γ σ ρ} {A B : Term} {u v}
-    (hA : Δ ⊢ A.subst σ : .sort u) (hB : A.subst σ :: Δ ⊢ B.subst σ.lift : .sort v) :
+theorem Interp.piAtom (hA : Δ ⊢ A.subst σ : .sort u)
+    (hB : A.subst σ :: Δ ⊢ B.subst σ.lift : .sort v) :
     Interp Δ Γ (.forallE A B) σ ρ (Shape.T (n := 1) (.piAtom (A.subst σ) (B.subst σ.lift))) :=
   .forallE (d := (Shape.bot : Shape 0)) .bot (Shape.WF.piAtom hA hB) nofun nofun
     (.piAtom hA hB) (TShape.LE.T.2 (.refl (.piAtom hA hB)))
@@ -396,8 +396,7 @@ theorem Interp.piAtom {Δ Γ σ ρ} {A B : Term} {u v}
 /-- And the probe reports: if the atom approximates `⟦forallE A B⟧`, its
 label is definitionally the Π's own label.  Π-injectivity is this plus
 soundness, with no adequacy in between. -/
-theorem Interp.le_piAtom {Δ Γ σ ρ} {A B A' B' : Term}
-    (H : Interp Δ Γ (.forallE A B) σ ρ (Shape.T (n := 1) (Shape.piAtom A' B'))) :
+theorem Interp.le_piAtom (H : Interp Δ Γ (.forallE A B) σ ρ (Shape.T (n := 1) (.piAtom A' B'))) :
     PiLabelEq Δ A' B' (A.subst σ) (B.subst σ.lift) := by
   cases H with | forallE _ _ _ _ _ h
   have h' := (TShape.LE.def (Nat.succ_le_succ (Nat.zero_le _)) (Nat.le_refl _)).1 h
@@ -416,8 +415,7 @@ Note the term's own context `Γ` does not move: only the stage does.  That
 is what makes this independent of the substitution lemma for terms, which
 moves `Γ` and leaves the stage's shape alone. -/
 
-theorem Interp.subst {Δ Γ : List Term} {t : Term} {σ ρ m}
-    (H : Interp Δ Γ t σ ρ m) {Θ τ} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
+theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
     Interp Θ Γ t (σ.comp τ) (ρ.subst τ) (m.subst τ) := by
   induction H generalizing Θ τ with
   | bot => simp only [TShape.subst_T, Shape.subst_bot]; exact .bot
@@ -488,8 +486,7 @@ kept as an index because it is where those premises belong if they are
 ever wanted back, and because it documents which context each
 subderivation is about. -/
 
-theorem Subst.lift_l_cons {l : Lift} {σ : Subst} {e : Term} :
-    (Subst.lift_l l σ).cons e = Subst.lift_l l.cons (σ.cons e) := by
+theorem Subst.lift_l_cons : (Subst.lift_l l σ).cons e = Subst.lift_l l.cons (σ.cons e) := by
   funext i; cases i <;> rfl
 
 theorem Interp.weak' {Δ : List Term} {Γ t σ' ρ m l} (H : Interp Δ Γ t (Subst.lift_l l σ') ρ m)
@@ -564,14 +561,11 @@ and relating a substitution in the **term** to one in the stage. -/
 to be read back at the outer stage — master uses it for `eta` and for both
 `Y` lemmas.  Master proves it by `generalize`-ing the renamed term and
 casing on the original at each step. -/
-theorem Interp.unweak {Δ : List Term} {Γ Γ' t σ' ρ ρ' m l}
-    (hρ : ∀ i, ρ i = ρ' (Lift.liftVar l i))
-    (H : Interp Δ Γ' (t.lift' l) σ' ρ' m) :
-    Interp Δ Γ t (Subst.lift_l l σ') ρ m := by
+theorem Interp.unweak (hρ : ∀ i, ρ i = ρ' (Lift.liftVar l i))
+    (H : Interp Δ Γ' (t.lift' l) σ' ρ' m) : Interp Δ Γ t (σ'.lift_l l) ρ m := by
   sorry
 
-theorem Interp.weak_iff {Δ : List Term} {Γ Γ' t σ' ρ ρ' m l}
-    (hρ : ∀ i, ρ i = ρ' (Lift.liftVar l i)) :
+theorem Interp.weak_iff (hρ : ∀ i, ρ i = ρ' (Lift.liftVar l i)) :
     Interp Δ Γ' (t.lift' l) σ' ρ' m ↔ Interp Δ Γ t (Subst.lift_l l σ') ρ m :=
   ⟨Interp.unweak hρ, fun H => H.weak' hρ⟩
 
@@ -585,19 +579,15 @@ The `←` direction needs `Interp.weak'` (the `lam` case gains a valuation
 slot).  The `→` direction needs directedness, to merge the valuations two
 subderivations return, and so cannot be proved before soundness; see §4.5
 of `presheaf-plan.md`. -/
-theorem Interp.substTerm {Δ : List Term} {Γ Γ' : List Term} {θ : Subst} {t : Term}
-    {σ ρ m} (hΔ : ⊢ Δ) :
-    Interp Δ Γ' (t.subst θ) σ ρ m ↔
-      ∃ ρ', Interp Δ Γ t (θ.comp σ) ρ' m ∧ ∀ i, Interp Δ Γ' (θ i) σ ρ (ρ' i) := by
+theorem Interp.subst_iff (hΔ : ⊢ Δ) : Interp Δ Γ' (t.subst θ) σ ρ m ↔
+    ∃ ρ', Interp Δ Γ t (θ.comp σ) ρ' m ∧ ∀ i, Interp Δ Γ' (θ i) σ ρ (ρ' i) := by
   sorry
 
 /-- The single-substitution form, which is what `beta` uses: `b[a]` at
 stage `σ` is `b` at the stage extended by `a[σ]`, under the valuation
 extended by an approximant of `a`.  Master's `LE_Interp.inst`. -/
-theorem Interp.inst {Δ : List Term} {Γ : List Term} {A b a : Term} {σ ρ m} (hΔ : ⊢ Δ) :
-    Interp Δ Γ (b.inst a) σ ρ m ↔
-      ∃ x, Interp Δ (A :: Γ) b ((Subst.one a).comp σ) (ρ.push x) m ∧
-        Interp Δ Γ a σ ρ x := by
+theorem Interp.inst (hΔ : ⊢ Δ) : Interp Δ Γ (b.inst a) σ ρ m ↔
+    ∃ x, Interp Δ (A :: Γ) b ((Subst.one a).comp σ) (ρ.push x) m ∧ Interp Δ Γ a σ ρ x := by
   sorry
 
 /-- The interpretation depends on its stage only up to definitional
@@ -606,7 +596,6 @@ it is what closes the cross-coherence obligation when two λ-shapes are
 joined, and it is the reason directedness has to travel with soundness
 (§4.5): the hypothesis is a *typed* substitution equality, and `Interp`
 alone knows nothing about the typing of its stage. -/
-theorem Interp.stage {Δ Γ : List Term} {t : Term} {σ σ' : Subst} {ρ m}
-    (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ' Γ) (H : Interp Δ Γ t σ ρ m) :
+theorem Interp.stage (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ' Γ) (H : Interp Δ Γ t σ ρ m) :
     Interp Δ Γ t σ' ρ m := by
   sorry

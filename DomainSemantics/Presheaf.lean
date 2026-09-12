@@ -157,6 +157,54 @@ theorem Adm.subst {Δ Θ Γ₀ Γ : List Term} {σ τ : Subst} {ρ : Valuation}
     Adm Θ Γ₀ Γ (σ.comp τ) (ρ.subst τ) := by
   sorry
 
+/-! ## Terms with no rule but `bot`
+
+`star`, and the Σ formers while Σ is deferred, are interpreted by `⊥` and
+nothing else.  Soundness is then automatic for the *congruence* rules
+relating two such terms, and these three facts are all it takes. -/
+
+theorem Interp.of_bot {Δ Γ σ ρ} {t : Term} {m : TShape} (h : m.2 = Shape.bot) :
+    Interp Δ Γ t σ ρ m := by
+  have hm : m = Shape.T (n := m.1) m.2 := rfl
+  rw [h] at hm
+  exact hm ▸ .bot
+
+theorem TShape.HasType.bot_bot {Δ : List Term} {m : TShape} (h : m.2 = Shape.bot) :
+    TShape.HasType Δ m TShape.bot := by
+  show Shape.HasType Δ (Shape.lift (max m.1 0) m.2) (Shape.lift (max m.1 0) TShape.bot.2)
+  rw [h]
+  simp only [Shape.lift_bot]
+  cases max m.1 0 <;> trivial
+
+theorem TShape.join_eq_bot {a b : TShape} (ha : a.2 = Shape.bot) (hb : b.2 = Shape.bot) :
+    (a.join b).2 = Shape.bot := by
+  show (Shape.lift (max a.1 b.1) a.2).join (Shape.lift (max a.1 b.1) b.2) = Shape.bot
+  rw [ha, hb]
+  simp only [Shape.lift_bot]
+  cases max a.1 b.1 <;> rfl
+
+theorem TShape.Compat.of_bot {Δ : List Term} {a b : TShape} (ha : a.2 = Shape.bot) :
+    TShape.Compat Δ a b := by
+  show Shape.Compat Δ (Shape.lift (max a.1 b.1) a.2) (Shape.lift (max a.1 b.1) b.2)
+  rw [ha]
+  simp only [Shape.lift_bot]
+  cases max a.1 b.1 <;> trivial
+
+/-- Soundness for a congruence between two terms that only `⊥` approximates. -/
+theorem sound_of_bot {Γ : List Term} {t t' A : Term}
+    (h : ∀ {Δ Γ' σ ρ m}, Interp Δ Γ' t σ ρ m → m.2 = Shape.bot)
+    (h' : ∀ {Δ Γ' σ ρ m}, Interp Δ Γ' t' σ ρ m → m.2 = Shape.bot) :
+    SoundEq Γ t t' ∧ SoundTy Γ t A ∧ SoundDir Γ t ∧ SoundDir Γ t' := by
+  refine ⟨fun _ _ _ _ _ _ _ _ =>
+      ⟨fun hm => Interp.of_bot (h hm), fun hm => Interp.of_bot (h' hm)⟩,
+    fun _ _ _ _ _ _ _ _ hm => ⟨_, TShape.bot, TShape.LE.refl hm.wf, hm, Interp.of_bot rfl,
+      TShape.HasType.bot_bot (h hm)⟩, ?_, ?_⟩ <;>
+    intro Δ Γ₀ σ ρ _ _ _ m₁ m₂ hm₁ hm₂
+  · exact ⟨TShape.Compat.of_bot (h hm₁),
+      Interp.of_bot (TShape.join_eq_bot (h hm₁) (h hm₂))⟩
+  · exact ⟨TShape.Compat.of_bot (h' hm₁),
+      Interp.of_bot (TShape.join_eq_bot (h' hm₁) (h' hm₂))⟩
+
 /-! ## The target
 
 The one theorem this branch is for.  Master needs `LogRel.lean` and
@@ -167,4 +215,63 @@ labels carry the syntax through the model, so the inversion principles of
 theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
     (hΓ : ⊢ Γ) (H : Γ ⊢ t ≡ t' : A) :
     SoundEq Γ t t' ∧ SoundTy Γ t A ∧ SoundDir Γ t ∧ SoundDir Γ t' := by
-  sorry
+  induction H with
+  -- structural rules: no stage or valuation changes, so these are pure
+  -- bookkeeping on the four conclusions
+  | symm _ ih =>
+    have ⟨he, hty, hd, hd'⟩ := ih hΓ
+    exact ⟨he.symm, SoundTy.of_eq he hty, hd', hd⟩
+  | trans _ _ ih₁ ih₂ =>
+    have ⟨he₁, hty₁, hd₁, _⟩ := ih₁ hΓ
+    have ⟨he₂, _, _, hd₂⟩ := ih₂ hΓ
+    exact ⟨he₁.trans he₂, hty₁, hd₁, hd₂⟩
+  | trans' _ _ ih₁ ih₂ =>
+    have ⟨he₁, hty₁, hd₁, _⟩ := ih₁ hΓ
+    have ⟨he₂, _, _, hd₂⟩ := ih₂ hΓ
+    exact ⟨he₁.trans he₂, hty₁, hd₁, hd₂⟩
+  -- conversion: only the *type*'s interpretation moves, and `SoundEq` of
+  -- the two types is exactly what moves it
+  | defeqDF _ _ ihAB ih =>
+    have ⟨heAB, _, _, _⟩ := ihAB hΓ
+    have ⟨he, hty, hd, hd'⟩ := ih hΓ
+    refine ⟨he, ?_, hd, hd'⟩
+    intro Δ Γ₀ σ ρ hΔ W hA m hm
+    have ⟨m', a, hle, hm', ha, hht⟩ := hty hΔ W hA hm
+    exact ⟨m', a, hle, hm', (heAB hΔ W hA).1 ha, hht⟩
+  -- everything below is one rule of the induction, each an independent
+  -- obligation; see §4.6 of `presheaf-plan.md` for what each needs
+  | bvar => sorry
+  | sort => sorry
+  | unit => sorry
+  | star => exact sound_of_bot (fun H => by cases H; rfl) (fun H => by cases H; rfl)
+  | appDF => sorry
+  | lamDF => sorry
+  | forallEDF => sorry
+  -- Σ is deferred, so its congruence rules are vacuous: both sides are `⊥`
+  | sigmaDF => exact sound_of_bot (fun H => by cases H; rfl) (fun H => by cases H; rfl)
+  | pairDF => exact sound_of_bot (fun H => by cases H; rfl) (fun H => by cases H; rfl)
+  | fstDF => exact sound_of_bot (fun H => by cases H; rfl) (fun H => by cases H; rfl)
+  | sndDF => exact sound_of_bot (fun H => by cases H; rfl) (fun H => by cases H; rfl)
+  | beta => sorry
+  | eta => sorry
+  | unit_eta => sorry
+  -- **not provable while Σ is deferred**: these equate a Σ-eliminator,
+  -- which only `⊥` approximates, with an arbitrary term of arbitrary type,
+  -- which does not collapse.  Unlike `unit_eta`, no typing argument rescues
+  -- them.  Σ has to be interpreted for real; see §4.7
+  | pair_fst => sorry
+  | pair_snd => sorry
+  | fst_snd => sorry
+  | nat => sorry
+  | zero => sorry
+  | succDF => sorry
+  | natCaseDF => sorry
+  | natCase_zero => sorry
+  | natCase_succ => sorry
+  | YDF => sorry
+  | Y_unfold => sorry
+  | idDF => sorry
+  | reflDF => sorry
+  | trDF => sorry
+  | tr_refl => sorry
+  | proofIrrel => sorry

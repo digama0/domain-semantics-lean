@@ -511,6 +511,40 @@ structure of these Props, in `DomainSemantics/Presheaf.lean` next to
 `Sound.lean`; the induction on `IsDefEq` in `PresheafSound.lean`;
 inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
 
+### 4.6 The soundness induction, case by case
+
+`IsDefEq.sound` is now the induction, with all 34 rules enumerated in the
+source and nine discharged.  Each remaining case is an independent
+obligation; the theorem stays a single declaration, so the `sorry` count
+does not blow up while the case analysis stays visible.
+
+**Done.**  `symm`, `trans`, `trans'` are bookkeeping on the four
+conclusions, with `SoundTy.of_eq` carrying typing across the equality.
+`defeqDF` moves only the *type*'s interpretation, and `SoundEq` of the two
+types is exactly what moves it.  `star`, `sigmaDF`, `pairDF`, `fstDF` and
+`sndDF` are vacuous: both sides are approximated by `⊥` and nothing else,
+which `sound_of_bot` turns into all four conclusions at once.
+
+### 4.7 Deferring Σ is not compatible with soundness
+
+Three cases are **not provable as things stand**, and this is a finding
+rather than a gap in effort: `pair_fst`, `pair_snd` and `fst_snd`.
+
+Each equates a Σ-eliminator with an arbitrary term — `fst (pair A B a b) ≡
+a : A`.  With Σ deferred, the left side is approximated by `⊥` and nothing
+else, so `SoundEq` would force the right side to collapse to `⊥` too, and
+`a` is an arbitrary term at an arbitrary type.
+
+`unit_eta` looks like the same shape (`star r ≡ e : unit r`) and is fine,
+because `Adm` types every slot and nothing but `⊥` is typed at `unit`, so
+the right side really does collapse.  There is no such argument for Σ.
+
+So §5's "Σ deferred" has to be undone before soundness closes.  The work
+is bounded and mirrors Π: `Interp` gains `sigma`, `pair`, `fst` and `snd`
+rules, and `Shape.HasType`'s `pair` clause gains the term label its TODO
+already asks for, so the second component can be typed through the graph
+lookup.
+
 ## 5. Language coverage (master `Term.lean` + the flagged equality)
 
 | construct | model | status |
@@ -1068,7 +1102,9 @@ the *stage*, which is how this model substitutes at all — and
 **Soundness** (`Presheaf.lean`).  `Adm.subst` (admissibility along a stage
 substitution), and `IsDefEq.sound`, now with **three** conclusions:
 `SoundEq`, `SoundTy` and `SoundDir` (directedness), the last for both
-sides.  §4.5 says why directedness cannot be separated.
+sides.  §4.5 says why directedness cannot be separated.  The induction is
+written out with all 34 rules enumerated and nine proved (§4.6); three of
+the rest are blocked on Σ (§4.7).
 
 **Inversion** (`Inversion.lean`).  `forallE_inv` is proved.  Left:
 `sort_inv`, `sigma_inv`, `id_inv`, and the fifteen no-confusion lemmas
