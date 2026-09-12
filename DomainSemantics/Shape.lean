@@ -1912,3 +1912,36 @@ theorem WF.join {Δ : List Term} (hΔ : ⊢ Δ) {y z : TShape}
     ((TShape.WF.def h₁).1 hy) ((TShape.WF.def h₂).1 hz)
 
 end TShape
+
+/-! ## Normalising the level
+
+A shape and its lift are equivalent in the order, so any shape may be
+moved to a higher level without changing what it approximates.  This is
+what lets a proof put every shape in sight at one level before touching
+`HasType`, whose transport only goes up (§4.5c of `presheaf-plan.md`). -/
+
+namespace TShape
+
+/-- Move a shape up to level `k`. -/
+def lift (m : TShape) (k : Nat) : TShape := ⟨k, m.2.lift k⟩
+
+@[simp] theorem lift_fst {m : TShape} {k} : (m.lift k).1 = k := rfl
+
+theorem WF.lift {Δ : List Term} {m : TShape} {k} (hk : m.1 ≤ k)
+    (h : TShape.WF Δ m) : TShape.WF Δ (m.lift k) := (Shape.lift_wf hk).2 h
+
+theorem LE.lift_le {Δ : List Term} {m : TShape} {k} (hk : m.1 ≤ k)
+    (h : TShape.WF Δ m) : TShape.LE Δ (m.lift k) m := by
+  refine (TShape.LE.def (Nat.le_refl _) hk).2 ?_
+  show Shape.LE Δ (Shape.lift k (m.2.lift k)) (m.2.lift k)
+  rw [Shape.lift_self]
+  exact Shape.LE.refl ((Shape.lift_wf hk).2 h)
+
+theorem LE.le_lift {Δ : List Term} {m : TShape} {k} (hk : m.1 ≤ k)
+    (h : TShape.WF Δ m) : TShape.LE Δ m (m.lift k) := by
+  refine (TShape.LE.def hk (Nat.le_refl _)).2 ?_
+  show Shape.LE Δ (m.2.lift k) (Shape.lift k (m.2.lift k))
+  rw [Shape.lift_self]
+  exact Shape.LE.refl ((Shape.lift_wf hk).2 h)
+
+end TShape

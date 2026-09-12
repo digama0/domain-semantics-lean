@@ -732,3 +732,12 @@ alone knows nothing about the typing of its stage. -/
 theorem Interp.stage (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ' Γ) (H : Interp Δ Γ t σ ρ m) :
     Interp Δ Γ t σ' ρ m := by
   sorry
+
+/-- The interpretation is closed under moving a shape up a level.  A shape
+and its lift are equivalent in the order and `Interp` is downward closed,
+so this is `Interp.mono` in one line — and it is what lets a proof
+normalise every shape to a common level before applying a typing lemma,
+whose transport only goes up. -/
+theorem Interp.lift {Δ Γ : List Term} {t σ ρ} {m : TShape} (hΔ : ⊢ Δ) {k}
+    (hk : m.1 ≤ k) (H : Interp Δ Γ t σ ρ m) : Interp Δ Γ t σ ρ (m.lift k) :=
+  H.mono hΔ (TShape.WF.lift hk H.wf) (TShape.LE.lift_le hk H.wf)
