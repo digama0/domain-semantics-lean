@@ -1371,8 +1371,64 @@ theorem Shape.HasType.lift_of {Δ : List Term} (hΔ : ⊢ Δ) :
         cases a with
         | sigma A₁ B₁ d f =>
           cases Shape.hasType_succ.1 H with
-          | pair hpi hxle hwx hxd hwc hev hyc => ?_
-          sorry
+          | @pair _ _ _ _ X₀ C _ _ _ _ hpi hxle hwx hxd hwc hev hyc => ?_
+          have hpi' := ihpi hwa.2.2.1 hwa.2.2.2.1 hpi
+          have hwf' := ShapeFun.lift_wf h' hwa.2.2.2.1
+          have hco' := (ShapeFun.lift_compat h' (f := f) (f' := f)).2 hwa.2.2.2.2
+          -- the dominating first component `X₀` need not be a lift, but the
+          -- entries the lookup at it actually uses are a lifted sublist, and
+          -- their join *is* one
+          have ⟨s, ji, jo, hs, hlab, hji, hwji, hjiX, hjo, hwjo, hCjo⟩ :=
+            Evaluates.tighten hΔ hwf' hco' hwx hev
+          simp only [ShapeFun.lift] at hs
+          obtain ⟨s₀, hs₀, rfl⟩ := List.sublist_map hs
+          rw [ShapeFun.map_lift_inp] at hji
+          rw [ShapeFun.map_lift_out] at hjo
+          have hwin : ∀ v ∈ s₀.map Entry.inp, Shape.WF Δ v := by
+            intro v hv
+            obtain ⟨e, he, rfl⟩ := List.mem_map.1 hv
+            exact (hwa.2.2.2.1 e (hs₀.subset he)).2.2.1
+          have hmem : ∀ v ∈ s₀.map Entry.inp,
+              Shape.LE Δ (v.lift k) ji := fun v hv =>
+            hji.le hwji _ (List.mem_map.2 ⟨v, hv, rfl⟩)
+          have ⟨ji₀, hji₀, hwji₀, _⟩ :=
+            Shape.exists_joins_of_pairwise hΔ hwin fun v hv w hw =>
+              (Shape.lift_compat h').1
+                (Shape.Compat.of_common_upper hΔ hwji.coherent (hmem v hv) (hmem w hw))
+          have ⟨hji₁, hji₂⟩ :=
+            Shape.Joins.uniq hwji ((Shape.lift_wf h').2 hwji₀) hji
+              (Shape.Joins.lift hΔ h' hwin hwji₀ hji₀)
+          -- `x ⊔ ji₀` is below `X₀`, so `mono_l` types it, and the lookup
+          -- reaches a code there
+          have hcx : Shape.Compat Δ x ji₀ :=
+            (Shape.lift_compat h').1
+              (Shape.Compat.of_common_upper hΔ hwx.coherent hxle (hji₂.trans hΔ hjiX))
+          have hwx₀ := Shape.WF.join hΔ hcx hwm.2.2.1 hwji₀
+          have hle₀ : Shape.LE Δ ((x.join ji₀).lift k) X₀ := by
+            rw [← Shape.lift_join h']
+            exact Shape.join_le hxle (hji₂.trans hΔ hjiX)
+          have hx₀d : Shape.HasType Δ (x.join ji₀) d :=
+            ih h' hwx₀ hwa.2.2.1 (Shape.HasType.mono_l hΔ hle₀ hxd)
+          have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwm.2.2.1 hwji₀ hcx
+          have ⟨J, hJ, hwJ, hevJ⟩ :=
+            Evaluates.of_sublist hΔ hwa.2.2.2.1 hwa.2.2.2.2 hwx₀.coherent hs₀
+              (fun e he => hlab _ (List.mem_map.2 ⟨e, he, rfl⟩))
+              (fun e he => (hji₀.le hwji₀ _ (List.mem_map.2 ⟨e, he, rfl⟩)).trans hΔ hu₂)
+          have ⟨J', hevJ', hJJ', hJ'ty⟩ :=
+            Evaluates.mono_graph hΔ hwa.2.2.2.2 hwx₀.coherent
+              (fun e he => (hwa.2.2.2.1 e he).2.2.2) hpi'.2 (Shape.HasType.join hΔ)
+              (ShapeFun.LE.refl_aux hwa.2.2.2.1) hevJ
+          have hwJ' := Evaluates.wf hΔ (fun e he => (hwa.2.2.2.1 e he).2.2.2) hevJ'
+          refine .pair hpi' hu₁ hwx₀ hx₀d hwJ' hevJ' (ih h' hwm.2.2.2.1 hwJ' ?_)
+          -- `C ≤ jo ≈ J.lift ≤ J'.lift`, and `J'` is a type, so `mono_r`
+          refine Shape.HasType.mono_r (r := true) hΔ ((Shape.lift_wf h').2 hwm.2.2.2.1)
+            ((Shape.lift_wf h').2 hwJ') hyc ?_ ?_
+          · refine hCjo.trans hΔ (hjo.min ((Shape.lift_wf h').2 hwJ') ?_)
+            intro v hv
+            obtain ⟨w, hw, rfl⟩ := List.mem_map.1 hv
+            exact (Shape.lift_le_lift h').2 ((hJ.le hwJ w hw).trans hΔ hJJ')
+          · have := Shape.HasType.lift_mono (Δ := Δ) h' hJ'ty
+            rwa [Shape.lift_sort] at this
         | _ => cases Shape.hasType_succ.1 H
 
 /-- **Fullness for typing.**  On the shapes that come from the level

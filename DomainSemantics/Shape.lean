@@ -2109,6 +2109,29 @@ theorem Shape.Joins.lift {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) :
         ((Shape.lift_wf h).2 hwx) ((Shape.lift_wf h).2 hwj₀) ((Shape.lift_compat h).2 hc)
     exact hlift.congr hΔ ((Shape.lift_le_lift h).2 h₂) ((Shape.lift_le_lift h).2 h₁)
 
+/-- A pairwise-compatible list has a least upper bound.  Unlike
+`exists_joins` this needs no common bound to start from: the fold keeps
+compatibility going by `join_compat`, which is why the statement carries
+the "compatible with anything all of `L` is compatible with" clause. -/
+theorem Shape.exists_joins_of_pairwise {Δ : List Term} (hΔ : ⊢ Δ) : ∀ {n} {L : List (Shape n)},
+    (∀ v ∈ L, Shape.WF Δ v) → (∀ v ∈ L, ∀ w ∈ L, Shape.Compat Δ v w) →
+    ∃ j, Shape.Joins Δ L j ∧ Shape.WF Δ j ∧
+      ∀ w, (∀ v ∈ L, Shape.Compat Δ v w) → Shape.Compat Δ j w := by
+  intro n L
+  induction L with
+  | nil =>
+    exact fun _ _ => ⟨.bot, .nil, by cases n <;> trivial, fun _ _ => Shape.Compat.bot_left⟩
+  | cons x L ih =>
+    intro hwf hpw
+    have ⟨j, hj, hwj, hjc⟩ :=
+      ih (fun v hv => hwf v (.tail _ hv))
+        (fun v hv w hw => hpw v (.tail _ hv) w (.tail _ hw))
+    have hwx := hwf x (.head _)
+    have hc : Shape.Compat Δ x j :=
+      Shape.Compat.symm hΔ (hjc x fun v hv => hpw v (.tail _ hv) x (.head _))
+    exact ⟨x.join j, hj.cons hΔ hwx hwj hc, Shape.WF.join hΔ hc hwx hwj,
+      fun w hw => Shape.join_compat hΔ (hw x (.head _)) (hjc w fun v hv => hw v (.tail _ hv))⟩
+
 /-- Lifting a graph preserves well-formedness of its entries. -/
 theorem ShapeFun.lift_wf {Δ : List Term} {n k} (h : n ≤ k) {f : ShapeFun n}
     (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) :
