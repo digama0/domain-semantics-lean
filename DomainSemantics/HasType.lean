@@ -116,15 +116,15 @@ def Shape.HasType (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
           ∀ e ∈ f, HasType Δ e.out .type) ∧
         ShapeFun.HasDom Δ (HasType Δ) g d ∧
         ∀ e ∈ g, ∃ c, Evaluates Δ f e.ty e.tm e.inp c ∧ HasType Δ e.out c
-  -- TODO(Σ): the codomain family is a *labelled* graph, so a `pair` shape
-  -- must carry the term label of its first component, exactly as `forallE`
-  -- and `lam` do, before the second component can be typed at
-  -- `Evaluates Δ f (label) x`.  Σ is deferred (§5), so only the first
-  -- component is checked here.
-  | _+1, .pair x _, .sigma _ _ d f =>
+  -- a pair inhabits a Σ-type when that Σ-type is well formed, the first
+  -- component is in the domain, and the second is typed at a code the
+  -- codomain family yields at the pair's own label and first component.
+  -- Exactly the `lam` clause, with one entry instead of a graph
+  | _+1, .pair ty tm x y, .sigma _ _ d f =>
       (HasType Δ d .type ∧ ShapeFun.HasDom Δ (HasType Δ) f d ∧
           ∀ e ∈ f, HasType Δ e.out .type) ∧
-        HasType Δ x d
+        HasType Δ x d ∧
+        ∃ c, Evaluates Δ f ty tm x c ∧ HasType Δ y c
   -- with a label-only Id shape there is nothing semantic left to check
   | _+1, .refl _, .id r _ _ _ => r = true
   | _+1, _, _ => False
@@ -318,9 +318,11 @@ theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
         have ⟨c, hev, hty⟩ := h.2.2 e he
         exact ⟨c.subst τ, Evaluates.subst hΘ W hev, ih hty⟩
       | _ => exact absurd h id
-    | pair x y =>
+    | pair ty tm x y =>
       cases a with
-      | sigma A B d f => exact ⟨hpi h.1, ih h.2⟩
+      | sigma A B d f =>
+        have ⟨c, hev, hcty⟩ := h.2.2
+        exact ⟨hpi h.1, ih h.2.1, c.subst τ, Evaluates.subst hΘ W hev, ih hcty⟩
       | _ => exact absurd h id
 
 /-! ## The lookup is coherent
@@ -478,10 +480,17 @@ theorem Shape.HasType.mono_r_join (hΔ : ⊢ Δ) : ∀ {n},
         cases a with | sort j => ?_ | _ => cases h
         cases a' with | sort j' => ?_ | _ => cases hle
         exact hle ▸ h
-      | pair x y =>
+      | pair ty tm x y =>
         cases a with | sigma A₀ B₀ d g => ?_ | _ => cases h
         cases a' with | sigma A₁ B₁ d' g' => ?_ | _ => cases hle
-        exact ⟨hA.2, ihm hwm.1 hwa.2.2.1 h.2 hle.2.1 hA.2.1⟩
+        have ⟨c, hev, hcty⟩ := h.2.2
+        have ⟨c', hev', hcle, hc'ty⟩ :=
+          Evaluates.mono_graph hΔ hwa.2.2.2.2 (Shape.WF.coherent hwm.2.2.1)
+            (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2)
+            (fun e' he' => hA.2.2.2 e' he') ihj hle.2.2 hev
+        exact ⟨hA.2, ihm hwm.2.2.1 hwa.2.2.1 h.2.1 hle.2.1 hA.2.1,
+          c', hev', ihm hwm.2.2.2.1 (Evaluates.wf hΔ
+            (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2) hev') hcty hcle hc'ty⟩
       | lam g =>
         cases a with | forallE A₀ B₀ d f => ?_ | _ => cases h
         cases a' with | forallE A₁ B₁ d' f' => ?_ | _ => cases hle
@@ -748,9 +757,11 @@ theorem Shape.HasType.lift_mono {Δ : List Term} : ∀ {n k}, n ≤ k → ∀ {m
               show Shape.HasType Δ (v.lift (k+1)) Shape.nat
               exact ih h' (a := Shape.nat) H
         | _ => exact H
-      | pair x y =>
+      | pair ty tm x y =>
         cases a with
-        | sigma A B d f => exact ⟨ihpi H.1, ih h' H.2⟩
+        | sigma A B d f =>
+          have ⟨c, hev, hcty⟩ := H.2.2
+          exact ⟨ihpi H.1, ih h' H.2.1, c.lift k, Evaluates.lift h' hev, ih h' hcty⟩
         | _ => exact H
       | forallE A₀ B₀ d f =>
         cases a with

@@ -159,9 +159,9 @@ theorem Adm.subst {Δ Θ Γ₀ Γ : List Term} {σ τ : Subst} {ρ : Valuation}
 
 /-! ## Terms with no rule but `bot`
 
-`star`, and the Σ formers while Σ is deferred, are interpreted by `⊥` and
-nothing else.  Soundness is then automatic for the *congruence* rules
-relating two such terms, and these three facts are all it takes. -/
+`star` is interpreted by `⊥` and nothing else — that is what makes
+`unit_eta` sound — so soundness is automatic for any congruence relating
+two such terms, and these three facts are all it takes. -/
 
 theorem Interp.of_bot {Δ Γ σ ρ} {t : Term} {m : TShape} (h : m.2 = Shape.bot) :
     Interp Δ Γ t σ ρ m := by
@@ -247,18 +247,16 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   | appDF => sorry
   | lamDF => sorry
   | forallEDF => sorry
-  -- Σ is deferred, so its congruence rules are vacuous: both sides are `⊥`
-  | sigmaDF => exact sound_of_bot (fun H => by cases H; rfl) (fun H => by cases H; rfl)
-  | pairDF => exact sound_of_bot (fun H => by cases H; rfl) (fun H => by cases H; rfl)
-  | fstDF => exact sound_of_bot (fun H => by cases H; rfl) (fun H => by cases H; rfl)
-  | sndDF => exact sound_of_bot (fun H => by cases H; rfl) (fun H => by cases H; rfl)
+  -- Σ now has real rules, mirroring Π, so these are no longer vacuous
+  | sigmaDF => sorry
+  | pairDF => sorry
+  | fstDF => sorry
+  | sndDF => sorry
   | beta => sorry
   | eta => sorry
   | unit_eta => sorry
-  -- **not provable while Σ is deferred**: these equate a Σ-eliminator,
-  -- which only `⊥` approximates, with an arbitrary term of arbitrary type,
-  -- which does not collapse.  Unlike `unit_eta`, no typing argument rescues
-  -- them.  Σ has to be interpreted for real; see §4.7
+  -- unblocked by the Σ rules: `fst` now reads the first component off a
+  -- pair shape, so the two sides really can have the same approximants
   | pair_fst => sorry
   | pair_snd => sorry
   | fst_snd => sorry

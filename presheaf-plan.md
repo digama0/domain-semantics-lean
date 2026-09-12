@@ -542,7 +542,7 @@ the right side really does collapse.  There is no such argument for Σ.
 So §5's "Σ deferred" has to be undone before soundness closes.  The work
 is bounded and mirrors Π.
 
-**Step one is done**: the shape side now treats pairs the way it treats
+**Done.**  The shape side treats pairs the way it treats
 λ-shapes.  A pair both of whose components are information-free is itself
 information-free (`Shape.IsBot`), and `Shape.WF` forbids such a pair, just
 as it forbids a λ-graph with a bottom output.  Without this, `pair ⊥ ⊥`
@@ -560,9 +560,26 @@ version is false for mismatched heads, since `join (lam []) (sort r)` is
 `lam []`, which is information-free, while `sort r` is not — and the left
 one is all `WF.join` needs, applied to each component of a pair.
 
-Still to do: the `Interp` rules for `sigma`, `pair`, `fst` and `snd`, and
-the term label on `Shape.HasType`'s `pair` clause that its TODO already
-asks for, so the second component can be typed through the graph lookup.
+The rest of Σ is in too, mirroring Π at every level.
+
+* `ShapeS.pair` carries the syntactic pair `(A, a)` of its first
+  component, as `forallE` carries `(A, B)`.  That label is compared by
+  `LabelEq` in `LE` and `Compat`, kept from the left argument by `join`,
+  and typed by `WF` — the same treatment `forallE`'s label gets.
+* `Shape.HasType`'s `pair` clause is now the `lam` clause with one entry
+  instead of a graph: the first component is in the domain, and the second
+  is typed at a code the codomain family yields at the pair's own label
+  and first component.  That is what its TODO asked for.
+* `Interp` gains `sigma` (`forallE` verbatim), `pair` (the label being
+  `(A[σ], a[σ])`, which `Term.pair` conveniently carries), and `fst`/`snd`,
+  which read a component off a pair shape exactly as `app` reads an output
+  off a λ-shape.  All four thread through `wf`, `mono`, `mono_val`, `subst`
+  and `weak'`.
+
+The four Σ congruence rules of the soundness induction are no longer
+vacuous, so they go back to being obligations — but `pair_fst`,
+`pair_snd` and `fst_snd` are now *unblocked* rather than impossible, which
+was the point.
 
 ## 5. Language coverage (master `Term.lean` + the flagged equality)
 
@@ -571,7 +588,7 @@ asks for, so the second component can be typed through the graph lookup.
 | `sort`, `forallE`, `lam`, `app`, `proofIrrel` | as his, on our shapes | core of the work |
 | `id r A a b`, `refl r a`, `tr r …` (the `eq` worktree's syntax: one `Bool` flag, `id r A a b : sort r`) | label-only `id r` shape; `refl` shape kept for `r = true`; `tr` inspects the proof only when `r = true` | both equalities at once; syntactic side (Term.lean, substitution lemmas) to be taken from the `eq` worktree's uncommitted diff (`/home/mario/claude-test/domain-semantics-lean-2`, 141 changed lines in `Term.lean`); keeps `not_UIP` for `r = true` |
 | `unit r`, `star r`, `unit_eta` | atom, `star ↦ ⊥`, decodes to `⊥` | cheap |
-| `sigma`, `pair`, `fst`, `snd` | Σ-shape with `(A,B)` label, componentwise retraction | mirrors Π |
+| `sigma`, `pair`, `fst`, `snd` | Σ-shape with `(A,B)` label, componentwise retraction | done: mirrors Π, with the pair shape carrying `(A,a)` |
 | `nat`, `zero`, `succ`, `natCase` | our shapes; `natCase` inductive like `Y` | after Π |
 | `Y A b`, `Y_unfold` | inductive constructor, least fixed point for free | after Π |
 
