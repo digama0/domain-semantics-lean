@@ -599,27 +599,39 @@ Whether `isType` and `mono_r` survive the weakening is the question to
 settle before writing the case; `isType` should, since the λ clause
 carries the Π triple separately.
 
-### 4.5e' `HasDom` was a saturation-era formulation
+### 4.5e' `HasDom`, restated for non-saturated graphs
 
-Master states it as "every entry is *dominated by* one whose input is
-typed at the domain".  That shape is for a saturated graph with a lookup
-that searches for the maximal entry below the argument: the entry the
-search lands on has to be typed, and it is found by a finiteness argument
-on the domination chain.  Nothing here searches — `Evaluates` collects
-matching entries and closes under joins — so the direct form
+Master says "every entry is dominated by an *entry* whose input is typed
+at the domain".  That is a saturation-era formulation: it needs a
+saturated graph and a lookup that searches for the maximal entry below the
+argument, and the entry the search lands on is found by a finiteness
+argument on the domination chain.  Nothing here searches.
 
-    ShapeFun.HasDom Δ T f d := ∀ e ∈ f, T e.inp d
+The other extreme, "every input is typed", is too strong.  The lookup
+closes under joins and lowering, so an interpretation's graph will contain
+entries at inputs that are not themselves typed.  What must hold is that
+nothing is *gained* there: the graph is determined by its behaviour on
+typed inputs.  So the dominating **entry** becomes a dominating **lookup**:
 
-is both simpler and stronger, and it is *exactly* the premise `Interp`'s
-binder rules already carry (§4.5b).  Changing it deleted the label and
-order components from four proof sites and simplified `HasDom.subst_of`
-and the lifting lemma to one line each.
+    ShapeFun.HasDom Δ T f d :=
+      ∀ e ∈ f, ∃ x, Shape.WF Δ x ∧ T x d ∧ Shape.LE Δ x e.inp ∧
+        Evaluates Δ f e.ty e.tm x e.out
 
-This also isolates the obstruction to downward closure correctly.  `HasDom`
-is about the graph being a family *over* the domain — the fixpoint side of
-the split — and it is contravariant in the inputs, so it never transports
-downward.  Keeping it out of the *sort* clauses is what lets those be
-downward closed.
+`Evaluates` in place of "∃ e' ∈ f" is exactly the non-saturated analogue,
+and it is what makes the condition establishable.  The `WF` conjunct is
+the usual elementary-encoding tax: `mono_r` on the witness needs it,
+because the order is reflexive only on well-formed shapes.
+
+One new lemma falls out and is useful on its own: **`Evaluates.mono_sub`**,
+enlarging the graph by more entries preserves a lookup *on the nose*.
+Much weaker than `mono_graph`, which lets the entries be replaced by
+dominating ones and so only returns a larger result — and correspondingly
+much cheaper, four lines, the derivation transferring unchanged.  It is
+what the `join` cases need.
+
+`HasDom` still does not transport downward — it is contravariant in the
+inputs, being the fixpoint side of the split — so keeping it out of the
+*sort* clauses remains what will make those downward closed.
 
 ### 4.5e Weakening the Π clause: tried, and what it costs
 
