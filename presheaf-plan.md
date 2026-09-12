@@ -599,6 +599,40 @@ Whether `isType` and `mono_r` survive the weakening is the question to
 settle before writing the case; `isType` should, since the λ clause
 carries the Π triple separately.
 
+### 4.5f The layers are full substructures
+
+Each level consists of the same shapes as the one below, related the same
+way, plus new ones.  So a relation established at one layer should be both
+*preserved* and *reflected* by the embedding.  For the lookup this is now
+proved:
+
+    Evaluates.lift_iff :
+      Evaluates Δ (f.lift k) A a (x.lift k) (c.lift k) ↔ Evaluates Δ f A a x c
+
+The `lower` rule is what makes it need an argument and also what makes it
+work.  A well-formed shape below a lift need **not** be a lift — the graph
+order is contravariant in the input, so a smaller λ-shape can have inputs
+with genuine higher-level structure — so a lookup over a lifted graph
+really does produce shapes outside the image.  But every one of them is
+*below* one that is in the image (`Evaluates.lift_of`, by induction:
+bottom and entry outputs are in the image outright, `lower` reuses the
+witness, `join` takes the join of the two), and lowering back to a lift
+lands in the image again.
+
+**What this does and does not settle.**  It removes the obstruction I
+attributed to `Evaluates` in §4.5c: level reflection for `HasType` is not
+blocked by the lookup.  It is now blocked by exactly one thing, `HasDom` —
+whose witness is an existential over a shape *of the higher layer*, and a
+level-`k` typed input below `e.inp.lift` need not come from level `n`.
+That is precisely the trade the entry-based formulation was making: a
+dominating *entry* reflects for free, because entries of `f.lift` are
+lifts of entries of `f`; a dominating *lookup* does not.
+
+Which is one more reason to keep `HasDom` out of the `sort` clauses.  Do
+that and `HasType Δ · (.sort r)` gets fullness *and* order-downward
+closure; `HasType Δ (lam g) (forallE …)` keeps `HasDom` and neither, which
+is the right place for both to fail, inhabitation being the fixpoint side.
+
 ### 4.5e' `HasDom`, restated for non-saturated graphs
 
 Master says "every entry is dominated by an *entry* whose input is typed

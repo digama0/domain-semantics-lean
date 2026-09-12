@@ -720,6 +720,65 @@ theorem Evaluates.lift {Δ : List Term} {n k} (h : n ≤ k) {f : ShapeFun n} {A 
     rw [← Shape.lift_join h]
     exact .join ((Shape.lift_compat h).2 hc) ih₁ ih₂
 
+/-! ### The layers are full substructures
+
+Each level consists of the same shapes as the one below, related the same
+way, plus new ones.  So a relation established at one layer is preserved
+*and reflected* by the embedding into a higher one.  For the lookup that
+is `Evaluates.lift_iff` below.
+
+The `lower` rule is what makes this need an argument, and also what makes
+it work.  A well-formed shape below a lift need **not** be a lift — the
+order on graphs is contravariant in the input, so a smaller λ-shape can
+have inputs with genuine higher-level structure — so a lookup over a
+lifted graph really can produce shapes outside the image.  But every such
+shape is *below* one that is in the image, which is exactly what `lower`
+records, and lowering back to a lift lands in the image again. -/
+
+/-- Everything a lifted graph's lookup returns is below the lift of
+something the original lookup returns.  Bottom and entry outputs are in
+the image outright, `lower` reuses the witness, and `join` takes the join
+of the two witnesses. -/
+theorem Evaluates.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) {f : ShapeFun n}
+    {A a : Term} {x : Shape n}
+    (hwf : ∀ e ∈ f, Shape.WF Δ e.out) (hco : ShapeFun.Compat Shape.Compat Δ f f)
+    (hx : Shape.Compat Δ x x) :
+    ∀ {c' : Shape k}, Evaluates Δ (ShapeFun.lift (Shape.lift k) f) A a (x.lift k) c' →
+      ∃ c, Shape.LE Δ c' (c.lift k) ∧ Evaluates Δ f A a x c := by
+  intro c' H
+  induction H with
+  | bot => exact ⟨.bot, Shape.LE.bot, .bot⟩
+  | entry e'' he'' hlab hin =>
+    obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
+    exact ⟨e.out, Shape.LE.refl ((Shape.lift_wf h).2 (hwf e he)),
+      .entry e he hlab ((Shape.lift_le_lift h).1 hin)⟩
+  | lower _ hle _ ih =>
+    have ⟨c, hcle, hc⟩ := ih
+    exact ⟨c, Shape.LE.trans hΔ hle hcle, hc⟩
+  | join _ _ _ ih₁ ih₂ =>
+    have ⟨c₁, h₁, hc₁⟩ := ih₁
+    have ⟨c₂, h₂, hc₂⟩ := ih₂
+    have hcompat := Evaluates.compat hΔ hco hx hc₁ hc₂
+    have ⟨u₁, u₂⟩ := Shape.le_join hΔ
+      ((Shape.lift_wf h).2 (Evaluates.wf hΔ hwf hc₁))
+      ((Shape.lift_wf h).2 (Evaluates.wf hΔ hwf hc₂))
+      ((Shape.lift_compat h).2 hcompat)
+    refine ⟨c₁.join c₂, ?_, .join hcompat hc₁ hc₂⟩
+    rw [← Shape.lift_join h]
+    exact Shape.join_le (Shape.LE.trans hΔ h₁ u₁) (Shape.LE.trans hΔ h₂ u₂)
+
+/-- **Fullness for the lookup.**  On the shapes that come from the level
+below, the lifted graph relates exactly what the original one did. -/
+theorem Evaluates.lift_iff {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) {f : ShapeFun n}
+    {A a : Term} {x c : Shape n}
+    (hwf : ∀ e ∈ f, Shape.WF Δ e.out) (hco : ShapeFun.Compat Shape.Compat Δ f f)
+    (hx : Shape.Compat Δ x x) (hwc : Shape.WF Δ c) :
+    Evaluates Δ (ShapeFun.lift (Shape.lift k) f) A a (x.lift k) (c.lift k) ↔
+      Evaluates Δ f A a x c := by
+  refine ⟨fun H => ?_, Evaluates.lift h⟩
+  have ⟨c₀, hle, hc₀⟩ := Evaluates.lift_of hΔ h hwf hco hx H
+  exact .lower hwc ((Shape.lift_le_lift h).1 hle) hc₀
+
 theorem Shape.HasType.lift_mono {Δ : List Term} : ∀ {n k}, n ≤ k → ∀ {m a : Shape n},
     Shape.HasType Δ m a → Shape.HasType Δ (m.lift k) (a.lift k) := by
   intro n
