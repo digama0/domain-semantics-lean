@@ -300,6 +300,33 @@ theorem sound_atom {Γ : List Term} {t A : Term} {s a : TShape}
           (TShape.Compat.of_common_upper hΔ hws (hle hm₁) (hle hm₂)) hm₁.wf hm₂.wf)
         (TShape.join_le (hle hm₁) (hle hm₂))⟩
 
+/-- The `SoundTy` half of `forallEDF`, in isolation: a Π-type's
+interpretation is typed at its sort.
+
+This is the obligation that was out of reach before `HasType` became a
+lower set.  Both halves of the Π clause come out of the induction
+hypotheses as typings of something *larger* -- `SoundTy` produces an
+`InterpTyped`, whose witness dominates the shape at hand -- and the step
+that brings them back down is `mono_l`. -/
+theorem sound_forallE_ty {Γ : List Term} {A B : Term} {u v : Bool}
+    (ihA : SoundTy Γ A (.sort u))
+    (ihB : SoundTy (A :: Γ) B (.sort v))
+    (hΓA : ∀ {Δ Γ₀ σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ → ⊢ (A :: Γ)) :
+    SoundTy Γ (.forallE A B) (.sort v) := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+  cases hm with
+  | bot =>
+    refine ⟨_, TShape.sort v, TShape.LE.refl TShape.WF.bot, .bot, Interp.sort', ?_⟩
+    show Shape.HasType Δ _ _
+    simp only [TShape.sort, Shape.lift_bot, Shape.lift_sort]
+    exact Shape.HasType.bot_sort
+  | forallE hA hwf hlab hdom hbody hw hle =>
+    refine ⟨_, TShape.sort v, hle,
+      .forallE hA hwf hlab hdom hbody hwf (TShape.LE.refl hwf), Interp.sort', ?_⟩
+    -- the two halves of `HasPi`, each obtained one level up and brought
+    -- back down by `mono_l`
+    sorry
+
 /-! ## The target
 
 The one theorem this branch is for.  Master needs `LogRel.lean` and
