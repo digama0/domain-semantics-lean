@@ -2048,7 +2048,7 @@ theorem Shape.Joins.append {Δ : List Term} (hΔ : ⊢ Δ) {n} {s t : List (Shap
     (fun y hy => match List.mem_append.1 hy with
       | .inl h' => (hs.le hj y h').trans hΔ hu₁
       | .inr h' => (ht.le hk y h').trans hΔ hu₂)
-    (fun w hw hle => Shape.join_le
+    (fun _ hw hle => Shape.join_le
       (hs.min hw fun y hy => hle y (List.mem_append.2 (.inl hy)))
       (ht.min hw fun y hy => hle y (List.mem_append.2 (.inr hy))))
 

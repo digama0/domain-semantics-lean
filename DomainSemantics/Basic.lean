@@ -110,6 +110,31 @@ theorem find_cycle {α} (R : α → α → Prop)
   · exact ⟨_, a1, a2, hl _ hm _ a1 a2⟩
 
 open List in
+/-- All sublists of `l`, enumerated.  `Batteries` has `List.sublists`, but
+no lemma identifying its members, and the cycle argument needs the
+sublists of a graph as a *finite list of states*. -/
+def List.allSublists {α} : List α → List (List α)
+  | [] => [[]]
+  | a :: l => l.allSublists ++ l.allSublists.map (a :: ·)
+
+open List in
+@[simp] theorem List.mem_allSublists {α} {s l : List α} : s ∈ l.allSublists ↔ s <+ l := by
+  induction l generalizing s with
+  | nil =>
+    simp only [allSublists, List.mem_singleton]
+    exact ⟨fun h => h ▸ .slnil, fun h => by cases h; rfl⟩
+  | cons a l ih =>
+    simp only [allSublists, List.mem_append, List.mem_map, ih]
+    constructor
+    · rintro (h | ⟨t, ht, rfl⟩)
+      · exact h.cons a
+      · exact ht.cons₂ a
+    · intro h
+      cases h with
+      | cons _ h => exact .inl h
+      | cons₂ _ h => exact .inr ⟨_, h, rfl⟩
+
+open List in
 /-- Two sublists of a common list have a common sublist upper bound whose
 elements come from one or the other. -/
 theorem List.Sublist.union : ∀ {α} {l s₁ s₂ : List α}, s₁ <+ l → s₂ <+ l →
