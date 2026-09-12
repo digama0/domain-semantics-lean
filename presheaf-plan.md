@@ -511,6 +511,22 @@ structure of these Props, in `DomainSemantics/Presheaf.lean` next to
 `Sound.lean`; the induction on `IsDefEq` in `PresheafSound.lean`;
 inversion in `PresheafInversion.lean`, feeding `Consequences.lean`.
 
+### 4.5b The binder rules carry the domain typing
+
+`Interp`'s `lam`, `forallE` and `sigma` rules now also require every graph
+input to be typed at the domain shape (`∀ e ∈ g, TShape.HasType Δ e.inp.T d`).
+This is master's `HasDom`, in the simpler "every input is typed" form
+rather than "every entry is dominated by a typed one".
+
+It is not decoration.  Every congruence rule with a binder — `lamDF`,
+`forallEDF`, `sigmaDF` — has to run its inductive hypothesis on the *body*,
+whose `SoundEq`/`SoundTy` are quantified over admissible valuations.  The
+body's valuation is `ρ.push e.inp.T`, and `Adm.cons` demands a type for
+the pushed slot: `∃ a, Interp Δ Γ A σ ρ a ∧ TShape.HasType Δ (ρ 0) a`.
+Without the new premise there is nothing to supply it, and the body's
+inductive hypothesis is unusable.  With it, `a := d` and the rule's own
+domain premise finish the job.
+
 ### 4.6 The soundness induction, case by case
 
 `IsDefEq.sound` is now the induction, with all 34 rules enumerated in the
