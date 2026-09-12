@@ -1080,7 +1080,7 @@ theorem Evaluates.tighten {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
     exact ⟨[], .bot, List.nil_sublist f, .nil, by cases n <;> trivial, Shape.LE.bot, .bot⟩
   | entry e he hlab hin =>
     have hwe := (hwf e he).2.2.1
-    exact ⟨[e], e.inp, List.singleton_sublist.2 he, Shape.Joins.singleton hwe, hwe, hin,
+    exact ⟨[e], e.inp, List.singleton_sublist.2 he, Shape.Joins.singleton hΔ hwe, hwe, hin,
       .entry e he hlab (Shape.LE.refl hwe)⟩
   | lower hw hle _ ih =>
     have ⟨s, j, hs, hj, hwj, hjx, hev⟩ := ih

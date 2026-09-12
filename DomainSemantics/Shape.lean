@@ -1969,25 +1969,45 @@ A list of shapes has a join only when its members are pairwise
 compatible, so the cycle argument -- which has to *talk* about the join of
 an arbitrary sublist of a graph before knowing that it exists -- needs the
 join relationally rather than as an operation.  `Joins` is the least upper
-bound spelled out; it is pinned only up to mutual `≤`, which is all this
-order provides (labels are compared up to definitional equality, so `LE`
-is a preorder, not a partial order). -/
+bound spelled out by its universal property; it is pinned only up to
+mutual `≤`, which is all this order provides (labels are compared up to
+definitional equality, so `LE` is a preorder, not a partial order). -/
 
-/-- `j` is a least upper bound of the list `s`. -/
+/-- `j` is a least upper bound of the list `s`, stated by the universal
+property `j ≤ w ↔ ∀ x ∈ s, x ≤ w`.
+
+The quantifier ranges over **well-formed** `w` only: `LE Δ` compares
+labels by definitional equality in `Δ`, which is reflexive only on
+well-typed terms, so `LE Δ j w` for an ill-formed `w` is not a meaningful
+constraint and there is no reason to be below every such `w`.  With that
+restriction the two halves of the property are `Joins.le` (which needs
+`WF Δ j`, since it instantiates at `w := j`) and `Joins.min`. -/
 def Shape.Joins (Δ : List Term) {n} (s : List (Shape n)) (j : Shape n) : Prop :=
-  (∀ x ∈ s, Shape.LE Δ x j) ∧ ∀ w, (∀ x ∈ s, Shape.LE Δ x w) → Shape.LE Δ j w
+  ∀ w, Shape.WF Δ w → (Shape.LE Δ j w ↔ ∀ x ∈ s, Shape.LE Δ x w)
 
-/-- The universal property in the form `j ≤ w ↔ ∀ x ∈ s, x ≤ w`. -/
-theorem Shape.Joins.le_iff {Δ : List Term} {n} {s : List (Shape n)} {j : Shape n}
-    (hΔ : ⊢ Δ) (h : Shape.Joins Δ s j) (w : Shape n) :
-    Shape.LE Δ j w ↔ ∀ x ∈ s, Shape.LE Δ x w :=
-  ⟨fun hw x hx => (h.1 x hx).trans hΔ hw, h.2 w⟩
+/-- Build a `Joins` from the two halves. -/
+theorem Shape.Joins.of {Δ : List Term} (hΔ : ⊢ Δ) {n} {s : List (Shape n)} {j : Shape n}
+    (hup : ∀ x ∈ s, Shape.LE Δ x j)
+    (hmin : ∀ w, Shape.WF Δ w → (∀ x ∈ s, Shape.LE Δ x w) → Shape.LE Δ j w) :
+    Shape.Joins Δ s j :=
+  fun w hw => ⟨fun hjw x hx => (hup x hx).trans hΔ hjw, hmin w hw⟩
+
+/-- `j` is an upper bound. -/
+theorem Shape.Joins.le {Δ : List Term} {n} {s : List (Shape n)} {j : Shape n}
+    (hj : Shape.WF Δ j) (h : Shape.Joins Δ s j) : ∀ x ∈ s, Shape.LE Δ x j :=
+  (h j hj).1 (Shape.LE.refl hj)
+
+/-- `j` is the least one. -/
+theorem Shape.Joins.min {Δ : List Term} {n} {s : List (Shape n)} {j w : Shape n}
+    (h : Shape.Joins Δ s j) (hw : Shape.WF Δ w) (hle : ∀ x ∈ s, Shape.LE Δ x w) :
+    Shape.LE Δ j w := (h w hw).2 hle
 
 /-- A least upper bound is unique up to mutual `≤`. -/
 theorem Shape.Joins.uniq {Δ : List Term} {n} {s : List (Shape n)} {j j' : Shape n}
+    (hj : Shape.WF Δ j) (hj' : Shape.WF Δ j')
     (h : Shape.Joins Δ s j) (h' : Shape.Joins Δ s j') :
     Shape.LE Δ j j' ∧ Shape.LE Δ j' j :=
-  ⟨h.2 _ h'.1, h'.2 _ h.1⟩
+  ⟨h.min hj' (h'.le hj'), h'.min hj (h.le hj)⟩
 
 /-- `Joins` sees only the members of the list, not its order or
 multiplicities.  This is what lets the sublist produced by
@@ -1995,15 +2015,16 @@ multiplicities.  This is what lets the sublist produced by
 theorem Shape.Joins.mem_congr {Δ : List Term} {n} {s t : List (Shape n)} {j : Shape n}
     (hst : ∀ x ∈ t, x ∈ s) (hts : ∀ x ∈ s, x ∈ t) (h : Shape.Joins Δ s j) :
     Shape.Joins Δ t j :=
-  ⟨fun x hx => h.1 x (hst x hx), fun w hw => h.2 w fun x hx => hw x (hts x hx)⟩
+  fun w hw => (h w hw).trans
+    ⟨fun H x hx => H x (hst x hx), fun H x hx => H x (hts x hx)⟩
 
 theorem Shape.Joins.nil {Δ : List Term} {n} : Shape.Joins Δ ([] : List (Shape n)) .bot :=
-  ⟨nofun, fun _ _ => Shape.LE.bot⟩
+  fun _ _ => ⟨fun _ => nofun, fun _ => Shape.LE.bot⟩
 
-theorem Shape.Joins.singleton {Δ : List Term} {n} {x : Shape n} (hx : Shape.WF Δ x) :
-    Shape.Joins Δ [x] x := by
-  refine ⟨fun y hy => ?_, fun _ hw => hw _ (.head _)⟩
-  cases List.mem_singleton.1 hy; exact Shape.LE.refl hx
+theorem Shape.Joins.singleton {Δ : List Term} (hΔ : ⊢ Δ) {n} {x : Shape n}
+    (hx : Shape.WF Δ x) : Shape.Joins Δ [x] x :=
+  .of hΔ (fun y hy => by cases List.mem_singleton.1 hy; exact Shape.LE.refl hx)
+    (fun _ _ hw => hw _ (.head _))
 
 /-- Consing on: the binary `join` computes the least upper bound of the
 extended list, given that it is a least upper bound of the two shapes. -/
@@ -2011,11 +2032,11 @@ theorem Shape.Joins.cons {Δ : List Term} (hΔ : ⊢ Δ) {n} {x j : Shape n} {s 
     (hx : Shape.WF Δ x) (hj : Shape.WF Δ j) (hc : Shape.Compat Δ x j)
     (h : Shape.Joins Δ s j) : Shape.Joins Δ (x :: s) (x.join j) := by
   have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hx hj hc
-  refine ⟨fun y hy => ?_,
-    fun w hw => Shape.join_le (hw x (.head _)) (h.2 w fun y hy => hw y (.tail _ hy))⟩
+  refine .of hΔ (fun y hy => ?_) fun w hw hle =>
+    Shape.join_le (hle x (.head _)) (h.min hw fun y hy => hle y (.tail _ hy))
   match List.mem_cons.1 hy with
   | .inl h' => cases h'; exact hu₁
-  | .inr h' => exact (h.1 y h').trans hΔ hu₂
+  | .inr h' => exact (h.le hj y h').trans hΔ hu₂
 
 /-- Appending: the two joins join. -/
 theorem Shape.Joins.append {Δ : List Term} (hΔ : ⊢ Δ) {n} {s t : List (Shape n)}
@@ -2023,12 +2044,13 @@ theorem Shape.Joins.append {Δ : List Term} (hΔ : ⊢ Δ) {n} {s t : List (Shap
     (hs : Shape.Joins Δ s j) (ht : Shape.Joins Δ t k) :
     Shape.Joins Δ (s ++ t) (j.join k) :=
   have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hj hk hc
-  ⟨fun y hy => match List.mem_append.1 hy with
-     | .inl h' => (hs.1 y h').trans hΔ hu₁
-     | .inr h' => (ht.1 y h').trans hΔ hu₂,
-   fun w hw => Shape.join_le
-     (hs.2 w fun y hy => hw y (List.mem_append.2 (.inl hy)))
-     (ht.2 w fun y hy => hw y (List.mem_append.2 (.inr hy)))⟩
+  .of hΔ
+    (fun y hy => match List.mem_append.1 hy with
+      | .inl h' => (hs.le hj y h').trans hΔ hu₁
+      | .inr h' => (ht.le hk y h').trans hΔ hu₂)
+    (fun w hw hle => Shape.join_le
+      (hs.min hw fun y hy => hle y (List.mem_append.2 (.inl hy)))
+      (ht.min hw fun y hy => hle y (List.mem_append.2 (.inr hy))))
 
 /-- **Existence**: a list of well-formed shapes with a common upper bound
 has a least upper bound, itself below that bound.  Compatibility -- the
