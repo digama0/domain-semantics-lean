@@ -906,52 +906,44 @@ theorem Shape.HasType.proofIrrel (hΔ : ⊢ Δ) : ∀ {n} {a x : Shape n},
   induction n with
   | zero =>
     intro a x _ _ ha h
-    cases a with
+    cases Shape.hasType_zero.1 ha with
     | bot => exact Shape.HasType.bot_r h
-    | sort s => exact Bool.noConfusion (ha : false = true)
   | succ n ih =>
     intro a x hwa hwx ha h
-    cases a with
-    | bot => exact Shape.HasType.bot_r h
-    | sort s => exact Bool.noConfusion (ha : false = true)
-    | nat => exact Bool.noConfusion (ha : false = true)
-    | sigma => exact Bool.noConfusion (ha.1 : false = true)
-    | zero | succ | lam | pair | refl => exact absurd ha id
-    | unit t =>
+    -- the inversion narrows `a` to the four formers that can be a `prop`
+    cases Shape.hasType_succ.1 ha with
+    | bot _ => exact Shape.HasType.bot_r h
+    | unit _ =>
       -- nothing but `⊥` inhabits `unit` at all, so the flag never matters
-      cases x <;> first | rfl | exact absurd h id
-    | id t A₀ a₀ b₀ =>
+      cases Shape.hasType_succ.1 h with | bot _ => rfl
+    | @id r _ A₀ a₀ b₀ hj =>
       -- `HasType (.id t ..) .prop` forces `t = false`, and `refl` needs `t = true`
-      have ht : t = false := by
-        cases t with
-        | false => rfl
-        | true => exact Bool.noConfusion (Bool.eq_true_of_le (r := true) rfl ha)
-      subst ht
-      cases x with
-      | bot => rfl
-      | refl w => exact Bool.noConfusion (h : false = true)
-      | _ => exact absurd h id
-    | forallE A₀ B₀ d f =>
-      cases x with
-      | bot => rfl
-      | lam g =>
+      have hr : r = false := by
+        cases r with | false => rfl | true => exact absurd hj (by decide)
+      subst hr
+      cases Shape.hasType_succ.1 h with | bot _ => rfl
+    | @forallE A₀ B₀ d f _ hpi =>
+      cases Shape.hasType_succ.1 h with
+      | bot _ => rfl
+      | @lam g g₀ _ _ _ _ _ hg hwg hdom hcod =>
         -- a well-formed λ carries real information, so it cannot inhabit a
         -- Π-type whose codomain family is propositional
-        have ⟨hne, hnb, hwg, _⟩ := hwx
+        exfalso
+        have ⟨hne, hnb, hwg', _⟩ := hwx
         have ⟨_, _, _, hwf, hco⟩ := hwa
         cases g with
-        | nil => exact absurd rfl hne
+        | nil => exact hne rfl
         | cons e g' =>
           have he : e ∈ e :: g' := List.mem_cons_self ..
-          have ⟨_, _, hwin, hwout⟩ := hwg e he
-          have ⟨c, hev, hcty⟩ := h.2.2 e he
+          have ⟨e₀, he₀, _, hin₀, hout₀⟩ := hg e he
+          have ⟨c, hwc, hev, hcty⟩ := hcod e₀ he₀
           have ⟨z, hwz, hcz, hzty⟩ :=
-            Evaluates.bounded hΔ hwf hco (Shape.WF.coherent hwin) ha.2.2 hev
-          have hbot : e.out = .bot :=
-            ih hwz hwout hzty (Shape.HasType.mono_r hΔ hwout hwz hcty hcz hzty)
+            Evaluates.bounded hΔ hwf hco (Shape.WF.coherent (hwg e₀ he₀).2.2.1) hpi.2 hev
+          have hbot : e₀.out = .bot :=
+            ih hwz (hwg e₀ he₀).2.2.2 hzty
+              (Shape.HasType.mono_r hΔ (hwg e₀ he₀).2.2.2 hwz hcty hcz hzty)
           have hb : Shape.IsBot (Shape.bot : Shape n) := by cases n <;> trivial
-          exact absurd (hbot ▸ hb) (hnb e he)
-      | _ => exact absurd h id
+          exact hnb e he (Shape.le_bot_iff.1 (hbot ▸ hout₀) ▸ hb)
 
 /-! ## Lifting
 
