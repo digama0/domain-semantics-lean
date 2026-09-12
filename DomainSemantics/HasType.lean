@@ -1055,3 +1055,68 @@ theorem Shape.HasType.join_at {Δ : List Term} (hΔ : ⊢ Δ) : ∀ {n} {y z a :
               (Shape.HasType.mono_r hΔ hwz.2.2.2.1 hwc' hty₂ (hv₂.trans hΔ hcle) hc'ty)⟩
         | _ => exact absurd hy id
       | _ => exact hy
+
+/-! ## Tightening a lookup to a join of the graph's own inputs
+
+Round (a) of the normalisation of `HasDom`'s witness: any query shape can
+be replaced by the least upper bound of the inputs of the entries the
+derivation actually uses, which is a *sublist* of the graph.  The converse
+is `Evaluates.mono_input`, so this is really an iff -- a lookup succeeds at
+`x` exactly when it succeeds at some join of graph inputs below `x`.
+
+What it buys is that the tightened query is built from the graph and
+nothing else: under `lift` the graph's inputs are lifts, so their join is
+a lift.  What it does *not* buy is typing -- `HasDom` types something
+strictly below each input, never the input itself -- which is round (b)'s
+job, and why the two have to be alternated to a fixed point. -/
+open List in
+theorem Evaluates.tighten {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
+    (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) {A a : Term} {x : Shape n}
+    (hwx : Shape.WF Δ x) {c : Shape n} (H : Evaluates Δ f A a x c) :
+    ∃ s j, s <+ f ∧ Shape.Joins Δ (s.map Entry.inp) j ∧ Shape.WF Δ j ∧
+      Shape.LE Δ j x ∧ Evaluates Δ f A a j c := by
+  induction H with
+  | bot =>
+    exact ⟨[], .bot, List.nil_sublist f, .nil, by cases n <;> trivial, Shape.LE.bot, .bot⟩
+  | entry e he hlab hin =>
+    have hwe := (hwf e he).2.2.1
+    exact ⟨[e], e.inp, List.singleton_sublist.2 he, Shape.Joins.singleton hwe, hwe, hin,
+      .entry e he hlab (Shape.LE.refl hwe)⟩
+  | lower hw hle _ ih =>
+    have ⟨s, j, hs, hj, hwj, hjx, hev⟩ := ih
+    exact ⟨s, j, hs, hj, hwj, hjx, .lower hw hle hev⟩
+  | join hc _ _ ih₁ ih₂ =>
+    have ⟨s₁, j₁, hs₁, hj₁, hwj₁, hj₁x, hev₁⟩ := ih₁
+    have ⟨s₂, j₂, hs₂, hj₂, hwj₂, hj₂x, hev₂⟩ := ih₂
+    have ⟨s, hs, hss₁, hss₂, hmem⟩ := hs₁.union hs₂
+    have hcj := Shape.Compat.of_common_upper hΔ hwx.coherent hj₁x hj₂x
+    have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwj₁ hwj₂ hcj
+    refine ⟨s, j₁.join j₂, hs, ?_, Shape.WF.join hΔ hcj hwj₁ hwj₂, Shape.join_le hj₁x hj₂x,
+      .join hc (Evaluates.mono_input hΔ hu₁ hev₁) (Evaluates.mono_input hΔ hu₂ hev₂)⟩
+    -- the union sublist has the same members as the concatenation, and
+    -- `Joins` sees only members
+    refine Shape.Joins.mem_congr ?_ ?_ (Shape.Joins.append hΔ hwj₁ hwj₂ hcj hj₁ hj₂)
+    · intro v hv
+      obtain ⟨e, he, rfl⟩ := List.mem_map.1 hv
+      exact List.mem_append.2 ((hmem e he).imp
+        (fun h => List.mem_map.2 ⟨e, h, rfl⟩) (fun h => List.mem_map.2 ⟨e, h, rfl⟩))
+    · intro v hv
+      cases List.mem_append.1 hv with
+      | inl hv =>
+        obtain ⟨e, he, rfl⟩ := List.mem_map.1 hv
+        exact List.mem_map.2 ⟨e, hss₁.subset he, rfl⟩
+      | inr hv =>
+        obtain ⟨e, he, rfl⟩ := List.mem_map.1 hv
+        exact List.mem_map.2 ⟨e, hss₂.subset he, rfl⟩
+
+open List in
+/-- Tightening as the equivalence it is: a lookup succeeds at `x` exactly
+when it succeeds at a join of graph inputs below `x`.  The easy direction
+is `mono_input`. -/
+theorem Evaluates.tighten_iff {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
+    (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) {A a : Term} {x : Shape n}
+    (hwx : Shape.WF Δ x) {c : Shape n} :
+    Evaluates Δ f A a x c ↔
+      ∃ s j, s <+ f ∧ Shape.Joins Δ (s.map Entry.inp) j ∧ Shape.WF Δ j ∧
+        Shape.LE Δ j x ∧ Evaluates Δ f A a j c :=
+  ⟨Evaluates.tighten hΔ hwf hwx, fun ⟨_, _, _, _, _, hjx, hev⟩ => hev.mono_input hΔ hjx⟩

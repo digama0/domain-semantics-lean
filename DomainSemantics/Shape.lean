@@ -1962,3 +1962,88 @@ theorem Shape.le_prop_cases {Δ : List Term} : ∀ {n} {x : Shape n},
       | exact .inl rfl
       | exact absurd h id
       | exact .inr (by rename_i r; cases (h : r = false); rfl)
+
+/-! ## Least upper bounds of finite lists
+
+A list of shapes has a join only when its members are pairwise
+compatible, so the cycle argument -- which has to *talk* about the join of
+an arbitrary sublist of a graph before knowing that it exists -- needs the
+join relationally rather than as an operation.  `Joins` is the least upper
+bound spelled out; it is pinned only up to mutual `≤`, which is all this
+order provides (labels are compared up to definitional equality, so `LE`
+is a preorder, not a partial order). -/
+
+/-- `j` is a least upper bound of the list `s`. -/
+def Shape.Joins (Δ : List Term) {n} (s : List (Shape n)) (j : Shape n) : Prop :=
+  (∀ x ∈ s, Shape.LE Δ x j) ∧ ∀ w, (∀ x ∈ s, Shape.LE Δ x w) → Shape.LE Δ j w
+
+/-- The universal property in the form `j ≤ w ↔ ∀ x ∈ s, x ≤ w`. -/
+theorem Shape.Joins.le_iff {Δ : List Term} {n} {s : List (Shape n)} {j : Shape n}
+    (hΔ : ⊢ Δ) (h : Shape.Joins Δ s j) (w : Shape n) :
+    Shape.LE Δ j w ↔ ∀ x ∈ s, Shape.LE Δ x w :=
+  ⟨fun hw x hx => (h.1 x hx).trans hΔ hw, h.2 w⟩
+
+/-- A least upper bound is unique up to mutual `≤`. -/
+theorem Shape.Joins.uniq {Δ : List Term} {n} {s : List (Shape n)} {j j' : Shape n}
+    (h : Shape.Joins Δ s j) (h' : Shape.Joins Δ s j') :
+    Shape.LE Δ j j' ∧ Shape.LE Δ j' j :=
+  ⟨h.2 _ h'.1, h'.2 _ h.1⟩
+
+/-- `Joins` sees only the members of the list, not its order or
+multiplicities.  This is what lets the sublist produced by
+`List.Sublist.union` stand in for a concatenation. -/
+theorem Shape.Joins.mem_congr {Δ : List Term} {n} {s t : List (Shape n)} {j : Shape n}
+    (hst : ∀ x ∈ t, x ∈ s) (hts : ∀ x ∈ s, x ∈ t) (h : Shape.Joins Δ s j) :
+    Shape.Joins Δ t j :=
+  ⟨fun x hx => h.1 x (hst x hx), fun w hw => h.2 w fun x hx => hw x (hts x hx)⟩
+
+theorem Shape.Joins.nil {Δ : List Term} {n} : Shape.Joins Δ ([] : List (Shape n)) .bot :=
+  ⟨nofun, fun _ _ => Shape.LE.bot⟩
+
+theorem Shape.Joins.singleton {Δ : List Term} {n} {x : Shape n} (hx : Shape.WF Δ x) :
+    Shape.Joins Δ [x] x := by
+  refine ⟨fun y hy => ?_, fun _ hw => hw _ (.head _)⟩
+  cases List.mem_singleton.1 hy; exact Shape.LE.refl hx
+
+/-- Consing on: the binary `join` computes the least upper bound of the
+extended list, given that it is a least upper bound of the two shapes. -/
+theorem Shape.Joins.cons {Δ : List Term} (hΔ : ⊢ Δ) {n} {x j : Shape n} {s : List (Shape n)}
+    (hx : Shape.WF Δ x) (hj : Shape.WF Δ j) (hc : Shape.Compat Δ x j)
+    (h : Shape.Joins Δ s j) : Shape.Joins Δ (x :: s) (x.join j) := by
+  have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hx hj hc
+  refine ⟨fun y hy => ?_,
+    fun w hw => Shape.join_le (hw x (.head _)) (h.2 w fun y hy => hw y (.tail _ hy))⟩
+  match List.mem_cons.1 hy with
+  | .inl h' => cases h'; exact hu₁
+  | .inr h' => exact (h.1 y h').trans hΔ hu₂
+
+/-- Appending: the two joins join. -/
+theorem Shape.Joins.append {Δ : List Term} (hΔ : ⊢ Δ) {n} {s t : List (Shape n)}
+    {j k : Shape n} (hj : Shape.WF Δ j) (hk : Shape.WF Δ k) (hc : Shape.Compat Δ j k)
+    (hs : Shape.Joins Δ s j) (ht : Shape.Joins Δ t k) :
+    Shape.Joins Δ (s ++ t) (j.join k) :=
+  have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hj hk hc
+  ⟨fun y hy => match List.mem_append.1 hy with
+     | .inl h' => (hs.1 y h').trans hΔ hu₁
+     | .inr h' => (ht.1 y h').trans hΔ hu₂,
+   fun w hw => Shape.join_le
+     (hs.2 w fun y hy => hw y (List.mem_append.2 (.inl hy)))
+     (ht.2 w fun y hy => hw y (List.mem_append.2 (.inr hy)))⟩
+
+/-- **Existence**: a list of well-formed shapes with a common upper bound
+has a least upper bound, itself below that bound.  Compatibility -- the
+only obstruction -- comes for free from the common bound. -/
+theorem Shape.exists_joins {Δ : List Term} (hΔ : ⊢ Δ) {n} {w : Shape n} (hw : Shape.WF Δ w) :
+    ∀ {s : List (Shape n)}, (∀ x ∈ s, Shape.WF Δ x) → (∀ x ∈ s, Shape.LE Δ x w) →
+      ∃ j, Shape.Joins Δ s j ∧ Shape.WF Δ j ∧ Shape.LE Δ j w := by
+  intro s
+  induction s with
+  | nil => exact fun _ _ => ⟨.bot, .nil, by cases n <;> trivial, Shape.LE.bot⟩
+  | cons x s ih =>
+    intro hwf hle
+    have ⟨j, hj, hwj, hjw⟩ :=
+      ih (fun y hy => hwf y (.tail _ hy)) (fun y hy => hle y (.tail _ hy))
+    have hx := hwf x (.head _)
+    have hc := Shape.Compat.of_common_upper hΔ hw.coherent (hle x (.head _)) hjw
+    exact ⟨x.join j, hj.cons hΔ hx hwj hc, Shape.WF.join hΔ hc hx hwj,
+      Shape.join_le (hle x (.head _)) hjw⟩

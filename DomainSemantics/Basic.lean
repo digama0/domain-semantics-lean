@@ -77,3 +77,79 @@ theorem ReflTransGen.trans
   induction H with
   | rfl => exact rfl
   | tail h1 h2 ih => exact ih (head h2 .rfl rfl) fun a1 a2 => head a1 (.tail a2 h2)
+
+/-! ## Two finite-list lemmas for the cycle argument
+
+`find_cycle` is the pigeonhole step: in a finite list where every element
+points somewhere, every element reaches a *self*-pointing one. It is what
+turns a descending chain of approximations into a fixed point, and so what
+replaces a well-founded minimality argument in a setting where the order
+is only a preorder.
+
+`Sublist.union` supplies the join of the lattice of sublists, without
+needing `DecidableEq`: the two sublists are merged by walking the ambient
+list once and keeping an element as soon as either side keeps it. -/
+
+/-- In a finite list on which `R` is total and transitive, every element
+`R`-reaches an element that `R`-relates to itself. -/
+theorem find_cycle {α} (R : α → α → Prop)
+    (trans : ∀ {x y z}, R x y → R y z → R x z) (l : List α)
+    (H : ∀ x ∈ l, ∃ y ∈ l, R x y) : ∀ x ∈ l, ∃ y ∈ l, R x y ∧ R y y := by
+  intro x h
+  suffices ∀ l₁ l₂, l.Perm (l₁ ++ l₂) → (∀ y ∈ l₂, ∀ z ∈ l, R x z → R y z) →
+      ∃ y ∈ l, R x y ∧ R y y from this l [] (by simp) nofun
+  intro l₁; generalize eq : l₁.length = i; revert x l₁
+  refine i.strongRecOn ?_; rintro i ih x₀ h₀ l₁ rfl l₂ he hl
+  have ⟨x', a1, a2⟩ := H x₀ h₀
+  obtain hm | hm := List.mem_append.1 (he.mem_iff.1 a1)
+  · have ⟨l', hp⟩ := List.perm_cons_of_mem hm
+    have he' := he.trans (.append_right _ hp) |>.trans List.perm_middle.symm
+    refine have ⟨_, c1, c2, c3⟩ := ih l'.length ?_ _ a1 _ rfl _ he' ?_; ⟨_, c1, trans a2 c2, c3⟩
+    · rw [hp.length_eq]; apply Nat.lt_succ_self
+    · rintro x' (⟨⟩ | ⟨_, hx⟩) z hz hr <;> [exact hr; exact hl _ hx _ hz (trans a2 hr)]
+  · exact ⟨_, a1, a2, hl _ hm _ a1 a2⟩
+
+open List in
+/-- Two sublists of a common list have a common sublist upper bound whose
+elements come from one or the other. -/
+theorem List.Sublist.union : ∀ {α} {l s₁ s₂ : List α}, s₁ <+ l → s₂ <+ l →
+    ∃ s, s <+ l ∧ s₁ <+ s ∧ s₂ <+ s ∧ ∀ x ∈ s, x ∈ s₁ ∨ x ∈ s₂ := by
+  intro α l
+  induction l with
+  | nil =>
+    intro s₁ s₂ h₁ h₂; cases h₁; cases h₂
+    exact ⟨[], .slnil, .slnil, .slnil, nofun⟩
+  | cons a l ih =>
+    intro s₁ s₂ h₁ h₂
+    have keep : ∀ {t₁ t₂ s : List α}, s <+ l → t₁ <+ s → t₂ <+ s →
+        (∀ x ∈ s, x ∈ t₁ ∨ x ∈ t₂) →
+        ∃ s', s' <+ a :: l ∧ a :: t₁ <+ s' ∧ a :: t₂ <+ s' ∧
+          ∀ x ∈ s', x ∈ a :: t₁ ∨ x ∈ a :: t₂ := by
+      intro t₁ t₂ s hs h₁ h₂ hm
+      exact ⟨a :: s, hs.cons₂ a, h₁.cons₂ a, h₂.cons₂ a, by
+        rintro x (_ | ⟨_, hx⟩)
+        · exact .inl (.head _)
+        · exact (hm x hx).imp (.tail _) (.tail _)⟩
+    cases h₁ with
+    | cons _ h₁ =>
+      cases h₂ with
+      | cons _ h₂ =>
+        have ⟨s, hs, hs₁, hs₂, hm⟩ := ih h₁ h₂
+        exact ⟨s, hs.cons a, hs₁, hs₂, hm⟩
+      | cons₂ _ h₂ =>
+        have ⟨s, hs, hs₁, hs₂, hm⟩ := ih h₁ h₂
+        exact ⟨a :: s, hs.cons₂ a, hs₁.cons a, hs₂.cons₂ a, by
+          rintro x (_ | ⟨_, hx⟩)
+          · exact .inr (.head _)
+          · exact (hm x hx).imp id (.tail _)⟩
+    | cons₂ _ h₁ =>
+      cases h₂ with
+      | cons _ h₂ =>
+        have ⟨s, hs, hs₁, hs₂, hm⟩ := ih h₁ h₂
+        exact ⟨a :: s, hs.cons₂ a, hs₁.cons₂ a, hs₂.cons a, by
+          rintro x (_ | ⟨_, hx⟩)
+          · exact .inl (.head _)
+          · exact (hm x hx).imp (.tail _) id⟩
+      | cons₂ _ h₂ =>
+        have ⟨s, hs, hs₁, hs₂, hm⟩ := ih h₁ h₂
+        exact keep hs hs₁ hs₂ hm
