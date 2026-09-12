@@ -862,7 +862,7 @@ theorem Shape.join_le : ∀ {n} {x y w : Shape n},
 
 
 
-theorem ShapeFun.LE.refl_aux {Δ : List Term} {n} {f : ShapeFun n}
+theorem ShapeFun.LE.refl {Δ : List Term} {n} {f : ShapeFun n}
     (hf : ShapeFun.WF Δ (Shape.WF Δ) f) : ShapeFun.LE Δ (Shape.LE Δ) f f := by
   intro e he
   have ⟨⟨_, hty⟩, htm, hin, hout⟩ := hf e he
@@ -1412,7 +1412,7 @@ theorem Shape.Compat.of_common_upper {n} {Δ : List Term} {a b c : Shape n} (hΔ
 /-- The join of two shapes compatible with `d` is compatible with `d`.
 This is the other repo's `cSup_compatible`, and it is what lets the graph
 lookup be closed under joins without losing coherence. -/
-theorem Shape.join_compat : ∀ {n} {Δ : List Term} {y z d : Shape n}, ⊢ Δ →
+theorem Shape.Compat.join : ∀ {n} {Δ : List Term} {y z d : Shape n}, ⊢ Δ →
     Shape.Compat Δ y d → Shape.Compat Δ z d → Shape.Compat Δ (y.join z) d := by
   intro n
   induction n with
@@ -2130,7 +2130,7 @@ theorem Shape.exists_joins_of_pairwise {Δ : List Term} (hΔ : ⊢ Δ) : ∀ {n}
     have hc : Shape.Compat Δ x j :=
       Shape.Compat.symm hΔ (hjc x fun v hv => hpw v (.tail _ hv) x (.head _))
     exact ⟨x.join j, hj.cons hΔ hwx hwj hc, Shape.WF.join hΔ hc hwx hwj,
-      fun w hw => Shape.join_compat hΔ (hw x (.head _)) (hjc w fun v hv => hw v (.tail _ hv))⟩
+      fun w hw => .join hΔ (hw x (.head _)) (hjc w fun v hv => hw v (.tail _ hv))⟩
 
 /-- Lifting a graph preserves well-formedness of its entries. -/
 theorem ShapeFun.lift_wf {Δ : List Term} {n k} (h : n ≤ k) {f : ShapeFun n}

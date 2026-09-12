@@ -300,6 +300,22 @@ theorem sound_atom {Γ : List Term} {t A : Term} {s a : TShape}
           (TShape.Compat.of_common_upper hΔ hws (hle hm₁) (hle hm₂)) hm₁.wf hm₂.wf)
         (TShape.join_le (hle hm₁) (hle hm₂))⟩
 
+/-- `SoundTy` at a sort, repackaged as the `Adm.cons` field wants it: every
+approximant of `A` is below one that is a *type*, rather than below one
+typed at some interpretation of `A`'s sort.  `mono_r` moves the type up to
+`TShape.sort u` along `Interp.le_sort`, and `cumul` then reaches `.type`. -/
+theorem SoundTy.isType {Γ : List Term} {A : Term} {u : Bool} (h : SoundTy Γ A (.sort u))
+    {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
+    {b : TShape} (hb : Interp Δ Γ A σ ρ b) :
+    ∃ b', TShape.LE Δ b b' ∧ Interp Δ Γ A σ ρ b' ∧ TShape.HasType Δ b' TShape.type := by
+  have ⟨b', a, hle, hb', ha, hty⟩ := h hΔ W hAdm hb
+  refine ⟨b', hle, hb', TShape.HasType.cumul (r := u) ?_ (show u ≤ true by cases u <;> decide)⟩
+  exact TShape.HasType.mono_r hΔ hb'.wf ha.wf trivial hty (Interp.le_sort ha)
+    (by
+      show Shape.HasType Δ _ _
+      simp only [TShape.sort, Shape.lift_sort]
+      exact Shape.HasType.sort)
+
 /-- The `SoundTy` half of `forallEDF`, in isolation: a Π-type's
 interpretation is typed at its sort.
 
