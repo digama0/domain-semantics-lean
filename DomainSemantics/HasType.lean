@@ -122,6 +122,26 @@ def ShapeFun.HasPi (Δ : List Term) (T : Shape n → Shape n → Prop)
   ∃ d₀ f₀, Shape.LE Δ d d₀ ∧ ShapeFun.LE Δ (Shape.LE Δ) f f₀ ∧
     T d₀ .type ∧ ShapeFun.HasDom Δ T f₀ d₀ ∧ ∀ e ∈ f₀, T e.out a
 
+/-- "is a numeral".  The one condition that cannot be phrased as
+`HasType · .nat` uniformly, because `Shape 0` has no `nat`; it is
+independent of typing, so it gets its own recursion rather than an
+inline match in `HasType`.  `HasType v .nat ↔ IsNumeral v` at positive
+level (`Shape.hasType_nat_iff`). -/
+def Shape.IsNumeral : ∀ {n}, Shape n → Prop
+  | 0, w => w = .bot
+  | _ + 1, .bot => True
+  | _ + 1, .zero => True
+  | _ + 1, .succ w => IsNumeral w
+  | _ + 1, _ => False
+
+/-- Weaken the codomain condition of a Π/Σ signature. -/
+theorem ShapeFun.HasPi.cod {Δ : List Term} {n} {T : Shape n → Shape n → Prop}
+    {d : Shape n} {f : ShapeFun n} {a a' : Shape n}
+    (H : ∀ {z}, T z a → T z a') (h : ShapeFun.HasPi Δ T d f a) :
+    ShapeFun.HasPi Δ T d f a' :=
+  have ⟨d₀, f₀, h1, h2, h3, h4, h5⟩ := h
+  ⟨d₀, f₀, h1, h2, h3, h4, fun e he => H (h5 e he)⟩
+
 /-- One level of the typing relation, as an inductive family in the typing
 relation `T` of the level below — the same shape as `ShapeFun.HasDom` and
 `ShapeFun.HasPi`, which it uses.  `N` is "is a numeral", which cannot be
@@ -138,23 +158,17 @@ about a *dominating* graph resp. first component rather than about the
 value's own, exactly as `HasPi` is — and it is what makes typing reflect
 along `lift`.
 
-Following master, `⊥` is given a constructor **per type former** rather
-than one blanket constructor, and `lam`/`pair` carry the well-formedness
-of the Π/Σ type they inhabit.  Both are needed for `isType`
-(`HasType m a → HasType a .type`), without which `mono_r` cannot be
-stated, let alone proved: a blanket `HasType ⊥ a` would make `⊥` an
-inhabitant of shapes that are not types at all. -/
+`lam` and `pair` carry the well-formedness of the Π/Σ type they inhabit,
+which together with the `bot` constructor is what makes `isType`
+(`HasType m a → HasType a .type`) go through; without it `mono_r` cannot
+be stated, let alone proved. -/
 inductive Shape.HasTypeS (Δ : List Term) {n} (T : Shape n → Shape n → Prop)
     (N : Shape n → Prop) : Shape (n + 1) → Shape (n + 1) → Prop where
-  | bot_bot : HasTypeS Δ T N .bot .bot
-  | bot_sort {r} : HasTypeS Δ T N .bot (.sort r)
-  | bot_unit {r} : HasTypeS Δ T N .bot (.unit r)
-  | bot_nat : HasTypeS Δ T N .bot .nat
-  | bot_id {r A a b} : HasTypeS Δ T N .bot (.id r A a b)
-  | bot_forallE {A B d f} :
-      ShapeFun.HasPi Δ T d f .type → HasTypeS Δ T N .bot (.forallE A B d f)
-  | bot_sigma {A B d f} :
-      ShapeFun.HasPi Δ T d f .type → HasTypeS Δ T N .bot (.sigma A B d f)
+  -- `⊥` inhabits exactly the types.  Being *inductive* is what lets this be
+  -- one constructor with a premise at the same level; as a match it had to
+  -- be spelled out per type former, because `HasType a .type` is not
+  -- structurally smaller than `HasType .bot a`
+  | bot {a} : HasTypeS Δ T N a .type → HasTypeS Δ T N .bot a
   | sort {r} : HasTypeS Δ T N (.sort r) (.sort true)
   | unit {r j} : r ≤ j → HasTypeS Δ T N (.unit r) (.sort j)
   | nat : HasTypeS Δ T N .nat (.sort true)
@@ -162,21 +176,21 @@ inductive Shape.HasTypeS (Δ : List Term) {n} (T : Shape n → Shape n → Prop)
   | succ {v} : N v → HasTypeS Δ T N (.succ v) .nat
   | id {r j A a b} : r ≤ j → HasTypeS Δ T N (.id r A a b) (.sort j)
   | forallE {A B d f r} :
-      ShapeFun.HasPi Δ T d f (.sort r) → HasTypeS Δ T N (.forallE A B d f) (.sort r)
+    ShapeFun.HasPi Δ T d f (.sort r) → HasTypeS Δ T N (.forallE A B d f) (.sort r)
   | sigma {A B d f} :
-      ShapeFun.HasPi Δ T d f .type → HasTypeS Δ T N (.sigma A B d f) (.sort true)
+    ShapeFun.HasPi Δ T d f .type → HasTypeS Δ T N (.sigma A B d f) (.sort true)
   -- the graph condition is on a graph *dominating* the λ's own
   | lam {g g₀ A B d f} :
-      ShapeFun.HasPi Δ T d f .type → ShapeFun.LE Δ (Shape.LE Δ) g g₀ →
-      ShapeFun.HasDom Δ T g₀ d →
-      (∀ e ∈ g₀, ∃ c, Evaluates Δ f e.ty e.tm e.inp c ∧ T e.out c) →
-      HasTypeS Δ T N (.lam g) (.forallE A B d f)
+    ShapeFun.HasPi Δ T d f .type → ShapeFun.LE Δ (Shape.LE Δ) g g₀ →
+    ShapeFun.HasDom Δ T g₀ d →
+    (∀ e ∈ g₀, ∃ c, Evaluates Δ f e.ty e.tm e.inp c ∧ T e.out c) →
+    HasTypeS Δ T N (.lam g) (.forallE A B d f)
   -- and here on a first component dominating the pair's own, because the
   -- code is read off at it and the lookup is monotone in its input
   | pair {ty tm x y x₀ c A B d f} :
-      ShapeFun.HasPi Δ T d f .type → Shape.LE Δ x x₀ → T x₀ d →
-      Evaluates Δ f ty tm x₀ c → T y c →
-      HasTypeS Δ T N (.pair ty tm x y) (.sigma A B d f)
+    ShapeFun.HasPi Δ T d f .type → Shape.LE Δ x x₀ → T x₀ d →
+    Evaluates Δ f ty tm x₀ c → T y c →
+    HasTypeS Δ T N (.pair ty tm x y) (.sigma A B d f)
   | refl {w A a b} : HasTypeS Δ T N (.refl w) (.id true A a b)
 
 /-- `m` is a well-typed inhabitant of the type-shape `a`, by iterating
@@ -188,11 +202,12 @@ def Shape.HasType (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
       | .bot, .sort _ => True
       | .sort _, .bot => False
       | .sort _, .sort j => j = true
-  | n + 1 =>
-      Shape.HasTypeS Δ (HasType Δ) fun v =>
-        match n, v with
-        | 0, w => w = .bot
-        | _ + 1, w => HasType Δ w .nat
+  | _ + 1 => Shape.HasTypeS Δ (HasType Δ) Shape.IsNumeral
+
+/-- The recursion equation at positive level, for `cases` and `rw`, which
+do not unfold definitions. -/
+theorem Shape.hasType_succ {Δ : List Term} {n} {m a : Shape (n + 1)} :
+    Shape.HasType Δ m a ↔ Shape.HasTypeS Δ (Shape.HasType Δ) Shape.IsNumeral m a := Iff.rfl
 
 /-! ## Codes and cumulativity
 
@@ -229,71 +244,40 @@ theorem Shape.HasType.cumul : ∀ {n} {a : Shape n} {r s : Bool},
     | sort => exact Bool.eq_true_of_le h hrs
   | succ n ih =>
     intro a r s h hrs
-    cases a with
-    | bot => trivial
-    | sort _ => exact Bool.eq_true_of_le h hrs
-    | nat => exact Bool.eq_true_of_le h hrs
-    | unit t => exact Bool.le_tr h hrs
-    | id t A a' b' => exact Bool.le_tr h hrs
-    | forallE A B d f => exact ⟨h.1, h.2.1, fun e he => ih (h.2.2 e he) hrs⟩
-    | sigma A B d f => exact ⟨Bool.eq_true_of_le h.1 hrs, h.2⟩
-    | _ => exact absurd h id
+    cases Shape.hasType_succ.1 h with
+    | bot _ => exact .bot .sort
+    | sort => cases Bool.eq_true_of_le rfl hrs; exact .sort
+    | nat => cases Bool.eq_true_of_le rfl hrs; exact .nat
+    | sigma hpi => cases Bool.eq_true_of_le rfl hrs; exact .sigma hpi
+    | unit hle => exact .unit (Bool.le_tr hle hrs)
+    | id hle => exact .id (Bool.le_tr hle hrs)
+    | forallE hpi => exact .forallE (hpi.cod (ih · hrs))
 
-/-- `⊥` inhabits every type (master's form: the hypothesis is what the
-blanket version silently assumed). -/
+/-- `⊥` inhabits every type; at positive level this is the constructor. -/
 theorem Shape.HasType.bot : ∀ {n} {a : Shape n},
     Shape.HasType Δ a .type → Shape.HasType Δ .bot a := by
   intro n
   cases n with
   | zero => intro a _; cases a <;> trivial
-  | succ n =>
-    intro a h
-    cases a with
-    | bot | sort | unit | nat | id => trivial
-    | forallE A B d f => exact h
-    | sigma A B d f => exact h.2
-    | _ => exact absurd h id
+  | succ n => intro _ h; exact Shape.HasTypeS.bot h
 
-/-- Anything typed has a type that is itself a type.  This is the lemma the
-per-former `⊥` clauses and the Π-well-formedness conjuncts exist for. -/
+/-- Anything typed has a type that is itself a type.  Now one line per
+constructor: the inversion the inductive gives us does the case analysis
+that used to be done by hand on both arguments. -/
 theorem Shape.HasType.isType : ∀ {n} {m a : Shape n},
     Shape.HasType Δ m a → Shape.HasType Δ a .type := by
   intro n
-  induction n with
+  cases n with
   | zero => intro m a h; cases m <;> cases a <;> simp_all [Shape.HasType]
-  | succ n ih =>
+  | succ n =>
     intro m a h
-    cases m with
-    | bot =>
-      cases a with
-      | bot | sort | nat => trivial
-      | unit r => exact Bool.le_true' r
-      | id r _ _ _ => exact Bool.le_true' r
-      | forallE A B d f => exact h
-      | sigma A B d f => exact ⟨rfl, h⟩
-      | _ => exact absurd h id
-    | sort s => cases a <;> first | exact absurd h id | trivial
-    | unit s => cases a <;> first | exact absurd h id | trivial
-    | nat => cases a <;> first | exact absurd h id | trivial
-    | zero => cases a <;> first | exact absurd h id | trivial
-    | succ v => cases a <;> first | exact absurd h id | trivial
-    | id s A a' b' => cases a <;> first | exact absurd h id | trivial
-    | refl w =>
-      cases a with
-      | id r _ _ _ => exact Bool.le_true' r
-      | _ => exact absurd h id
-    | forallE A B d f => cases a <;> first | exact absurd h id | trivial
-    | sigma A B d f => cases a <;> first | exact absurd h id | trivial
-    | lam g =>
-      cases a with
-      | forallE A B d f => exact h.1
-      | _ => exact absurd h id
-    | pair x y =>
-      cases a with
-      | sigma A B d f => exact ⟨rfl, h.1⟩
-      | _ => exact absurd h id
-
-/-! ## Substitution -/
+    cases Shape.hasType_succ.1 h with
+    | bot h => exact h
+    | sort | unit | id | nat | forallE | sigma => exact .sort
+    | zero | succ => exact .nat
+    | lam hpi => exact .forallE hpi
+    | pair hpi => exact .sigma hpi
+    | refl => exact .id (Bool.le_true' true)
 
 theorem Evaluates.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
     {n} {f : ShapeFun n} {A a : Term} {x c : Shape n} :
