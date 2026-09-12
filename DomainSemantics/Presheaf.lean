@@ -174,7 +174,7 @@ theorem TShape.HasType.bot_bot {Δ : List Term} {m : TShape} (h : m.2 = Shape.bo
   show Shape.HasType Δ (Shape.lift (max m.1 0) m.2) (Shape.lift (max m.1 0) TShape.bot.2)
   rw [h]
   simp only [Shape.lift_bot]
-  cases max m.1 0 <;> trivial
+  exact Shape.HasType.bot (Shape.HasType.bot Shape.HasType.sort)
 
 theorem TShape.join_eq_bot {a b : TShape} (ha : a.2 = Shape.bot) (hb : b.2 = Shape.bot) :
     (a.join b).2 = Shape.bot := by
@@ -337,10 +337,13 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   -- obligation; see §4.6 of `presheaf-plan.md` for what each needs
   | bvar => sorry
   | sort =>
-    exact sound_atom Interp.le_sort (fun hw h => .sort hw h) Interp.sort' trivial rfl
+    exact sound_atom Interp.le_sort (fun hw h => .sort hw h) Interp.sort' trivial
+      (fun {_} => by simpa [TShape.HasType, TShape.sort] using Shape.HasType.sort)
   | @unit _ r =>
     exact sound_atom Interp.le_unit (fun hw h => .unit hw h) Interp.sort' trivial
-      (fun {_} => show (r : Bool) ≤ r by cases r <;> decide)
+      (fun {_} => by
+        simpa [TShape.HasType] using
+          Shape.HasTypeS.unit (show (r : Bool) ≤ r by cases r <;> decide))
   | star => exact sound_of_bot (fun H => by cases H; rfl) (fun H => by cases H; rfl)
   | appDF => sorry
   | lamDF => sorry
@@ -358,9 +361,12 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   | pair_fst => sorry
   | pair_snd => sorry
   | fst_snd => sorry
-  | nat => exact sound_atom Interp.le_nat (fun hw h => .nat hw h) Interp.sort' trivial rfl
+  | nat =>
+    exact sound_atom Interp.le_nat (fun hw h => .nat hw h) Interp.sort' trivial
+      (fun {_} => by simpa [TShape.HasType] using Shape.HasTypeS.nat)
   | zero =>
-    exact sound_atom Interp.le_zero (fun hw h => .zero hw h) Interp.nat' trivial trivial
+    exact sound_atom Interp.le_zero (fun hw h => .zero hw h) Interp.nat' trivial
+      (fun {_} => by simpa [TShape.HasType] using Shape.HasTypeS.zero)
   | succDF => sorry
   | natCaseDF => sorry
   | natCase_zero => sorry
