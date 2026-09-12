@@ -1277,159 +1277,137 @@ theorem Shape.HasType.lift_of {Δ : List Term} (hΔ : ⊢ Δ) :
         | sort j => cases Shape.hasType_succ.1 H with | sort => exact Shape.HasType0.sort
   | succ n ih =>
     intro k h m a hwm hwa
-    cases k with
-    | zero => exact absurd h (Nat.not_succ_le_zero _)
-    | succ k =>
-      have h' := Nat.le_of_succ_le_succ h
-      have ihpi : ∀ {d : Shape n} {f : ShapeFun n} {r : Bool},
-          Shape.WF Δ d → ShapeFun.WF Δ (Shape.WF Δ) f →
-          ShapeFun.HasPi Δ (Shape.HasType Δ) (d.lift k)
-            (ShapeFun.lift (Shape.lift k) f) (.sort r) →
-          ShapeFun.HasPi Δ (Shape.HasType Δ) d f (.sort r) := by
-        intro d f r hwd hwf hpi
-        refine ⟨Shape.HasType.lift_of_type h' hpi.1, fun e he => ?_⟩
-        exact ih h' (hwf e he).2.2.2 (by cases n <;> trivial)
-          (by rw [Shape.lift_sort]; exact hpi.2 _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩))
-      have ihcode : ∀ {f : ShapeFun n} {A a : Term} {xin yout : Shape n},
-          ShapeFun.WF Δ (Shape.WF Δ) f → ShapeFun.Compat Shape.Compat Δ f f →
-          (∀ e ∈ f, Shape.HasType Δ e.out .type) →
-          Shape.WF Δ xin → Shape.WF Δ yout →
-          (∃ c', Shape.WF Δ c' ∧
-            Evaluates Δ (ShapeFun.lift (Shape.lift k) f) A a (xin.lift k) c' ∧
-            Shape.HasType Δ (yout.lift k) c') →
-          ∃ c, Shape.WF Δ c ∧ Evaluates Δ f A a xin c ∧ Shape.HasType Δ yout c := by
-        intro f A a xin yout hwf hco hty hwx hwy H
-        have ⟨c', _, hev', hty'⟩ := H
-        have houts : ∀ e ∈ f, Shape.WF Δ e.out := fun e he => (hwf e he).2.2.2
-        have ⟨c₀, hle, hev₀⟩ := Evaluates.lift_of hΔ h' hwf hco hwx hev'
-        have ⟨c₁, hev₁, hc₀c₁, hc₁ty⟩ :=
-          Evaluates.mono_graph hΔ hco hwx.coherent houts hty (Shape.HasType.join hΔ)
-            (ShapeFun.LE.refl_aux hwf) hev₀
-        have hwc₁ := Evaluates.wf hΔ houts hev₁
-        refine ⟨c₁, hwc₁, hev₁, ih h' hwy hwc₁ (Shape.HasType.mono_r (r := true) hΔ
-          ((Shape.lift_wf h').2 hwy) ((Shape.lift_wf h').2 hwc₁) hty'
-          (hle.trans hΔ ((Shape.lift_le_lift h').2 hc₀c₁)) ?_)⟩
-        have := Shape.HasType.lift_mono (Δ := Δ) h' hc₁ty
+    let k+1 := k; have h' := Nat.le_of_succ_le_succ h
+    have ihpi {d : Shape n} {f : ShapeFun n} {r : Bool}
+        (hwd : Shape.WF Δ d) (hwf : ShapeFun.WF Δ (Shape.WF Δ) f)
+        (hpi : ShapeFun.HasPi Δ (Shape.HasType Δ) (d.lift k)
+          (ShapeFun.lift (Shape.lift k) f) (.sort r)) :
+        ShapeFun.HasPi Δ (Shape.HasType Δ) d f (.sort r) := by
+      refine ⟨Shape.HasType.lift_of_type h' hpi.1, fun e he => ?_⟩
+      exact ih h' (hwf e he).2.2.2 (by cases n <;> trivial)
+        (by rw [Shape.lift_sort]; exact hpi.2 _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩))
+    have ihcode : ∀ {f : ShapeFun n} {A a : Term} {xin yout : Shape n},
+        ShapeFun.WF Δ (Shape.WF Δ) f → ShapeFun.Compat Shape.Compat Δ f f →
+        (∀ e ∈ f, Shape.HasType Δ e.out .type) →
+        Shape.WF Δ xin → Shape.WF Δ yout →
+        (∃ c', Shape.WF Δ c' ∧
+          Evaluates Δ (ShapeFun.lift (Shape.lift k) f) A a (xin.lift k) c' ∧
+          Shape.HasType Δ (yout.lift k) c') →
+        ∃ c, Shape.WF Δ c ∧ Evaluates Δ f A a xin c ∧ Shape.HasType Δ yout c := by
+      intro f A a xin yout hwf hco hty hwx hwy H
+      have ⟨c', _, hev', hty'⟩ := H
+      have houts : ∀ e ∈ f, Shape.WF Δ e.out := fun e he => (hwf e he).2.2.2
+      have ⟨c₀, hle, hev₀⟩ := Evaluates.lift_of hΔ h' hwf hco hwx hev'
+      have ⟨c₁, hev₁, hc₀c₁, hc₁ty⟩ :=
+        Evaluates.mono_graph hΔ hco hwx.coherent houts hty (Shape.HasType.join hΔ)
+          (ShapeFun.LE.refl_aux hwf) hev₀
+      have hwc₁ := Evaluates.wf hΔ houts hev₁
+      refine ⟨c₁, hwc₁, hev₁, ih h' hwy hwc₁ (Shape.HasType.mono_r (r := true) hΔ
+        ((Shape.lift_wf h').2 hwy) ((Shape.lift_wf h').2 hwc₁) hty'
+        (hle.trans hΔ ((Shape.lift_le_lift h').2 hc₀c₁)) ?_)⟩
+      have := Shape.HasType.lift_mono (Δ := Δ) h' hc₁ty
+      rwa [Shape.lift_sort] at this
+    intro H
+    cases m with
+    | bot =>
+      cases Shape.hasType_succ.1 H with | bot hb
+      exact .bot (Shape.HasType.lift_of_type h hb)
+    | sort s =>
+      cases a with | sort j => ?_ | _ => cases Shape.hasType_succ.1 H
+      cases Shape.hasType_succ.1 H with | sort => exact .sort
+    | unit r =>
+      cases a with | sort j => ?_ | _ => cases Shape.hasType_succ.1 H
+      cases Shape.hasType_succ.1 H with | unit hj => exact .unit hj
+    | nat =>
+      cases a with | sort j => ?_ | _ => cases Shape.hasType_succ.1 H
+      cases Shape.hasType_succ.1 H with | nat => exact .nat
+    | zero =>
+      cases a with | nat => exact .zero | _ => cases Shape.hasType_succ.1 H
+    | id r A₀ a₀ b₀ =>
+      cases a with | sort j => ?_ | _ => cases Shape.hasType_succ.1 H
+      cases Shape.hasType_succ.1 H with | id hj => exact .id hj
+    | refl w =>
+      cases a with | id r A₁ a₁ b₁ => ?_ | _ => cases Shape.hasType_succ.1 H
+      cases Shape.hasType_succ.1 H with | refl => exact .refl
+    | succ v =>
+      cases a with | nat => ?_ | _ => cases Shape.hasType_succ.1 H
+      cases Shape.hasType_succ.1 H with | succ hN
+      exact .succ (Shape.IsNumeral.lift_of h' hN)
+    | forallE A B d f =>
+      cases a with | sort r => ?_ | _ => cases Shape.hasType_succ.1 H
+      cases Shape.hasType_succ.1 H with | forallE hpi
+      exact .forallE (ihpi hwm.2.2.1 hwm.2.2.2.1 hpi)
+    | sigma A B d f =>
+      cases a with | sort r => ?_ | _ => cases Shape.hasType_succ.1 H
+      cases Shape.hasType_succ.1 H with | sigma hpi
+      exact .sigma (ihpi hwm.2.2.1 hwm.2.2.2.1 hpi)
+    | lam g =>
+      cases a with | forallE A₁ B₁ d f => ?_ | _ => cases Shape.hasType_succ.1 H
+      cases Shape.hasType_succ.1 H with | lam hpi hcod
+      have hpi' := ihpi hwa.2.2.1 hwa.2.2.2.1 hpi
+      refine .lam hpi' fun e he => ?_
+      exact ihcode hwa.2.2.2.1 hwa.2.2.2.2 hpi'.2 (hwm.2.2.1 e he).2.2.1
+        (hwm.2.2.1 e he).2.2.2 (hcod _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩))
+    | pair ty tm x y =>
+      cases a with | sigma A₁ B₁ d f => ?_ | _ => cases Shape.hasType_succ.1 H
+      cases Shape.hasType_succ.1 H with | @pair _ _ _ _ X₀ C _ _ _ _ hpi hxle hwx hxd hwc hev hyc
+      have hpi' := ihpi hwa.2.2.1 hwa.2.2.2.1 hpi
+      have hwf' := ShapeFun.lift_wf h' hwa.2.2.2.1
+      have hco' := (ShapeFun.lift_compat h' (f := f) (f' := f)).2 hwa.2.2.2.2
+      -- the dominating first component `X₀` need not be a lift, but the
+      -- entries the lookup at it actually uses are a lifted sublist, and
+      -- their join *is* one
+      have ⟨s, ji, jo, hs, hlab, hji, hwji, hjiX, hjo, hwjo, hCjo⟩ :=
+        Evaluates.tighten hΔ hwf' hco' hwx hev
+      simp only [ShapeFun.lift] at hs
+      obtain ⟨s₀, hs₀, rfl⟩ := List.sublist_map hs
+      rw [ShapeFun.map_lift_inp] at hji
+      rw [ShapeFun.map_lift_out] at hjo
+      have hwin : ∀ v ∈ s₀.map Entry.inp, Shape.WF Δ v := by
+        intro v hv
+        obtain ⟨e, he, rfl⟩ := List.mem_map.1 hv
+        exact (hwa.2.2.2.1 e (hs₀.subset he)).2.2.1
+      have hmem : ∀ v ∈ s₀.map Entry.inp,
+          Shape.LE Δ (v.lift k) ji := fun v hv =>
+        hji.le hwji _ (List.mem_map.2 ⟨v, hv, rfl⟩)
+      have ⟨ji₀, hji₀, hwji₀, _⟩ :=
+        Shape.exists_joins_of_pairwise hΔ hwin fun v hv w hw =>
+          (Shape.lift_compat h').1
+            (Shape.Compat.of_common_upper hΔ hwji.coherent (hmem v hv) (hmem w hw))
+      have ⟨hji₁, hji₂⟩ :=
+        Shape.Joins.uniq hwji ((Shape.lift_wf h').2 hwji₀) hji
+          (Shape.Joins.lift hΔ h' hwin hwji₀ hji₀)
+      -- `x ⊔ ji₀` is below `X₀`, so `mono_l` types it, and the lookup
+      -- reaches a code there
+      have hcx : Shape.Compat Δ x ji₀ :=
+        (Shape.lift_compat h').1
+          (Shape.Compat.of_common_upper hΔ hwx.coherent hxle (hji₂.trans hΔ hjiX))
+      have hwx₀ := Shape.WF.join hΔ hcx hwm.2.2.1 hwji₀
+      have hle₀ : Shape.LE Δ ((x.join ji₀).lift k) X₀ := by
+        rw [← Shape.lift_join h']
+        exact Shape.join_le hxle (hji₂.trans hΔ hjiX)
+      have hx₀d : Shape.HasType Δ (x.join ji₀) d :=
+        ih h' hwx₀ hwa.2.2.1 (Shape.HasType.mono_l hΔ hle₀ hxd)
+      have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwm.2.2.1 hwji₀ hcx
+      have ⟨J, hJ, hwJ, hevJ⟩ :=
+        Evaluates.of_sublist hΔ hwa.2.2.2.1 hwa.2.2.2.2 hwx₀.coherent hs₀
+          (fun e he => hlab _ (List.mem_map.2 ⟨e, he, rfl⟩))
+          (fun e he => (hji₀.le hwji₀ _ (List.mem_map.2 ⟨e, he, rfl⟩)).trans hΔ hu₂)
+      have ⟨J', hevJ', hJJ', hJ'ty⟩ :=
+        Evaluates.mono_graph hΔ hwa.2.2.2.2 hwx₀.coherent
+          (fun e he => (hwa.2.2.2.1 e he).2.2.2) hpi'.2 (Shape.HasType.join hΔ)
+          (ShapeFun.LE.refl_aux hwa.2.2.2.1) hevJ
+      have hwJ' := Evaluates.wf hΔ (fun e he => (hwa.2.2.2.1 e he).2.2.2) hevJ'
+      refine .pair hpi' hu₁ hwx₀ hx₀d hwJ' hevJ' (ih h' hwm.2.2.2.1 hwJ' ?_)
+      -- `C ≤ jo ≈ J.lift ≤ J'.lift`, and `J'` is a type, so `mono_r`
+      refine Shape.HasType.mono_r (r := true) hΔ ((Shape.lift_wf h').2 hwm.2.2.2.1)
+        ((Shape.lift_wf h').2 hwJ') hyc ?_ ?_
+      · refine hCjo.trans hΔ (hjo.min ((Shape.lift_wf h').2 hwJ') ?_)
+        intro v hv
+        obtain ⟨w, hw, rfl⟩ := List.mem_map.1 hv
+        exact (Shape.lift_le_lift h').2 ((hJ.le hwJ w hw).trans hΔ hJJ')
+      · have := Shape.HasType.lift_mono (Δ := Δ) h' hJ'ty
         rwa [Shape.lift_sort] at this
-      intro H
-      cases m with
-      | bot =>
-        cases Shape.hasType_succ.1 H with
-        | bot hb => exact .bot (Shape.HasType.lift_of_type h hb)
-      | sort s =>
-        cases a with
-        | sort j => cases Shape.hasType_succ.1 H with | sort => exact .sort
-        | _ => cases Shape.hasType_succ.1 H
-      | unit r =>
-        cases a with
-        | sort j => cases Shape.hasType_succ.1 H with | unit hj => exact .unit hj
-        | _ => cases Shape.hasType_succ.1 H
-      | nat =>
-        cases a with
-        | sort j => cases Shape.hasType_succ.1 H with | nat => exact .nat
-        | _ => cases Shape.hasType_succ.1 H
-      | zero =>
-        cases a with
-        | nat => exact .zero
-        | _ => cases Shape.hasType_succ.1 H
-      | id r A₀ a₀ b₀ =>
-        cases a with
-        | sort j => cases Shape.hasType_succ.1 H with | id hj => exact .id hj
-        | _ => cases Shape.hasType_succ.1 H
-      | refl w =>
-        cases a with
-        | id r A₁ a₁ b₁ => cases Shape.hasType_succ.1 H with | refl => exact .refl
-        | _ => cases Shape.hasType_succ.1 H
-      | succ v =>
-        cases a with
-        | nat =>
-          cases Shape.hasType_succ.1 H with
-          | succ hN => exact .succ (Shape.IsNumeral.lift_of h' hN)
-        | _ => cases Shape.hasType_succ.1 H
-      | forallE A B d f =>
-        cases a with
-        | sort r =>
-          cases Shape.hasType_succ.1 H with
-          | forallE hpi => exact .forallE (ihpi hwm.2.2.1 hwm.2.2.2.1 hpi)
-        | _ => cases Shape.hasType_succ.1 H
-      | sigma A B d f =>
-        cases a with
-        | sort r =>
-          cases Shape.hasType_succ.1 H with
-          | sigma hpi => exact .sigma (ihpi hwm.2.2.1 hwm.2.2.2.1 hpi)
-        | _ => cases Shape.hasType_succ.1 H
-      | lam g =>
-        cases a with
-        | forallE A₁ B₁ d f =>
-          cases Shape.hasType_succ.1 H with | lam hpi hcod => ?_
-          have hpi' := ihpi hwa.2.2.1 hwa.2.2.2.1 hpi
-          refine .lam hpi' fun e he => ?_
-          exact ihcode hwa.2.2.2.1 hwa.2.2.2.2 hpi'.2 (hwm.2.2.1 e he).2.2.1
-            (hwm.2.2.1 e he).2.2.2 (hcod _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩))
-        | _ => cases Shape.hasType_succ.1 H
-      | pair ty tm x y =>
-        cases a with
-        | sigma A₁ B₁ d f =>
-          cases Shape.hasType_succ.1 H with
-          | @pair _ _ _ _ X₀ C _ _ _ _ hpi hxle hwx hxd hwc hev hyc => ?_
-          have hpi' := ihpi hwa.2.2.1 hwa.2.2.2.1 hpi
-          have hwf' := ShapeFun.lift_wf h' hwa.2.2.2.1
-          have hco' := (ShapeFun.lift_compat h' (f := f) (f' := f)).2 hwa.2.2.2.2
-          -- the dominating first component `X₀` need not be a lift, but the
-          -- entries the lookup at it actually uses are a lifted sublist, and
-          -- their join *is* one
-          have ⟨s, ji, jo, hs, hlab, hji, hwji, hjiX, hjo, hwjo, hCjo⟩ :=
-            Evaluates.tighten hΔ hwf' hco' hwx hev
-          simp only [ShapeFun.lift] at hs
-          obtain ⟨s₀, hs₀, rfl⟩ := List.sublist_map hs
-          rw [ShapeFun.map_lift_inp] at hji
-          rw [ShapeFun.map_lift_out] at hjo
-          have hwin : ∀ v ∈ s₀.map Entry.inp, Shape.WF Δ v := by
-            intro v hv
-            obtain ⟨e, he, rfl⟩ := List.mem_map.1 hv
-            exact (hwa.2.2.2.1 e (hs₀.subset he)).2.2.1
-          have hmem : ∀ v ∈ s₀.map Entry.inp,
-              Shape.LE Δ (v.lift k) ji := fun v hv =>
-            hji.le hwji _ (List.mem_map.2 ⟨v, hv, rfl⟩)
-          have ⟨ji₀, hji₀, hwji₀, _⟩ :=
-            Shape.exists_joins_of_pairwise hΔ hwin fun v hv w hw =>
-              (Shape.lift_compat h').1
-                (Shape.Compat.of_common_upper hΔ hwji.coherent (hmem v hv) (hmem w hw))
-          have ⟨hji₁, hji₂⟩ :=
-            Shape.Joins.uniq hwji ((Shape.lift_wf h').2 hwji₀) hji
-              (Shape.Joins.lift hΔ h' hwin hwji₀ hji₀)
-          -- `x ⊔ ji₀` is below `X₀`, so `mono_l` types it, and the lookup
-          -- reaches a code there
-          have hcx : Shape.Compat Δ x ji₀ :=
-            (Shape.lift_compat h').1
-              (Shape.Compat.of_common_upper hΔ hwx.coherent hxle (hji₂.trans hΔ hjiX))
-          have hwx₀ := Shape.WF.join hΔ hcx hwm.2.2.1 hwji₀
-          have hle₀ : Shape.LE Δ ((x.join ji₀).lift k) X₀ := by
-            rw [← Shape.lift_join h']
-            exact Shape.join_le hxle (hji₂.trans hΔ hjiX)
-          have hx₀d : Shape.HasType Δ (x.join ji₀) d :=
-            ih h' hwx₀ hwa.2.2.1 (Shape.HasType.mono_l hΔ hle₀ hxd)
-          have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwm.2.2.1 hwji₀ hcx
-          have ⟨J, hJ, hwJ, hevJ⟩ :=
-            Evaluates.of_sublist hΔ hwa.2.2.2.1 hwa.2.2.2.2 hwx₀.coherent hs₀
-              (fun e he => hlab _ (List.mem_map.2 ⟨e, he, rfl⟩))
-              (fun e he => (hji₀.le hwji₀ _ (List.mem_map.2 ⟨e, he, rfl⟩)).trans hΔ hu₂)
-          have ⟨J', hevJ', hJJ', hJ'ty⟩ :=
-            Evaluates.mono_graph hΔ hwa.2.2.2.2 hwx₀.coherent
-              (fun e he => (hwa.2.2.2.1 e he).2.2.2) hpi'.2 (Shape.HasType.join hΔ)
-              (ShapeFun.LE.refl_aux hwa.2.2.2.1) hevJ
-          have hwJ' := Evaluates.wf hΔ (fun e he => (hwa.2.2.2.1 e he).2.2.2) hevJ'
-          refine .pair hpi' hu₁ hwx₀ hx₀d hwJ' hevJ' (ih h' hwm.2.2.2.1 hwJ' ?_)
-          -- `C ≤ jo ≈ J.lift ≤ J'.lift`, and `J'` is a type, so `mono_r`
-          refine Shape.HasType.mono_r (r := true) hΔ ((Shape.lift_wf h').2 hwm.2.2.2.1)
-            ((Shape.lift_wf h').2 hwJ') hyc ?_ ?_
-          · refine hCjo.trans hΔ (hjo.min ((Shape.lift_wf h').2 hwJ') ?_)
-            intro v hv
-            obtain ⟨w, hw, rfl⟩ := List.mem_map.1 hv
-            exact (Shape.lift_le_lift h').2 ((hJ.le hwJ w hw).trans hΔ hJJ')
-          · have := Shape.HasType.lift_mono (Δ := Δ) h' hJ'ty
-            rwa [Shape.lift_sort] at this
-        | _ => cases Shape.hasType_succ.1 H
 
 /-- **Fullness for typing.**  On the shapes that come from the level
 below, the higher level types exactly what the lower one did. -/
