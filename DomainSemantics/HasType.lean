@@ -343,12 +343,14 @@ theorem ShapeFun.HasPi.lower {Δ : List Term} (hΔ : ⊢ Δ) {n} {T : Shape n �
   ⟨d₀, f₀, hd.trans hΔ h1, ShapeFun.LE.trans_of (Shape.LE.trans hΔ) hf h2,
     hw1, hw2, h3, h4, h5⟩
 
-/-- **Proper left monotonicity**: a type is a lower set.  The clauses were
-arranged so that this is an induction with no side conditions -- the
-dominating existentials in `HasPi`, `lam` and `pair` absorb the
-approximation by transitivity, and the componentwise clauses use the
-induction hypothesis. -/
-theorem Shape.HasType.lower (hΔ : ⊢ Δ) : ∀ {n} {m m' a : Shape n},
+/-- **Left monotonicity**: a type is a lower set.  Master has only the
+two-sided form (`WShape.HasType.mono_l`, a 70-line mutual induction whose
+graph cases run a cycle argument); here the clauses were arranged so that
+the genuine one-sided statement is an induction with no side conditions --
+the dominating existentials in `HasPi`, `lam` and `pair` absorb the
+approximation by transitivity, the componentwise clauses use the induction
+hypothesis, and every `m' = ⊥` branch is `.bot (isType h)`. -/
+theorem Shape.HasType.mono_l (hΔ : ⊢ Δ) : ∀ {n} {m m' a : Shape n},
     Shape.LE Δ m' m → Shape.HasType Δ m a → Shape.HasType Δ m' a := by
   intro n
   induction n with
@@ -423,12 +425,6 @@ theorem Shape.HasType.lower (hΔ : ⊢ Δ) : ∀ {n} {m m' a : Shape n},
       | bot => exact .bot hty
       | refl w' => exact .refl
       | _ => exact absurd hle id
-
-/-- Invariance under mutual approximation, where master needs a 70-line
-mutual induction whose graph cases run a cycle argument. -/
-theorem Shape.HasType.mono_l (hΔ : ⊢ Δ) {n} {m m' a : Shape n}
-    (_ : Shape.LE Δ m m') (hle : Shape.LE Δ m' m) (h : Shape.HasType Δ m a) :
-    Shape.HasType Δ m' a := Shape.HasType.lower hΔ hle h
 
 theorem Evaluates.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
     {n} {f : ShapeFun n} {A a : Term} {x c : Shape n} :
@@ -814,7 +810,7 @@ theorem Shape.HasType.mono_r_join (hΔ : ⊢ Δ) : ∀ {n},
         cases Shape.hasType_succ.1 hA with | forallE hpiA => ?_
         have hd' : Shape.HasType Δ d' .type :=
           have ⟨_, _, hd0, _, _, _, hd0ty, _⟩ := hpiA
-          Shape.HasType.lower hΔ hd0 hd0ty
+          Shape.HasType.mono_l hΔ hd0 hd0ty
         refine .lam (hpiA.cod (Shape.HasType.cumul · (Bool.le_true' r))) hg hwg
           (fun e he => ?_) (fun e he => ?_)
         · have ⟨x, hwx, hx, hxle, hev⟩ := hdom e he
@@ -829,7 +825,7 @@ theorem Shape.HasType.mono_r_join (hΔ : ⊢ Δ) : ∀ {n},
         cases Shape.hasType_succ.1 hA with | sigma hpiA => ?_
         have hd' : Shape.HasType Δ d' .type :=
           have ⟨_, _, hd0, _, _, _, hd0ty, _⟩ := hpiA
-          Shape.HasType.lower hΔ hd0 hd0ty
+          Shape.HasType.mono_l hΔ hd0 hd0ty
         have ⟨c', hev', hcle⟩ :=
           Evaluates.mono_graph' hΔ hwa.2.2.2.2 hwx.coherent
             (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2) hle.2.2 hev
@@ -1535,7 +1531,7 @@ theorem ShapeFun.HasDom.normalize {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : Shape
   -- the fixed point squeezes the typed `Y₂` between `ji₁` and itself
   have ⟨h₁₂, _⟩ := Shape.Joins.uniq hg₁.2.2.1 hg₂.2.2.1 hg₁.2.1 hg₂.2.1
   refine ⟨s, ji₁, hsf, hg₁.2.1, hg₁.2.2.1,
-    Shape.HasType.mono_l hΔ (h₁₂.trans hΔ hj₂Y₂) hY₂j₁ hY₂d,
+    Shape.HasType.mono_l hΔ (h₁₂.trans hΔ hj₂Y₂) hY₂d,
     (hj₁Y₁.trans hΔ hY₁j₀).trans hΔ hji₀x, ?_⟩
   exact (Evaluates.joins_iff hΔ hwf hco hg₁.2.2.1 hwc).2
     ⟨s, ji₁, jo₁, hsf, hg₁.1, hg₁.2.1, hg₁.2.2.1, Shape.LE.refl hg₁.2.2.1,
@@ -1601,7 +1597,7 @@ theorem ShapeFun.HasDom.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤
   have hj₀l := Shape.Joins.lift hΔ h hwin hwj₀ hj₀
   have ⟨hle₁, hle₂⟩ := Shape.Joins.uniq hwj ((Shape.lift_wf h).2 hwj₀) hj hj₀l
   refine ⟨j₀, hwj₀, ih hwj₀ hwd
-      (Shape.HasType.mono_l hΔ hle₁ hle₂ hjd),
+      (Shape.HasType.mono_l hΔ hle₂ hjd),
     hj₀e, ?_⟩
   refine (Evaluates.lift_iff hΔ h hwf hco hwj₀ hwe.2.2.2).1 ?_
   exact hevj.mono_input hΔ hle₁
