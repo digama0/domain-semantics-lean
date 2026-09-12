@@ -2069,3 +2069,42 @@ theorem Shape.exists_joins {Δ : List Term} (hΔ : ⊢ Δ) {n} {w : Shape n} (hw
     have hc := Shape.Compat.of_common_upper hΔ hw.coherent (hle x (.head _)) hjw
     exact ⟨x.join j, hj.cons hΔ hx hwj hc, Shape.WF.join hΔ hc hx hwj,
       Shape.join_le (hle x (.head _)) hjw⟩
+
+/-- `Joins` transfers along mutual `≤`, since that is all it pins down. -/
+theorem Shape.Joins.congr {Δ : List Term} (hΔ : ⊢ Δ) {n} {L : List (Shape n)} {j j' : Shape n}
+    (hjj' : Shape.LE Δ j j') (hj'j : Shape.LE Δ j' j) (h : Shape.Joins Δ L j) :
+    Shape.Joins Δ L j' :=
+  fun w hw => ⟨fun hle => (h w hw).1 (hjj'.trans hΔ hle),
+    fun hub => hj'j.trans hΔ ((h w hw).2 hub)⟩
+
+/-- Least upper bounds are preserved by `lift`.  Minimality survives the
+move even though the ambient level gains shapes that are not lifts,
+because the binary join commutes with `lift` (`Shape.lift_join`) and
+`Shape.join_le` is unconditional. -/
+theorem Shape.Joins.lift {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) :
+    ∀ {L : List (Shape n)} {j : Shape n}, (∀ x ∈ L, Shape.WF Δ x) → Shape.WF Δ j →
+      Shape.Joins Δ L j → Shape.Joins Δ (L.map (Shape.lift k)) (j.lift k) := by
+  intro L
+  induction L with
+  | nil =>
+    intro j _ _ hj
+    have hjb : Shape.LE Δ j .bot := hj.min (by cases n <;> trivial) nofun
+    refine fun w hw => ⟨fun _ => nofun, fun _ => ?_⟩
+    have := (Shape.lift_le_lift h (Γ := Δ)).2 hjb
+    rw [Shape.lift_bot] at this
+    exact this.trans hΔ Shape.LE.bot
+  | cons x L ih =>
+    intro j hwL hwj hj
+    have hwx := hwL x (.head _)
+    have hxj := hj.le hwj x (.head _)
+    have ⟨j₀, hj₀, hwj₀, hj₀j⟩ :=
+      Shape.exists_joins hΔ hwj (fun y hy => hwL y (.tail _ hy))
+        (fun y hy => hj.le hwj y (.tail _ hy))
+    have hc := Shape.Compat.of_common_upper hΔ hwj.coherent hxj hj₀j
+    have ⟨h₁, h₂⟩ :=
+      Shape.Joins.uniq hwj (Shape.WF.join hΔ hc hwx hwj₀) hj (hj₀.cons hΔ hwx hwj₀ hc)
+    have hlift : Shape.Joins Δ ((x :: L).map (Shape.lift k)) ((x.join j₀).lift k) := by
+      rw [← Shape.lift_join h]
+      exact (ih (fun y hy => hwL y (.tail _ hy)) hwj₀ hj₀).cons hΔ
+        ((Shape.lift_wf h).2 hwx) ((Shape.lift_wf h).2 hwj₀) ((Shape.lift_compat h).2 hc)
+    exact hlift.congr hΔ ((Shape.lift_le_lift h).2 h₂) ((Shape.lift_le_lift h).2 h₁)

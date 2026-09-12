@@ -178,3 +178,16 @@ theorem List.Sublist.union : ∀ {α} {l s₁ s₂ : List α}, s₁ <+ l → s�
       | cons₂ _ h₂ =>
         have ⟨s, hs, hs₁, hs₂, hm⟩ := ih h₁ h₂
         exact keep hs hs₁ hs₂ hm
+
+open List in
+/-- A sublist of a map is the map of a sublist. -/
+theorem List.sublist_map {α β} {g : α → β} : ∀ {l : List α} {s : List β},
+    s <+ l.map g → ∃ s₀, s₀ <+ l ∧ s₀.map g = s := by
+  intro l
+  induction l with
+  | nil => intro s hs; cases hs; exact ⟨[], .slnil, rfl⟩
+  | cons a l ih =>
+    intro s hs
+    cases hs with
+    | cons _ hs => obtain ⟨s₀, h₀, rfl⟩ := ih hs; exact ⟨s₀, h₀.cons a, rfl⟩
+    | cons₂ _ hs => obtain ⟨s₀, h₀, rfl⟩ := ih hs; exact ⟨a :: s₀, h₀.cons₂ a, rfl⟩

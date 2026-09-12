@@ -1382,3 +1382,88 @@ theorem ShapeFun.HasDom.normalize {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : Shape
   exact (Evaluates.joins_iff hΔ hwf hco hg₁.2.2.1 hwc).2
     ⟨s, ji₁, jo₁, hsf, hg₁.1, hg₁.2.1, hg₁.2.2.1, Shape.LE.refl hg₁.2.2.1,
       hg₁.2.2.2.1, hg₁.2.2.2.2.1, hg₁.2.2.2.2.2⟩
+
+/-! ## Reflection of `HasDom` along `lift`
+
+The point of the normalisation.  `HasDom`'s witness is an existential over
+shapes at the ambient level, and a shape below a lift need not itself be a
+lift (`Evaluates.lift_of`'s preamble), so the witness cannot simply be
+read back down.  `normalize` replaces it by a join of the graph's own
+inputs, and those *are* lifts.
+
+Reflection of the witness's typing is not available at this level -- it is
+the very statement being proved one level up -- so it comes in as the
+hypothesis `ih`, exactly as master threads its `mono_l` induction
+hypothesis through `HasType.mono_l.ih_dom`. -/
+
+/-- The easy direction. -/
+theorem ShapeFun.HasDom.lift_mono {Δ : List Term} {n k} (h : n ≤ k) {f : ShapeFun n}
+    {d : Shape n} (H : ShapeFun.HasDom Δ (Shape.HasType Δ) f d) :
+    ShapeFun.HasDom Δ (Shape.HasType Δ) (ShapeFun.lift (Shape.lift k) f) (d.lift k) := by
+  intro e' he'
+  obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'
+  have ⟨x, hwx, hxd, hxle, hev⟩ := H e he
+  exact ⟨x.lift k, (Shape.lift_wf h).2 hwx, Shape.HasType.lift_mono h hxd,
+    (Shape.lift_le_lift h).2 hxle, hev.lift h⟩
+
+/-- The reflection. -/
+theorem ShapeFun.HasDom.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k)
+    {f : ShapeFun n} {d : Shape n}
+    (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ f f)
+    (hwd : Shape.WF Δ d) (hd : Shape.HasType Δ d .type)
+    (ih : ∀ {m a : Shape n}, Shape.WF Δ m → Shape.WF Δ a →
+      Shape.HasType Δ (m.lift k) (a.lift k) → Shape.HasType Δ m a)
+    (H : ShapeFun.HasDom Δ (Shape.HasType Δ) (ShapeFun.lift (Shape.lift k) f) (d.lift k)) :
+    ShapeFun.HasDom Δ (Shape.HasType Δ) f d := by
+  have hwf' : ShapeFun.WF Δ (Shape.WF Δ) (ShapeFun.lift (Shape.lift k) f) := by
+    intro e' he'
+    obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_lift.1 he'
+    exact ⟨(hwf e₀ he₀).1, (hwf e₀ he₀).2.1, (Shape.lift_wf h).2 (hwf e₀ he₀).2.2.1,
+      (Shape.lift_wf h).2 (hwf e₀ he₀).2.2.2⟩
+  have hco' := (ShapeFun.lift_compat h (f := f) (f' := f)).2 hco
+  have hd' : Shape.HasType Δ (d.lift k) .type := by
+    have := Shape.HasType.lift_mono (Δ := Δ) h hd
+    rwa [Shape.lift_sort] at this
+  intro e he
+  have hwe := hwf e he
+  have ⟨X, hwX, hXd, hXle, hevX⟩ :=
+    H ⟨e.ty, e.tm, e.inp.lift k, e.out.lift k⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
+  have ⟨s, j, hs, hj, hwj, hjd, hjX, hevj⟩ :=
+    ShapeFun.HasDom.normalize hΔ hwf' hco' ((Shape.lift_wf h).2 hwd) hd' H hwX hevX
+  -- a sublist of a lifted graph is a lifted sublist, so its inputs are lifts
+  simp only [ShapeFun.lift] at hs
+  obtain ⟨s₀, hs₀, rfl⟩ := List.sublist_map hs
+  have hmap : (List.map (fun e : Entry (Shape n) =>
+        (⟨e.ty, e.tm, e.inp.lift k, e.out.lift k⟩ : Entry (Shape k))) s₀).map Entry.inp
+      = (s₀.map Entry.inp).map (Shape.lift k) := by
+    simp [List.map_map, Function.comp_def]
+  rw [hmap] at hj
+  have hwin : ∀ v ∈ s₀.map Entry.inp, Shape.WF Δ v := by
+    intro v hv
+    obtain ⟨e', he', rfl⟩ := List.mem_map.1 hv
+    exact (hwf e' (hs₀.subset he')).2.2.1
+  have hinle : ∀ v ∈ s₀.map Entry.inp, Shape.LE Δ v e.inp := by
+    intro v hv
+    refine (Shape.lift_le_lift h).1 ?_
+    exact ((hj.le hwj _ (List.mem_map.2 ⟨v, hv, rfl⟩)).trans hΔ hjX).trans hΔ hXle
+  -- their join at the level below is the witness
+  have ⟨j₀, hj₀, hwj₀, hj₀e⟩ := Shape.exists_joins hΔ hwe.2.2.1 hwin hinle
+  have hj₀l := Shape.Joins.lift hΔ h hwin hwj₀ hj₀
+  have ⟨hle₁, hle₂⟩ := Shape.Joins.uniq hwj ((Shape.lift_wf h).2 hwj₀) hj hj₀l
+  refine ⟨j₀, hwj₀, ih hwj₀ hwd
+      (Shape.HasType.mono_l hΔ hwj ((Shape.lift_wf h).2 hwj₀) hle₁ hle₂ hjd),
+    hj₀e, ?_⟩
+  refine (Evaluates.lift_iff hΔ h (fun e' he' => (hwf e' he').2.2.2) hco
+    hwj₀.coherent hwe.2.2.2).1 ?_
+  exact hevj.mono_input hΔ hle₁
+
+/-- Reflection and preservation together. -/
+theorem ShapeFun.HasDom.lift_iff {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k)
+    {f : ShapeFun n} {d : Shape n}
+    (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ f f)
+    (hwd : Shape.WF Δ d) (hd : Shape.HasType Δ d .type)
+    (ih : ∀ {m a : Shape n}, Shape.WF Δ m → Shape.WF Δ a →
+      Shape.HasType Δ (m.lift k) (a.lift k) → Shape.HasType Δ m a) :
+    ShapeFun.HasDom Δ (Shape.HasType Δ) (ShapeFun.lift (Shape.lift k) f) (d.lift k) ↔
+      ShapeFun.HasDom Δ (Shape.HasType Δ) f d :=
+  ⟨ShapeFun.HasDom.lift_of hΔ h hwf hco hwd hd ih, ShapeFun.HasDom.lift_mono h⟩
