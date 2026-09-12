@@ -68,12 +68,18 @@ theorem Evaluates.entry_self {Δ : List Term} {n} {f : ShapeFun n} {e : Entry (S
   have ⟨⟨_, hty⟩, htm, hin, _⟩ := hwf e he
   .entry e he (LabelEq.refl hty htm) (Shape.LE.refl hin)
 
-/-- Every entry of a graph is dominated by one whose input is typed at the
-domain shape (master's `HasDom`, with the label premise added). -/
+/-- Every input of the graph is typed at the domain shape.
+
+Master states this as "every entry is *dominated by* one whose input is
+typed", which is a saturation-era formulation: with a saturated graph and
+a lookup that searches for the maximal entry below the argument, you need
+the entry the search lands on to be typed, and you find it by a finiteness
+argument on the domination chain.  Nothing here searches, so the direct
+form is both simpler and stronger, and it is exactly the premise
+`Interp`'s binder rules carry. -/
 def ShapeFun.HasDom (Δ : List Term) (T : Shape n → Shape n → Prop)
     (f : ShapeFun n) (d : Shape n) : Prop :=
-  ∀ e ∈ f, ∃ e' ∈ f, LabelEq Δ e'.ty e'.tm e.ty e.tm ∧
-    Shape.LE Δ e'.inp e.inp ∧ Shape.LE Δ e.out e'.out ∧ T e'.inp d
+  ∀ e ∈ f, T e.inp d
 
 /-- `m` is a well-typed inhabitant of the type-shape `a`.  Structural
 recursion on the level.
@@ -269,9 +275,7 @@ theorem ShapeFun.HasDom.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f : Shape
       (d.subst τ) := by
   intro e' he'
   obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
-  have ⟨g, hg, hlab, hin, hout, hty⟩ := h e he
-  exact ⟨_, ShapeFun.mem_subst.2 ⟨g, hg, rfl⟩, hlab.subst hΘ W,
-    Shape.LE.subst hΘ W hin, Shape.LE.subst hΘ W hout, ih hty⟩
+  exact ih (h e he)
 
 /-- Typing of shapes is stable along a typed substitution. -/
 theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
@@ -511,9 +515,7 @@ theorem Shape.HasType.mono_r_join (hΔ : ⊢ Δ) : ∀ {n},
         cases a' with | forallE A₁ B₁ d' f' => ?_ | _ => cases hle
         refine ⟨⟨hA.1, hA.2.1, fun e he => .cumul (hA.2.2 e he) (Bool.le_true' r)⟩, ?_, ?_⟩
         · intro e he
-          have ⟨e', he', hlab, hin, hout, hty⟩ := h.2.1 e he
-          exact ⟨e', he', hlab, hin, hout,
-            ihm (hwm.2.2.1 e' he').2.2.1 hwa.2.2.1 hty hle.2.1 hA.1⟩
+          exact ihm (hwm.2.2.1 e he).2.2.1 hwa.2.2.1 (h.2.1 e he) hle.2.1 hA.1
         · intro e he
           have ⟨c, hev, hcty⟩ := h.2.2 e he
           have ⟨c', hev', hcle, hc'ty⟩ :=
@@ -533,15 +535,11 @@ theorem Shape.HasType.mono_r_join (hΔ : ⊢ Δ) : ∀ {n},
         refine ⟨hdj, fun e he => ?_, fun e he => ?_⟩
         · match List.mem_append.1 he with
           | .inl he =>
-            have ⟨e', he', hlab, hin, hout, hty⟩ := hy.2.1 e he
-            exact ⟨e', List.mem_append.2 (.inl he'), hlab, hin, hout,
-              ihm (hwy.2.2.2.1 e' he').2.2.1 (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1)
-                hty hu₁ hdj⟩
+            exact ihm (hwy.2.2.2.1 e he).2.2.1
+              (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1) (hy.2.1 e he) hu₁ hdj
           | .inr he =>
-            have ⟨e', he', hlab, hin, hout, hty⟩ := hz.2.1 e he
-            exact ⟨e', List.mem_append.2 (.inr he'), hlab, hin, hout,
-              ihm (hwz.2.2.2.1 e' he').2.2.1 (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1)
-                hty hu₂ hdj⟩
+            exact ihm (hwz.2.2.2.1 e he).2.2.1
+              (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1) (hz.2.1 e he) hu₂ hdj
         · match List.mem_append.1 he with
           | .inl he => exact hy.2.2 e he
           | .inr he => exact hz.2.2 e he
@@ -552,15 +550,11 @@ theorem Shape.HasType.mono_r_join (hΔ : ⊢ Δ) : ∀ {n},
         refine ⟨hy.1, hdj, fun e he => ?_, fun e he => ?_⟩
         · match List.mem_append.1 he with
           | .inl he =>
-            have ⟨e', he', hlab, hin, hout, hty⟩ := hy.2.2.1 e he
-            exact ⟨e', List.mem_append.2 (.inl he'), hlab, hin, hout,
-              ihm (hwy.2.2.2.1 e' he').2.2.1 (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1)
-                hty hu₁ hdj⟩
+            exact ihm (hwy.2.2.2.1 e he).2.2.1
+              (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1) (hy.2.2.1 e he) hu₁ hdj
           | .inr he =>
-            have ⟨e', he', hlab, hin, hout, hty⟩ := hz.2.2.1 e he
-            exact ⟨e', List.mem_append.2 (.inr he'), hlab, hin, hout,
-              ihm (hwz.2.2.2.1 e' he').2.2.1 (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1)
-                hty hu₂ hdj⟩
+            exact ihm (hwz.2.2.2.1 e he).2.2.1
+              (Shape.WF.join hΔ hc.2.1 hwy.2.2.1 hwz.2.2.1) (hz.2.2.1 e he) hu₂ hdj
         · match List.mem_append.1 he with
           | .inl he => exact hy.2.2.2 e he
           | .inr he => exact hz.2.2.2 e he
@@ -724,10 +718,7 @@ theorem Shape.HasType.lift_mono {Δ : List Term} : ∀ {n k}, n ≤ k → ∀ {m
             (ShapeFun.lift (Shape.lift k) f) (d.lift k) := by
         intro f d H e'' he''
         obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
-        have ⟨e', he', hlab, hin, hout, hty⟩ := H e he
-        exact ⟨⟨e'.ty, e'.tm, e'.inp.lift k, e'.out.lift k⟩,
-          ShapeFun.mem_lift.2 ⟨e', he', rfl⟩, hlab,
-          (Shape.lift_le_lift h').2 hin, (Shape.lift_le_lift h').2 hout, ih h' hty⟩
+        exact ih h' (H e he)
       have ihout : ∀ {f : ShapeFun n} {r : Bool},
           (∀ e ∈ f, Shape.HasType Δ e.out (.sort r)) →
           ∀ e ∈ ShapeFun.lift (Shape.lift k) f, Shape.HasType Δ e.out (.sort r) := by

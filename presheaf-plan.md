@@ -599,6 +599,28 @@ Whether `isType` and `mono_r` survive the weakening is the question to
 settle before writing the case; `isType` should, since the λ clause
 carries the Π triple separately.
 
+### 4.5e' `HasDom` was a saturation-era formulation
+
+Master states it as "every entry is *dominated by* one whose input is
+typed at the domain".  That shape is for a saturated graph with a lookup
+that searches for the maximal entry below the argument: the entry the
+search lands on has to be typed, and it is found by a finiteness argument
+on the domination chain.  Nothing here searches — `Evaluates` collects
+matching entries and closes under joins — so the direct form
+
+    ShapeFun.HasDom Δ T f d := ∀ e ∈ f, T e.inp d
+
+is both simpler and stronger, and it is *exactly* the premise `Interp`'s
+binder rules already carry (§4.5b).  Changing it deleted the label and
+order components from four proof sites and simplified `HasDom.subst_of`
+and the lifting lemma to one line each.
+
+This also isolates the obstruction to downward closure correctly.  `HasDom`
+is about the graph being a family *over* the domain — the fixpoint side of
+the split — and it is contravariant in the inputs, so it never transports
+downward.  Keeping it out of the *sort* clauses is what lets those be
+downward closed.
+
 ### 4.5e Weakening the Π clause: tried, and what it costs
 
 Weakening `HasType Δ (forallE _ _ d f) (.sort r)` to inspect the outputs
