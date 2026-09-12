@@ -1120,3 +1120,40 @@ theorem Evaluates.tighten_iff {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun 
       ∃ s j, s <+ f ∧ Shape.Joins Δ (s.map Entry.inp) j ∧ Shape.WF Δ j ∧
         Shape.LE Δ j x ∧ Evaluates Δ f A a j c :=
   ⟨Evaluates.tighten hΔ hwf hwx, fun ⟨_, _, _, _, _, hjx, hev⟩ => hev.mono_input hΔ hjx⟩
+
+/-! ## Retyping a lookup at a typed query
+
+Round (b): any query shape can be replaced by a *typed* one -- the join of
+`HasDom`'s own witnesses for the entries the derivation uses -- without
+changing the result.  The `entry` step splices in that entry's witness
+derivation (relabelled by `Evaluates.label`, since `HasDom` states it at
+the entry's own label), and the `join` step needs typing to survive joins,
+which is `HasType.join_at`.
+
+Dual to `Evaluates.tighten`: that one lands in the graph but says nothing
+about typing, this one is typed but says nothing about the graph.  The
+fixed point of the two is what `HasDom` reflection needs. -/
+theorem Evaluates.retype {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {d : Shape n}
+    (hwd : Shape.WF Δ d) (hd : Shape.HasType Δ d .type)
+    (hdom : ShapeFun.HasDom Δ (Shape.HasType Δ) f d)
+    {A a : Term} {x : Shape n} (hwx : Shape.WF Δ x) {c : Shape n}
+    (H : Evaluates Δ f A a x c) :
+    ∃ y, Shape.WF Δ y ∧ Shape.HasType Δ y d ∧ Shape.LE Δ y x ∧ Evaluates Δ f A a y c := by
+  induction H with
+  | bot =>
+    exact ⟨.bot, by cases n <;> trivial, Shape.HasType.bot hd, Shape.LE.bot, .bot⟩
+  | entry e he hlab hin =>
+    have ⟨y, hwy, hty, hyle, hev⟩ := hdom e he
+    exact ⟨y, hwy, hty, hyle.trans hΔ hin, hev.label hlab⟩
+  | lower hw hle _ ih =>
+    have ⟨y, hwy, hty, hyx, hev⟩ := ih
+    exact ⟨y, hwy, hty, hyx, .lower hw hle hev⟩
+  | join hc _ _ ih₁ ih₂ =>
+    have ⟨y₁, hwy₁, hty₁, hy₁x, hev₁⟩ := ih₁
+    have ⟨y₂, hwy₂, hty₂, hy₂x, hev₂⟩ := ih₂
+    have hcy := Shape.Compat.of_common_upper hΔ hwx.coherent hy₁x hy₂x
+    have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwy₁ hwy₂ hcy
+    exact ⟨y₁.join y₂, Shape.WF.join hΔ hcy hwy₁ hwy₂,
+      Shape.HasType.join_at hΔ hwy₁ hwy₂ hwd hcy hty₁ hty₂,
+      Shape.join_le hy₁x hy₂x,
+      .join hc (hev₁.mono_input hΔ hu₁) (hev₂.mono_input hΔ hu₂)⟩
