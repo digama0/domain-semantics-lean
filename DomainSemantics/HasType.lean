@@ -1049,6 +1049,30 @@ theorem Shape.IsNumeral.lift : ∀ {n} {v : Shape n}, Shape.IsNumeral v →
     | zero => exact absurd hk (Nat.not_succ_le_zero _)
     | succ k => exact .succ (ih (Nat.le_of_succ_le_succ hk))
 
+theorem Shape.IsNumeral.lift_of : ∀ {n k}, n ≤ k → ∀ {v : Shape n},
+    Shape.IsNumeral (v.lift k) → Shape.IsNumeral v := by
+  intro n
+  induction n with
+  | zero =>
+    intro k _ v H
+    cases v with
+    | bot => exact .bot
+    | sort r =>
+      cases k with
+      | zero => rw [Shape.lift_self] at H; cases H
+      | succ k => cases H
+  | succ n ih =>
+    intro k h v H
+    cases k with
+    | zero => exact absurd h (Nat.not_succ_le_zero _)
+    | succ k =>
+      cases v with
+      | bot => exact .bot
+      | zero => exact .zero
+      | succ w =>
+        cases H with | succ hw => exact .succ (ih (Nat.le_of_succ_le_succ h) hw)
+      | _ => cases H
+
 theorem ShapeFun.LE.lift {Δ : List Term} {n k} (h : n ≤ k) {f g : ShapeFun n}
     (H : ShapeFun.LE Δ (Shape.LE Δ) f g) :
     ShapeFun.LE Δ (Shape.LE Δ) (ShapeFun.lift (Shape.lift k) f)
@@ -1591,109 +1615,138 @@ For the codes, `Evaluates.lift_of` finds a lift above the given code and
 `mono_graph` then raises it to a lift that is both lookup-reachable and a
 type, at which `mono_r` can retype the output before the induction
 hypothesis reflects it. -/
+theorem Shape.HasType.lift_of_type {Δ : List Term} : ∀ {n k}, n ≤ k → ∀ {a : Shape n},
+    Shape.HasType Δ (a.lift k) .type → Shape.HasType Δ a .type := by
+  intro n
+  induction n with
+  | zero =>
+    intro k _ a H
+    cases k with
+    | zero => rwa [Shape.lift_self] at H
+    | succ k => cases a with
+      | bot => exact Shape.HasType0.bot
+      | sort r => exact Shape.HasType0.sort
+  | succ n ih =>
+    intro k h a H
+    cases k with
+    | zero => exact absurd h (Nat.not_succ_le_zero _)
+    | succ k =>
+      have h' := Nat.le_of_succ_le_succ h
+      cases a with
+      | bot => exact .bot .sort
+      | sort r => exact .sort
+      | unit r => exact .unit (Bool.le_true' r)
+      | nat => exact .nat
+      | id r A₀ a₀ b₀ => exact .id (Bool.le_true' r)
+      | forallE A B d f =>
+        cases Shape.hasType_succ.1 H with | forallE hpi => ?_
+        exact .forallE ⟨ih h' hpi.1,
+          fun e he => ih h' (hpi.2 _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩))⟩
+      | sigma A B d f =>
+        cases Shape.hasType_succ.1 H with | sigma hpi => ?_
+        exact .sigma ⟨ih h' hpi.1,
+          fun e he => ih h' (hpi.2 _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩))⟩
+      | zero | succ | lam | pair | refl => cases Shape.hasType_succ.1 H
+
 theorem Shape.HasType.lift_of {Δ : List Term} (hΔ : ⊢ Δ) :
     ∀ {n k}, n ≤ k → ∀ {m a : Shape n}, Shape.WF Δ m → Shape.WF Δ a →
       Shape.HasType Δ (m.lift k) (a.lift k) → Shape.HasType Δ m a := by
   intro n
   induction n with
   | zero =>
-    intro k _ m a _ _
+    intro k _ m a _ _ H
     cases k with
-    | zero => rw [Shape.lift_self, Shape.lift_self]; exact id
-    | succ k => cases m <;> cases a <;> exact id
+    | zero => rwa [Shape.lift_self, Shape.lift_self] at H
+    | succ k =>
+      cases m with
+      | bot => exact Shape.HasType0.bot
+      | sort s =>
+        cases a with
+        | bot => cases Shape.hasType_succ.1 H
+        | sort j => cases Shape.hasType_succ.1 H with | sort => exact Shape.HasType0.sort
   | succ n ih =>
     intro k h m a hwm hwa
     cases k with
     | zero => exact absurd h (Nat.not_succ_le_zero _)
     | succ k =>
       have h' := Nat.le_of_succ_le_succ h
-      have ihs : ∀ {d : Shape n} {r : Bool}, Shape.WF Δ d →
-          Shape.HasType Δ (d.lift k) (.sort r) → Shape.HasType Δ d (.sort r) := by
-        intro d r hwd hd
-        exact ih h' hwd (by cases n <;> trivial) (by rwa [Shape.lift_sort])
       have ihpi : ∀ {d : Shape n} {f : ShapeFun n} {r : Bool},
           Shape.WF Δ d → ShapeFun.WF Δ (Shape.WF Δ) f →
-          ShapeFun.Compat Shape.Compat Δ f f →
-          (Shape.HasType Δ (d.lift k) .type ∧
-            ShapeFun.HasDom Δ (Shape.HasType Δ) (ShapeFun.lift (Shape.lift k) f) (d.lift k) ∧
-            ∀ e ∈ ShapeFun.lift (Shape.lift k) f, Shape.HasType Δ e.out (.sort r)) →
-          (Shape.HasType Δ d .type ∧ ShapeFun.HasDom Δ (Shape.HasType Δ) f d ∧
-            ∀ e ∈ f, Shape.HasType Δ e.out (.sort r)) := by
-        intro d f r hwd hwf hco H
-        have hd := ihs hwd H.1
-        exact ⟨hd, ShapeFun.HasDom.lift_of hΔ h' hwf hco hwd hd (ih h') H.2.1,
-          fun e he => ihs (hwf e he).2.2.2 (H.2.2 _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩))⟩
-      have ihcode : ∀ {f : ShapeFun n} {A a : Term} {xin yout : Shape n},
+          ShapeFun.HasPi Δ (Shape.HasType Δ) (d.lift k)
+            (ShapeFun.lift (Shape.lift k) f) (.sort r) →
+          ShapeFun.HasPi Δ (Shape.HasType Δ) d f (.sort r) := by
+        intro d f r hwd hwf hpi
+        refine ⟨Shape.HasType.lift_of_type h' hpi.1, fun e he => ?_⟩
+        exact ih h' (hwf e he).2.2.2 (by cases n <;> trivial)
+          (by rw [Shape.lift_sort]; exact hpi.2 _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩))
+      have ihdom : ∀ {f : ShapeFun n} {d : Shape n},
           ShapeFun.WF Δ (Shape.WF Δ) f → ShapeFun.Compat Shape.Compat Δ f f →
-          (∀ e ∈ f, Shape.HasType Δ e.out .type) →
-          Shape.WF Δ xin → Shape.WF Δ yout →
-          (∃ c', Evaluates Δ (ShapeFun.lift (Shape.lift k) f) A a (xin.lift k) c' ∧
-            Shape.HasType Δ (yout.lift k) c') →
-          ∃ c, Evaluates Δ f A a xin c ∧ Shape.HasType Δ yout c := by
-        intro f A a xin yout hwf hco hty hwx hwy H
-        have ⟨c', hev', hty'⟩ := H
-        have houts : ∀ e ∈ f, Shape.WF Δ e.out := fun e he => (hwf e he).2.2.2
-        have ⟨c₀, hle, hev₀⟩ := Evaluates.lift_of hΔ h' hwf hco hwx hev'
-        have ⟨c₁, hev₁, hc₀c₁, hc₁ty⟩ :=
-          Evaluates.mono_graph hΔ hco hwx.coherent houts hty (Shape.HasType.join hΔ)
-            (ShapeFun.LE.refl_aux hwf) hev₀
-        have hwc₁ := Evaluates.wf hΔ houts hev₁
-        refine ⟨c₁, hev₁, ih h' hwy hwc₁ (Shape.HasType.mono_r (r := true) hΔ
-          ((Shape.lift_wf h').2 hwy) ((Shape.lift_wf h').2 hwc₁) hty'
-          (hle.trans hΔ ((Shape.lift_le_lift h').2 hc₀c₁)) ?_)⟩
-        have := Shape.HasType.lift_mono (Δ := Δ) h' hc₁ty
-        rwa [Shape.lift_sort] at this
+          Shape.WF Δ d → Shape.HasType Δ d .type →
+          ShapeFun.HasDom Δ (Shape.HasType Δ)
+            (ShapeFun.lift (Shape.lift k) f) (d.lift k) →
+          ShapeFun.HasDom Δ (Shape.HasType Δ) f d :=
+        fun hwf hco hwd hd => ShapeFun.HasDom.lift_of hΔ h' hwf hco hwd hd (ih h')
       intro H
       cases m with
       | bot =>
+        cases Shape.hasType_succ.1 H with
+        | bot hb => exact .bot (Shape.HasType.lift_of_type h hb)
+      | sort s =>
         cases a with
-        | forallE A B d f => exact ihpi hwa.2.2.1 hwa.2.2.2.1 hwa.2.2.2.2 H
-        | sigma A B d f => exact ihpi hwa.2.2.1 hwa.2.2.2.1 hwa.2.2.2.2 H
-        | _ => exact H
-      | sort | unit | nat | zero => cases a <;> exact H
-      | id t A₀ a₀ b₀ => cases a <;> exact H
-      | refl w => cases a <;> exact H
+        | sort j => cases Shape.hasType_succ.1 H with | sort => exact .sort
+        | _ => cases Shape.hasType_succ.1 H
+      | unit r =>
+        cases a with
+        | sort j => cases Shape.hasType_succ.1 H with | unit hj => exact .unit hj
+        | _ => cases Shape.hasType_succ.1 H
+      | nat =>
+        cases a with
+        | sort j => cases Shape.hasType_succ.1 H with | nat => exact .nat
+        | _ => cases Shape.hasType_succ.1 H
+      | zero =>
+        cases a with
+        | nat => exact .zero
+        | _ => cases Shape.hasType_succ.1 H
+      | id r A₀ a₀ b₀ =>
+        cases a with
+        | sort j => cases Shape.hasType_succ.1 H with | id hj => exact .id hj
+        | _ => cases Shape.hasType_succ.1 H
+      | refl w =>
+        cases a with
+        | id r A₁ a₁ b₁ => cases Shape.hasType_succ.1 H with | refl => exact .refl
+        | _ => cases Shape.hasType_succ.1 H
       | succ v =>
         cases a with
         | nat =>
-          cases n with
-          | zero =>
-            cases k with
-            | zero => show v = Shape.bot; rwa [Shape.lift_self] at H
-            | succ k =>
-              show v = Shape.bot
-              cases v with
-              | bot => rfl
-              | sort r => exact absurd (H : Shape.HasType Δ (Shape.sort r) Shape.nat) id
-          | succ n =>
-            cases k with
-            | zero => exact absurd h' (Nat.not_succ_le_zero _)
-            | succ k => exact ih h' hwm (by trivial) H
-        | _ => exact H
-      | pair ty tm x y =>
+          cases Shape.hasType_succ.1 H with
+          | succ hN => exact .succ (Shape.IsNumeral.lift_of h' hN)
+        | _ => cases Shape.hasType_succ.1 H
+      | forallE A B d f =>
         cases a with
-        | sigma A₀ B₀ d f =>
-          have hpi := ihpi hwa.2.2.1 hwa.2.2.2.1 hwa.2.2.2.2 H.1
-          exact ⟨hpi, ih h' hwm.2.2.1 hwa.2.2.1 H.2.1,
-            ihcode hwa.2.2.2.1 hwa.2.2.2.2 hpi.2.2 hwm.2.2.1 hwm.2.2.2.1 H.2.2⟩
-        | _ => exact H
-      | forallE A₀ B₀ d f =>
+        | sort r =>
+          cases Shape.hasType_succ.1 H with
+          | forallE hpi => exact .forallE (ihpi hwm.2.2.1 hwm.2.2.2.1 hpi)
+        | _ => cases Shape.hasType_succ.1 H
+      | sigma A B d f =>
         cases a with
-        | sort r => exact ihpi hwm.2.2.1 hwm.2.2.2.1 hwm.2.2.2.2 H
-        | _ => exact H
-      | sigma A₀ B₀ d f =>
-        cases a with
-        | sort j => exact ⟨H.1, ihpi hwm.2.2.1 hwm.2.2.2.1 hwm.2.2.2.2 H.2⟩
-        | _ => exact H
+        | sort r =>
+          cases Shape.hasType_succ.1 H with
+          | sigma hpi => exact .sigma (ihpi hwm.2.2.1 hwm.2.2.2.1 hpi)
+        | _ => cases Shape.hasType_succ.1 H
       | lam g =>
         cases a with
         | forallE A₁ B₁ d f =>
-          have hpi := ihpi hwa.2.2.1 hwa.2.2.2.1 hwa.2.2.2.2 H.1
-          refine ⟨hpi, ShapeFun.HasDom.lift_of hΔ h' hwm.2.2.1 hwm.2.2.2 hwa.2.2.1 hpi.1
-            (ih h') H.2.1, fun e he => ?_⟩
-          exact ihcode hwa.2.2.2.1 hwa.2.2.2.2 hpi.2.2 (hwm.2.2.1 e he).2.2.1
-            (hwm.2.2.1 e he).2.2.2 (H.2.2 _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩))
-        | _ => exact H
+          cases Shape.hasType_succ.1 H with
+          | lam hpi hg hwg hdom hcod => ?_
+          sorry
+        | _ => cases Shape.hasType_succ.1 H
+      | pair ty tm x y =>
+        cases a with
+        | sigma A₁ B₁ d f =>
+          cases Shape.hasType_succ.1 H with
+          | pair hpi hxle hwx hxd hwc hev hyc => ?_
+          sorry
+        | _ => cases Shape.hasType_succ.1 H
 
 /-- **Fullness for typing.**  On the shapes that come from the level
 below, the higher level types exactly what the lower one did. -/
