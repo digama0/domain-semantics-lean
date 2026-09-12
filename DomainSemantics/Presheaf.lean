@@ -233,9 +233,9 @@ theorem Interp.eq_bot_of_prop {Γ : List Term} {p t : Term}
   have kb : b.1 ≤ max (max m'.1 a.1) (max a'.1 b.1) :=
     Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_right ..)
   -- everything at one level
-  have hty' := TShape.HasType.def km ka hty
+  have hty' := TShape.HasType.def hΔ hm'.wf ha.wf km ka hty
   have hlea' := (TShape.LE.def ka ka').1 hlea
-  have htya' := TShape.HasType.def ka' kb htya
+  have htya' := TShape.HasType.def hΔ ha'.wf hb.wf ka' kb htya
   have hble : Shape.LE Δ (b.2.lift (max (max m'.1 a.1) (max a'.1 b.1))) (Shape.sort false) := by
     have := (TShape.LE.def kb (Nat.zero_le _)).1 (Interp.le_sort hb)
     rwa [show Shape.lift (max (max m'.1 a.1) (max a'.1 b.1)) (TShape.sort false).2
