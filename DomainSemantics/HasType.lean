@@ -127,12 +127,10 @@ def ShapeFun.HasPi (Δ : List Term) (T : Shape n → Shape n → Prop)
 independent of typing, so it gets its own recursion rather than an
 inline match in `HasType`.  `HasType v .nat ↔ IsNumeral v` at positive
 level (`Shape.hasType_nat_iff`). -/
-def Shape.IsNumeral : ∀ {n}, Shape n → Prop
-  | 0, w => w = .bot
-  | _ + 1, .bot => True
-  | _ + 1, .zero => True
-  | _ + 1, .succ w => IsNumeral w
-  | _ + 1, _ => False
+inductive Shape.IsNumeral : ∀ {n}, Shape n → Prop
+  | bot : IsNumeral .bot
+  | zero : IsNumeral (n := n+1) .zero
+  | succ : IsNumeral (n := n) w → IsNumeral (.succ w)
 
 /-- Weaken the codomain condition of a Π/Σ signature. -/
 theorem ShapeFun.HasPi.cod {Δ : List Term} {n} {T : Shape n → Shape n → Prop}
@@ -141,6 +139,10 @@ theorem ShapeFun.HasPi.cod {Δ : List Term} {n} {T : Shape n → Shape n → Pro
     ShapeFun.HasPi Δ T d f a' :=
   have ⟨d₀, f₀, h1, h2, h3, h4, h5⟩ := h
   ⟨d₀, f₀, h1, h2, h3, h4, fun e he => H (h5 e he)⟩
+
+inductive Shape.HasType0 : Shape 0 → Shape 0 → Prop
+  | bot : HasType0 .bot a
+  | sort : HasType0 (.sort u) (.sort true)
 
 /-- One level of the typing relation, as an inductive family in the typing
 relation `T` of the level below — the same shape as `ShapeFun.HasDom` and
@@ -192,21 +194,19 @@ inductive Shape.HasTypeS (Δ : List Term) {n} (T : Shape n → Shape n → Prop)
     HasTypeS Δ T (.pair ty tm x y) (.sigma A B d f)
   | refl {w A a b} : HasTypeS Δ T (.refl w) (.id true A a b)
 
-/-- `m` is a well-typed inhabitant of the type-shape `a`, by iterating
-`HasTypeS` up the levels. -/
+/-- The base level, where the only shapes are `⊥` and the sorts. -/
 def Shape.HasType (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
-  | 0 => fun m a =>
-      match m, a with
-      | .bot, .bot => True
-      | .bot, .sort _ => True
-      | .sort _, .bot => False
-      | .sort _, .sort j => j = true
-  | _ + 1 => Shape.HasTypeS Δ (HasType Δ)
+  | 0 => HasType0
+  | _ + 1 => HasTypeS Δ (HasType Δ)
 
-/-- The recursion equation at positive level, for `cases` and `rw`, which
-do not unfold definitions. -/
+/-- The recursion equations, for `cases` and `rw`, which do not unfold the
+definition. -/
+theorem Shape.hasType_zero {Δ : List Term} {m a : Shape 0} :
+    Shape.HasType Δ m a ↔ Shape.HasType0 m a := Iff.rfl
+
+
 theorem Shape.hasType_succ {Δ : List Term} {n} {m a : Shape (n + 1)} :
-    Shape.HasType Δ m a ↔ Shape.HasTypeS Δ (Shape.HasType Δ) m a := Iff.rfl
+    HasType Δ m a ↔ HasTypeS Δ (HasType Δ) m a := Iff.rfl
 
 /-! ## Codes and cumulativity
 
@@ -238,9 +238,9 @@ theorem Shape.HasType.cumul : ∀ {n} {a : Shape n} {r s : Bool},
   induction n with
   | zero =>
     intro a r s h hrs
-    cases a with
-    | bot => trivial
-    | sort => exact Bool.eq_true_of_le h hrs
+    cases Shape.hasType_zero.1 h with
+    | bot => exact .bot
+    | sort => cases Bool.eq_true_of_le rfl hrs; exact .sort
   | succ n ih =>
     intro a r s h hrs
     cases Shape.hasType_succ.1 h with
@@ -257,7 +257,7 @@ theorem Shape.HasType.bot : ∀ {n} {a : Shape n},
     Shape.HasType Δ a .type → Shape.HasType Δ .bot a := by
   intro n
   cases n with
-  | zero => intro a _; cases a <;> trivial
+  | zero => intro _ _; exact Shape.HasType0.bot
   | succ n => intro _ h; exact Shape.HasTypeS.bot h
 
 /-- Anything typed has a type that is itself a type.  Now one line per
@@ -267,7 +267,11 @@ theorem Shape.HasType.isType : ∀ {n} {m a : Shape n},
     Shape.HasType Δ m a → Shape.HasType Δ a .type := by
   intro n
   cases n with
-  | zero => intro m a h; cases m <;> cases a <;> simp_all [Shape.HasType]
+  | zero =>
+    intro m a h
+    cases Shape.hasType_zero.1 h with
+    | bot => cases a with | bot => exact .bot | sort => exact .sort
+    | sort => exact .sort
   | succ n =>
     intro m a h
     cases Shape.hasType_succ.1 h with
@@ -306,72 +310,65 @@ theorem ShapeFun.HasDom.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f : Shape
   exact ⟨x.subst τ, Shape.WF.subst hΘ W hwx, ih hx, Shape.LE.subst hΘ W hxle,
     Evaluates.subst hΘ W hev⟩
 
+/-- Numerals are stable under substitution: there is nothing in them but
+shape. -/
+theorem Shape.IsNumeral.subst {τ : Subst} : ∀ {n} {v : Shape n},
+    Shape.IsNumeral v → Shape.IsNumeral (v.subst τ) := by
+  intro n v h
+  induction h with
+  | bot => rw [Shape.subst_bot]; exact .bot
+  | zero => exact .zero
+  | succ _ ih => exact .succ ih
+
+theorem ShapeFun.HasPi.subst_of {Δ Θ : List Term} {τ : Subst} {n} {d : Shape n}
+    {f : ShapeFun n} {a : Shape n} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
+    (ih : ∀ {m a : Shape n}, Shape.HasType Δ m a → Shape.HasType Θ (m.subst τ) (a.subst τ))
+    (h : ShapeFun.HasPi Δ (Shape.HasType Δ) d f a) :
+    ShapeFun.HasPi Θ (Shape.HasType Θ) (d.subst τ)
+      (ShapeFun.subst (Shape.subst · τ) τ f) (a.subst τ) := by
+  have ⟨d₀, f₀, h1, h2, h3, h4, h5⟩ := h
+  refine ⟨d₀.subst τ, ShapeFun.subst (Shape.subst · τ) τ f₀, Shape.LE.subst hΘ W h1,
+    ShapeFun.LE.subst_of hΘ W (Shape.LE.subst hΘ W) h2, by simpa using ih h3,
+    ShapeFun.HasDom.subst_of hΘ W ih h4, fun e' he' => ?_⟩
+  obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
+  exact ih (h5 e he)
+
 /-- Typing of shapes is stable along a typed substitution. -/
 theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (W : Ctx.SubstEq Θ τ τ Δ) : ∀ {n} {m a : Shape n},
     Shape.HasType Δ m a → Shape.HasType Θ (m.subst τ) (a.subst τ) := by
   intro n
   induction n with
-  | zero => intro m a h; cases m <;> cases a <;> simp_all [Shape.HasType, Shape.subst]
-  | succ n ih =>
-    -- the "this Π/Σ type is well-formed" conjunct, substituted
-    have hpi : ∀ {f : ShapeFun n} {d : Shape n},
-        (Shape.HasType Δ d .type ∧ ShapeFun.HasDom Δ (Shape.HasType Δ) f d ∧
-            ∀ e ∈ f, Shape.HasType Δ e.out .type) →
-        (Shape.HasType Θ (d.subst τ) .type ∧
-          ShapeFun.HasDom Θ (Shape.HasType Θ) (ShapeFun.subst (Shape.subst · τ) τ f)
-            (d.subst τ) ∧
-          ∀ e ∈ ShapeFun.subst (Shape.subst · τ) τ f, Shape.HasType Θ e.out .type) := by
-      intro f d h
-      refine ⟨by simpa using ih h.1, ShapeFun.HasDom.subst_of hΘ W ih h.2.1, fun e' he' => ?_⟩
-      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
-      simpa using ih (h.2.2 e he)
+  | zero =>
     intro m a h
-    cases m with
-    | bot =>
-      cases a with
-      | bot | sort | unit | nat | id => trivial
-      | forallE A B d f => exact hpi h
-      | sigma A B d f => exact hpi h
-      | _ => exact absurd h id
-    | sort s => cases a <;> first | exact absurd h id | exact h
-    | unit s => cases a <;> first | exact absurd h id | exact h
-    | nat => cases a <;> first | exact absurd h id | exact h
-    | zero => cases a <;> first | exact absurd h id | exact h
-    | id s A a' b' => cases a <;> first | exact absurd h id | exact h
-    | refl w => cases a <;> first | exact absurd h id | exact h
-    | succ v =>
-      cases a with
-      | nat =>
-        cases n with
-        | zero => cases (h : v = .bot); exact Shape.subst_bot
-        | succ m => exact ih h
-      | _ => exact absurd h id
-    | forallE A B d f =>
-      cases a with
-      | sort r => exact ⟨by simpa using ih h.1,
-          ShapeFun.HasDom.subst_of hΘ W ih h.2.1, fun e' he' => by
-          obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
-          simpa using ih (h.2.2 e he)⟩
-      | _ => exact absurd h id
-    | sigma A B d f =>
-      cases a with
-      | sort r => exact ⟨h.1, hpi h.2⟩
-      | _ => exact absurd h id
-    | lam g =>
-      cases a with
-      | forallE A B d f =>
-        refine ⟨hpi h.1, ShapeFun.HasDom.subst_of hΘ W ih h.2.1, fun e' he' => ?_⟩
-        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
-        have ⟨c, hev, hty⟩ := h.2.2 e he
-        exact ⟨c.subst τ, Evaluates.subst hΘ W hev, ih hty⟩
-      | _ => exact absurd h id
-    | pair ty tm x y =>
-      cases a with
-      | sigma A B d f =>
-        have ⟨c, hev, hcty⟩ := h.2.2
-        exact ⟨hpi h.1, ih h.2.1, c.subst τ, Evaluates.subst hΘ W hev, ih hcty⟩
-      | _ => exact absurd h id
+    cases Shape.hasType_zero.1 h with
+    | bot => exact .bot
+    | sort => exact .sort
+  | succ n ih =>
+    intro m a h
+    replace h : Shape.HasTypeS Δ (Shape.HasType Δ) m a := h
+    induction h with
+    | bot _ ihb => exact .bot ihb
+    | sort => exact .sort
+    | unit hle => exact .unit hle
+    | nat => exact .nat
+    | zero => exact .zero
+    | succ hN => exact .succ hN.subst
+    | id hle => exact .id hle
+    | forallE hpi =>
+      exact .forallE (by simpa using ShapeFun.HasPi.subst_of hΘ W ih hpi)
+    | sigma hpi => exact .sigma (by simpa using ShapeFun.HasPi.subst_of hΘ W ih hpi)
+    | lam hpi hle hdom hcod =>
+      refine .lam (by simpa using ShapeFun.HasPi.subst_of hΘ W ih hpi)
+        (ShapeFun.LE.subst_of hΘ W (Shape.LE.subst hΘ W) hle)
+        (ShapeFun.HasDom.subst_of hΘ W ih hdom) fun e' he' => ?_
+      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
+      have ⟨c, hev, hty⟩ := hcod e he
+      exact ⟨c.subst τ, Evaluates.subst hΘ W hev, ih hty⟩
+    | pair hpi hxle hxd hev hyc =>
+      exact .pair (by simpa using ShapeFun.HasPi.subst_of hΘ W ih hpi) (Shape.LE.subst hΘ W hxle)
+        (ih hxd) (Evaluates.subst hΘ W hev) (ih hyc)
+    | refl => exact .refl
 
 /-! ## The lookup is coherent
 
