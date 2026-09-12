@@ -102,17 +102,26 @@ def ShapeFun.HasDom (Δ : List Term) (T : Shape n → Shape n → Prop)
   ∀ e ∈ f, ∃ x, Shape.WF Δ x ∧ T x d ∧ Shape.LE Δ x e.inp ∧
     Evaluates Δ f e.ty e.tm x e.out
 
-/-- `m` is a well-typed inhabitant of the type-shape `a`.  Structural
-recursion on the level.
+/-- `g` **generates** the type `a`: the canonical elements of `a`, given
+structurally.  Inhabitation is the downward closure of this
+(`Shape.HasType` below), which is what makes a type a *lower set* — the
+other repo builds that in as a field of `ΩLower` rather than proving it.
 
-Following master, the `⊥` clauses are given **per type former** rather
-than blanket, and the `lam`/`pair` clauses carry the well-formedness of
-the Π/Σ type they inhabit.  Both are needed for `isType`
-(`HasType m a → HasType a .type`), without which `mono_r` cannot be
-stated, let alone proved: a blanket `HasType ⊥ a = True` would make `⊥`
-an inhabitant of shapes that are not types at all. -/
-def Shape.HasType (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
-  -- `⊥` inhabits every *type*
+Every recursive occurrence is therefore the closure, not `Gen` itself: a
+component of a generator has only to be an *element* of its type, not a
+generator of it.  Following master, the `⊥` clauses are given per type
+former rather than blanket, and the `lam`/`pair` clauses carry the
+well-formedness of the Π/Σ type they inhabit; both are needed for
+`isType`.
+
+Asking a value's own graph to be good — as master does, and as we did
+until now — is not invariant under the order's `≈`: an equivalent graph
+may carry entries dominated by ones it already has, and typing is not
+upward closed, so `HasType.mono_l` would be false.  Here the condition
+constrains a generator *above* the value, and the redundant entries of the
+value itself are never looked at. -/
+def Shape.Gen (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
+  -- `⊥` generates every *type*
   | 0, .bot, .bot => True
   | 0, .bot, .sort _ => True
   | 0, .sort _, .sort j => j = true
@@ -123,11 +132,13 @@ def Shape.HasType (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
   | _+1, .bot, .nat => True
   | _+1, .bot, .id _ _ _ _ => True
   | _+1, .bot, .forallE _ _ d f =>
-      HasType Δ d .type ∧ ShapeFun.HasDom Δ (HasType Δ) f d ∧
-        ∀ e ∈ f, HasType Δ e.out .type
+      (∃ w, Shape.LE Δ d w ∧ Gen Δ w .type) ∧
+        ShapeFun.HasDom Δ (fun m a => ∃ w, Shape.LE Δ m w ∧ Gen Δ w a) f d ∧
+        ∀ e ∈ f, ∃ w, Shape.LE Δ e.out w ∧ Gen Δ w .type
   | _+1, .bot, .sigma _ _ d f =>
-      HasType Δ d .type ∧ ShapeFun.HasDom Δ (HasType Δ) f d ∧
-        ∀ e ∈ f, HasType Δ e.out .type
+      (∃ w, Shape.LE Δ d w ∧ Gen Δ w .type) ∧
+        ShapeFun.HasDom Δ (fun m a => ∃ w, Shape.LE Δ m w ∧ Gen Δ w a) f d ∧
+        ∀ e ∈ f, ∃ w, Shape.LE Δ e.out w ∧ Gen Δ w .type
   | _+1, .bot, _ => False
   | _+1, .sort _, .sort j => j = true
   | _+1, .unit r, .sort j => r ≤ j
@@ -138,38 +149,53 @@ def Shape.HasType (Δ : List Term) : ∀ {n}, Shape n → Shape n → Prop
   | n+1, .succ v, .nat =>
       match n, v with
       | 0, w => w = .bot
-      | _+1, w => HasType Δ w .nat
+      | _+1, w => ∃ z, Shape.LE Δ w z ∧ Gen Δ z .nat
   | _+1, .id r _ _ _, .sort j => r ≤ j
-  -- a Π-type is in `sort r` when its codomain family lands in `sort r`
-  -- the domain is a type: master derives this from saturation (every graph
-  -- has a `⊥`-input entry, so the domain has an inhabitant); with
-  -- saturation gone it has to be stated
   | _+1, .forallE _ _ d f, .sort r =>
-      HasType Δ d .type ∧ ShapeFun.HasDom Δ (HasType Δ) f d ∧
-        ∀ e ∈ f, HasType Δ e.out (.sort r)
+      (∃ w, Shape.LE Δ d w ∧ Gen Δ w .type) ∧
+        ShapeFun.HasDom Δ (fun m a => ∃ w, Shape.LE Δ m w ∧ Gen Δ w a) f d ∧
+        ∀ e ∈ f, ∃ w, Shape.LE Δ e.out w ∧ Gen Δ w (.sort r)
   | _+1, .sigma _ _ d f, .sort j =>
-      j = true ∧ HasType Δ d .type ∧ ShapeFun.HasDom Δ (HasType Δ) f d ∧
-        ∀ e ∈ f, HasType Δ e.out .type
-  -- a λ-shape inhabits a Π-type when that Π-type is well-formed and every
-  -- entry's output is typed at a code the codomain family yields at that
-  -- entry's label and input
+      j = true ∧ (∃ w, Shape.LE Δ d w ∧ Gen Δ w .type) ∧
+        ShapeFun.HasDom Δ (fun m a => ∃ w, Shape.LE Δ m w ∧ Gen Δ w a) f d ∧
+        ∀ e ∈ f, ∃ w, Shape.LE Δ e.out w ∧ Gen Δ w .type
   | _+1, .lam g, .forallE _ _ d f =>
-      (HasType Δ d .type ∧ ShapeFun.HasDom Δ (HasType Δ) f d ∧
-          ∀ e ∈ f, HasType Δ e.out .type) ∧
-        ShapeFun.HasDom Δ (HasType Δ) g d ∧
-        ∀ e ∈ g, ∃ c, Evaluates Δ f e.ty e.tm e.inp c ∧ HasType Δ e.out c
-  -- a pair inhabits a Σ-type when that Σ-type is well formed, the first
-  -- component is in the domain, and the second is typed at a code the
-  -- codomain family yields at the pair's own label and first component.
-  -- Exactly the `lam` clause, with one entry instead of a graph
+      ((∃ w, Shape.LE Δ d w ∧ Gen Δ w .type) ∧
+          ShapeFun.HasDom Δ (fun m a => ∃ w, Shape.LE Δ m w ∧ Gen Δ w a) f d ∧
+          ∀ e ∈ f, ∃ w, Shape.LE Δ e.out w ∧ Gen Δ w .type) ∧
+        ShapeFun.HasDom Δ (fun m a => ∃ w, Shape.LE Δ m w ∧ Gen Δ w a) g d ∧
+        ∀ e ∈ g, ∃ c, Evaluates Δ f e.ty e.tm e.inp c ∧
+          ∃ w, Shape.LE Δ e.out w ∧ Gen Δ w c
   | _+1, .pair ty tm x y, .sigma _ _ d f =>
-      (HasType Δ d .type ∧ ShapeFun.HasDom Δ (HasType Δ) f d ∧
-          ∀ e ∈ f, HasType Δ e.out .type) ∧
-        HasType Δ x d ∧
-        ∃ c, Evaluates Δ f ty tm x c ∧ HasType Δ y c
-  -- with a label-only Id shape there is nothing semantic left to check
+      ((∃ w, Shape.LE Δ d w ∧ Gen Δ w .type) ∧
+          ShapeFun.HasDom Δ (fun m a => ∃ w, Shape.LE Δ m w ∧ Gen Δ w a) f d ∧
+          ∀ e ∈ f, ∃ w, Shape.LE Δ e.out w ∧ Gen Δ w .type) ∧
+        (∃ w, Shape.LE Δ x w ∧ Gen Δ w d) ∧
+        ∃ c, Evaluates Δ f ty tm x c ∧ ∃ w, Shape.LE Δ y w ∧ Gen Δ w c
   | _+1, .refl _, .id r _ _ _ => r = true
   | _+1, _, _ => False
+
+/-- `m` is a well-typed inhabitant of the type-shape `a`: it approximates
+a generator.  A type is a **lower set**, by construction. -/
+def Shape.HasType (Δ : List Term) {n} (m a : Shape n) : Prop :=
+  ∃ g, Shape.LE Δ m g ∧ Shape.Gen Δ g a
+
+/-- **Proper left monotonicity**, the point of the whole formulation: a
+type is downward closed, and one line proves it. -/
+theorem Shape.HasType.lower {Δ : List Term} {n} {m m' a : Shape n} (hΔ : ⊢ Δ)
+    (hle : Shape.LE Δ m' m) (h : Shape.HasType Δ m a) : Shape.HasType Δ m' a :=
+  have ⟨g, hmg, hg⟩ := h; ⟨g, hle.trans hΔ hmg, hg⟩
+
+/-- Invariance under mutual approximation is now a corollary, where master
+needs a 70-line mutual induction (`WShape.HasType.mono_l`). -/
+theorem Shape.HasType.mono_l {Δ : List Term} {n} {m m' a : Shape n} (hΔ : ⊢ Δ)
+    (_ : Shape.LE Δ m m') (hle : Shape.LE Δ m' m) (h : Shape.HasType Δ m a) :
+    Shape.HasType Δ m' a := h.lower hΔ hle
+
+/-- A generator of a well-formed shape is an inhabitant. -/
+theorem Shape.Gen.hasType {Δ : List Term} {n} {m a : Shape n}
+    (hwm : Shape.WF Δ m) (h : Shape.Gen Δ m a) : Shape.HasType Δ m a :=
+  ⟨m, Shape.LE.refl hwm, h⟩
 
 /-! ## Codes and cumulativity
 
@@ -195,8 +221,8 @@ private theorem Bool.le_tr {t r s : Bool} (h₁ : t ≤ r) (h₂ : r ≤ s) : t 
   revert h₁ h₂; cases t <;> cases r <;> cases s <;> decide
 
 /-- The universes are cumulative: a `prop` is also a `type`. -/
-theorem Shape.HasType.cumul : ∀ {n} {a : Shape n} {r s : Bool},
-    Shape.HasType Δ a (.sort r) → r ≤ s → Shape.HasType Δ a (.sort s) := by
+theorem Shape.Gen.cumul : ∀ {n} {a : Shape n} {r s : Bool},
+    Shape.Gen Δ a (.sort r) → r ≤ s → Shape.Gen Δ a (.sort s) := by
   intro n
   induction n with
   | zero =>
@@ -212,14 +238,19 @@ theorem Shape.HasType.cumul : ∀ {n} {a : Shape n} {r s : Bool},
     | nat => exact Bool.eq_true_of_le h hrs
     | unit t => exact Bool.le_tr h hrs
     | id t A a' b' => exact Bool.le_tr h hrs
-    | forallE A B d f => exact ⟨h.1, h.2.1, fun e he => ih (h.2.2 e he) hrs⟩
+    | forallE A B d f =>
+      exact ⟨h.1, h.2.1, fun e he => have ⟨w, hw, hg⟩ := h.2.2 e he; ⟨w, hw, ih hg hrs⟩⟩
     | sigma A B d f => exact ⟨Bool.eq_true_of_le h.1 hrs, h.2⟩
     | _ => exact absurd h id
 
-/-- `⊥` inhabits every type (master's form: the hypothesis is what the
-blanket version silently assumed). -/
-theorem Shape.HasType.bot : ∀ {n} {a : Shape n},
-    Shape.HasType Δ a .type → Shape.HasType Δ .bot a := by
+theorem Shape.HasType.cumul {n} {a : Shape n} {r s : Bool}
+    (h : Shape.HasType Δ a (.sort r)) (hrs : r ≤ s) : Shape.HasType Δ a (.sort s) :=
+  have ⟨g, hg, hgen⟩ := h; ⟨g, hg, hgen.cumul hrs⟩
+
+/-- `⊥` generates every type: the `⊥` clauses were chosen to coincide with
+the universe clauses, former by former. -/
+theorem Shape.Gen.bot : ∀ {n} {a : Shape n},
+    Shape.Gen Δ a .type → Shape.Gen Δ .bot a := by
   intro n
   cases n with
   | zero => intro a _; cases a <;> trivial
@@ -231,13 +262,19 @@ theorem Shape.HasType.bot : ∀ {n} {a : Shape n},
     | sigma A B d f => exact h.2
     | _ => exact absurd h id
 
-/-- Anything typed has a type that is itself a type.  This is the lemma the
-per-former `⊥` clauses and the Π-well-formedness conjuncts exist for. -/
-theorem Shape.HasType.isType : ∀ {n} {m a : Shape n},
-    Shape.HasType Δ m a → Shape.HasType Δ a .type := by
+/-- `⊥` inhabits every type. -/
+theorem Shape.HasType.bot {n} {a : Shape n} (h : Shape.Gen Δ a .type) :
+    Shape.HasType Δ .bot a := ⟨.bot, Shape.LE.bot, Shape.Gen.bot h⟩
+
+/-- Anything typed has a type that is itself a *generator* of the universe
+-- stronger than membership, and what every consumer wants.  This is the
+lemma the per-former `⊥` clauses and the Π-well-formedness conjuncts exist
+for. -/
+theorem Shape.Gen.isType : ∀ {n} {m a : Shape n},
+    Shape.Gen Δ m a → Shape.Gen Δ a .type := by
   intro n
   induction n with
-  | zero => intro m a h; cases m <;> cases a <;> simp_all [Shape.HasType]
+  | zero => intro m a h; cases m <;> cases a <;> simp_all [Shape.Gen]
   | succ n ih =>
     intro m a h
     cases m with
@@ -301,13 +338,18 @@ theorem ShapeFun.HasDom.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f : Shape
     Evaluates.subst hΘ W hev⟩
 
 /-- Typing of shapes is stable along a typed substitution. -/
-theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+theorem Shape.Gen.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (W : Ctx.SubstEq Θ τ τ Δ) : ∀ {n} {m a : Shape n},
-    Shape.HasType Δ m a → Shape.HasType Θ (m.subst τ) (a.subst τ) := by
+    Shape.Gen Δ m a → Shape.Gen Θ (m.subst τ) (a.subst τ) := by
   intro n
   induction n with
-  | zero => intro m a h; cases m <;> cases a <;> simp_all [Shape.HasType, Shape.subst]
+  | zero => intro m a h; cases m <;> cases a <;> simp_all [Shape.Gen, Shape.subst]
   | succ n ih =>
+    -- the clauses recurse through *inhabitation*, so this is the closure
+    -- of the induction hypothesis, not the hypothesis itself
+    have ihc : ∀ {m a : Shape n}, Shape.HasType Δ m a →
+        Shape.HasType Θ (m.subst τ) (a.subst τ) :=
+      fun ⟨w, hw, hg⟩ => ⟨w.subst τ, Shape.LE.subst hΘ W hw, ih hg⟩
     -- the "this Π/Σ type is well-formed" conjunct, substituted
     have hpi : ∀ {f : ShapeFun n} {d : Shape n},
         (Shape.HasType Δ d .type ∧ ShapeFun.HasDom Δ (Shape.HasType Δ) f d ∧
@@ -317,9 +359,10 @@ theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
             (d.subst τ) ∧
           ∀ e ∈ ShapeFun.subst (Shape.subst · τ) τ f, Shape.HasType Θ e.out .type) := by
       intro f d h
-      refine ⟨by simpa using ih h.1, ShapeFun.HasDom.subst_of hΘ W ih h.2.1, fun e' he' => ?_⟩
+      refine ⟨by simpa using ihc h.1, ShapeFun.HasDom.subst_of hΘ W ihc h.2.1,
+        fun e' he' => ?_⟩
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
-      simpa using ih (h.2.2 e he)
+      simpa using ihc (h.2.2 e he)
     intro m a h
     cases m with
     | bot =>
@@ -339,14 +382,14 @@ theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
       | nat =>
         cases n with
         | zero => cases (h : v = .bot); exact Shape.subst_bot
-        | succ m => exact ih h
+        | succ m => exact ihc h
       | _ => exact absurd h id
     | forallE A B d f =>
       cases a with
-      | sort r => exact ⟨by simpa using ih h.1,
-          ShapeFun.HasDom.subst_of hΘ W ih h.2.1, fun e' he' => by
+      | sort r => exact ⟨by simpa using ihc h.1,
+          ShapeFun.HasDom.subst_of hΘ W ihc h.2.1, fun e' he' => by
           obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
-          simpa using ih (h.2.2 e he)⟩
+          simpa using ihc (h.2.2 e he)⟩
       | _ => exact absurd h id
     | sigma A B d f =>
       cases a with
@@ -355,17 +398,24 @@ theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     | lam g =>
       cases a with
       | forallE A B d f =>
-        refine ⟨hpi h.1, ShapeFun.HasDom.subst_of hΘ W ih h.2.1, fun e' he' => ?_⟩
+        refine ⟨hpi h.1, ShapeFun.HasDom.subst_of hΘ W ihc h.2.1, fun e' he' => ?_⟩
         obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
         have ⟨c, hev, hty⟩ := h.2.2 e he
-        exact ⟨c.subst τ, Evaluates.subst hΘ W hev, ih hty⟩
+        exact ⟨c.subst τ, Evaluates.subst hΘ W hev, ihc hty⟩
       | _ => exact absurd h id
     | pair ty tm x y =>
       cases a with
       | sigma A B d f =>
         have ⟨c, hev, hcty⟩ := h.2.2
-        exact ⟨hpi h.1, ih h.2.1, c.subst τ, Evaluates.subst hΘ W hev, ih hcty⟩
+        exact ⟨hpi h.1, ihc h.2.1, c.subst τ, Evaluates.subst hΘ W hev, ihc hcty⟩
       | _ => exact absurd h id
+
+/-- Typing of shapes is stable along a typed substitution. -/
+theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) {n} {m a : Shape n}
+    (h : Shape.HasType Δ m a) : Shape.HasType Θ (m.subst τ) (a.subst τ) :=
+  have ⟨g, hg, hgen⟩ := h
+  ⟨g.subst τ, Shape.LE.subst hΘ W hg, Shape.Gen.subst hΘ W hgen⟩
 
 /-! ## The lookup is coherent
 
