@@ -415,6 +415,16 @@ theorem Interp.le_forallE {Δ Γ σ ρ m A B}
   | bot => exact .inl rfl
   | forallE _ _ _ _ _ _ h => exact .inr ⟨_, _, _, h⟩
 
+/-- The Σ case, as `le_forallE`. -/
+theorem Interp.le_sigma (H : Interp Δ Γ (.sigma A B) σ ρ m) :
+    m.2 = Shape.bot ∨
+      ∃ n, ∃ d : Shape n, ∃ g : ShapeFun n,
+        TShape.LE Δ m
+          (Shape.T (n := n+1) (.sigma (A.subst σ) (B.subst σ.lift) d g)) := by
+  cases H with
+  | bot => exact .inl rfl
+  | sigma _ _ _ _ _ _ h => exact .inr ⟨_, _, _, h⟩
+
 /-! ## The Π label, in and out
 
 This is the other repo's `mem_piAtom_pi_iff`, and the point of the whole

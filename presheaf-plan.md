@@ -1158,12 +1158,16 @@ sides.  §4.5 says why directedness cannot be separated.  The induction is
 written out with all 34 rules enumerated and nine proved (§4.6); three of
 the rest are blocked on Σ (§4.7).
 
-**Inversion** (`Inversion.lean`).  `forallE_inv` is proved.  Left:
-`sort_inv`, `sigma_inv`, `id_inv`, and the fifteen no-confusion lemmas
-that `Consequences.lean` consumes.  Each is `forallE_inv`'s four steps;
-for the no-confusion family the last step is trivial, the order between
-two different heads being `False`, and no regularity lemma is needed
-either — only a probe for one of the two heads.
+**Inversion** (`Inversion.lean`).  `forallE_inv` and `sort_inv` are
+proved, and **fourteen of the fifteen no-confusion lemmas**.  Each is
+eight lines: put a non-`⊥` probe on whichever side has one for free, move
+it across with soundness at the identity stage and the `⊥` valuation, and
+read the head off the order, where two different heads are `False`.
+`sort`, `nat` and `unit` have hypothesis-free probes; `forallE` needs its
+regularity lemma first, to build the label-only atom, and that is used
+only where neither side is one of the three.  Left: `sigma_id_inv` (the
+one pair where neither side has a free probe, so Σ needs its own
+regularity lemma and label atom), `sigma_inv` and `id_inv`.
 
 Once these are closed, `Consequences.lean` re-points at `Inversion.lean`
 and `Sound.lean`, `LogRel.lean`, `Adequacy.lean` and `ShapeOld.lean` are
