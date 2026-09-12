@@ -534,12 +534,19 @@ source and nine discharged.  Each remaining case is an independent
 obligation; the theorem stays a single declaration, so the `sorry` count
 does not blow up while the case analysis stays visible.
 
-**Done.**  `symm`, `trans`, `trans'` are bookkeeping on the four
+**Done (9 of 34).**  `symm`, `trans`, `trans'` are bookkeeping on the four
 conclusions, with `SoundTy.of_eq` carrying typing across the equality.
 `defeqDF` moves only the *type*'s interpretation, and `SoundEq` of the two
-types is exactly what moves it.  `star`, `sigmaDF`, `pairDF`, `fstDF` and
-`sndDF` are vacuous: both sides are approximated by `⊥` and nothing else,
-which `sound_of_bot` turns into all four conclusions at once.
+types is exactly what moves it.  `star` is vacuous: only `⊥` approximates
+it, which `sound_of_bot` turns into all four conclusions at once.
+
+`sort`, `unit`, `nat` and `zero` go through `sound_atom`: a term whose
+approximants are exactly the well-formed shapes below one fixed shape
+needs only four facts about that shape and its type.  The trick that keeps
+it short is that `SoundTy` may pick **the canonical shape itself** as the
+saturating witness, so no case analysis on the approximant is needed —
+`HasType (sort l) type`, `HasType (unit r) (sort r)`, `HasType nat type`
+and `HasType zero nat` are single computations.
 
 ### 4.7 Deferring Σ is not compatible with soundness
 

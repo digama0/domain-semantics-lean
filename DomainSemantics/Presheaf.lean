@@ -205,6 +205,30 @@ theorem sound_of_bot {Γ : List Term} {t t' A : Term}
   · exact ⟨TShape.Compat.of_bot (h' hm₁),
       Interp.of_bot (TShape.join_eq_bot (h' hm₁) (h' hm₂))⟩
 
+/-! ## Atoms
+
+`sort`, `unit`, `nat` and `zero` are interpreted by the shapes below one
+fixed shape, so all four conclusions come from four facts about that shape
+and its type.  In particular `SoundTy` can pick the canonical shape itself
+as the saturating witness, which is why no case analysis on the
+approximant is needed. -/
+
+theorem sound_atom {Γ : List Term} {t A : Term} {s a : TShape}
+    (hle : ∀ {Δ Γ' σ ρ m}, Interp Δ Γ' t σ ρ m → TShape.LE Δ m s)
+    (hmk : ∀ {Δ Γ' σ ρ m}, TShape.WF Δ m → TShape.LE Δ m s → Interp Δ Γ' t σ ρ m)
+    (ha : ∀ {Δ Γ' σ ρ}, Interp Δ Γ' A σ ρ a)
+    (hws : ∀ {Δ : List Term}, TShape.WF Δ s)
+    (hsa : ∀ {Δ : List Term}, TShape.HasType Δ s a) :
+    SoundEq Γ t t ∧ SoundTy Γ t A ∧ SoundDir Γ t ∧ SoundDir Γ t := by
+  refine ⟨fun _ _ _ _ _ _ _ _ => Iff.rfl,
+    fun _ _ _ _ _ _ _ _ hm => ⟨s, a, hle hm, hmk hws (TShape.LE.refl hws), ha, hsa⟩,
+    ?_, ?_⟩ <;>
+    intro Δ Γ₀ σ ρ hΔ _ _ m₁ m₂ hm₁ hm₂ <;>
+    exact ⟨TShape.Compat.of_common_upper hΔ hws (hle hm₁) (hle hm₂),
+      hmk (TShape.WF.join hΔ
+          (TShape.Compat.of_common_upper hΔ hws (hle hm₁) (hle hm₂)) hm₁.wf hm₂.wf)
+        (TShape.join_le (hle hm₁) (hle hm₂))⟩
+
 /-! ## The target
 
 The one theorem this branch is for.  Master needs `LogRel.lean` and
@@ -241,8 +265,11 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   -- everything below is one rule of the induction, each an independent
   -- obligation; see §4.6 of `presheaf-plan.md` for what each needs
   | bvar => sorry
-  | sort => sorry
-  | unit => sorry
+  | sort =>
+    exact sound_atom Interp.le_sort (fun hw h => .sort hw h) Interp.sort' trivial rfl
+  | @unit _ r =>
+    exact sound_atom Interp.le_unit (fun hw h => .unit hw h) Interp.sort' trivial
+      (fun {_} => show (r : Bool) ≤ r by cases r <;> decide)
   | star => exact sound_of_bot (fun H => by cases H; rfl) (fun H => by cases H; rfl)
   | appDF => sorry
   | lamDF => sorry
@@ -260,8 +287,9 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   | pair_fst => sorry
   | pair_snd => sorry
   | fst_snd => sorry
-  | nat => sorry
-  | zero => sorry
+  | nat => exact sound_atom Interp.le_nat (fun hw h => .nat hw h) Interp.sort' trivial rfl
+  | zero =>
+    exact sound_atom Interp.le_zero (fun hw h => .zero hw h) Interp.nat' trivial trivial
   | succDF => sorry
   | natCaseDF => sorry
   | natCase_zero => sorry
