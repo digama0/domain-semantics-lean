@@ -193,22 +193,30 @@ theorem Shape.lift_lift {n₁ n₂ n₃} {s : Shape n₁} (h : n₁ ≤ n₂) :
 
 /-! ## Bottom shapes
 
-A λ-shape all of whose outputs are bottom carries no information, so it is
-identified with `⊥` by the order (the `collapse` case of `LE`). This
-replaces the old `NonZero`/`lam'` normalisation. -/
+A λ-shape all of whose outputs are bottom carries no information, and
+neither does a pair both of whose components carry none.  Both are
+forbidden by `WF` rather than identified with `⊥` by the order, which is
+what lets the order keep `⊥` as its only bottom element (`le_bot_iff`) and
+the join stay a least upper bound.  This replaces the old
+`NonZero`/`lam'` normalisation. -/
 
-/-- `IsBot s`: `s` is `⊥`, or a graph with only bottom outputs. -/
+/-- `IsBot s`: `s` carries no information — it is `⊥`, a graph with only
+bottom outputs, or a pair of two such. -/
 def Shape.IsBot : ∀ {n}, Shape n → Prop
   | 0, .bot => True
   | 0, .sort _ => False
   | _+1, .bot => True
   | _+1, .lam f => ∀ e ∈ f, IsBot e.out
+  | _+1, .pair a b => IsBot a ∧ IsBot b
   | _+1, _ => False
 
 @[simp] theorem Shape.isBot_bot : (Shape.bot (n := n)).IsBot := by cases n <;> trivial
 
 @[simp] theorem Shape.isBot_lam {f : ShapeFun n} :
     Shape.IsBot (n := n+1) (ShapeS.lam f) ↔ ∀ e ∈ f, e.out.IsBot := Iff.rfl
+
+@[simp] theorem Shape.isBot_pair {a b : Shape n} :
+    Shape.IsBot (n := n+1) (ShapeS.pair a b) ↔ a.IsBot ∧ b.IsBot := Iff.rfl
 
 /-! ## Substitution
 
@@ -314,7 +322,9 @@ def Shape.WF (Γ : List Term) : ∀ {n}, Shape n → Prop
   | _+1, .sigma A B d f =>
       (∃ u, Γ ⊢ A : .sort u) ∧ (∃ v, A :: Γ ⊢ B : .sort v) ∧
         WF Γ d ∧ ShapeFun.WF Γ (WF Γ) f ∧ ShapeFun.Compat Shape.Compat Γ f f
-  | _+1, .pair a b => WF Γ a ∧ WF Γ b
+  -- the Σ analogue of the λ non-degeneracy condition: a pair with no
+  -- information in either component would be a second bottom element
+  | _+1, .pair a b => WF Γ a ∧ WF Γ b ∧ ¬ (a.IsBot ∧ b.IsBot)
   -- master's `NonZero`, strengthened to every entry: a well-formed λ-shape
   -- carries real information, so `IsBot` collapses to `= .bot` and the
   -- collapse clauses disappear from `LE`, `Compat` and `join`
@@ -381,7 +391,7 @@ theorem Shape.LE.refl {n} {s : Shape n} (hs : Shape.WF Γ s) : Shape.LE Γ s s :
     | sigma A B d f =>
       have ⟨⟨_, hA⟩, ⟨_, hB⟩, hd, hf, _⟩ := hs
       exact ⟨.refl hA hB, ih hd, hfun hf⟩
-    | pair => exact ⟨ih hs.1, ih hs.2⟩
+    | pair => exact ⟨ih hs.1, ih hs.2.1⟩
     | lam => exact hfun hs.2.2.1
 
 /-- With the collapse clauses gone, only `⊥` is below `⊥`. -/
@@ -460,7 +470,10 @@ theorem Shape.lift_isBot {n m} (h : n ≤ m) {s : Shape n} : (s.lift m).IsBot �
     | succ m => cases s <;> rfl
   | succ n ih =>
     let m+1 := m; have h' := Nat.le_of_succ_le_succ h
-    cases s with | lam f => ?_ | _ => rfl
+    cases s with
+      | lam f => ?_
+      | pair a b => exact and_congr (ih h') (ih h')
+      | _ => rfl
     constructor
     · intro H e he
       exact (ih h').1 (H ⟨e.ty, e.tm, e.inp.lift m, e.out.lift m⟩
@@ -563,7 +576,10 @@ theorem Shape.lift_wf {n m} (h : n ≤ m) {s : Shape n} :
     cases s with
     | bot | sort | unit | nat | zero | id => rfl
     | succ | refl => exact ih h'
-    | pair => exact and_congr (ih h') (ih h')
+    | pair =>
+      exact and_congr (ih h')
+        (and_congr (ih h')
+          (not_congr (and_congr (Shape.lift_isBot h') (Shape.lift_isBot h'))))
     | lam => exact and_congr hnil (and_congr hnb (and_congr ihf (ShapeFun.lift_compat h')))
     | forallE | sigma =>
       exact and_congr Iff.rfl (and_congr Iff.rfl
@@ -910,8 +926,8 @@ theorem Shape.le_join (hΔ : ⊢ Δ) : ∀ {n} {x y : Shape n}, Shape.WF Δ x �
       | bot => exact ⟨.refl hx, trivial⟩
       | lam f' => exact absurd h id
       | pair a' b' =>
-        exact ⟨⟨(ih hx.1 hy.1 h.1).1, (ih hx.2 hy.2 h.2).1⟩,
-          ⟨(ih hx.1 hy.1 h.1).2, (ih hx.2 hy.2 h.2).2⟩⟩
+        exact ⟨⟨(ih hx.1 hy.1 h.1).1, (ih hx.2.1 hy.2.1 h.2).1⟩,
+          ⟨(ih hx.1 hy.1 h.1).2, (ih hx.2.1 hy.2.1 h.2).2⟩⟩
       | _ => exact absurd h id
     | sort r =>
       cases y with
@@ -967,6 +983,7 @@ theorem Shape.isBot_subst_iff {τ : Subst} {n} {s : Shape n} : (s.subst τ).IsBo
     · intro h d hd
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
       exact ih.2 (h e he)
+  | pair a b => exact and_congr ih ih
   | _ => rfl
 
 /-! ## Well-formedness, compatibility and join under substitution
@@ -993,6 +1010,7 @@ theorem Shape.IsBot.subst {τ : Subst} : ∀ {n} {s : Shape n}, s.IsBot → (s.s
       intro d hd
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
       exact ih (h e he)
+    | pair a b => exact ⟨ih h.1, ih h.2⟩
     | _ => exact absurd h id
 
 /-- Compatibility transports along a typed substitution.  The graph clauses
@@ -1105,7 +1123,9 @@ theorem Shape.WF.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.
     | bot | sort | unit | nat | zero => trivial
     | succ v => exact ih hs
     | refl w => exact ih hs
-    | pair a b => exact ⟨ih hs.1, ih hs.2⟩
+    | pair a b =>
+      exact ⟨ih hs.1, ih hs.2.1,
+        fun hb => hs.2.2 ⟨Shape.isBot_subst_iff.1 hb.1, Shape.isBot_subst_iff.1 hb.2⟩⟩
     | id r A a b =>
       have ⟨⟨u, hA⟩, ha, hb⟩ := hs
       exact ⟨⟨u, hA.subst hΘ W⟩, ha.subst hΘ W, hb.subst hΘ W⟩
@@ -1176,8 +1196,9 @@ instance Shape.decIsBot : ∀ {n} (s : Shape n), Decidable s.IsBot
   | (n+1), .lam f =>
       @List.decidableBAll _ (fun e : Entry (Shape n) => Shape.IsBot e.out)
         (fun e => Shape.decIsBot e.out) f
+  | _+1, .pair a b => @instDecidableAnd _ _ (Shape.decIsBot a) (Shape.decIsBot b)
   | _+1, .sort _ | _+1, .unit _ | _+1, .nat | _+1, .zero
-  | _+1, .succ _ | _+1, .refl _ | _+1, .pair _ _
+  | _+1, .succ _ | _+1, .refl _
   | _+1, .id _ _ _ _ | _+1, .forallE _ _ _ _ | _+1, .sigma _ _ _ _ => .isFalse id
 
 /-! ## Compatibility: symmetry, anti-monotonicity, common upper bounds
@@ -1500,6 +1521,29 @@ theorem Shape.join_compat : ∀ {n} {Δ : List Term} {y z d : Shape n}, ⊢ Δ �
       show ShapeS.sigma _ _ _ _ = _
       rw [ih, hf, DomainSemantics.subst_id, id_lift, DomainSemantics.subst_id]
 
+/-- The left argument of a join is information-free whenever the join is.
+Only the left, and that is enough: the right-hand version fails for
+mismatched heads (`join (lam []) (sort r)` is `lam []`, which is
+information-free, while `sort r` is not), and `WF.join` only ever needs
+the left one, applied to each component of a pair. -/
+theorem Shape.IsBot.of_join_left : ∀ {n} {x y : Shape n}, (x.join y).IsBot → x.IsBot := by
+  intro n
+  induction n with
+  | zero => intro x y h; cases x <;> cases y <;> first | trivial | exact h
+  | succ n ih =>
+    intro x y h
+    cases x with
+    | bot => trivial
+    | lam f =>
+      cases y with
+      | lam f' => intro e he; exact h e (List.mem_append.2 (.inl he))
+      | _ => exact h
+    | pair a b =>
+      cases y with
+      | pair a' b' => exact ⟨ih h.1, ih h.2⟩
+      | _ => exact h
+    | _ => cases y <;> exact h
+
 /-- Well-formedness survives joining.  Needs compatibility, because the
 coherence conjunct of the joined graph has to relate entries coming from
 *different* sides, which is exactly what `Compat` supplies. -/
@@ -1576,7 +1620,9 @@ theorem Shape.WF.join : ∀ {n} {Δ : List Term} {y z : Shape n}, ⊢ Δ →
     | pair a b =>
       cases z with
       | bot => exact hy
-      | pair a' b' => exact ⟨ih hΔ hc.1 hy.1 hz.1, ih hΔ hc.2 hy.2 hz.2⟩
+      | pair a' b' =>
+        exact ⟨ih hΔ hc.1 hy.1 hz.1, ih hΔ hc.2 hy.2.1 hz.2.1,
+          fun hb => hy.2.2 ⟨Shape.IsBot.of_join_left hb.1, Shape.IsBot.of_join_left hb.2⟩⟩
       | _ => exact hy
     | sort r => cases z with | bot => exact hy | _ => exact hy
     | unit r => cases z with | bot => exact hy | _ => exact hy
@@ -1596,7 +1642,7 @@ theorem Shape.WF.coherent : ∀ {n} {s : Shape n},
     | bot | sort | unit | nat | zero => trivial
     | succ v => exact ih hs
     | refl w => exact ih hs
-    | pair a b => exact ⟨ih hs.1, ih hs.2⟩
+    | pair a b => exact ⟨ih hs.1, ih hs.2.1⟩
     | id r A a b =>
       have ⟨⟨_, hA⟩, ha, hb⟩ := hs
       exact ⟨rfl, IdLabelEq.refl hA ha hb⟩

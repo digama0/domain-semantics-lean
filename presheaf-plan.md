@@ -540,10 +540,29 @@ because `Adm` types every slot and nothing but `⊥` is typed at `unit`, so
 the right side really does collapse.  There is no such argument for Σ.
 
 So §5's "Σ deferred" has to be undone before soundness closes.  The work
-is bounded and mirrors Π: `Interp` gains `sigma`, `pair`, `fst` and `snd`
-rules, and `Shape.HasType`'s `pair` clause gains the term label its TODO
-already asks for, so the second component can be typed through the graph
-lookup.
+is bounded and mirrors Π.
+
+**Step one is done**: the shape side now treats pairs the way it treats
+λ-shapes.  A pair both of whose components are information-free is itself
+information-free (`Shape.IsBot`), and `Shape.WF` forbids such a pair, just
+as it forbids a λ-graph with a bottom output.  Without this, `pair ⊥ ⊥`
+would be a second bottom element: not `⊥`, not below `⊥` (the order has no
+collapse clause), and carrying nothing — which breaks `le_bot_iff` and
+stops the join from being a least upper bound, exactly as an
+information-free λ would.
+
+The fallout is the same eleven places the λ condition touches: `LE.refl`,
+`lift_isBot`, `lift_wf`, `Compat`, `isBot_subst_iff`, `IsBot.subst`,
+`WF.subst`, `decIsBot`, `WF.join`, `WF.coherent`.  One new lemma,
+`Shape.IsBot.of_join_left`: the left argument of a join is
+information-free whenever the join is.  Only the left — the right-hand
+version is false for mismatched heads, since `join (lam []) (sort r)` is
+`lam []`, which is information-free, while `sort r` is not — and the left
+one is all `WF.join` needs, applied to each component of a pair.
+
+Still to do: the `Interp` rules for `sigma`, `pair`, `fst` and `snd`, and
+the term label on `Shape.HasType`'s `pair` clause that its TODO already
+asks for, so the second component can be typed through the graph lookup.
 
 ## 5. Language coverage (master `Term.lean` + the flagged equality)
 
