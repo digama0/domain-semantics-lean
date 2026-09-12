@@ -422,6 +422,108 @@ theorem Evaluates.wf {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a :
   | lower hw _ _ _ => exact hw
   | join hc _ _ ih₁ ih₂ => exact Shape.WF.join hΔ hc ih₁ ih₂
 
+/-! ## `Evaluates`, without `Evaluates`
+
+A lookup returns exactly the shapes dominated by the join of the outputs
+of some sublist of matching entries whose inputs are dominated by the
+query.  This is the characterisation the normalisation of `HasDom`'s
+witness runs on: it replaces reasoning about derivations by reasoning
+about two joins over one sublist, so the cycle argument's states carry no
+derivation at all.
+
+`of_sublist` is the constructive half -- a sublist of matching entries can
+be folded into one lookup, which is where graph coherence
+(`Evaluates.compat`) is spent -- and `tighten` the destructive half. -/
+open List in
+/-- The outputs of a sublist of matching entries have a least upper bound,
+and the lookup reaches it. -/
+theorem Evaluates.of_sublist {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
+    (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ f f)
+    {A a : Term} {x : Shape n} (hx : Shape.Compat Δ x x) :
+    ∀ {s : List (Entry (Shape n))}, s <+ f → (∀ e ∈ s, LabelEq Δ e.ty e.tm A a) →
+      (∀ e ∈ s, Shape.LE Δ e.inp x) →
+      ∃ J, Shape.Joins Δ (s.map Entry.out) J ∧ Shape.WF Δ J ∧ Evaluates Δ f A a x J := by
+  intro s
+  induction s with
+  | nil => exact fun _ _ _ => ⟨.bot, .nil, by cases n <;> trivial, .bot⟩
+  | cons e s ih =>
+    intro hsf hlab hin
+    have ⟨J, hJ, hwJ, hevJ⟩ := ih ((List.sublist_cons_self e s).trans hsf)
+      (fun e' he' => hlab e' (.tail _ he')) (fun e' he' => hin e' (.tail _ he'))
+    have he : e ∈ f := hsf.subset (.head _)
+    have heve : Evaluates Δ f A a x e.out := .entry e he (hlab e (.head _)) (hin e (.head _))
+    have hwe := (hwf e he).2.2.2
+    have hc := Evaluates.compat hΔ hco hx heve hevJ
+    exact ⟨e.out.join J, hJ.cons hΔ hwe hwJ hc, Shape.WF.join hΔ hc hwe hwJ, .join hc heve hevJ⟩
+
+open List in
+/-- Every lookup is dominated by the join of the outputs of the entries it
+uses, whose inputs are in turn dominated by the query. -/
+theorem Evaluates.tighten {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
+    (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ f f)
+    {A a : Term} {x : Shape n} (hwx : Shape.WF Δ x) {y : Shape n}
+    (H : Evaluates Δ f A a x y) :
+    ∃ (s : List (Entry (Shape n))) (ji jo : Shape n), s <+ f ∧
+      (∀ e ∈ s, LabelEq Δ e.ty e.tm A a) ∧
+      Shape.Joins Δ (s.map Entry.inp) ji ∧ Shape.WF Δ ji ∧ Shape.LE Δ ji x ∧
+      Shape.Joins Δ (s.map Entry.out) jo ∧ Shape.WF Δ jo ∧ Shape.LE Δ y jo := by
+  induction H with
+  | bot =>
+    exact ⟨[], .bot, .bot, List.nil_sublist f, nofun, .nil, by cases n <;> trivial,
+      Shape.LE.bot, .nil, by cases n <;> trivial, Shape.LE.bot⟩
+  | entry e he hlab hin =>
+    have hwi := (hwf e he).2.2.1
+    have hwo := (hwf e he).2.2.2
+    exact ⟨[e], e.inp, e.out, List.singleton_sublist.2 he,
+      (fun e' he' => by cases List.mem_singleton.1 he'; exact hlab),
+      Shape.Joins.singleton hΔ hwi, hwi, hin,
+      Shape.Joins.singleton hΔ hwo, hwo, Shape.LE.refl hwo⟩
+  | lower _ hle _ ih =>
+    have ⟨s, ji, jo, hs, hlab, hji, hwji, hjix, hjo, hwjo, hyjo⟩ := ih
+    exact ⟨s, ji, jo, hs, hlab, hji, hwji, hjix, hjo, hwjo, hle.trans hΔ hyjo⟩
+  | join hc _ _ ih₁ ih₂ =>
+    have ⟨s₁, ji₁, jo₁, hs₁, hlab₁, hji₁, hwji₁, hji₁x, hjo₁, _, hy₁⟩ := ih₁
+    have ⟨s₂, ji₂, jo₂, hs₂, hlab₂, hji₂, hwji₂, hji₂x, hjo₂, _, hy₂⟩ := ih₂
+    have ⟨s, hs, hss₁, hss₂, hunion⟩ := hs₁.union hs₂
+    have hlab : ∀ e ∈ s, LabelEq Δ e.ty e.tm A a := fun e he =>
+      match hunion e he with
+      | .inl h' => hlab₁ e h'
+      | .inr h' => hlab₂ e h'
+    have hinx : ∀ e ∈ s, Shape.LE Δ e.inp x := fun e he =>
+      match hunion e he with
+      | .inl h' => (hji₁.le hwji₁ _ (List.mem_map.2 ⟨e, h', rfl⟩)).trans hΔ hji₁x
+      | .inr h' => (hji₂.le hwji₂ _ (List.mem_map.2 ⟨e, h', rfl⟩)).trans hΔ hji₂x
+    have ⟨ji, hji, hwji, hjix⟩ :=
+      Shape.exists_joins hΔ hwx
+        (fun v hv => have ⟨e, he, hv⟩ := List.mem_map.1 hv
+          hv ▸ (hwf e (hs.subset he)).2.2.1)
+        (fun v hv => have ⟨e, he, hv⟩ := List.mem_map.1 hv; hv ▸ hinx e he)
+    have ⟨J, hJ, hwJ, _⟩ := Evaluates.of_sublist hΔ hwf hco hwx.coherent hs hlab hinx
+    have hout : ∀ {t : List (Entry (Shape n))}, t <+ s → ∀ v ∈ t.map Entry.out,
+        Shape.LE Δ v J := fun ht v hv =>
+      have ⟨e, he, hv⟩ := List.mem_map.1 hv
+      hv ▸ hJ.le hwJ _ (List.mem_map.2 ⟨e, ht.subset he, rfl⟩)
+    exact ⟨s, ji, J, hs, hlab, hji, hwji, hjix, hJ, hwJ,
+      Shape.join_le (hy₁.trans hΔ (hjo₁.min hwJ (hout hss₁)))
+        (hy₂.trans hΔ (hjo₂.min hwJ (hout hss₂)))⟩
+
+open List in
+/-- The characterisation, as the equivalence it is. -/
+theorem Evaluates.joins_iff {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
+    (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ f f)
+    {A a : Term} {x y : Shape n} (hwx : Shape.WF Δ x) (hwy : Shape.WF Δ y) :
+    Evaluates Δ f A a x y ↔
+      ∃ (s : List (Entry (Shape n))) (ji jo : Shape n), s <+ f ∧
+        (∀ e ∈ s, LabelEq Δ e.ty e.tm A a) ∧
+        Shape.Joins Δ (s.map Entry.inp) ji ∧ Shape.WF Δ ji ∧ Shape.LE Δ ji x ∧
+        Shape.Joins Δ (s.map Entry.out) jo ∧ Shape.WF Δ jo ∧ Shape.LE Δ y jo := by
+  refine ⟨Evaluates.tighten hΔ hwf hco hwx, ?_⟩
+  rintro ⟨s, ji, jo, hs, hlab, hji, hwji, hjix, hjo, hwjo, hyjo⟩
+  have ⟨J, hJ, hwJ, hev⟩ :=
+    Evaluates.of_sublist hΔ hwf hco hwx.coherent hs hlab fun e he =>
+      (hji.le hwji _ (List.mem_map.2 ⟨e, he, rfl⟩)).trans hΔ hjix
+  exact .lower hwy (hyjo.trans hΔ (hjo.min hwJ (hJ.le hwJ))) hev
+
 /-- The lookup is **monotone in the graph**, and what it returns is a type
 whenever the graph's outputs are.  Master gets monotonicity from
 `app_mono_l`, its lookup being a function; ours produces a witness, and
@@ -748,56 +850,56 @@ way, plus new ones.  So a relation established at one layer is preserved
 *and reflected* by the embedding into a higher one.  For the lookup that
 is `Evaluates.lift_iff` below.
 
-The `lower` rule is what makes this need an argument, and also what makes
-it work.  A well-formed shape below a lift need **not** be a lift — the
-order on graphs is contravariant in the input, so a smaller λ-shape can
-have inputs with genuine higher-level structure — so a lookup over a
-lifted graph really can produce shapes outside the image.  But every such
-shape is *below* one that is in the image, which is exactly what `lower`
-records, and lowering back to a lift lands in the image again. -/
+The `lower` rule is what makes this need an argument.  A well-formed shape
+below a lift need **not** be a lift — the order on graphs is contravariant
+in the input, so a smaller λ-shape can have inputs with genuine
+higher-level structure — so a lookup over a lifted graph really can
+produce shapes outside the image.  But by `Evaluates.tighten` such a
+lookup is dominated by a join over a sublist of the lifted graph, a
+sublist of a lifted graph is a lifted sublist, and `Joins.lift` says the
+join of the lifts is the lift of the join.  So the dominating shape is
+always in the image, and that is the whole content. -/
 
 /-- Everything a lifted graph's lookup returns is below the lift of
-something the original lookup returns.  Bottom and entry outputs are in
-the image outright, `lower` reuses the witness, and `join` takes the join
-of the two witnesses. -/
+something the original lookup returns, namely the join of the outputs of
+the sublist it uses, taken one level down. -/
 theorem Evaluates.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) {f : ShapeFun n}
     {A a : Term} {x : Shape n}
-    (hwf : ∀ e ∈ f, Shape.WF Δ e.out) (hco : ShapeFun.Compat Shape.Compat Δ f f)
-    (hx : Shape.Compat Δ x x) :
+    (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ f f)
+    (hwx : Shape.WF Δ x) :
     ∀ {c' : Shape k}, Evaluates Δ (ShapeFun.lift (Shape.lift k) f) A a (x.lift k) c' →
       ∃ c, Shape.LE Δ c' (c.lift k) ∧ Evaluates Δ f A a x c := by
   intro c' H
-  induction H with
-  | bot => exact ⟨.bot, Shape.LE.bot, .bot⟩
-  | entry e'' he'' hlab hin =>
-    obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
-    exact ⟨e.out, Shape.LE.refl ((Shape.lift_wf h).2 (hwf e he)),
-      .entry e he hlab ((Shape.lift_le_lift h).1 hin)⟩
-  | lower _ hle _ ih =>
-    have ⟨c, hcle, hc⟩ := ih
-    exact ⟨c, Shape.LE.trans hΔ hle hcle, hc⟩
-  | join _ _ _ ih₁ ih₂ =>
-    have ⟨c₁, h₁, hc₁⟩ := ih₁
-    have ⟨c₂, h₂, hc₂⟩ := ih₂
-    have hcompat := Evaluates.compat hΔ hco hx hc₁ hc₂
-    have ⟨u₁, u₂⟩ := Shape.le_join hΔ
-      ((Shape.lift_wf h).2 (Evaluates.wf hΔ hwf hc₁))
-      ((Shape.lift_wf h).2 (Evaluates.wf hΔ hwf hc₂))
-      ((Shape.lift_compat h).2 hcompat)
-    refine ⟨c₁.join c₂, ?_, .join hcompat hc₁ hc₂⟩
-    rw [← Shape.lift_join h]
-    exact Shape.join_le (Shape.LE.trans hΔ h₁ u₁) (Shape.LE.trans hΔ h₂ u₂)
+  have ⟨s, ji, jo, hs, hlab, hji, hwji, hjix, hjo, hwjo, hcjo⟩ :=
+    Evaluates.tighten hΔ (ShapeFun.lift_wf h hwf) ((ShapeFun.lift_compat h).2 hco)
+      ((Shape.lift_wf h).2 hwx) H
+  simp only [ShapeFun.lift] at hs
+  obtain ⟨s₀, hs₀, rfl⟩ := List.sublist_map hs
+  rw [ShapeFun.map_lift_inp] at hji
+  rw [ShapeFun.map_lift_out] at hjo
+  have hinx : ∀ e ∈ s₀, Shape.LE Δ e.inp x := fun e he =>
+    (Shape.lift_le_lift h).1
+      ((hji.le hwji _ (List.mem_map.2 ⟨e.inp, List.mem_map.2 ⟨e, he, rfl⟩, rfl⟩)).trans hΔ hjix)
+  have ⟨J, hJ, hwJ, hevJ⟩ :=
+    Evaluates.of_sublist hΔ hwf hco hwx.coherent hs₀
+      (fun e he => hlab _ (List.mem_map.2 ⟨e, he, rfl⟩)) hinx
+  have ⟨hle, _⟩ :=
+    Shape.Joins.uniq hwjo ((Shape.lift_wf h).2 hwJ) hjo
+      (Shape.Joins.lift hΔ h (fun v hv => by
+        obtain ⟨e, he, rfl⟩ := List.mem_map.1 hv
+        exact (hwf e (hs₀.subset he)).2.2.2) hwJ hJ)
+  exact ⟨J, hcjo.trans hΔ hle, hevJ⟩
 
 /-- **Fullness for the lookup.**  On the shapes that come from the level
 below, the lifted graph relates exactly what the original one did. -/
 theorem Evaluates.lift_iff {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) {f : ShapeFun n}
     {A a : Term} {x c : Shape n}
-    (hwf : ∀ e ∈ f, Shape.WF Δ e.out) (hco : ShapeFun.Compat Shape.Compat Δ f f)
-    (hx : Shape.Compat Δ x x) (hwc : Shape.WF Δ c) :
+    (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ f f)
+    (hwx : Shape.WF Δ x) (hwc : Shape.WF Δ c) :
     Evaluates Δ (ShapeFun.lift (Shape.lift k) f) A a (x.lift k) (c.lift k) ↔
       Evaluates Δ f A a x c := by
   refine ⟨fun H => ?_, Evaluates.lift h⟩
-  have ⟨c₀, hle, hc₀⟩ := Evaluates.lift_of hΔ h hwf hco hx H
+  have ⟨c₀, hle, hc₀⟩ := Evaluates.lift_of hΔ h hwf hco hwx H
   exact .lower hwc ((Shape.lift_le_lift h).1 hle) hc₀
 
 theorem Shape.HasType.lift_mono {Δ : List Term} : ∀ {n k}, n ≤ k → ∀ {m a : Shape n},
@@ -1056,108 +1158,6 @@ theorem Shape.HasType.join_at {Δ : List Term} (hΔ : ⊢ Δ) : ∀ {n} {y z a :
         | _ => exact absurd hy id
       | _ => exact hy
 
-/-! ## `Evaluates`, without `Evaluates`
-
-A lookup returns exactly the shapes dominated by the join of the outputs
-of some sublist of matching entries whose inputs are dominated by the
-query.  This is the characterisation the normalisation of `HasDom`'s
-witness runs on: it replaces reasoning about derivations by reasoning
-about two joins over one sublist, so the cycle argument's states carry no
-derivation at all.
-
-`of_sublist` is the constructive half -- a sublist of matching entries can
-be folded into one lookup, which is where graph coherence
-(`Evaluates.compat`) is spent -- and `tighten` the destructive half. -/
-open List in
-/-- The outputs of a sublist of matching entries have a least upper bound,
-and the lookup reaches it. -/
-theorem Evaluates.of_sublist {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
-    (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ f f)
-    {A a : Term} {x : Shape n} (hx : Shape.Compat Δ x x) :
-    ∀ {s : List (Entry (Shape n))}, s <+ f → (∀ e ∈ s, LabelEq Δ e.ty e.tm A a) →
-      (∀ e ∈ s, Shape.LE Δ e.inp x) →
-      ∃ J, Shape.Joins Δ (s.map Entry.out) J ∧ Shape.WF Δ J ∧ Evaluates Δ f A a x J := by
-  intro s
-  induction s with
-  | nil => exact fun _ _ _ => ⟨.bot, .nil, by cases n <;> trivial, .bot⟩
-  | cons e s ih =>
-    intro hsf hlab hin
-    have ⟨J, hJ, hwJ, hevJ⟩ := ih ((List.sublist_cons_self e s).trans hsf)
-      (fun e' he' => hlab e' (.tail _ he')) (fun e' he' => hin e' (.tail _ he'))
-    have he : e ∈ f := hsf.subset (.head _)
-    have heve : Evaluates Δ f A a x e.out := .entry e he (hlab e (.head _)) (hin e (.head _))
-    have hwe := (hwf e he).2.2.2
-    have hc := Evaluates.compat hΔ hco hx heve hevJ
-    exact ⟨e.out.join J, hJ.cons hΔ hwe hwJ hc, Shape.WF.join hΔ hc hwe hwJ, .join hc heve hevJ⟩
-
-open List in
-/-- Every lookup is dominated by the join of the outputs of the entries it
-uses, whose inputs are in turn dominated by the query. -/
-theorem Evaluates.tighten {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
-    (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ f f)
-    {A a : Term} {x : Shape n} (hwx : Shape.WF Δ x) {y : Shape n}
-    (H : Evaluates Δ f A a x y) :
-    ∃ (s : List (Entry (Shape n))) (ji jo : Shape n), s <+ f ∧
-      (∀ e ∈ s, LabelEq Δ e.ty e.tm A a) ∧
-      Shape.Joins Δ (s.map Entry.inp) ji ∧ Shape.WF Δ ji ∧ Shape.LE Δ ji x ∧
-      Shape.Joins Δ (s.map Entry.out) jo ∧ Shape.WF Δ jo ∧ Shape.LE Δ y jo := by
-  induction H with
-  | bot =>
-    exact ⟨[], .bot, .bot, List.nil_sublist f, nofun, .nil, by cases n <;> trivial,
-      Shape.LE.bot, .nil, by cases n <;> trivial, Shape.LE.bot⟩
-  | entry e he hlab hin =>
-    have hwi := (hwf e he).2.2.1
-    have hwo := (hwf e he).2.2.2
-    exact ⟨[e], e.inp, e.out, List.singleton_sublist.2 he,
-      (fun e' he' => by cases List.mem_singleton.1 he'; exact hlab),
-      Shape.Joins.singleton hΔ hwi, hwi, hin,
-      Shape.Joins.singleton hΔ hwo, hwo, Shape.LE.refl hwo⟩
-  | lower _ hle _ ih =>
-    have ⟨s, ji, jo, hs, hlab, hji, hwji, hjix, hjo, hwjo, hyjo⟩ := ih
-    exact ⟨s, ji, jo, hs, hlab, hji, hwji, hjix, hjo, hwjo, hle.trans hΔ hyjo⟩
-  | join hc _ _ ih₁ ih₂ =>
-    have ⟨s₁, ji₁, jo₁, hs₁, hlab₁, hji₁, hwji₁, hji₁x, hjo₁, _, hy₁⟩ := ih₁
-    have ⟨s₂, ji₂, jo₂, hs₂, hlab₂, hji₂, hwji₂, hji₂x, hjo₂, _, hy₂⟩ := ih₂
-    have ⟨s, hs, hss₁, hss₂, hunion⟩ := hs₁.union hs₂
-    have hlab : ∀ e ∈ s, LabelEq Δ e.ty e.tm A a := fun e he =>
-      match hunion e he with
-      | .inl h' => hlab₁ e h'
-      | .inr h' => hlab₂ e h'
-    have hinx : ∀ e ∈ s, Shape.LE Δ e.inp x := fun e he =>
-      match hunion e he with
-      | .inl h' => (hji₁.le hwji₁ _ (List.mem_map.2 ⟨e, h', rfl⟩)).trans hΔ hji₁x
-      | .inr h' => (hji₂.le hwji₂ _ (List.mem_map.2 ⟨e, h', rfl⟩)).trans hΔ hji₂x
-    have ⟨ji, hji, hwji, hjix⟩ :=
-      Shape.exists_joins hΔ hwx
-        (fun v hv => have ⟨e, he, hv⟩ := List.mem_map.1 hv
-          hv ▸ (hwf e (hs.subset he)).2.2.1)
-        (fun v hv => have ⟨e, he, hv⟩ := List.mem_map.1 hv; hv ▸ hinx e he)
-    have ⟨J, hJ, hwJ, _⟩ := Evaluates.of_sublist hΔ hwf hco hwx.coherent hs hlab hinx
-    have hout : ∀ {t : List (Entry (Shape n))}, t <+ s → ∀ v ∈ t.map Entry.out,
-        Shape.LE Δ v J := fun ht v hv =>
-      have ⟨e, he, hv⟩ := List.mem_map.1 hv
-      hv ▸ hJ.le hwJ _ (List.mem_map.2 ⟨e, ht.subset he, rfl⟩)
-    exact ⟨s, ji, J, hs, hlab, hji, hwji, hjix, hJ, hwJ,
-      Shape.join_le (hy₁.trans hΔ (hjo₁.min hwJ (hout hss₁)))
-        (hy₂.trans hΔ (hjo₂.min hwJ (hout hss₂)))⟩
-
-open List in
-/-- The characterisation, as the equivalence it is. -/
-theorem Evaluates.joins_iff {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
-    (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ f f)
-    {A a : Term} {x y : Shape n} (hwx : Shape.WF Δ x) (hwy : Shape.WF Δ y) :
-    Evaluates Δ f A a x y ↔
-      ∃ (s : List (Entry (Shape n))) (ji jo : Shape n), s <+ f ∧
-        (∀ e ∈ s, LabelEq Δ e.ty e.tm A a) ∧
-        Shape.Joins Δ (s.map Entry.inp) ji ∧ Shape.WF Δ ji ∧ Shape.LE Δ ji x ∧
-        Shape.Joins Δ (s.map Entry.out) jo ∧ Shape.WF Δ jo ∧ Shape.LE Δ y jo := by
-  refine ⟨Evaluates.tighten hΔ hwf hco hwx, ?_⟩
-  rintro ⟨s, ji, jo, hs, hlab, hji, hwji, hjix, hjo, hwjo, hyjo⟩
-  have ⟨J, hJ, hwJ, hev⟩ :=
-    Evaluates.of_sublist hΔ hwf hco hwx.coherent hs hlab fun e he =>
-      (hji.le hwji _ (List.mem_map.2 ⟨e, he, rfl⟩)).trans hΔ hjix
-  exact .lower hwy (hyjo.trans hΔ (hjo.min hwJ (hJ.le hwJ))) hev
-
 /-! ## Retyping a lookup at a typed query
 
 Round (b): any query shape can be replaced by a *typed* one -- the join of
@@ -1415,11 +1415,7 @@ theorem ShapeFun.HasDom.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤
       Shape.HasType Δ (m.lift k) (a.lift k) → Shape.HasType Δ m a)
     (H : ShapeFun.HasDom Δ (Shape.HasType Δ) (ShapeFun.lift (Shape.lift k) f) (d.lift k)) :
     ShapeFun.HasDom Δ (Shape.HasType Δ) f d := by
-  have hwf' : ShapeFun.WF Δ (Shape.WF Δ) (ShapeFun.lift (Shape.lift k) f) := by
-    intro e' he'
-    obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_lift.1 he'
-    exact ⟨(hwf e₀ he₀).1, (hwf e₀ he₀).2.1, (Shape.lift_wf h).2 (hwf e₀ he₀).2.2.1,
-      (Shape.lift_wf h).2 (hwf e₀ he₀).2.2.2⟩
+  have hwf' := ShapeFun.lift_wf h hwf
   have hco' := (ShapeFun.lift_compat h (f := f) (f' := f)).2 hco
   have hd' : Shape.HasType Δ (d.lift k) .type := by
     have := Shape.HasType.lift_mono (Δ := Δ) h hd
@@ -1433,11 +1429,7 @@ theorem ShapeFun.HasDom.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤
   -- a sublist of a lifted graph is a lifted sublist, so its inputs are lifts
   simp only [ShapeFun.lift] at hs
   obtain ⟨s₀, hs₀, rfl⟩ := List.sublist_map hs
-  have hmap : (List.map (fun e : Entry (Shape n) =>
-        (⟨e.ty, e.tm, e.inp.lift k, e.out.lift k⟩ : Entry (Shape k))) s₀).map Entry.inp
-      = (s₀.map Entry.inp).map (Shape.lift k) := by
-    simp [List.map_map, Function.comp_def]
-  rw [hmap] at hj
+  rw [ShapeFun.map_lift_inp] at hj
   have hwin : ∀ v ∈ s₀.map Entry.inp, Shape.WF Δ v := by
     intro v hv
     obtain ⟨e', he', rfl⟩ := List.mem_map.1 hv
@@ -1453,8 +1445,7 @@ theorem ShapeFun.HasDom.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤
   refine ⟨j₀, hwj₀, ih hwj₀ hwd
       (Shape.HasType.mono_l hΔ hwj ((Shape.lift_wf h).2 hwj₀) hle₁ hle₂ hjd),
     hj₀e, ?_⟩
-  refine (Evaluates.lift_iff hΔ h (fun e' he' => (hwf e' he').2.2.2) hco
-    hwj₀.coherent hwe.2.2.2).1 ?_
+  refine (Evaluates.lift_iff hΔ h hwf hco hwj₀ hwe.2.2.2).1 ?_
   exact hevj.mono_input hΔ hle₁
 
 /-- Reflection and preservation together. -/
@@ -1523,7 +1514,7 @@ theorem Shape.HasType.lift_of {Δ : List Term} (hΔ : ⊢ Δ) :
         intro f A a xin yout hwf hco hty hwx hwy H
         have ⟨c', hev', hty'⟩ := H
         have houts : ∀ e ∈ f, Shape.WF Δ e.out := fun e he => (hwf e he).2.2.2
-        have ⟨c₀, hle, hev₀⟩ := Evaluates.lift_of hΔ h' houts hco hwx.coherent hev'
+        have ⟨c₀, hle, hev₀⟩ := Evaluates.lift_of hΔ h' hwf hco hwx hev'
         have ⟨c₁, hev₁, hc₀c₁, hc₁ty⟩ :=
           Evaluates.mono_graph hΔ hco hwx.coherent houts hty (Shape.HasType.join hΔ)
             (ShapeFun.LE.refl_aux hwf) hev₀

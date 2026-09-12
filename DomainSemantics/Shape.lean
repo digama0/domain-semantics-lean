@@ -2108,3 +2108,25 @@ theorem Shape.Joins.lift {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) :
       exact (ih (fun y hy => hwL y (.tail _ hy)) hwj₀ hj₀).cons hΔ
         ((Shape.lift_wf h).2 hwx) ((Shape.lift_wf h).2 hwj₀) ((Shape.lift_compat h).2 hc)
     exact hlift.congr hΔ ((Shape.lift_le_lift h).2 h₂) ((Shape.lift_le_lift h).2 h₁)
+
+/-- Lifting a graph preserves well-formedness of its entries. -/
+theorem ShapeFun.lift_wf {Δ : List Term} {n k} (h : n ≤ k) {f : ShapeFun n}
+    (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) :
+    ShapeFun.WF Δ (Shape.WF Δ) (ShapeFun.lift (Shape.lift k) f) := by
+  intro e' he'
+  obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'
+  exact ⟨(hwf e he).1, (hwf e he).2.1, (Shape.lift_wf h).2 (hwf e he).2.2.1,
+    (Shape.lift_wf h).2 (hwf e he).2.2.2⟩
+
+/-! The two projections of a lifted graph, in the unfolded form
+`List.sublist_map` leaves behind. -/
+
+theorem ShapeFun.map_lift_inp {n k} {s : List (Entry (Shape n))} :
+    (s.map fun e => (⟨e.ty, e.tm, e.inp.lift k, e.out.lift k⟩ : Entry (Shape k))).map Entry.inp
+      = (s.map Entry.inp).map (Shape.lift k) := by
+  simp [List.map_map, Function.comp_def]
+
+theorem ShapeFun.map_lift_out {n k} {s : List (Entry (Shape n))} :
+    (s.map fun e => (⟨e.ty, e.tm, e.inp.lift k, e.out.lift k⟩ : Entry (Shape k))).map Entry.out
+      = (s.map Entry.out).map (Shape.lift k) := by
+  simp [List.map_map, Function.comp_def]
