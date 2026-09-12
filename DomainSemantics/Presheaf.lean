@@ -339,7 +339,7 @@ that brings them back down is `mono_l`. -/
 theorem sound_forallE_ty {Γ : List Term} {A B : Term} {u v : Bool}
     (ihA : SoundTy Γ A (.sort u))
     (ihB : SoundTy (A :: Γ) B (.sort v))
-    (hΓA : ∀ {Δ Γ₀ σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ → ⊢ (A :: Γ)) :
+    (hAty : Γ ⊢ A : .sort u) :
     SoundTy Γ (.forallE A B) (.sort v) := by
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
   cases hm with
@@ -358,7 +358,6 @@ theorem sound_forallE_ty {Γ : List Term} {A B : Term} {u v : Bool}
         (show u ≤ true by cases u <;> decide))
     · -- the codomain, at the stage extended by the entry's label: the
       -- entry's own data is exactly what `Adm.cons` and `SubstEq.cons` ask for
-      obtain ⟨_, hAty⟩ := (hΓA hΔ W hAdm).2
       obtain ⟨_, hty⟩ := hlab e he
       have hwe := hwf.2.2.2.1 e he
       have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
@@ -366,6 +365,68 @@ theorem sound_forallE_ty {Γ : List Term} {A B : Term} {u v : Bool}
       have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
         .cons hAdm (fun _ hb => ihA.isType hΔ W hAdm hb) hA hwe.2.2.1 (hdom e he)
       exact TShape.HasType.sort_T.1 (ihB.hasType hΔ W' hAdm' (hbody e he))
+
+/-- One direction of the `SoundEq` half of `forallEDF`.
+
+A Π-shape carries the *syntax* `(A[σ], B[σ.lift])` as its label, so the
+two sides of the congruence do not produce the same shapes on the nose --
+`⟦∀ A B⟧` is built over one label and `⟦∀ A' B'⟧` over another.  What
+saves the statement is that `Shape.LE` compares labels up to definitional
+equality: the two Π-shapes are `≈`-equivalent, and an approximant of one
+is an approximant of the other by `LE.trans` alone.  Everything else in
+the constructor -- the domain shape, the graph, the `HasDom` premises --
+is reused verbatim.
+
+The context of the body's interpretation changes from `A :: Γ` to
+`A' :: Γ`, and that is free: `Interp` never looks at its context index
+(`Interp.ctx`).  It is the *stage* that carries the content, and the
+stage is untouched. -/
+theorem sound_forallE_eq_of {Γ : List Term} {A A' B B' : Term} {u v : Bool}
+    (hAA' : Γ ⊢ A ≡ A' : .sort u) (hBB' : A :: Γ ⊢ B ≡ B' : .sort v)
+    (ihA : SoundEq Γ A A') (ihAty : SoundTy Γ A (.sort u))
+    (ihB : SoundEq (A :: Γ) B B')
+    {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
+    {m : TShape} (H : Interp Δ Γ (.forallE A B) σ ρ m) :
+    Interp Δ Γ (.forallE A' B') σ ρ m := by
+  have ⟨⟨_, hAσ⟩, _, hBσ⟩ :
+      PiLabelEq Δ (A.subst σ) (B.subst σ.lift) (A'.subst σ) (B'.subst σ.lift) :=
+    PiLabelEq.subst hΔ W ⟨⟨u, hAA'⟩, v, hBB'⟩
+  cases H with
+  | bot => exact .bot
+  | forallE hA hwf hlab hdom hbody hw hle =>
+    refine .forallE ((ihA hΔ W hAdm).1 hA)
+      ⟨⟨_, hAσ.hasType.2⟩, ⟨_, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩, hwf.2.2⟩
+      (fun e he => ?_) hdom (fun e he => ?_) hw
+      (hle.trans hΔ (TShape.LE.T.2
+        ⟨⟨⟨_, hAσ⟩, _, hBσ⟩, .refl hwf.2.2.1, .refl hwf.2.2.2.1⟩))
+    · obtain ⟨_, hty⟩ := hlab e he
+      exact ⟨_, hty.trans' hAσ⟩
+    · -- the body, at the stage extended by the entry's label
+      obtain ⟨_, hty⟩ := hlab e he
+      have hwe := hwf.2.2.2.1 e he
+      have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
+        .cons W hAA'.hasType.1 (hty.defeqDF hwe.2.1)
+      have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
+        .cons hAdm (fun _ hb => ihAty.isType hΔ W hAdm hb) hA hwe.2.2.1 (hdom e he)
+      exact Interp.ctx ((ihB hΔ W' hAdm').1 (hbody e he))
+
+/-- The `SoundEq` half of `forallEDF`: the two Π-types have the same
+approximants at every stage.
+
+Both directions are the same argument, run on the mirrored data -- which
+is exactly why the rule carries its codomain premise twice, once over
+each domain.  Without the `A' :: Γ` copy the backward direction would
+have no induction hypothesis to run. -/
+theorem sound_forallE_eq {Γ : List Term} {A A' B B' : Term} {u v : Bool}
+    (hAA' : Γ ⊢ A ≡ A' : .sort u)
+    (hB : A :: Γ ⊢ B ≡ B' : .sort v) (hB' : A' :: Γ ⊢ B ≡ B' : .sort v)
+    (ihA : SoundEq Γ A A') (ihAty : SoundTy Γ A (.sort u))
+    (ihB : SoundEq (A :: Γ) B B') (ihB' : SoundEq (A' :: Γ) B B') :
+    SoundEq Γ (.forallE A B) (.forallE A' B') := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm m
+  exact ⟨sound_forallE_eq_of hAA' hB ihA ihAty ihB hΔ W hAdm,
+    sound_forallE_eq_of hAA'.symm hB'.symm ihA.symm (SoundTy.of_eq ihA ihAty) ihB'.symm
+      hΔ W hAdm⟩
 
 /-! ## The target
 
@@ -414,7 +475,14 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   | star => exact sound_of_bot (fun H => by cases H; rfl) (fun H => by cases H; rfl)
   | appDF => sorry
   | lamDF => sorry
-  | forallEDF => sorry
+  -- the two halves proved above; `SoundDir` is what is left, and it is the
+  -- one that needs `Interp.stage`
+  | forallEDF hAA' hB hB' ihA ihB ihB' =>
+    have ⟨heA, htyA, _, _⟩ := ihA hΓ
+    have ⟨heB, htyB, _, _⟩ := ihB ⟨hΓ, _, hAA'.hasType.1⟩
+    have ⟨heB', _, _, _⟩ := ihB' ⟨hΓ, _, hAA'.hasType.2⟩
+    exact ⟨sound_forallE_eq hAA' hB hB' heA htyA heB heB',
+      sound_forallE_ty htyA htyB hAA'.hasType.1, sorry, sorry⟩
   -- Σ now has real rules, mirroring Π, so these are no longer vacuous
   | sigmaDF => sorry
   | pairDF => sorry
