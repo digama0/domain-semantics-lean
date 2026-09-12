@@ -599,6 +599,42 @@ Whether `isType` and `mono_r` survive the weakening is the question to
 settle before writing the case; `isType` should, since the λ clause
 carries the Π triple separately.
 
+### 4.5e Weakening the Π clause: tried, and what it costs
+
+Weakening `HasType Δ (forallE _ _ d f) (.sort r)` to inspect the outputs
+only at `prop` — his `IsCode true (piGenerator …)` being unconditional —
+was tried and reverted.  The diff is kept at
+`scratchpad/weaken-pi.patch`.  What it teaches:
+
+**Most of the layer does not care.**  `cumul` becomes a disjunction split,
+`isType` gets *easier* (a Π is a type on the nose), `bot` and `subst` just
+lose a conjunct.  All four go through.
+
+**`mono_r` is where it fails, and the failure is structural.**  Its λ case
+must turn `∃ c, Evaluates f … c ∧ HasType e.out c` into the same at the
+larger graph `f'`.  `Evaluates.mono_graph` supplies `c'` with `c ≤ c'`, and
+the move to `HasType e.out c'` is `mono_r` one level down, which needs
+`HasType c' (.sort r)` — i.e. **the larger Π's outputs must be types**.
+Weakening the clause removes exactly that.
+
+**Why he does not meet this.**  He has *two* notions where we have one:
+`IsCode r` is only the universe predicate, and inhabitation is
+`HasFixedness` (a fixed-point equation), never a clause of `IsCode`.  Our
+single `HasType` carries both, so the universe clause cannot be weakened
+without weakening inhabitation.  Master has the same coupling.
+
+**There is a way out, and it is worth trying next.**  `mono_r`'s λ case
+need not raise the code at all: from `Evaluates f' … c'` with `c ≤ c'` and
+`Shape.WF Δ c`, the `lower` rule gives `Evaluates f' … c` directly, and
+`HasType e.out c` is already in hand.  That kills the appeal to `mono_r`
+one level down, and with it the whole reason `mono_r` and typed joins are
+proved by a *mutual* induction (§ the `mono_r_join` note).  The price is a
+`Shape.WF Δ a` hypothesis on `mono_r`, to get `WF c` out of
+`Evaluates.wf`; that hypothesis is available at every current call site.
+
+So the ordering is: `lower`-based `mono_r` first, then the weakening, then
+`SoundTy` for `forallEDF` at `type` is free.
+
 ### 4.6 The soundness induction, case by case
 
 `IsDefEq.sound` is now the induction, with all 34 rules enumerated in the
