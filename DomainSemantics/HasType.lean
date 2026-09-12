@@ -178,11 +178,12 @@ inductive Shape.HasTypeS (Δ : List Term) {n} (T : Shape n → Shape n → Prop)
     ShapeFun.HasPi Δ T d f (.sort r) → HasTypeS Δ T (.forallE A B d f) (.sort r)
   | sigma {A B d f} :
     ShapeFun.HasPi Δ T d f .type → HasTypeS Δ T (.sigma A B d f) (.sort true)
-  -- the graph condition is on a graph *dominating* the λ's own
-  | lam {g g₀ A B d f} :
-    ShapeFun.HasPi Δ T d f .type → ShapeFun.LE Δ (Shape.LE Δ) g g₀ →
-    ShapeFun.WF Δ (Shape.WF Δ) g₀ → ShapeFun.HasDom Δ T g₀ d →
-    (∀ e ∈ g₀, ∃ c, Shape.WF Δ c ∧ Evaluates Δ f e.ty e.tm e.inp c ∧ T e.out c) →
+  -- no dominating graph: with `HasDom` gone the condition is downward
+  -- closed in `g` on its own, by `mono_input` on the code and `mono_l` on
+  -- the output
+  | lam {g A B d f} :
+    ShapeFun.HasPi Δ T d f .type →
+    (∀ e ∈ g, ∃ c, Shape.WF Δ c ∧ Evaluates Δ f e.ty e.tm e.inp c ∧ T e.out c) →
     HasTypeS Δ T (.lam g) (.forallE A B d f)
   -- and here on a first component dominating the pair's own, because the
   -- code is read off at it and the lookup is monotone in its input
@@ -410,11 +411,14 @@ theorem Shape.HasType.mono_l (hΔ : ⊢ Δ) : ∀ {n} {m m' a : Shape n},
         exact .sigma (hpi.lower hΔ (ih (a := Shape.type)) (ih (a := Shape.type))
           hle.2.1 hle.2.2)
       | _ => exact absurd hle id
-    | lam hpi hg hwg hdom hcod =>
+    | lam hpi hcod =>
       cases m' with
       | bot => exact .bot hty
       | lam g' =>
-        exact .lam hpi (ShapeFun.LE.trans_of (Shape.LE.trans hΔ) hle hg) hwg hdom hcod
+        refine .lam hpi fun e he => ?_
+        have ⟨e₀, he₀, hlab, hin, hout⟩ := hle e he
+        have ⟨c, hwc, hev, hcty⟩ := hcod e₀ he₀
+        exact ⟨c, hwc, (hev.label hlab).mono_input hΔ hin, ih hout hcty⟩
       | _ => exact absurd hle id
     | pair hpi hxle hwx hxd hwc hev hyc =>
       cases m' with
@@ -502,11 +506,8 @@ theorem Shape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     | forallE hpi =>
       exact .forallE (by simpa using ShapeFun.HasPi.subst_of hΘ W ih hpi)
     | sigma hpi => exact .sigma (by simpa using ShapeFun.HasPi.subst_of hΘ W ih hpi)
-    | lam hpi hle hwg hdom hcod =>
-      refine .lam (by simpa using ShapeFun.HasPi.subst_of hΘ W ih hpi)
-        (ShapeFun.LE.subst_of hΘ W (Shape.LE.subst hΘ W) hle)
-        (ShapeFun.WF.subst_of hΘ W (Shape.WF.subst hΘ W) hwg)
-        (ShapeFun.HasDom.subst_of hΘ W ih hdom) fun e' he' => ?_
+    | lam hpi hcod =>
+      refine .lam (by simpa using ShapeFun.HasPi.subst_of hΘ W ih hpi) fun e' he' => ?_
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
       have ⟨c, hwc, hev, hty⟩ := hcod e he
       exact ⟨c.subst τ, Shape.WF.subst hΘ W hwc, Evaluates.subst hΘ W hev, ih hty⟩
@@ -804,19 +805,15 @@ theorem Shape.HasType.mono_r_join (hΔ : ⊢ Δ) : ∀ {n},
       | refl =>
         cases a' with | id t' A₁ a₁ b₁ => ?_ | _ => cases hle
         cases (hle.1 : true = t'); exact .refl
-      | lam hpi hg hwg hdom hcod =>
+      | lam hpi hcod =>
         cases a' with | forallE A₁ B₁ d' f' => ?_ | _ => cases hle
         cases Shape.hasType_succ.1 hA with | forallE hpiA => ?_
-        have hd' : Shape.HasType Δ d' .type := hpiA.1
-        refine .lam (hpiA.cod (Shape.HasType.cumul · (Bool.le_true' r))) hg hwg
-          (fun e he => ?_) (fun e he => ?_)
-        · have ⟨x, hwx, hx, hxle, hev⟩ := hdom e he
-          exact ⟨x, hwx, ihm hwx hwa.2.2.1 hx hle.2.1 hd', hxle, hev⟩
-        · have ⟨c, hwc, hev, hcty⟩ := hcod e he
-          have ⟨c', hev', hcle⟩ :=
-            Evaluates.mono_graph' hΔ hwa.2.2.2.2 (hwg e he).2.2.1.coherent
-              (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2) hle.2.2 hev
-          exact ⟨c, hwc, .lower hwc hcle hev', hcty⟩
+        refine .lam (hpiA.cod (Shape.HasType.cumul · (Bool.le_true' r))) fun e he => ?_
+        have ⟨c, hwc, hev, hcty⟩ := hcod e he
+        have ⟨c', hev', hcle⟩ :=
+          Evaluates.mono_graph' hΔ hwa.2.2.2.2 (hwm.2.2.1 e he).2.2.1.coherent
+            (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2) hle.2.2 hev
+        exact ⟨c, hwc, .lower hwc hcle hev', hcty⟩
       | pair hpi hxle hwx hxd hwc hev hyc =>
         cases a' with | sigma A₁ B₁ d' f' => ?_ | _ => cases hle
         cases Shape.hasType_succ.1 hA with | sigma hpiA => ?_
@@ -925,7 +922,7 @@ theorem Shape.HasType.proofIrrel (hΔ : ⊢ Δ) : ∀ {n} {a x : Shape n},
     | @forallE A₀ B₀ d f _ hpi =>
       cases Shape.hasType_succ.1 h with
       | bot _ => rfl
-      | @lam g g₀ _ _ _ _ _ hg hwg hdom hcod =>
+      | @lam g _ _ _ _ hpi' hcod =>
         -- a well-formed λ carries real information, so it cannot inhabit a
         -- Π-type whose codomain family is propositional
         exfalso
@@ -935,15 +932,14 @@ theorem Shape.HasType.proofIrrel (hΔ : ⊢ Δ) : ∀ {n} {a x : Shape n},
         | nil => exact hne rfl
         | cons e g' =>
           have he : e ∈ e :: g' := List.mem_cons_self ..
-          have ⟨e₀, he₀, _, hin₀, hout₀⟩ := hg e he
-          have ⟨c, hwc, hev, hcty⟩ := hcod e₀ he₀
+          have ⟨c, hwc, hev, hcty⟩ := hcod e he
           have ⟨z, hwz, hcz, hzty⟩ :=
-            Evaluates.bounded hΔ hwf hco (Shape.WF.coherent (hwg e₀ he₀).2.2.1) hpi.2 hev
-          have hbot : e₀.out = .bot :=
-            ih hwz (hwg e₀ he₀).2.2.2 hzty
-              (Shape.HasType.mono_r hΔ (hwg e₀ he₀).2.2.2 hwz hcty hcz hzty)
+            Evaluates.bounded hΔ hwf hco (Shape.WF.coherent (hwg' e he).2.2.1) hpi.2 hev
+          have hbot : e.out = .bot :=
+            ih hwz (hwg' e he).2.2.2 hzty
+              (Shape.HasType.mono_r hΔ (hwg' e he).2.2.2 hwz hcty hcz hzty)
           have hb : Shape.IsBot (Shape.bot : Shape n) := by cases n <;> trivial
-          exact hnb e he (Shape.le_bot_iff.1 (hbot ▸ hout₀) ▸ hb)
+          exact hnb e he (hbot ▸ hb)
 
 /-! ## Lifting
 
@@ -1139,9 +1135,8 @@ theorem Shape.HasType.lift_mono {Δ : List Term} : ∀ {n k}, n ≤ k → ∀ {m
       | id hj => exact .id hj
       | forallE hpi => exact .forallE (ihpi hpi)
       | sigma hpi => exact .sigma (ihpi hpi)
-      | lam hpi hg hwg hdom hcod =>
-        refine .lam (ihpi hpi) (ShapeFun.LE.lift h' hg) (ShapeFun.lift_wf h' hwg)
-          (ihdom hdom) fun e'' he'' => ?_
+      | lam hpi hcod =>
+        refine .lam (ihpi hpi) fun e'' he'' => ?_
         obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
         have ⟨c, hwc, hev, hcty⟩ := hcod e he
         exact ⟨c.lift k, (Shape.lift_wf h').2 hwc, Evaluates.lift h' hev, ih h' hcty⟩
@@ -1295,6 +1290,27 @@ theorem Shape.HasType.lift_of {Δ : List Term} (hΔ : ⊢ Δ) :
         refine ⟨Shape.HasType.lift_of_type h' hpi.1, fun e he => ?_⟩
         exact ih h' (hwf e he).2.2.2 (by cases n <;> trivial)
           (by rw [Shape.lift_sort]; exact hpi.2 _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩))
+      have ihcode : ∀ {f : ShapeFun n} {A a : Term} {xin yout : Shape n},
+          ShapeFun.WF Δ (Shape.WF Δ) f → ShapeFun.Compat Shape.Compat Δ f f →
+          (∀ e ∈ f, Shape.HasType Δ e.out .type) →
+          Shape.WF Δ xin → Shape.WF Δ yout →
+          (∃ c', Shape.WF Δ c' ∧
+            Evaluates Δ (ShapeFun.lift (Shape.lift k) f) A a (xin.lift k) c' ∧
+            Shape.HasType Δ (yout.lift k) c') →
+          ∃ c, Shape.WF Δ c ∧ Evaluates Δ f A a xin c ∧ Shape.HasType Δ yout c := by
+        intro f A a xin yout hwf hco hty hwx hwy H
+        have ⟨c', _, hev', hty'⟩ := H
+        have houts : ∀ e ∈ f, Shape.WF Δ e.out := fun e he => (hwf e he).2.2.2
+        have ⟨c₀, hle, hev₀⟩ := Evaluates.lift_of hΔ h' hwf hco hwx hev'
+        have ⟨c₁, hev₁, hc₀c₁, hc₁ty⟩ :=
+          Evaluates.mono_graph hΔ hco hwx.coherent houts hty (Shape.HasType.join hΔ)
+            (ShapeFun.LE.refl_aux hwf) hev₀
+        have hwc₁ := Evaluates.wf hΔ houts hev₁
+        refine ⟨c₁, hwc₁, hev₁, ih h' hwy hwc₁ (Shape.HasType.mono_r (r := true) hΔ
+          ((Shape.lift_wf h').2 hwy) ((Shape.lift_wf h').2 hwc₁) hty'
+          (hle.trans hΔ ((Shape.lift_le_lift h').2 hc₀c₁)) ?_)⟩
+        have := Shape.HasType.lift_mono (Δ := Δ) h' hc₁ty
+        rwa [Shape.lift_sort] at this
       intro H
       cases m with
       | bot =>
@@ -1345,9 +1361,11 @@ theorem Shape.HasType.lift_of {Δ : List Term} (hΔ : ⊢ Δ) :
       | lam g =>
         cases a with
         | forallE A₁ B₁ d f =>
-          cases Shape.hasType_succ.1 H with
-          | lam hpi hg hwg hdom hcod => ?_
-          sorry
+          cases Shape.hasType_succ.1 H with | lam hpi hcod => ?_
+          have hpi' := ihpi hwa.2.2.1 hwa.2.2.2.1 hpi
+          refine .lam hpi' fun e he => ?_
+          exact ihcode hwa.2.2.2.1 hwa.2.2.2.2 hpi'.2 (hwm.2.2.1 e he).2.2.1
+            (hwm.2.2.1 e he).2.2.2 (hcod _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩))
         | _ => cases Shape.hasType_succ.1 H
       | pair ty tm x y =>
         cases a with
