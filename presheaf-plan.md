@@ -550,6 +550,55 @@ binder cases should lift every shape in sight to one level before touching
 `HasType`.  `TShape.HasType.cumul` is proved; `mono_r` and the
 sort-approximant analysis wait on that normalisation lemma.
 
+### 4.5d His binder proofs, move by move, and their image here
+
+A full trace of `Soundness/BinderRules.lean` (362 lines) against our
+definitions.  Four of his moves have no counterpart here, one of ours is
+harder than his, and only one lemma was genuinely missing.
+
+**Simpler here.**
+
+* *Context conversion.*  His `section_contextConversion` has two halves:
+  section witnesses for the `A`-display and the `A'`-display transfer
+  bijectively and give *literally the same morphism*
+  (`Presheaf.Section.hom_eq`, a subsingleton argument), and the
+  interpretation is invariant under the identity renaming retyped along
+  `A ≡ A'` (`HasRenaming` at a `VariableMap ⟨id, contextConversionRaw⟩`).
+  For us the first half does not exist — the stage is a raw substitution
+  and we simply write `σ.cons e.tm` — and the second half is
+  **`Interp.ctx`**, free because `Γ` is a phantom index.
+* *The β-law.*  His `rawApplication_abstraction_eq_value` recovers an
+  action from its abstraction, and needs finitarity and ideal-valuedness
+  to do it.  Our λ-shape carries the graph itself, and the graph is a
+  `List`, so **finitarity is structural** and β is `Evaluates.entry_self`,
+  one constructor.
+* *Re-abstraction.*  `normalizedAbstraction_fixed` (103 lines) exists
+  because his λ-fixedness must be routed through the Π-decoder, whose
+  output is an `IdealAction.abstraction`.  Our `HasType` λ clause is
+  stated on the graph directly, so there is nothing to re-abstract.
+* *`PiReady`.*  Confirmed pure output in his binder rules; it is consumed
+  only by application and η.  Its two projections are "domain directed"
+  and "codomain action ideal-valued", which our `SoundDir Γ A` and
+  `SoundDir (A :: Γ) B` already supply.  Dropping it was right.
+
+**Matching.**  His binder rule pushes the argument **normalized** —
+`rawExtend ⟦A⟧ ↓x`, whose defining property is that it is a fixed point of
+the domain's decoder.  Our image of "fixed point of the decoder of `A`" is
+`TShape.HasType Δ e.inp.T d`, which is exactly the premise §4.5b added.
+So the two designs agree on the one point that matters under a binder.
+
+**Harder here, and avoidably so.**  His `IsCode true (piGenerator …)` is
+**unconditional** (`Domain/Decoder/PiUniverse.lean`), so Π-formation at
+`type` is free and only the `prop` case looks at the body.  Our
+`HasType Δ (forallE _ _ d f) (.sort r)` demands `HasType d .type`,
+`HasDom f d` and every output typed — inherited from master, which needs
+it because its `ShapeFun.app` is saturated.  That is the whole reason
+`SoundTy` for `forallEDF` needs a Π-shape saturation.  **Weakening the Π
+clause at `sort true` to match his would delete that construction.**
+Whether `isType` and `mono_r` survive the weakening is the question to
+settle before writing the case; `isType` should, since the λ clause
+carries the Π triple separately.
+
 ### 4.6 The soundness induction, case by case
 
 `IsDefEq.sound` is now the induction, with all 34 rules enumerated in the

@@ -53,6 +53,21 @@ inductive Evaluates : Shape n → Prop where
   -- than the image of the substitution
   | join {y z} : Shape.Compat Δ y z → Evaluates y → Evaluates z → Evaluates (y.join z)
 
+/-- The **β-law**, and it is nearly free here: looking a graph up at one of
+its own entries returns that entry's output.
+
+The other repo needs a real lemma for this
+(`rawApplication_abstraction_eq_value`: applying an abstraction recovers
+the action it was built from), because its λ-value is an abstraction
+*operator* and recovering the action needs finitarity and
+ideal-valuedness.  Our λ-shape carries the graph itself, and the graph is
+a `List`, so finitarity is structural and β is one constructor. -/
+theorem Evaluates.entry_self {Δ : List Term} {n} {f : ShapeFun n} {e : Entry (Shape n)}
+    (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) (he : e ∈ f) :
+    Evaluates Δ f e.ty e.tm e.inp e.out :=
+  have ⟨⟨_, hty⟩, htm, hin, _⟩ := hwf e he
+  .entry e he (LabelEq.refl hty htm) (Shape.LE.refl hin)
+
 /-- Every entry of a graph is dominated by one whose input is typed at the
 domain shape (master's `HasDom`, with the label premise added). -/
 def ShapeFun.HasDom (Δ : List Term) (T : Shape n → Shape n → Prop)
