@@ -326,7 +326,9 @@ theorem ShapeFun.HasPi.lower {Δ : List Term} {n}
     (hd : Shape.LE Δ d' d) (hf : ShapeFun.LE Δ (Shape.LE Δ) f' f)
     (h : ShapeFun.HasPi (Shape.HasType Δ) d f a) :
     ShapeFun.HasPi (Shape.HasType Δ) d' f' a :=
-  ⟨ihty hd h.1, fun e he => have ⟨e', he', _, _, hout⟩ := hf e he; ih hout (h.2 e' he')⟩
+  -- SET ASIDE (order change): `hf e he` is a lookup derivation, so this is
+  -- an induction over it whose `join` case wants `HasType.join`.
+  ⟨ihty hd h.1, fun e he => sorry⟩
 
 /-- **Left monotonicity**: a type is a lower set.  Master has only the
 two-sided form (`WShape.HasType.mono_l`, a 70-line mutual induction whose
@@ -364,9 +366,8 @@ theorem Shape.HasType.mono_l (hΔ : ⊢ Δ) {n} {m m' a : Shape n}
   | lam hpi hcod =>
     cases m' with | bot => exact .bot hty | lam => ?_ | _ => cases hle
     refine .lam hpi fun e he => ?_
-    have ⟨e₀, he₀, hlab, hin, hout⟩ := hle e he
-    have ⟨c, hwc, hev, hcty⟩ := hcod e₀ he₀
-    exact ⟨c, hwc, (hev.label hlab).mono_input hΔ hin, ih hout hcty⟩
+    -- SET ASIDE (order change): `hle e he` is a lookup derivation.
+    exact sorry
   | pair hpi hxle hwx hxd hwc hev hyc =>
     cases m' with | bot => exact .bot hty | pair => ?_ | _ => cases hle
     exact .pair hpi (hle.2.1.trans hΔ hxle) hwx hxd hwc (hev.label hle.1.symm) (ih hle.2.2 hyc)
@@ -612,8 +613,9 @@ theorem Evaluates.mono_graph' {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeF
   induction h with
   | bot => exact ⟨.bot, .bot, Shape.LE.bot⟩
   | entry e he hlab hin =>
-    have ⟨e', he', hlab', hin', hout'⟩ := hff' e he
-    exact ⟨e'.out, .entry e' he' (hlab'.trans hlab) (hin'.trans hΔ hin), hout'⟩
+    -- SET ASIDE (order change): `hff' e he` is a lookup derivation, so this
+    -- is `Eval.trans` rather than a single entry.
+    exact sorry
   | lower _ hle _ ih =>
     have ⟨c', hc', hle'⟩ := ih
     exact ⟨c', hc', hle.trans hΔ hle'⟩
@@ -645,8 +647,8 @@ theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFu
   induction h with
   | bot => exact ⟨.bot, .bot, Shape.LE.bot, Shape.HasType.bot_sort⟩
   | entry e he hlab hin =>
-    have ⟨e', he', hlab', hin', hout'⟩ := hff' e he
-    exact ⟨e'.out, .entry e' he' (hlab'.trans hlab) (hin'.trans hΔ hin), hout', hty e' he'⟩
+    -- SET ASIDE (order change), as `mono_graph'` above.
+    exact sorry
   | lower _ hle _ ih =>
     have ⟨c', hc', hle', hty'⟩ := ih
     exact ⟨c', hc', hle.trans hΔ hle', hty'⟩
@@ -902,9 +904,8 @@ theorem ShapeFun.LE.lift {Δ : List Term} {n k} (h : n ≤ k) {f g : ShapeFun n}
       (ShapeFun.lift (Shape.lift k) g) := by
   intro e' he'
   obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'
-  have ⟨e₀, he₀, hlab, hin, hout⟩ := H e he
-  exact ⟨_, ShapeFun.mem_lift.2 ⟨e₀, he₀, rfl⟩, hlab,
-    (Shape.lift_le_lift h).2 hin, (Shape.lift_le_lift h).2 hout⟩
+  -- SET ASIDE (order change + lift): needs `Eval.lift`.
+  exact sorry
 
 /-- Numerals lift and reflect. -/
 theorem Shape.IsNumeral.lift_iff {n k} (h : n ≤ k) {v : Shape n} :
