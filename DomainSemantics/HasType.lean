@@ -27,31 +27,33 @@ namespace DomainSemantics
 
 variable {Δ : List Term}
 
-variable (Δ : List Term) {n} (f : ShapeFun n) (A a : Term) (x : Shape n) in
 /-- Relational graph lookup: `Evaluates Δ f A a x y` says `y` approximates
 the result of applying the graph `f`, at the argument label `(A, a)`, to an
-input at least `x`.  It is the set of outputs of matching entries, closed
-downwards and under compatible joins — the other repo's `Evaluates`.
+input at least `x`.
 
-Replacing `ShapeFun.app` (a function) by this (a relation) is what lets us
-drop saturation: the join of several matching entries is available here
-without having to be stored in the graph. -/
-inductive Evaluates : Shape n → Prop where
-  | bot : Evaluates .bot
-  | entry (e : Entry (Shape n)) : e ∈ f → LabelEq Δ e.ty e.tm A a →
-    Shape.LE Δ e.inp x → Evaluates e.out
-  -- the lookup is a lower set, but **lowering is constrained to well-formed
-  -- shapes**.  Unrestricted lowering would break `Evaluates.wf`, since `WF`
-  -- is not downward closed: a smaller λ-shape may have a bottom output,
-  -- which non-degeneracy forbids.  With the constraint the lookup stays an
-  -- ideal and everything it returns is still well formed.
-  | lower {y z} : Shape.WF Δ y → Shape.LE Δ y z → Evaluates z → Evaluates y
-  -- Now that the `join` *function* is correct (no information-free λ-shapes),
-  -- closing under it rather than under the `Join` relation is what makes
-  -- `Evaluates` transport along a substitution: `join` commutes with
-  -- substitution on the nose, whereas `Join Θ` quantifies over more shapes
-  -- than the image of the substitution
-  | join {y z} : Shape.Compat Δ y z → Evaluates y → Evaluates z → Evaluates (y.join z)
+It is `ShapeFun.Eval` at `R := Shape.LE Δ` — the *same* relation the order
+on graphs is built from (`Shape.lean`), which is why it has to be declared
+there, parameterised by the order one level down.  Replacing `ShapeFun.app`
+(a function) by this (a relation) is what lets us drop saturation: the join
+of several matching entries is available here without having to be stored
+in the graph. -/
+@[reducible] def Evaluates (Δ : List Term) {n} (f : ShapeFun n) (A a : Term)
+    (x c : Shape n) : Prop := ShapeFun.Eval Δ (Shape.LE Δ) f A a x c
+
+namespace Evaluates
+variable {Δ : List Term} {n} {f : ShapeFun n} {A a : Term} {x : Shape n}
+
+@[match_pattern] abbrev bot : Evaluates Δ f A a x .bot := ShapeFun.Eval.bot
+@[match_pattern] abbrev entry (e : Entry (Shape n)) (he : e ∈ f)
+    (hl : LabelEq Δ e.ty e.tm A a) (hin : Shape.LE Δ e.inp x) :
+    Evaluates Δ f A a x e.out := ShapeFun.Eval.entry e he hl hin
+@[match_pattern] abbrev lower {y z} (hw : Shape.WF Δ y) (hle : Shape.LE Δ y z)
+    (h : Evaluates Δ f A a x z) : Evaluates Δ f A a x y := ShapeFun.Eval.lower hw hle h
+@[match_pattern] abbrev join {y z} (hc : Shape.Compat Δ y z)
+    (hy : Evaluates Δ f A a x y) (hz : Evaluates Δ f A a x z) :
+    Evaluates Δ f A a x (y.join z) := ShapeFun.Eval.join hc hy hz
+
+end Evaluates
 
 /-- The **β-law**, and it is nearly free here: looking a graph up at one of
 its own entries returns that entry's output.
@@ -610,21 +612,11 @@ theorem Evaluates.mono_graph' {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeF
     ∀ {c : Shape n}, Evaluates Δ f A a x c →
       ∃ c', Evaluates Δ f' A a x c' ∧ Shape.LE Δ c c' := by
   intro c h
-  induction h with
-  | bot => exact ⟨.bot, .bot, Shape.LE.bot⟩
-  | entry e he hlab hin =>
-    -- SET ASIDE (order change): `hff' e he` is a lookup derivation, so this
-    -- is `Eval.trans` rather than a single entry.
-    exact sorry
-  | lower _ hle _ ih =>
-    have ⟨c', hc', hle'⟩ := ih
-    exact ⟨c', hc', hle.trans hΔ hle'⟩
-  | join _ _ _ ih₁ ih₂ =>
-    have ⟨y', hy', hley⟩ := ih₁
-    have ⟨z', hz', hlez⟩ := ih₂
-    have hc := hy'.compat hΔ hf' hx hz'
-    have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ (hy'.wf hΔ hwf) (hz'.wf hΔ hwf) hc
-    exact ⟨y'.join z', .join hc hy' hz', Shape.join_le (hley.trans hΔ hu₁) (hlez.trans hΔ hu₂)⟩
+  -- with lookup coverage the transport is exact, so the dominating witness
+  -- is the shape itself; `Eval.wf` supplies the reflexivity `WF`
+  have h' := ShapeFun.Eval.trans (R := Shape.LE Δ)
+    (fun _ _ _ h₁ h₂ => h₁.trans hΔ h₂) hff' h
+  exact ⟨c, h', Shape.LE.refl (ShapeFun.Eval.wf hΔ hwf h')⟩
 
 /-- The lookup is **monotone in the graph**, and what it returns is a type
 whenever the graph's outputs are.  Master gets monotonicity from
@@ -904,8 +896,7 @@ theorem ShapeFun.LE.lift {Δ : List Term} {n k} (h : n ≤ k) {f g : ShapeFun n}
       (ShapeFun.lift (Shape.lift k) g) := by
   intro e' he'
   obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'
-  -- SET ASIDE (order change + lift): needs `Eval.lift`.
-  exact sorry
+  exact ShapeFun.Eval.lift h (Shape.lift_le_lift h).2 (H e he)
 
 /-- Numerals lift and reflect. -/
 theorem Shape.IsNumeral.lift_iff {n k} (h : n ≤ k) {v : Shape n} :
