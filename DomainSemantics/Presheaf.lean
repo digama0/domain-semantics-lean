@@ -409,7 +409,7 @@ theorem sound_forallE_eq_of {Γ : List Term} {A A' B B' : Term} {u v : Bool}
       ⟨⟨_, hAσ.hasType.2⟩, ⟨_, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩, hwf.2.2⟩
       (fun e he => ?_) hdom (fun e he => ?_) hw
       (hle.trans hΔ (TShape.LE.T.2
-        ⟨⟨⟨_, hAσ⟩, _, hBσ⟩, .refl hwf.2.2.1, .refl hwf.2.2.2.1⟩))
+        ⟨⟨⟨_, hAσ⟩, _, hBσ⟩, .refl hwf.2.2.1, .refl hwf.2.2.2⟩))
     · obtain ⟨_, hty⟩ := hlab e he
       exact ⟨_, hty.trans' hAσ⟩
     · -- the body, at the stage extended by the entry's label
