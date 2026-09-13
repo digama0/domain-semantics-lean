@@ -235,34 +235,31 @@ theorem Shape.HasType.cumul {n} {a : Shape n} {r s : Bool}
     (h : Shape.HasType Δ a (.sort r)) (hrs : r ≤ s) : Shape.HasType Δ a (.sort s) := by
   induction n with
   | zero =>
-    cases h with
-    | bot => exact .bot
-    | sort => cases Bool.eq_true_of_le rfl hrs; exact .sort
-  | succ n ih =>
-    cases h with
-    | bot _ => exact .bot .sort
-    | sort => cases Bool.eq_true_of_le rfl hrs; exact .sort
-    | nat => cases Bool.eq_true_of_le rfl hrs; exact .nat
-    | sigma hpi => cases Bool.eq_true_of_le rfl hrs; exact .sigma hpi
-    | unit hle => exact .unit (Bool.le_tr hle hrs)
-    | id hle => exact .id (Bool.le_tr hle hrs)
-    | forallE hpi => exact .forallE (hpi.cod ih)
+    cases h with | bot => exact .bot | sort
+    cases Bool.eq_true_of_le rfl hrs; exact .sort
+  | succ n ih
+  cases h with
+  | bot _ => exact .bot .sort
+  | sort => cases Bool.eq_true_of_le rfl hrs; exact .sort
+  | nat => cases Bool.eq_true_of_le rfl hrs; exact .nat
+  | sigma hpi => cases Bool.eq_true_of_le rfl hrs; exact .sigma hpi
+  | unit hle => exact .unit (Bool.le_tr hle hrs)
+  | id hle => exact .id (Bool.le_tr hle hrs)
+  | forallE hpi => exact .forallE (hpi.cod ih)
 
 /-- `⊥` inhabits every type; at positive level this is the constructor. -/
-theorem Shape.HasType.bot : ∀ {n} {a : Shape n},
-    Shape.HasType Δ a .type → Shape.HasType Δ .bot a := by
-  intro n
-  cases n with
-  | zero => intro _ _; exact Shape.HasType0.bot
-  | succ n => intro _ h; exact Shape.HasTypeS.bot h
+theorem Shape.HasType.bot {n} {a : Shape n}
+    (h : Shape.HasType Δ a .type) : Shape.HasType Δ .bot a :=
+  match n with
+  | 0 => Shape.HasType0.bot
+  | _+1 => Shape.HasTypeS.bot h
 
 /-- A sort is a type, at any level. -/
-theorem Shape.HasType.sort {Δ : List Term} : ∀ {n} {r : Bool},
-    Shape.HasType Δ (.sort r : Shape n) .type := by
-  intro n
-  cases n with
-  | zero => intro _; exact Shape.HasType0.sort
-  | succ n => intro _; exact Shape.HasTypeS.sort
+theorem Shape.HasType.sort {Δ : List Term} {n} {r : Bool} :
+    Shape.HasType Δ (.sort r : Shape n) .type :=
+  match n with
+  | 0 => Shape.HasType0.sort
+  | _+1 => Shape.HasTypeS.sort
 
 /-- Hence `⊥` inhabits every sort. -/
 theorem Shape.HasType.bot_sort {Δ : List Term} {n} {r : Bool} :
@@ -316,16 +313,8 @@ theorem Shape.IsNumeral.lower {Δ : List Term} {n} {v v' : Shape n}
     (hle : Shape.LE Δ v' v) (h : Shape.IsNumeral v) : Shape.IsNumeral v' := by
   induction h with
   | bot => cases Shape.le_bot_iff.1 hle; exact .bot
-  | zero =>
-    cases v' with
-    | bot => exact .bot
-    | zero => exact .zero
-    | _ => cases hle
-  | succ _ ih =>
-    cases v' with
-    | bot => exact .bot
-    | succ w' => exact .succ (ih hle)
-    | _ => cases hle
+  | zero => match v' with | .bot => exact .bot | .zero => exact .zero
+  | succ _ ih => match v' with | .bot => exact .bot | .succ w' => exact .succ (ih hle)
 
 /-- A Π/Σ signature is inherited by anything it dominates: the whole point
 of stating it with a dominating pair. -/
@@ -483,12 +472,11 @@ theorem Evaluates.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A
   | join _ _ _ ih₁ ih₂ => exact ih₁.join hΔ ih₂
   | entry e he hlab hin
   induction hz with
-  | bot => exact Shape.Compat.bot_right
+  | bot => exact .bot_right
   | entry e' he' hlab' hin' =>
-    have key := hf e he e' he' Δ .id hΔ (Ctx.SubstEq.id hΔ)
-      (by simpa using hlab.trans (LabelEq.symm hlab'))
+    simpa using hf e he e' he' Δ .id hΔ (.id hΔ)
+      (by simpa using hlab.trans hlab'.symm)
       (by simpa using hx.of_common_upper hΔ hin hin')
-    simpa using key
   | lower _ hle _ ih => exact ih.anti_right hΔ hle
   | join _ _ _ ih₁ ih₂ => exact ((ih₁.symm hΔ).join hΔ (ih₂.symm hΔ)).symm hΔ
 
@@ -632,11 +620,9 @@ theorem Evaluates.mono_graph' {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeF
   | join _ _ _ ih₁ ih₂ =>
     have ⟨y', hy', hley⟩ := ih₁
     have ⟨z', hz', hlez⟩ := ih₂
-    have hc : Shape.Compat Δ y' z' := Evaluates.compat hΔ hf' hx hy' hz'
-    have ⟨hu₁, hu₂⟩ :=
-      Shape.le_join hΔ (Evaluates.wf hΔ hwf hy') (Evaluates.wf hΔ hwf hz') hc
-    exact ⟨y'.join z', .join hc hy' hz',
-      Shape.join_le (hley.trans hΔ hu₁) (hlez.trans hΔ hu₂)⟩
+    have hc := hy'.compat hΔ hf' hx hz'
+    have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ (hy'.wf hΔ hwf) (hz'.wf hΔ hwf) hc
+    exact ⟨y'.join z', .join hc hy' hz', Shape.join_le (hley.trans hΔ hu₁) (hlez.trans hΔ hu₂)⟩
 
 /-- The lookup is **monotone in the graph**, and what it returns is a type
 whenever the graph's outputs are.  Master gets monotonicity from
@@ -652,17 +638,15 @@ theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFu
     (hjoin : ∀ {y z : Shape n}, Shape.WF Δ y → Shape.WF Δ z → Shape.Compat Δ y z →
       Shape.HasType Δ y (.sort r) → Shape.HasType Δ z (.sort r) →
       Shape.HasType Δ (y.join z) (.sort r))
-    (hff' : ShapeFun.LE Δ (Shape.LE Δ) f f') :
-    ∀ {c : Shape n}, Evaluates Δ f A a x c →
-      ∃ c', Evaluates Δ f' A a x c' ∧ Shape.LE Δ c c' ∧
-        Shape.HasType Δ c' (.sort r) := by
-  intro c h
+    (hff' : ShapeFun.LE Δ (Shape.LE Δ) f f')
+    {c : Shape n} (h : Evaluates Δ f A a x c) :
+    ∃ c', Evaluates Δ f' A a x c' ∧ Shape.LE Δ c c' ∧
+      Shape.HasType Δ c' (.sort r) := by
   induction h with
   | bot => exact ⟨.bot, .bot, Shape.LE.bot, Shape.HasType.bot_sort⟩
   | entry e he hlab hin =>
     have ⟨e', he', hlab', hin', hout'⟩ := hff' e he
-    exact ⟨e'.out, .entry e' he' (hlab'.trans hlab)
-      (hin'.trans hΔ hin), hout', hty e' he'⟩
+    exact ⟨e'.out, .entry e' he' (hlab'.trans hlab) (hin'.trans hΔ hin), hout', hty e' he'⟩
   | lower _ hle _ ih =>
     have ⟨c', hc', hle', hty'⟩ := ih
     exact ⟨c', hc', hle.trans hΔ hle', hty'⟩
@@ -673,9 +657,8 @@ theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFu
     have hwy := Evaluates.wf hΔ hwf hy'
     have hwz := Evaluates.wf hΔ hwf hz'
     have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwy hwz hc
-    exact ⟨y'.join z', .join hc hy' hz',
-      Shape.join_le (hley.trans hΔ hu₁) (hlez.trans hΔ hu₂),
-      hjoin hwy hwz hc htyy htyz⟩
+    refine ⟨y'.join z', .join hc hy' hz', ?_, hjoin hwy hwz hc htyy htyz⟩
+    exact Shape.join_le (hley.trans hΔ hu₁) (hlez.trans hΔ hu₂)
 
 /-! ## Monotonicity on the right, and typed joins
 
@@ -699,85 +682,61 @@ theorem Shape.HasType.mono_r_join (hΔ : ⊢ Δ) : ∀ {n},
   induction n with
   | zero =>
     refine ⟨fun {m a a' r} _ _ h hle hA => ?_, fun {y z r} _ _ _ hy hz => ?_⟩
-    · cases m with
-      | bot => exact Shape.HasType0.bot
-      | sort s =>
-        cases a with | bot => cases h | sort j => ?_
-        cases a' with | bot => cases hle | sort j' => ?_
-        cases h with | sort => ?_
-        cases (hle : true = j'); exact Shape.HasType0.sort
+    · cases m with | bot => exact Shape.HasType0.bot | sort s
+      let .sort j := a; let .sort j' := a'; cases h; cases hle; exact .sort
     · cases y with | bot => exact hz | sort s
       cases z with | bot => exact hy | sort s'
       exact hy
-  | succ n ih =>
-    obtain ⟨ihm, ihj⟩ := ih
-    refine ⟨?_, ?_⟩
-    · -- mono_r
-      intro m a a' r hwm hwa h hle hA
-      cases h with
-      | bot _ => exact .bot (Shape.HasType.cumul hA (Bool.le_true' r))
-      | sort =>
-        cases a' with | sort j' => ?_ | _ => cases hle
-        cases (hle : true = j'); exact .sort
-      | nat =>
-        cases a' with | sort j' => ?_ | _ => cases hle
-        cases (hle : true = j'); exact .nat
-      | sigma hpi =>
-        cases a' with | sort j' => ?_ | _ => cases hle
-        cases (hle : true = j'); exact .sigma hpi
-      | unit hj =>
-        cases a' with | sort j' => ?_ | _ => cases hle
-        cases (hle : _ = j'); exact .unit hj
-      | id hj =>
-        cases a' with | sort j' => ?_ | _ => cases hle
-        cases (hle : _ = j'); exact .id hj
-      | forallE hpi =>
-        cases a' with | sort j' => ?_ | _ => cases hle
-        cases (hle : _ = j'); exact .forallE hpi
-      | zero => cases a' with | nat => exact .zero | _ => cases hle
-      | succ hN => cases a' with | nat => exact .succ hN | _ => cases hle
-      | refl =>
-        cases a' with | id t' A₁ a₁ b₁ => ?_ | _ => cases hle
-        cases (hle.1 : true = t'); exact .refl
-      | lam hpi hcod =>
-        cases a' with | forallE A₁ B₁ d' f' => ?_ | _ => cases hle
-        cases hA with | forallE hpiA => ?_
-        refine .lam (hpiA.cod (Shape.HasType.cumul · (Bool.le_true' r))) fun e he => ?_
-        have ⟨c, hwc, hev, hcty⟩ := hcod e he
-        have ⟨c', hev', hcle⟩ :=
-          Evaluates.mono_graph' hΔ hwa.2.2.2.2 (hwm.2.2.1 e he).2.2.1.coherent
-            (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2) hle.2.2 hev
-        exact ⟨c, hwc, .lower hwc hcle hev', hcty⟩
-      | pair hpi hxle hwx hxd hwc hev hyc =>
-        cases a' with | sigma A₁ B₁ d' f' => ?_ | _ => cases hle
-        cases hA with | sigma hpiA => ?_
-        have hd' : Shape.HasType Δ d' .type := hpiA.1
-        have ⟨c', hev', hcle⟩ :=
-          Evaluates.mono_graph' hΔ hwa.2.2.2.2 hwx.coherent
-            (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2) hle.2.2 hev
-        exact .pair hpiA hxle hwx (ihm hwx hwa.2.2.1 hxd hle.2.1 hd') hwc
-          (.lower hwc hcle hev') hyc
-    · -- typed joins
-      intro y z r hwy hwz hc hy hz
-      cases y with
-      | bot => exact hz
-      | forallE A₀ B₀ d f =>
-        cases z with | bot => exact hy | forallE A₁ B₁ d' g => ?_ | _ => cases hc
-        cases hy with | forallE hpy => ?_
-        cases hz with | forallE hpz => ?_
-        refine .forallE ⟨ihj hwy.2.2.1 hwz.2.2.1 hc.2.1 hpy.1 hpz.1, fun e he => ?_⟩
-        match List.mem_append.1 he with
-        | .inl he => exact hpy.2 e he
-        | .inr he => exact hpz.2 e he
-      | sigma A₀ B₀ d f =>
-        cases z with | bot => exact hy | sigma A₁ B₁ d' g => ?_ | _ => cases hc
-        cases hy with | sigma hpy => ?_
-        cases hz with | sigma hpz => ?_
-        refine .sigma ⟨ihj hwy.2.2.1 hwz.2.2.1 hc.2.1 hpy.1 hpz.1, fun e he => ?_⟩
-        match List.mem_append.1 he with
-        | .inl he => exact hpy.2 e he
-        | .inr he => exact hpz.2 e he
-      | _ => cases z <;> first | exact hy | cases hy
+  | succ n ih
+  obtain ⟨ihm, ihj⟩ := ih
+  refine ⟨fun {m a a' r} hwm hwa h hle hA => ?_, fun {y z r} hwy hwz hc hy hz => ?_⟩
+  · -- mono_r
+    cases h with
+    | bot _ => exact .bot (Shape.HasType.cumul hA (Bool.le_true' r))
+    | sort => cases a' with | sort => cases hle; exact .sort | _ => cases hle
+    | nat => cases a' with | sort => cases hle; exact .nat | _ => cases hle
+    | sigma hpi => cases a' with | sort => cases hle; exact .sigma hpi | _ => cases hle
+    | unit hj => cases a' with | sort => cases hle; exact .unit hj | _ => cases hle
+    | id hj => cases a' with | sort => cases hle; exact .id hj | _ => cases hle
+    | forallE hpi => cases a' with | sort => cases hle; exact .forallE hpi | _ => cases hle
+    | zero => cases a' with | nat => exact .zero | _ => cases hle
+    | succ hN => cases a' with | nat => exact .succ hN | _ => cases hle
+    | refl => cases a' with | id => cases hle.1; exact .refl | _ => cases hle
+    | lam hpi hcod =>
+      cases a' with | forallE A₁ B₁ d' f' => ?_ | _ => cases hle
+      cases hA with | forallE hpiA
+      refine .lam (hpiA.cod (Shape.HasType.cumul · (Bool.le_true' r))) fun e he => ?_
+      have ⟨c, hwc, hev, hcty⟩ := hcod e he
+      have ⟨c', hev', hcle⟩ := hev.mono_graph' hΔ hwa.2.2.2.2
+        (hwm.2.2.1 e he).2.2.1.coherent (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2) hle.2.2
+      exact ⟨c, hwc, .lower hwc hcle hev', hcty⟩
+    | pair hpi hxle hwx hxd hwc hev hyc =>
+      cases a' with | sigma A₁ B₁ d' f' => ?_ | _ => cases hle
+      cases hA with | sigma hpiA => ?_
+      have hd' : Shape.HasType Δ d' .type := hpiA.1
+      have ⟨c', hev', hcle⟩ := hev.mono_graph' hΔ hwa.2.2.2.2
+        hwx.coherent (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2) hle.2.2
+      exact .pair hpiA hxle hwx (ihm hwx hwa.2.2.1 hxd hle.2.1 hd') hwc (.lower hwc hcle hev') hyc
+  · -- typed joins
+    cases y with
+    | bot => exact hz
+    | forallE A₀ B₀ d f =>
+      cases z with | bot => exact hy | forallE A₁ B₁ d' g => ?_ | _ => cases hc
+      cases hy with | forallE hpy
+      cases hz with | forallE hpz
+      refine .forallE ⟨ihj hwy.2.2.1 hwz.2.2.1 hc.2.1 hpy.1 hpz.1, fun e he => ?_⟩
+      match List.mem_append.1 he with
+      | .inl he => exact hpy.2 e he
+      | .inr he => exact hpz.2 e he
+    | sigma A₀ B₀ d f =>
+      cases z with | bot => exact hy | sigma A₁ B₁ d' g => ?_ | _ => cases hc
+      cases hy with | sigma hpy
+      cases hz with | sigma hpz
+      refine .sigma ⟨ihj hwy.2.2.1 hwz.2.2.1 hc.2.1 hpy.1 hpz.1, fun e he => ?_⟩
+      match List.mem_append.1 he with
+      | .inl he => exact hpy.2 e he
+      | .inr he => exact hpz.2 e he
+    | _ => cases z <;> first | exact hy | cases hy
 
 /-- Typing is monotone on the right. -/
 theorem Shape.HasType.mono_r (hΔ : ⊢ Δ) {n} {m a a' : Shape n} {r : Bool}
@@ -821,11 +780,8 @@ theorem Evaluates.bounded (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term} {x : 
   ⟨c', hc'.wf hΔ hout, hle, hc'ty⟩
 
 /-- Nothing but `⊥` is typed at `⊥`. -/
-theorem Shape.HasType.bot_r : ∀ {n} {x : Shape n}, Shape.HasType Δ x .bot → x = .bot := by
-  intro n x h
-  cases n with
-  | zero => cases h with | bot => rfl
-  | succ n => cases h with | bot => rfl
+theorem Shape.HasType.bot_r {n} {x : Shape n} (h : Shape.HasType Δ x .bot) : x = .bot := by
+  cases n <;> cases h <;> rfl
 
 /-- A proposition is inhabited only by `⊥`. -/
 theorem Shape.HasType.proofIrrel (hΔ : ⊢ Δ) {n} {a x : Shape n}
@@ -969,55 +925,8 @@ theorem Shape.IsNumeral.lift_iff {n k} (h : n ≤ k) {v : Shape n} :
     | zero => let k+1 := k; exact .zero
     | succ _ ih => let k+1 := k; exact .succ (ih (Nat.le_of_succ_le_succ h))
 
-/-- **Fullness at `.type`.**  Split off from `lift_iff` below because the
-`bot` constructor's premise sits at the *same* level, so it cannot go
-through the level induction hypothesis -- but at `.type` the statement
-closes on itself, since `⊥` is a type at every level unconditionally. -/
-theorem Shape.HasType.lift_iff_type {Δ : List Term} {n k} (h : n ≤ k) {a : Shape n} :
-    Shape.HasType Δ (a.lift k) .type ↔ Shape.HasType Δ a .type := by
-  induction n generalizing k with
-  | zero =>
-    cases k with | zero => rw [Shape.lift_self] | succ k
-    cases a with
-    | bot => exact ⟨fun _ => Shape.HasType0.bot, fun _ => .bot .sort⟩
-    | sort r => exact ⟨fun _ => Shape.HasType0.sort, fun _ => .sort⟩
-  | succ n ih
-  let k+1 := k; have h' := Nat.le_of_succ_le_succ h
-  have gen {d : Shape n} {f : ShapeFun n} :
-      ShapeFun.HasPi (Shape.HasType Δ) (d.lift k) (ShapeFun.lift (Shape.lift k) f) .type ↔
-      ShapeFun.HasPi (Shape.HasType Δ) d f .type := by
-    refine ⟨fun hpi => ⟨(ih h').1 hpi.1, fun e he => ?_⟩, fun hpi => ⟨(ih h').2 hpi.1, ?_⟩⟩
-    · exact (ih h').1 (hpi.2 _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩))
-    · intro e'' he''
-      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
-      exact (ih h').2 (hpi.2 e he)
-  cases a with
-  | bot => exact ⟨fun _ => .bot .sort, fun _ => .bot .sort⟩
-  | sort r => exact ⟨fun _ => .sort, fun _ => .sort⟩
-  | unit r => exact ⟨fun _ => .unit (Bool.le_true' r), fun _ => .unit (Bool.le_true' r)⟩
-  | nat => exact ⟨fun _ => .nat, fun _ => .nat⟩
-  | id r A₀ a₀ b₀ => exact ⟨fun _ => .id (Bool.le_true' r), fun _ => .id (Bool.le_true' r)⟩
-  | forallE A B d f =>
-    constructor <;> intro (.forallE hpi)
-    · exact .forallE (gen.1 hpi)
-    · exact .forallE (gen.2 hpi)
-  | sigma A B d f =>
-    constructor  <;> intro (.sigma hpi)
-    · exact .sigma (gen.1 hpi)
-    · exact .sigma (gen.2 hpi)
-  | _ => constructor <;> · intro H; cases H
-
 /-- **Fullness for typing.**  On the shapes that come from the level below,
-the higher level types exactly what the lower one did.
-
-Both directions in one induction: the clauses are the same case analysis
-read forwards and backwards, and the auxiliaries (`ihs`, `ihpi`) are
-themselves `iff`s.  Only the two graph clauses differ between the
-directions -- going up, `Evaluates.lift` and the induction hypothesis;
-coming down, `Evaluates.lift_of` to find a lift above the code, then
-`mono_graph` to make it a type and `mono_r` to move the output into it
-(`ihcode`), and for `pair` a dominator rebuilt from the sublist the lookup
-uses rather than reflected. -/
+the higher level types exactly what the lower one did. -/
 theorem Shape.HasType.lift_iff {Δ : List Term} (hΔ : ⊢ Δ)
     {n k} (h : n ≤ k) {m a : Shape n} (hwm : Shape.WF Δ m) (hwa : Shape.WF Δ a) :
     Shape.HasType Δ (m.lift k) (a.lift k) ↔ Shape.HasType Δ m a := by
@@ -1066,11 +975,16 @@ theorem Shape.HasType.lift_iff {Δ : List Term} (hΔ : ⊢ Δ)
       ((Shape.lift_wf h').2 hwy) ((Shape.lift_wf h').2 hwc₁) hty'
       (hle.trans hΔ ((Shape.lift_le_lift h').2 hc₀c₁)) ?_)⟩
     exact (ihs hwc₁).2 hc₁ty
+  suffices ∀ {m a}, WF Δ m → WF Δ a →
+      (HasType Δ (lift (k + 1) a) .type ↔ HasType Δ a .type) →
+      (HasType Δ (lift (k + 1) m) (lift (k + 1) a) ↔ HasType Δ m a) from
+    this hwm hwa <| this (a := .type) hwa trivial ⟨fun _ => .sort, fun _ => .sort⟩
+  intro m a hwm hwa hs
   constructor <;> intro H
   · cases m with
     | bot =>
       cases H with | bot hb
-      exact .bot ((Shape.HasType.lift_iff_type h).1 hb)
+      exact .bot (hs.1 hb)
     | sort s =>
       cases a with | sort j => ?_ | _ => cases H
       cases H with | sort => exact .sort
@@ -1154,7 +1068,7 @@ theorem Shape.HasType.lift_iff {Δ : List Term} (hΔ : ⊢ Δ)
         obtain ⟨w, hw, rfl⟩ := List.mem_map.1 hv
         exact (Shape.lift_le_lift h').2 ((hJ.le hwJ w hw).trans hΔ hJJ')
       · exact (ihs hwJ').2 hJ'ty
-  · induction H with
+  · clear hs; induction H with
     | bot _ ihb => exact .bot <| ihb hwa <| by cases n <;> trivial
     | sort => exact .sort
     | unit hj => exact .unit hj
