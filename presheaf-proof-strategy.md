@@ -58,7 +58,7 @@ or state, and it is the whole difference between the two developments.
 | `IsCode r` separate from inhabitation | `HasType · (sort r)` | done, cumulative |
 | conditional sup `cSup`, `CondSemilatticeSup` | `Shape.join` + `Compat` | done |
 | `Graph.IsCoherent`, `InternallyCompatible` | the coherence conjunct of `Shape.WF` (hereditary, label-sensitive) | done |
-| `Graph.LE` = single-entry coverage (`Entry.mem`) | `ShapeFun.LE`, same | **must change to lookup coverage** (§4.5, §5.2) |
+| `Graph.LE` = single-entry coverage (`Entry.mem`) | `ShapeFun.LE`, same | stays; lookup coverage is **impossible** here (§5.2), so η needs another route |
 | an ideal is closed under every graph valid for its action | — (a value is one shape) | the previous row is the replacement |
 
 Three of these rows are design decisions rather than lemmas, and the
@@ -74,9 +74,11 @@ document is organised around them:
    extended stage is typed only if the binder annotation is.  That is why
    the induction is on typing and not on the raw term, and it is the entire
    residue of his quotient.
-2. **The graph order is lookup coverage** (§5.2).  η forces it, for the
-   same reason his η needs the λ-value to be an ideal closed under valid
-   graphs.
+2. **The graph order cannot be lookup coverage** (§5.2), though η wants
+   it to be.  An order defined through the lookup does not reflect along
+   `lift`, and `lift_le_lift` is what makes the level index invisible.
+   Master escapes by saturation, the other repo by having no levels; we
+   have neither escape, so η is the open case.
 3. **Two things stay open**, both about `Σ`: join-closure of a type's
    extension, needed by `tr` (§4.7), and nothing else once (1) is done.
 
@@ -706,56 +708,91 @@ components.  Options:
 (a) is the honest one and fits the pattern; it makes the Σ half of the
 development carry its own directedness, as his Π half does.
 
-### 5.2 The graph order must be lookup coverage
+### 5.2 The graph order: lookup coverage is impossible, and why
 
-Current `ShapeFun.LE`: every entry of `f` is covered by *one* entry of
-`f'`.  Required (η →, `fst_snd`, and every place a join of lookups has to
-sit below an approximant): coverage by a *lookup* rather than an entry.
-
-**That cannot be spelled with `Evaluates`.**  `Evaluates` lives in
-`HasType.lean` and is defined *using* `Shape.LE` (its `entry` and `lower`
-rules), so `Shape.LE` cannot mention it.  What breaks the circle is that
-the dependency descends a level — `Shape.LE` at `n+1` would need the
-lookup at `n`, which needs `Shape.LE` at `n` — so the lookup has to be a
-separate, smaller relation defined in `Shape.lean`, parameterised by the
-order one level down:
+**Tried, and it does not work.**  The proposal was to replace entry
+coverage
 
 ```lean
-inductive ShapeFun.Covers (Δ) {n} (R : Shape n → Shape n → Prop)
-    (f : ShapeFun n) (A a : Term) (x : Shape n) : Shape n → Prop
-  | bot : Covers .bot
-  | entry (e) : e ∈ f → LabelEq Δ e.ty e.tm A a → R e.inp x → Covers e.out
-  | join {y z} : Covers y → Covers z → Covers (y.join z)
-
-def ShapeFun.LE Δ R f f' := ∀ e ∈ f, ∃ y, Covers Δ R f' e.ty e.tm e.inp y ∧ R e.out y
+def ShapeFun.LE Γ R f f' := ∀ e ∈ f, ∃ e' ∈ f', LabelEq Γ e'.ty e'.tm e.ty e.tm ∧
+  R e'.inp e.inp ∧ R e.out e'.out
 ```
 
-`Covers` is `Evaluates` minus `lower` and minus the `WF`/`Compat` side
-conditions, and that is not a compromise: `lower` is subsumed by the
-`R e.out y` of the order itself, and the side conditions exist to keep
-`Evaluates.wf` true, which an order does not care about.  So `Covers`
-needs only `R` and `Shape.join`, and `Shape.join` is purely structural.
+by coverage through the lookup, because η → needs it: an entry of an
+η-expansion's graph has as its output a *join* of several outputs of the
+function's graph, and no single entry need dominate a join.
 
-Two consequential ordering facts in `Shape.lean`: `Shape.join` is
-currently defined *after* `Shape.LE` (line 677 vs 360) and must move up;
-`Compat` and `WF` do not depend on `LE`, so nothing else has to move.
+Two corrections, the second fatal.
 
-η then goes through by induction on `Evaluates g_t … y`: `bot` and `join`
-map to the corresponding `Covers` rules, `entry` uses `g_t ≤ G` plus
-monotonicity of `Covers` in its input (which is the `entry` rule's
-`R e.inp x` and transitivity of `R`), and `lower` reuses the witness.
+**(a) It cannot be spelled with `Evaluates`.**  `Evaluates` lives in
+`HasType.lean` and is defined *using* `Shape.LE`.  The dependency descends
+a level, though — `Shape.LE` at `n+1` would need the lookup at `n`, which
+needs `Shape.LE` at `n` — so the lookup can be re-given in `Shape.lean`,
+parameterised by the order one level down:
 
-Single-entry coverage is master's order, right there because saturated
-graphs store their joins; it is also his `Graph.LE` (`Entry.mem`), right
-there because a value is an ideal closed under valid graphs.  Neither
-reason survives here.  Consequences: `LE.refl` by `entry_self`; `LE.trans`
-by `Evaluates.mono_graph'` (needs the larger graph's coherence — which
-`WF` has, so transitivity holds on WF shapes, as reflexivity already
-does); `lift_le_lift` by `Evaluates.lift_iff`; `LE.subst` by
-`Evaluates.subst`; `Compat.anti` by `Evaluates.compat`; `join_le`/`le_join`
-unchanged (append only adds entries: `mono_sub`); `le_bot_iff` unchanged.
-The `Evaluates`-based `HasDom` of §4.5e' is this order's `HasDom`.  Cost:
-a pass over `Shape.lean`'s order section; the lemmas it needs exist.
+```lean
+inductive ShapeFun.Covers (Γ) {n} (R : Shape n → Shape n → Prop)
+    (f : ShapeFun n) (A a : Term) (x : Shape n) : Shape n → Prop
+  | bot   : Covers .bot
+  | entry (e) : e ∈ f → LabelEq Γ e.ty e.tm A a → R e.inp x → Covers e.out
+  | lower {y z} : R y z → Covers z → Covers y
+  | join  {y z} : Covers y → Covers z → Covers (y.join z)
+
+def ShapeFun.LE Γ R f f' := ∀ e ∈ f, Covers Γ R f' e.ty e.tm e.inp e.out
+```
+
+`Shape.join` has to move above `Shape.LE` (it sits 300 lines below);
+`Compat` and `WF` do not depend on `LE`, so nothing else moves.  With
+`lower` as a rule, `refl`, `trans` (`Covers.mono` + `Covers.trans`) and
+`sub` are four-line inductions.  This much was implemented and compiled.
+
+**(b) The order then does not reflect along `lift`, and that is fatal.**
+`Shape.lift_le_lift` — `LE (s.lift m) (t.lift m) ↔ LE s t` — is what makes
+the level index invisible; it is `TShape.LE.def`'s content, and that has
+117 call sites.  Its `→` direction fails for lookup coverage.  Take the
+motive `∀ v, LE (v.lift m) w → Covers f' A a x v`: `bot` needs
+`lift_eq_bot`, `entry` needs the level-`n` induction hypothesis, `lower`
+needs transitivity at level `n` (fine — `LE.trans` is independent of
+`lift_le_lift` and can move above it, at the cost of a `⊢ Γ` hypothesis).
+But `join` needs `LE (v.lift) (y₁ ⊔ y₂) → LE (v.lift) y₁`, which is false.
+The other motive, `∃ v, Covers f' A a x v ∧ LE w (v.lift m)`, gets through
+`join` only if `v₁.lift ≤ v₁.lift ⊔ v₂.lift` — that is `le_join`, which
+needs `Compat` and `WF`.  Exactly the hypotheses `Evaluates.lift_of`
+carries, and exactly the ones an order may not have: `Interp` is a lower
+set by design and `WF` is not downward closed, so `TShape.LE.def` is
+applied to shapes that are not well formed.
+
+**Neither original meets this, for different reasons.**  Master's graphs
+are saturated, so a join of matching outputs *is* an entry and entry
+coverage suffices.  The other repo has **no level index at all** —
+`Shape Γ` is one inductive type, there is no `lift` and no reflection
+obligation — and its λ-value is an ideal, closed under every valid graph.
+Levels *and* non-saturated graphs is the combination that has no order,
+and it is ours alone.
+
+**Options, none cheap.**
+
+1. *Carry `WF` through the lift reflection.*  Add well-formedness to
+   `lift_le_lift`'s `←` and to `TShape.LE.def`, and audit the 117 sites.
+   Plausible where `WF` is in scope, but `Interp.mono` and the `Interp`
+   constructors' `hle` premises apply the order to shapes with no `WF`,
+   so some sites genuinely cannot supply it.
+2. *Drop the level index*, as the other repo does, and find another
+   well-founded measure for the recursions `Shape n` currently supports.
+   Large, and it is the one structural decision this branch inherited from
+   master rather than chose.
+3. *Restore saturation in some form.*  Rejected in §4.1 of the plan
+   because label classes merge under substitution, so join-closure of a
+   graph is not preserved by reindexing.  The objection stands.
+4. *Prove η without the order*: find a route to η → that does not place
+   `lam g` below a single approximant of `e`.  Master has none — its `key`
+   and `main` (`Sound.lean:2283-2316`) are exactly this placement, made
+   possible by saturation — and the other repo's is the ideal equation
+   `⟦e⟧ = abstraction (arrowAction ⟦e⟧)`, which needs a value to be a set.
+
+Until one is chosen, η stays open, and with it `fst_snd`.  Nothing else in
+§4 depends on the order changing: `forallEDF`, `lamDF`, `appDF`, `beta`
+and the `tr` rules all go through with entry coverage.
 
 ### 5.3 Lower-closed `HasType` vs `HasDom` in the λ clause
 
@@ -787,7 +824,7 @@ needed for anything above; a simplification to take when convenient.
 | `Interp.subst_iff` → `Interp.substTerm` | directedness of the `θ i` as a hypothesis (`Interp.Dir`) | §3.3 | **done** (stated) |
 | `Interp.inst` | takes `Interp.Dir` of the substituted term | §3.3 | **done** (stated) |
 | `Adm.subst` | delete | §3.5 | **done** |
-| `ShapeFun.LE` | lookup coverage, via a new `ShapeFun.Covers` | §5.2 | open |
+| `ShapeFun.LE` | lookup coverage | §5.2 | **withdrawn**: breaks `lift_le_lift` |
 | `InterpTyped` at Π (and Σ) types | witness carries lookup-form `HasDom` | §4.5(a), §5.1(a) | open |
 | `SoundJoin` | keep, upper-bound form; prove per former alongside `sound` | §5.1 | **done** (kept) |
 
@@ -795,8 +832,8 @@ needed for anything above; a simplification to take when convenient.
 so that `substTerm`/`inst` can take it as a hypothesis; `SoundDir` is its
 closure over well-formed stages and `Interp.Dir.join` is master's form.
 
-The two open rows are both restructurings rather than restatements: the
-first moves `Shape.join` and rewrites `Shape.lean`'s order section (~38
-call sites across `Shape.lean` and `HasType.lean`), the second changes
+The graph-order row is withdrawn: §5.2 records why lookup coverage cannot
+be had, and what the alternatives for η cost.  The `InterpTyped` row
+remains open and is a restructuring rather than a restatement — it changes
 what `SoundTy` promises and so touches every case that consumes it.
 

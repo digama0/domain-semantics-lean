@@ -349,7 +349,24 @@ def Shape.WF (Γ : List Term) : ∀ {n}, Shape n → Prop
 indexed by a context and lives in `Prop`. An entry is covered when some
 entry of the larger graph has a definitionally equal label, a smaller
 input and a larger output; an entry with a bottom output is covered
-vacuously. -/
+vacuously.
+
+**The order cannot be lookup coverage.**  η wants it to be: an entry of an
+η-expansion's graph has as its output a *join* of several outputs of the
+function's graph, which no single entry need dominate (see
+`presheaf-proof-strategy.md` §5.2).  But an order defined through the
+lookup does not **reflect along `lift`**, and `Shape.lift_le_lift` is what
+makes the level index invisible (`TShape.LE.def`, 117 call sites).  The
+lookup's `join` rule is the obstruction: reflecting a join of two lookup
+values needs each to sit below the join of their reflections, which is
+`le_join` and so needs compatibility and well-formedness — exactly what
+`Evaluates.lift_of` has to assume, and exactly what an order may not.
+
+Neither original meets this.  Master's graphs are saturated, so a join of
+matching outputs *is* an entry.  The other repo has no level index at all,
+so there is no reflection obligation.  We have levels and non-saturated
+graphs, and that combination is what has no order; §5.2 records the
+options. -/
 
 /-- Entry-wise coverage of one graph by another, parameterised by the
 order `R` at the previous level. -/
