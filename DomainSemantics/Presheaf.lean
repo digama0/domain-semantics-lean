@@ -428,6 +428,284 @@ theorem sound_forallE_eq {Γ : List Term} {A A' B B' : Term} {u v : Bool}
     sound_forallE_eq_of hAA'.symm hB'.symm ihA.symm (SoundTy.of_eq ihA ihAty) ihB'.symm
       hΔ W hAdm⟩
 
+/-! ## Directedness
+
+Directedness is always proved through a **common upper bound**: two
+approximants are compatible because something above both is well formed,
+and their join is an approximant because it is below that something and
+`Interp` is downward closed.  That is master's `mk` helper inside
+`compat_join`, and it is the only way compatibility is ever established
+here, `Compat` having no introduction rule of its own. -/
+
+/-- Directedness from common upper bounds. -/
+theorem sound_dir_of_ub {Γ : List Term} {t : Term}
+    (h : ∀ {Δ Γ₀ : List Term} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
+      ∀ {m₁ m₂}, Interp Δ Γ t σ ρ m₁ → Interp Δ Γ t σ ρ m₂ →
+        ∃ s, TShape.WF Δ s ∧ Interp Δ Γ t σ ρ s ∧
+          TShape.LE Δ m₁ s ∧ TShape.LE Δ m₂ s) :
+    SoundDir Γ t := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm m₁ m₂ h₁ h₂
+  obtain ⟨s, hws, hs, hle₁, hle₂⟩ := h hΔ W hAdm h₁ h₂
+  have hc := TShape.Compat.of_common_upper hΔ hws hle₁ hle₂
+  exact ⟨hc, hs.mono hΔ (TShape.WF.join hΔ hc h₁.wf h₂.wf) (TShape.join_le hle₁ hle₂)⟩
+
+/-- **Directedness of a type's extension**: two compatible shapes typed at
+an approximant of `⟦A⟧` have a *typed upper bound* there.
+
+This is the elementary shadow of the other repo's
+`CodeAssignment.rawExtend_isDirected`.  There, a value is an *ideal* and
+semantic typing is the fixed point `rawExtend ⟦A⟧ x = x`, so the shape
+this asks for is literally `rawExtend ⟦A⟧ (x ⊔ y)`: it dominates both
+because both are already fixed points below the join, it is typed by
+idempotence, and it is directed because `rawExtend` is a `bind₂` of ideals
+— all three free from the ideal structure, none of them an induction.  A
+value here is a *single shape*, so there is no retraction to appeal to and
+the fact is content.
+
+It is in upper-bound form, not join form, to match: his `IsDirected` reads
+`∃ c, L.mem c ∧ a ≤ c ∧ b ≤ c` and never mentions the join, compatibility
+being a *consequence* of a common upper bound rather than a hypothesis of
+directedness.  The join form is out of reach anyway — the `pair` clause of
+`HasType` types a pair at a *dominating* first component, and two
+compatible pairs can carry incompatible dominators, so there need be no
+code to read at `x ⊔ y`; the other repo never meets this because it has no
+Σ-types at all.
+
+Where it belongs is the open question: the other repo gets it for free and
+so has no lemma to copy, and shape-level join-closure of `HasType` was
+removed from `HasType.lean` for the reason just given.  Hypothesis until
+that is settled. -/
+def SoundJoin (Γ : List Term) (A : Term) : Prop :=
+  ∀ {{Δ Γ₀ : List Term}} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
+    ∀ {a x y}, Interp Δ Γ A σ ρ a → TShape.WF Δ x → TShape.WF Δ y →
+      TShape.HasType Δ x a → TShape.HasType Δ y a → TShape.Compat Δ x y →
+      ∃ z, TShape.WF Δ z ∧ TShape.LE Δ x z ∧ TShape.LE Δ y z ∧ TShape.HasType Δ z a
+
+/-- The common upper bound of two Π-shapes: the labels agree on the nose
+(both come from the same term at the same stage), the domains are joined
+by `A`'s own directedness, and the graphs are appended.
+
+All the content is in the appended graph's **coherence**, and there in the
+cross pairs: an entry of one graph and an entry of the other whose labels
+become definitionally equal at a later stage `(Θ, τ)`.  There the two
+bodies are interpretations of `B` at stages that the label equation makes
+definitionally equal — so `Interp.stage` puts them at one stage — and at
+valuation slots that the coherence hypothesis makes compatible — so their
+join has a typed shape above it, which is the slot to interpret the body
+at — that is `SoundJoin` — and `B`'s own directedness there gives the two
+outputs a common bound, hence makes them compatible.
+
+That is the other repo's `GraphValid.internallyCompatible` step for step:
+the label equation putting both memberships in one lower set is our
+`Interp.stage`, `Compatible.upper` is our join, its monotonicity of the
+codomain family in the argument is `Interp.mono_val`, its `IsIdealValued`
+at the upper bound is `ihBdir`, and `Compatible.of_common_upper` is ours. -/
+theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u : Bool}
+    (ihAdir : SoundDir Γ A) (ihAty : SoundTy Γ A (.sort u)) (ihAjoin : SoundJoin Γ A)
+    (ihBdir : SoundDir (A :: Γ) B) (hAty : Γ ⊢ A : .sort u)
+    {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
+    {n₁ n₂} {d₁ : Shape n₁} {g₁ : ShapeFun n₁} {d₂ : Shape n₂} {g₂ : ShapeFun n₂}
+    (hA₁ : Interp Δ Γ A σ ρ (Shape.T d₁))
+    (hwf₁ : Shape.WF (n := n₁+1) Δ (.forallE (A.subst σ) (B.subst σ.lift) d₁ g₁))
+    (hlab₁ : ∀ e ∈ g₁, ∃ w, Δ ⊢ e.ty ≡ A.subst σ : .sort w)
+    (hdom₁ : ∀ e ∈ g₁, TShape.HasType Δ (Shape.T e.inp) (Shape.T d₁))
+    (hbody₁ : ∀ e ∈ g₁,
+      Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push (Shape.T e.inp)) (Shape.T e.out))
+    (hA₂ : Interp Δ Γ A σ ρ (Shape.T d₂))
+    (hwf₂ : Shape.WF (n := n₂+1) Δ (.forallE (A.subst σ) (B.subst σ.lift) d₂ g₂))
+    (hlab₂ : ∀ e ∈ g₂, ∃ w, Δ ⊢ e.ty ≡ A.subst σ : .sort w)
+    (hdom₂ : ∀ e ∈ g₂, TShape.HasType Δ (Shape.T e.inp) (Shape.T d₂))
+    (hbody₂ : ∀ e ∈ g₂,
+      Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push (Shape.T e.inp)) (Shape.T e.out)) :
+    ∃ s, TShape.WF Δ s ∧ Interp Δ Γ (.forallE A B) σ ρ s ∧
+      TShape.LE Δ (Shape.T (n := n₁+1) (.forallE (A.subst σ) (B.subst σ.lift) d₁ g₁)) s ∧
+      TShape.LE Δ (Shape.T (n := n₂+1) (.forallE (A.subst σ) (B.subst σ.lift) d₂ g₂)) s := by
+  have k₁ : n₁ ≤ max n₁ n₂ := Nat.le_max_left ..
+  have k₂ : n₂ ≤ max n₁ n₂ := Nat.le_max_right ..
+  have hwρ := hAdm.wf
+  -- the joined domain, and its typing, straight off `A`'s own soundness
+  have ⟨hcd, hdj⟩ := ihAdir hΔ W hAdm hA₁ hA₂
+  have hcd' : Shape.Compat Δ (d₁.lift (max n₁ n₂)) (d₂.lift (max n₁ n₂)) :=
+    (TShape.Compat.def k₁ k₂).1 hcd
+  have hwd₁ : Shape.WF Δ d₁ := hwf₁.2.2.1
+  have hwd₂ : Shape.WF Δ d₂ := hwf₂.2.2.1
+  have hwdj : Shape.WF Δ ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂))) :=
+    Shape.WF.join hΔ hcd' ((Shape.lift_wf k₁).2 hwd₁) ((Shape.lift_wf k₂).2 hwd₂)
+  have hdj' : Interp Δ Γ A σ ρ
+      (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) := hdj
+  have hdjty : TShape.HasType Δ
+      (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) (TShape.sort u) :=
+    ihAty.hasType hΔ W hAdm hdj'
+  have hled₁ : TShape.LE Δ (Shape.T d₁)
+      (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) :=
+    (TShape.LE.def k₁ (Nat.le_refl _)).2 <| by
+      rw [Shape.lift_self]
+      exact (Shape.le_join hΔ ((Shape.lift_wf k₁).2 hwd₁)
+        ((Shape.lift_wf k₂).2 hwd₂) hcd').1
+  have hled₂ : TShape.LE Δ (Shape.T d₂)
+      (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) :=
+    (TShape.LE.def k₂ (Nat.le_refl _)).2 <| by
+      rw [Shape.lift_self]
+      exact (Shape.le_join hΔ ((Shape.lift_wf k₁).2 hwd₁)
+        ((Shape.lift_wf k₂).2 hwd₂) hcd').2
+  -- each graph entry's input, typed at the joined domain
+  have hdomj₁ : ∀ e ∈ g₁, TShape.HasType Δ (Shape.T e.inp)
+      (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) := fun e he =>
+    TShape.HasType.mono_r hΔ (hwf₁.2.2.2.1 e he).2.2.1 hwd₁ hwdj
+      (hdom₁ e he) hled₁ hdjty
+  have hdomj₂ : ∀ e ∈ g₂, TShape.HasType Δ (Shape.T e.inp)
+      (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) := fun e he =>
+    TShape.HasType.mono_r hΔ (hwf₂.2.2.2.1 e he).2.2.1 hwd₂ hwdj
+      (hdom₂ e he) hled₂ hdjty
+  -- **the cross pairs**
+  have hcross : ShapeFun.Compat Shape.Compat Δ
+      (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₁)
+      (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₂) := by
+    intro e he e' he' Θ τ hΘ Wτ hlab hin
+    obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
+    obtain ⟨b, hb, rfl⟩ := ShapeFun.mem_lift.1 he'
+    have hwa := hwf₁.2.2.2.1 a ha
+    have hwb := hwf₂.2.2.2.1 b hb
+    have Wc : Ctx.SubstEq Θ (σ.comp τ) (σ.comp τ) Γ := Ctx.SubstEq.comp hΘ Wτ W
+    have hAdmc : Adm Θ Γ₀ Γ (σ.comp τ) (ρ.subst τ) := hAdm.subst hΘ Wτ
+    have hdjτ := hdj'.subst hΘ Wτ
+    -- the two inputs, read at the common level
+    rw [← Shape.lift_subst, ← Shape.lift_subst] at hin
+    have hwx₁ : TShape.WF Θ (Shape.T ((a.inp.subst τ).lift (max n₁ n₂))) :=
+      (Shape.lift_wf k₁).2 (Shape.WF.subst hΘ Wτ hwa.2.2.1)
+    have hwx₂ : TShape.WF Θ (Shape.T ((b.inp.subst τ).lift (max n₁ n₂))) :=
+      (Shape.lift_wf k₂).2 (Shape.WF.subst hΘ Wτ hwb.2.2.1)
+    have hcx : TShape.Compat Θ (Shape.T ((a.inp.subst τ).lift (max n₁ n₂)))
+        (Shape.T ((b.inp.subst τ).lift (max n₁ n₂))) := TShape.Compat.T.2 hin
+
+    -- each input is typed at the joined domain, and so is their join
+    have hty₁ : TShape.HasType Θ (Shape.T ((a.inp.subst τ).lift (max n₁ n₂)))
+        ((Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))).subst τ) :=
+      TShape.HasType.mono_l hΘ (Shape.WF.subst hΘ Wτ hwa.2.2.1) hwx₁
+        (Shape.WF.subst hΘ Wτ hwdj)
+        (TShape.LE.lift_le (m := Shape.T (a.inp.subst τ)) k₁
+          (Shape.WF.subst hΘ Wτ hwa.2.2.1))
+        ((hdomj₁ a ha).subst hΘ Wτ)
+    have hty₂ : TShape.HasType Θ (Shape.T ((b.inp.subst τ).lift (max n₁ n₂)))
+        ((Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))).subst τ) :=
+      TShape.HasType.mono_l hΘ (Shape.WF.subst hΘ Wτ hwb.2.2.1) hwx₂
+        (Shape.WF.subst hΘ Wτ hwdj)
+        (TShape.LE.lift_le (m := Shape.T (b.inp.subst τ)) k₂
+          (Shape.WF.subst hΘ Wτ hwb.2.2.1))
+        ((hdomj₂ b hb).subst hΘ Wτ)
+    have ⟨z, hwz, hjx₁, hjx₂, htyz⟩ := ihAjoin hΘ Wc hAdmc hdjτ hwx₁ hwx₂ hty₁ hty₂ hcx
+    -- the label equation, which is what puts the two bodies at one stage
+    obtain ⟨_, hla⟩ := hlab₁ a ha
+    have hlaτ := hla.subst hΘ Wτ
+    have heq : Θ ⊢ b.tm.subst τ ≡ a.tm.subst τ : (A.subst σ).subst τ :=
+      hlaτ.defeqDF hlab.2.symm
+    rw [subst_subst] at heq
+    have Wcons : Ctx.SubstEq Θ ((σ.comp τ).cons (b.tm.subst τ))
+        ((σ.comp τ).cons (a.tm.subst τ)) (A :: Γ) := .cons Wc hAty heq
+    have Wdiag : Ctx.SubstEq Θ ((σ.comp τ).cons (a.tm.subst τ))
+        ((σ.comp τ).cons (a.tm.subst τ)) (A :: Γ) := .cons Wc hAty heq.hasType.2
+    have hAdm' : Adm Θ Γ₀ (A :: Γ) ((σ.comp τ).cons (a.tm.subst τ))
+        ((ρ.subst τ).push z) :=
+      .cons hAdmc (fun _ hb' => ihAty.isType hΘ Wc hAdmc hb') hdjτ hwz htyz
+    -- the two bodies, at that one stage and above that one slot
+    have hb₁ := (hbody₁ a ha).subst hΘ Wτ
+    have hb₂0 := (hbody₂ b hb).subst hΘ Wτ
+    rw [Subst.cons_comp, Valuation.subst_push] at hb₁ hb₂0
+    have hb₂ := Interp.stage hΘ Wcons hb₂0
+    have hB₁ := Interp.mono_val hΘ (Valuation.LE.push.2
+      ⟨Valuation.LE.refl (fun i => TShape.WF.subst hΘ Wτ (hwρ i)),
+        TShape.LE.trans hΘ (TShape.LE.le_lift (m := Shape.T (a.inp.subst τ)) k₁
+          (Shape.WF.subst hΘ Wτ hwa.2.2.1)) hjx₁⟩) hb₁
+    have hB₂ := Interp.mono_val hΘ (Valuation.LE.push.2
+      ⟨Valuation.LE.refl (fun i => TShape.WF.subst hΘ Wτ (hwρ i)),
+        TShape.LE.trans hΘ (TShape.LE.le_lift (m := Shape.T (b.inp.subst τ)) k₂
+          (Shape.WF.subst hΘ Wτ hwb.2.2.1)) hjx₂⟩) hb₂
+    have ⟨hcout, _⟩ := ihBdir hΘ Wdiag hAdm' hB₁ hB₂
+    rw [← Shape.lift_subst, ← Shape.lift_subst]
+    exact (TShape.Compat.def k₁ k₂).1 hcout
+  -- the two Π-shapes are compatible, so their join is well formed
+  obtain ⟨_, hAσ⟩ := hwf₁.1
+  obtain ⟨_, hBσ⟩ := hwf₁.2.1
+  have hcS : Shape.Compat (n := max n₁ n₂ + 1) Δ
+      (.forallE (A.subst σ) (B.subst σ.lift) (d₁.lift (max n₁ n₂))
+        (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₁))
+      (.forallE (A.subst σ) (B.subst σ.lift) (d₂.lift (max n₁ n₂))
+        (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₂)) :=
+    ⟨PiLabelEq.refl hAσ hBσ, hcd', hcross⟩
+  have hwS₁ : Shape.WF Δ (Shape.lift (n := n₁+1) (max n₁ n₂ + 1)
+      (.forallE (A.subst σ) (B.subst σ.lift) d₁ g₁)) :=
+    (Shape.lift_wf (Nat.succ_le_succ k₁)).2 hwf₁
+  have hwS₂ : Shape.WF Δ (Shape.lift (n := n₂+1) (max n₁ n₂ + 1)
+      (.forallE (A.subst σ) (B.subst σ.lift) d₂ g₂)) :=
+    (Shape.lift_wf (Nat.succ_le_succ k₂)).2 hwf₂
+  have hwSJ : Shape.WF (n := max n₁ n₂ + 1) Δ
+      (.forallE (A.subst σ) (B.subst σ.lift)
+        ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))
+        (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₁ ++
+          ShapeFun.lift (Shape.lift (max n₁ n₂)) g₂)) :=
+    Shape.WF.join hΔ hcS hwS₁ hwS₂
+  refine ⟨Shape.T (n := max n₁ n₂ + 1) (.forallE (A.subst σ) (B.subst σ.lift)
+      ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))
+      (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₁ ++ ShapeFun.lift (Shape.lift (max n₁ n₂)) g₂)),
+    hwSJ, .forallE hdj' hwSJ ?_ ?_ ?_ hwSJ (TShape.LE.refl hwSJ),
+    (TShape.LE.def (Nat.succ_le_succ k₁) (Nat.le_refl _)).2 ?_,
+    (TShape.LE.def (Nat.succ_le_succ k₂) (Nat.le_refl _)).2 ?_⟩
+  · -- labels
+    intro e he
+    match List.mem_append.1 he with
+    | .inl he => obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he; exact hlab₁ a ha
+    | .inr he => obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he; exact hlab₂ a ha
+  · -- inputs typed at the joined domain
+    intro e he
+    match List.mem_append.1 he with
+    | .inl he =>
+      obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
+      exact TShape.HasType.mono_l hΔ (hwf₁.2.2.2.1 a ha).2.2.1
+        ((Shape.lift_wf k₁).2 (hwf₁.2.2.2.1 a ha).2.2.1) hwdj
+        (TShape.LE.lift_le (m := Shape.T a.inp) k₁ (hwf₁.2.2.2.1 a ha).2.2.1) (hdomj₁ a ha)
+    | .inr he =>
+      obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
+      exact TShape.HasType.mono_l hΔ (hwf₂.2.2.2.1 a ha).2.2.1
+        ((Shape.lift_wf k₂).2 (hwf₂.2.2.2.1 a ha).2.2.1) hwdj
+        (TShape.LE.lift_le (m := Shape.T a.inp) k₂ (hwf₂.2.2.2.1 a ha).2.2.1) (hdomj₂ a ha)
+  · -- bodies
+    intro e he
+    match List.mem_append.1 he with
+    | .inl he =>
+      obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
+      exact Interp.lift hΔ k₁ (Interp.mono_val hΔ (Valuation.LE.push.2
+        ⟨Valuation.LE.refl hwρ,
+          TShape.LE.le_lift (m := Shape.T a.inp) k₁ (hwf₁.2.2.2.1 a ha).2.2.1⟩)
+        (hbody₁ a ha))
+    | .inr he =>
+      obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
+      exact Interp.lift hΔ k₂ (Interp.mono_val hΔ (Valuation.LE.push.2
+        ⟨Valuation.LE.refl hwρ,
+          TShape.LE.le_lift (m := Shape.T a.inp) k₂ (hwf₂.2.2.2.1 a ha).2.2.1⟩)
+        (hbody₂ a ha))
+  · rw [Shape.lift_self]; exact (Shape.le_join hΔ hwS₁ hwS₂ hcS).1
+  · rw [Shape.lift_self]; exact (Shape.le_join hΔ hwS₁ hwS₂ hcS).2
+
+/-- The `SoundDir` half of `forallEDF`. -/
+theorem sound_forallE_dir {Γ : List Term} {A B : Term} {u : Bool}
+    (ihAdir : SoundDir Γ A) (ihAty : SoundTy Γ A (.sort u)) (ihAjoin : SoundJoin Γ A)
+    (ihBdir : SoundDir (A :: Γ) B) (hAty : Γ ⊢ A : .sort u) :
+    SoundDir Γ (.forallE A B) := by
+  refine sound_dir_of_ub ?_
+  intro Δ Γ₀ σ ρ hΔ W hAdm m₁ m₂ h₁ h₂
+  cases h₁ with
+  | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
+  | forallE hA₁ hwf₁ hlab₁ hdom₁ hbody₁ hw₁ hle₁ =>
+    cases h₂ with
+    | bot =>
+      refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
+      · exact hwf₁
+      · exact .forallE hA₁ hwf₁ hlab₁ hdom₁ hbody₁ hwf₁ (TShape.LE.refl hwf₁)
+    | forallE hA₂ hwf₂ hlab₂ hdom₂ hbody₂ hw₂ hle₂ =>
+      obtain ⟨s, hws, hs, hs₁, hs₂⟩ := sound_forallE_ub ihAdir ihAty ihAjoin ihBdir hAty
+        hΔ W hAdm hA₁ hwf₁ hlab₁ hdom₁ hbody₁ hA₂ hwf₂ hlab₂ hdom₂ hbody₂
+      exact ⟨s, hws, hs, TShape.LE.trans hΔ hle₁ hs₁, TShape.LE.trans hΔ hle₂ hs₂⟩
+
 /-! ## The target
 
 The one theorem this branch is for.  Master needs `LogRel.lean` and
@@ -465,14 +743,12 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   -- obligation; see §4.6 of `presheaf-plan.md` for what each needs
   | bvar => sorry
   | sort =>
-    exact sound_atom Interp.le_sort (fun hw h => .sort hw h) Interp.sort' trivial
-      (fun {_} => by simpa [TShape.HasType, TShape.sort] using Shape.HasType.sort)
+    refine sound_atom Interp.le_sort (fun hw h => .sort hw h) Interp.sort' trivial fun {_} => ?_
+    simpa [TShape.HasType, TShape.sort] using .sort
   | @unit _ r =>
-    exact sound_atom Interp.le_unit (fun hw h => .unit hw h) Interp.sort' trivial
-      (fun {_} => by
-        simpa [TShape.HasType] using
-          Shape.HasTypeS.unit (show (r : Bool) ≤ r by cases r <;> decide))
-  | star => exact sound_of_bot (fun H => by cases H; rfl) (fun H => by cases H; rfl)
+    refine sound_atom Interp.le_unit (fun hw h => .unit hw h) Interp.sort' trivial fun {_} => ?_
+    simpa [TShape.HasType] using .unit id
+  | star => exact sound_of_bot (fun .bot => rfl) (fun .bot => rfl)
   | appDF => sorry
   | lamDF => sorry
   -- the two halves proved above; `SoundDir` is what is left, and it is the
