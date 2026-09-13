@@ -249,17 +249,17 @@ theorem Interp.eq_bot_of_prop {Γ : List Term} {p t : Term}
     Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_right ..)
   -- everything at one level
   have hty' := TShape.HasType.def hΔ hm'.wf ha.wf km ka hty
-  have hlea' := (TShape.LE.def ka ka').1 hlea
+  have hlea' := (TShape.LE.def_mp ka ka') hlea
   have htya' := TShape.HasType.def hΔ ha'.wf hb.wf ka' kb htya
   have hble : Shape.LE Δ (b.2.lift (max (max m'.1 a.1) (max a'.1 b.1))) (Shape.sort false) := by
-    have := (TShape.LE.def kb (Nat.zero_le _)).1 (Interp.le_sort hb)
+    have := (TShape.LE.def_mp kb (Nat.zero_le _)) (Interp.le_sort hb)
     rwa [show Shape.lift (max (max m'.1 a.1) (max a'.1 b.1)) (TShape.sort false).2
         = Shape.sort false from Shape.lift_sort] at this
   have wm := (Shape.lift_wf km).2 hm'.wf
   have wa' := (Shape.lift_wf ka').2 ha'.wf
   -- the collapse, read back down through the order and the lift
-  refine TShape.le_bot ?_ hle
-  refine Shape.lift_eq_bot (Δ := Δ) km ?_
+  refine TShape.le_bot hΔ ?_ hle
+  refine Shape.lift_eq_bot (Δ := Δ) hΔ km ?_
   rcases Shape.le_prop_cases hble with hbb | hbb
   · -- the type's type is `⊥`, so everything below collapses outright
     rw [hbb] at htya'
@@ -574,13 +574,13 @@ theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
         hcd' hd₁' hd₂')
   have hled₁ : TShape.LE Δ (Shape.T d₁)
       (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) :=
-    (TShape.LE.def k₁ (Nat.le_refl _)).2 <| by
+    (TShape.LE.def hΔ k₁ (Nat.le_refl _)).2 <| by
       rw [Shape.lift_self]
       exact (Shape.le_join hΔ ((Shape.lift_wf k₁).2 hwd₁)
         ((Shape.lift_wf k₂).2 hwd₂) hcd').1
   have hled₂ : TShape.LE Δ (Shape.T d₂)
       (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) :=
-    (TShape.LE.def k₂ (Nat.le_refl _)).2 <| by
+    (TShape.LE.def hΔ k₂ (Nat.le_refl _)).2 <| by
       rw [Shape.lift_self]
       exact (Shape.le_join hΔ ((Shape.lift_wf k₁).2 hwd₁)
         ((Shape.lift_wf k₂).2 hwd₂) hcd').2
@@ -631,11 +631,11 @@ theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
     have hb₂ := IsDefEq.stage hΓA hB hΘ Wcons hb₂0
     have hB₁ := Interp.mono_val hΘ (Valuation.LE.push.2
       ⟨Valuation.LE.refl hwρτ,
-        TShape.LE.trans hΘ (TShape.LE.le_lift (m := Shape.T (a.inp.subst τ)) k₁
+        TShape.LE.trans hΘ (TShape.LE.le_lift hΘ (m := Shape.T (a.inp.subst τ)) k₁
           (Shape.WF.subst hΘ Wτ hwa.2.2.1)) hjx₁⟩) hb₁
     have hB₂ := Interp.mono_val hΘ (Valuation.LE.push.2
       ⟨Valuation.LE.refl hwρτ,
-        TShape.LE.trans hΘ (TShape.LE.le_lift (m := Shape.T (b.inp.subst τ)) k₂
+        TShape.LE.trans hΘ (TShape.LE.le_lift hΘ (m := Shape.T (b.inp.subst τ)) k₂
           (Shape.WF.subst hΘ Wτ hwb.2.2.1)) hjx₂⟩) hb₂
     obtain ⟨_, _, _, hs₁, hs₂⟩ :=
       ihBdir hΘ Wdiag (Valuation.WF.push hwρτ hwxj) hB₁ hB₂
@@ -667,8 +667,8 @@ theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
       ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))
       (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₁ ++ ShapeFun.lift (Shape.lift (max n₁ n₂)) g₂)),
     hwSJ, .forallE hdj' hdjty hwSJ ?_ ?_ ?_ hwSJ (TShape.LE.refl hwSJ),
-    (TShape.LE.def (Nat.succ_le_succ k₁) (Nat.le_refl _)).2 ?_,
-    (TShape.LE.def (Nat.succ_le_succ k₂) (Nat.le_refl _)).2 ?_⟩
+    (TShape.LE.def hΔ (Nat.succ_le_succ k₁) (Nat.le_refl _)).2 ?_,
+    (TShape.LE.def hΔ (Nat.succ_le_succ k₂) (Nat.le_refl _)).2 ?_⟩
   · -- labels
     intro e he
     match List.mem_append.1 he with
@@ -681,12 +681,12 @@ theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
       obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
       exact TShape.HasType.mono_l hΔ (hwf₁.2.2.2.1 a ha).2.2.1
         ((Shape.lift_wf k₁).2 (hwf₁.2.2.2.1 a ha).2.2.1) hwdj
-        (TShape.LE.lift_le (m := Shape.T a.inp) k₁ (hwf₁.2.2.2.1 a ha).2.2.1) (hdomj₁ a ha)
+        (TShape.LE.lift_le hΔ (m := Shape.T a.inp) k₁ (hwf₁.2.2.2.1 a ha).2.2.1) (hdomj₁ a ha)
     | .inr he =>
       obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
       exact TShape.HasType.mono_l hΔ (hwf₂.2.2.2.1 a ha).2.2.1
         ((Shape.lift_wf k₂).2 (hwf₂.2.2.2.1 a ha).2.2.1) hwdj
-        (TShape.LE.lift_le (m := Shape.T a.inp) k₂ (hwf₂.2.2.2.1 a ha).2.2.1) (hdomj₂ a ha)
+        (TShape.LE.lift_le hΔ (m := Shape.T a.inp) k₂ (hwf₂.2.2.2.1 a ha).2.2.1) (hdomj₂ a ha)
   · -- bodies
     intro e he
     match List.mem_append.1 he with
@@ -694,13 +694,13 @@ theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
       obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
       exact Interp.lift hΔ k₁ (Interp.mono_val hΔ (Valuation.LE.push.2
         ⟨Valuation.LE.refl hwρ,
-          TShape.LE.le_lift (m := Shape.T a.inp) k₁ (hwf₁.2.2.2.1 a ha).2.2.1⟩)
+          TShape.LE.le_lift hΔ (m := Shape.T a.inp) k₁ (hwf₁.2.2.2.1 a ha).2.2.1⟩)
         (hbody₁ a ha))
     | .inr he =>
       obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
       exact Interp.lift hΔ k₂ (Interp.mono_val hΔ (Valuation.LE.push.2
         ⟨Valuation.LE.refl hwρ,
-          TShape.LE.le_lift (m := Shape.T a.inp) k₂ (hwf₂.2.2.2.1 a ha).2.2.1⟩)
+          TShape.LE.le_lift hΔ (m := Shape.T a.inp) k₂ (hwf₂.2.2.2.1 a ha).2.2.1⟩)
         (hbody₂ a ha))
   · rw [Shape.lift_self]; exact (Shape.le_join hΔ hwS₁ hwS₂ hcS).1
   · rw [Shape.lift_self]; exact (Shape.le_join hΔ hwS₁ hwS₂ hcS).2

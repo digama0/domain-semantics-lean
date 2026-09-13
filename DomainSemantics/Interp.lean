@@ -267,7 +267,7 @@ theorem Interp.mono (hΔ : ⊢ Δ) {Γ : List Term} {t : Term} {σ ρ} {m m' : T
   induction H generalizing m with
   | bot =>
     obtain ⟨k, s⟩ := m
-    cases show s = .bot from TShape.le_bot rfl h
+    cases show s = .bot from TShape.le_bot hΔ rfl h
     exact .bot
   | bvar _ h1 => exact .bvar hw (TShape.LE.trans hΔ h h1)
   | sort _ h1 => exact .sort hw (TShape.LE.trans hΔ h h1)
@@ -500,7 +500,7 @@ soundness, with no adequacy in between. -/
 theorem Interp.le_piAtom (H : Interp Δ Γ (.forallE A B) σ ρ (Shape.T (n := 1) (.piAtom A' B'))) :
     PiLabelEq Δ A' B' (A.subst σ) (B.subst σ.lift) := by
   cases H with | forallE _ _ _ _ _ _ _ h
-  have h' := (TShape.LE.def (Nat.succ_le_succ (Nat.zero_le _)) (Nat.le_refl _)).1 h
+  have h' := (TShape.LE.def_mp (Nat.succ_le_succ (Nat.zero_le _)) (Nat.le_refl _)) h
   rw [Shape.lift_piAtom, Shape.lift_self] at h'
   exact Shape.piAtom_le_forallE h'
 
@@ -735,7 +735,7 @@ theorem Interp.Dir.join {Δ Γ : List Term} {t σ ρ} (hΔ : ⊢ Δ)
     TShape.Compat Δ m₁ m₂ ∧ Interp Δ Γ t σ ρ (m₁.join m₂) := by
   obtain ⟨s, hws, hs, hle₁, hle₂⟩ := h h₁ h₂
   have hc := TShape.Compat.of_common_upper hΔ hws hle₁ hle₂
-  exact ⟨hc, hs.mono hΔ (TShape.WF.join hΔ hc h₁.wf h₂.wf) (TShape.join_le hle₁ hle₂)⟩
+  exact ⟨hc, hs.mono hΔ (TShape.WF.join hΔ hc h₁.wf h₂.wf) (TShape.join_le hΔ hle₁ hle₂)⟩
 
 /-- Substitution in the **term**, in master's `∃ ρ'` form.  A substitution
 `θ` from `Γ` into `Γ'` turns an approximant of `t[θ]` into an approximant
@@ -779,4 +779,4 @@ normalise every shape to a common level before applying a typing lemma,
 whose transport only goes up. -/
 theorem Interp.lift {Δ Γ : List Term} {t σ ρ} {m : TShape} (hΔ : ⊢ Δ) {k}
     (hk : m.1 ≤ k) (H : Interp Δ Γ t σ ρ m) : Interp Δ Γ t σ ρ (m.lift k) :=
-  H.mono hΔ (TShape.WF.lift hk H.wf) (TShape.LE.lift_le hk H.wf)
+  H.mono hΔ (TShape.WF.lift hk H.wf) (TShape.LE.lift_le hΔ hk H.wf)

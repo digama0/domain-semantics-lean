@@ -69,7 +69,7 @@ theorem sort_inv {Γ : List Term} {u v : Bool} {V : Term}
     (hΓ : ⊢ Γ) (H : Γ ⊢ Term.sort u ≡ Term.sort v : V) : u = v := by
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 Interp.sort'
   have hle := Interp.le_sort h
-  exact (TShape.LE.def (Nat.le_refl 0) (Nat.le_refl 0)).1 hle
+  exact (TShape.LE.def_mp (Nat.le_refl 0) (Nat.le_refl 0)) hle
 
 /-! ### No confusion
 
@@ -86,7 +86,7 @@ private theorem not_le_of_head {Δ : List Term} {a b : TShape}
     (hb : ¬ a.2 = Shape.bot)
     (hne : ∀ k, ¬ Shape.LE Δ (a.2.lift k) (b.2.lift k)) :
     ¬ TShape.LE Δ a b := fun h =>
-  hne _ ((TShape.LE.def (Nat.le_max_left ..) (Nat.le_max_right ..)).1 h)
+  hne _ ((TShape.LE.def_mp (Nat.le_max_left ..) (Nat.le_max_right ..)) h)
 
 theorem sort_forallE_inv {Γ : List Term} {u s : Bool} {A₁ B₁ : Term}
     (hΓ : ⊢ Γ) : ¬Γ ⊢ Term.sort u ≡ Term.forallE A₁ B₁ : .sort s := by
@@ -94,7 +94,7 @@ theorem sort_forallE_inv {Γ : List Term} {u s : Bool} {A₁ B₁ : Term}
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 Interp.sort'
   rcases Interp.le_forallE h with hb | ⟨n, d, g, hle⟩
   · exact Shape0.noConfusion hb
-  · exact absurd ((TShape.LE.def (Nat.zero_le _) (Nat.le_refl _)).1 hle)
+  · exact absurd ((TShape.LE.def_mp (Nat.zero_le _) (Nat.le_refl _)) hle)
       (by simp only [Shape.lift_sort]; exact id)
 
 theorem sort_sigma_inv {Γ : List Term} {u s : Bool} {A₁ B₁ : Term}
@@ -103,28 +103,28 @@ theorem sort_sigma_inv {Γ : List Term} {u s : Bool} {A₁ B₁ : Term}
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 Interp.sort'
   rcases Interp.le_sigma h with hb | ⟨n, d, g, hle⟩
   · exact Shape0.noConfusion hb
-  · exact absurd ((TShape.LE.def (Nat.zero_le _) (Nat.le_refl _)).1 hle)
+  · exact absurd ((TShape.LE.def_mp (Nat.zero_le _) (Nat.le_refl _)) hle)
       (by simp only [Shape.lift_sort]; exact id)
 
 theorem sort_nat_inv {Γ : List Term} {u s : Bool} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ Term.sort u ≡ Term.nat : .sort s := by
   intro H
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 Interp.sort'
-  exact absurd ((TShape.LE.def (Nat.zero_le 1) (Nat.le_refl 1)).1 (Interp.le_nat h))
+  exact absurd ((TShape.LE.def_mp (Nat.zero_le 1) (Nat.le_refl 1)) (Interp.le_nat h))
     (by simp only [Shape.lift_sort]; exact id)
 
 theorem sort_unit_inv {Γ : List Term} {u s r : Bool} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ Term.sort u ≡ Term.unit r : .sort s := by
   intro H
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 Interp.sort'
-  exact absurd ((TShape.LE.def (Nat.zero_le 1) (Nat.le_refl 1)).1 (Interp.le_unit h))
+  exact absurd ((TShape.LE.def_mp (Nat.zero_le 1) (Nat.le_refl 1)) (Interp.le_unit h))
     (by simp only [Shape.lift_sort]; exact id)
 
 theorem sort_id_inv {Γ : List Term} {u s r : Bool} {A a b : Term} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ Term.sort u ≡ Term.id r A a b : .sort s := by
   intro H
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 Interp.sort'
-  exact absurd ((TShape.LE.def (Nat.zero_le 1) (Nat.le_refl 1)).1 (Interp.le_id h))
+  exact absurd ((TShape.LE.def_mp (Nat.zero_le 1) (Nat.le_refl 1)) (Interp.le_id h))
     (by simp only [Shape.lift_sort]; exact id)
 
 theorem forallE_nat_inv {Γ : List Term} {s : Bool} {A₀ B₀ : Term} (hΓ : ⊢ Γ) :
@@ -133,7 +133,7 @@ theorem forallE_nat_inv {Γ : List Term} {s : Bool} {A₀ B₀ : Term} (hΓ : �
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).2 Interp.nat'
   rcases Interp.le_forallE h with hb | ⟨n, d, g, hle⟩
   · nomatch hb
-  · exact absurd ((TShape.LE.def (Nat.succ_le_succ (Nat.zero_le n)) (Nat.le_refl _)).1 hle)
+  · exact absurd ((TShape.LE.def_mp (Nat.succ_le_succ (Nat.zero_le n)) (Nat.le_refl _)) hle)
       (by simp only [Shape.lift_self]; exact id)
 
 theorem forallE_unit_inv {Γ : List Term} {s r : Bool} {A₀ B₀ : Term} (hΓ : ⊢ Γ) :
@@ -142,7 +142,7 @@ theorem forallE_unit_inv {Γ : List Term} {s r : Bool} {A₀ B₀ : Term} (hΓ :
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).2 Interp.unit'
   rcases Interp.le_forallE h with hb | ⟨n, d, g, hle⟩
   · nomatch hb
-  · exact absurd ((TShape.LE.def (Nat.succ_le_succ (Nat.zero_le n)) (Nat.le_refl _)).1 hle)
+  · exact absurd ((TShape.LE.def_mp (Nat.succ_le_succ (Nat.zero_le n)) (Nat.le_refl _)) hle)
       (by simp only [Shape.lift_self]; exact id)
 
 theorem sigma_nat_inv {Γ : List Term} {s : Bool} {A₀ B₀ : Term} (hΓ : ⊢ Γ) :
@@ -151,7 +151,7 @@ theorem sigma_nat_inv {Γ : List Term} {s : Bool} {A₀ B₀ : Term} (hΓ : ⊢ 
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).2 Interp.nat'
   rcases Interp.le_sigma h with hb | ⟨n, d, g, hle⟩
   · nomatch hb
-  · exact absurd ((TShape.LE.def (Nat.succ_le_succ (Nat.zero_le n)) (Nat.le_refl _)).1 hle)
+  · exact absurd ((TShape.LE.def_mp (Nat.succ_le_succ (Nat.zero_le n)) (Nat.le_refl _)) hle)
       (by simp only [Shape.lift_self]; exact id)
 
 theorem sigma_unit_inv {Γ : List Term} {s r : Bool} {A₀ B₀ : Term} (hΓ : ⊢ Γ) :
@@ -160,28 +160,28 @@ theorem sigma_unit_inv {Γ : List Term} {s r : Bool} {A₀ B₀ : Term} (hΓ : �
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).2 Interp.unit'
   rcases Interp.le_sigma h with hb | ⟨n, d, g, hle⟩
   · nomatch hb
-  · exact absurd ((TShape.LE.def (Nat.succ_le_succ (Nat.zero_le n)) (Nat.le_refl _)).1 hle)
+  · exact absurd ((TShape.LE.def_mp (Nat.succ_le_succ (Nat.zero_le n)) (Nat.le_refl _)) hle)
       (by simp only [Shape.lift_self]; exact id)
 
 theorem nat_unit_inv {Γ : List Term} {s r : Bool} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ Term.nat ≡ Term.unit r : .sort s := by
   intro H
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 Interp.nat'
-  exact absurd ((TShape.LE.def (Nat.le_refl 1) (Nat.le_refl 1)).1 (Interp.le_unit h))
+  exact absurd ((TShape.LE.def_mp (Nat.le_refl 1) (Nat.le_refl 1)) (Interp.le_unit h))
     (by simp only [Shape.lift_self]; exact id)
 
 theorem nat_id_inv {Γ : List Term} {s r : Bool} {A a b : Term} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ Term.nat ≡ Term.id r A a b : .sort s := by
   intro H
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 Interp.nat'
-  exact absurd ((TShape.LE.def (Nat.le_refl 1) (Nat.le_refl 1)).1 (Interp.le_id h))
+  exact absurd ((TShape.LE.def_mp (Nat.le_refl 1) (Nat.le_refl 1)) (Interp.le_id h))
     (by simp only [Shape.lift_self]; exact id)
 
 theorem unit_id_inv {Γ : List Term} {s r r' : Bool} {A a b : Term} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ Term.unit r' ≡ Term.id r A a b : .sort s := by
   intro H
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 Interp.unit'
-  exact absurd ((TShape.LE.def (Nat.le_refl 1) (Nat.le_refl 1)).1 (Interp.le_id h))
+  exact absurd ((TShape.LE.def_mp (Nat.le_refl 1) (Nat.le_refl 1)) (Interp.le_id h))
     (by simp only [Shape.lift_self]; exact id)
 
 /-! The three that need a Π or Σ probe, and so a regularity lemma first. -/
@@ -197,7 +197,7 @@ theorem forallE_sigma_inv {Γ : List Term} {s : Bool} {A₀ B₀ A₁ B₁ : Ter
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 hprobe
   rcases Interp.le_sigma h with hb | ⟨n, d, g, hle⟩
   · nomatch hb
-  · exact absurd ((TShape.LE.def (Nat.succ_le_succ (Nat.zero_le n)) (Nat.le_refl _)).1 hle)
+  · exact absurd ((TShape.LE.def_mp (Nat.succ_le_succ (Nat.zero_le n)) (Nat.le_refl _)) hle)
       (by simp only [Shape.lift_piAtom, Shape.lift_self]; exact id)
 
 theorem forallE_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term}
@@ -209,7 +209,7 @@ theorem forallE_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term}
       (Shape.T (n := 1) (Shape.piAtom (A₀.subst Subst.id) (B₀.subst Subst.id.lift))) :=
     Interp.piAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀)
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 hprobe
-  exact absurd ((TShape.LE.def (Nat.le_refl 1) (Nat.le_refl 1)).1 (Interp.le_id h))
+  exact absurd ((TShape.LE.def_mp (Nat.le_refl 1) (Nat.le_refl 1)) (Interp.le_id h))
     (by simp only [Shape.lift_piAtom, Shape.lift_self]; exact id)
 
 theorem sigma_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term} :

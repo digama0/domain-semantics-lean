@@ -325,7 +325,7 @@ theorem ShapeFun.HasPi.lower {Δ : List Term} {n}
     (ih : ∀ {m m' : Shape n}, Shape.LE Δ m' m → Shape.HasType Δ m a → Shape.HasType Δ m' a)
     (ihty : ∀ {m m' : Shape n}, Shape.LE Δ m' m →
       Shape.HasType Δ m .type → Shape.HasType Δ m' .type)
-    (hd : Shape.LE Δ d' d) (hf : ShapeFun.LE Δ (Shape.LE Δ) f' f)
+    (hd : Shape.LE Δ d' d) (hf : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) f' f)
     (h : ShapeFun.HasPi (Shape.HasType Δ) d f a) :
     ShapeFun.HasPi (Shape.HasType Δ) d' f' a :=
   -- SET ASIDE (order change): `hf e he` is a lookup derivation, so this is
@@ -579,7 +579,7 @@ theorem Evaluates.tighten {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
       have ⟨e, he, hv⟩ := List.mem_map.1 hv
       hv ▸ hJ.le hwJ _ (List.mem_map.2 ⟨e, ht.subset he, rfl⟩)
     exact ⟨s, ji, J, hs, hlab, hji, hwji, hjix, hJ, hwJ,
-      Shape.join_le (hy₁.trans hΔ (hjo₁.min hwJ (hout hss₁)))
+      Shape.join_le hΔ (hy₁.trans hΔ (hjo₁.min hwJ (hout hss₁)))
         (hy₂.trans hΔ (hjo₂.min hwJ (hout hss₂)))⟩
 
 open List in
@@ -608,14 +608,14 @@ theorem Evaluates.mono_graph' {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeF
     {A a : Term} {x : Shape n}
     (hf' : ShapeFun.Compat Shape.Compat Δ f' f') (hx : Shape.Compat Δ x x)
     (hwf : ∀ e ∈ f', Shape.WF Δ e.out)
-    (hff' : ShapeFun.LE Δ (Shape.LE Δ) f f') :
+    (hff' : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) f f') :
     ∀ {c : Shape n}, Evaluates Δ f A a x c →
       ∃ c', Evaluates Δ f' A a x c' ∧ Shape.LE Δ c c' := by
   intro c h
   -- with lookup coverage the transport is exact, so the dominating witness
   -- is the shape itself; `Eval.wf` supplies the reflexivity `WF`
   have h' := ShapeFun.Eval.trans (R := Shape.LE Δ)
-    (fun _ _ _ h₁ h₂ => h₁.trans hΔ h₂) hff' h
+    (fun _ _ _ h₁ h₂ => h₁.trans hΔ h₂) hff'.1 h
   exact ⟨c, h', Shape.LE.refl (ShapeFun.Eval.wf hΔ hwf h')⟩
 
 /-- The lookup is **monotone in the graph**, and what it returns is a type
@@ -632,7 +632,7 @@ theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFu
     (hjoin : ∀ {y z : Shape n}, Shape.WF Δ y → Shape.WF Δ z → Shape.Compat Δ y z →
       Shape.HasType Δ y (.sort r) → Shape.HasType Δ z (.sort r) →
       Shape.HasType Δ (y.join z) (.sort r))
-    (hff' : ShapeFun.LE Δ (Shape.LE Δ) f f')
+    (hff' : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) f f')
     {c : Shape n} (h : Evaluates Δ f A a x c) :
     ∃ c', Evaluates Δ f' A a x c' ∧ Shape.LE Δ c c' ∧
       Shape.HasType Δ c' (.sort r) := by
@@ -652,7 +652,7 @@ theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFu
     have hwz := Evaluates.wf hΔ hwf hz'
     have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwy hwz hc
     refine ⟨y'.join z', .join hc hy' hz', ?_, hjoin hwy hwz hc htyy htyz⟩
-    exact Shape.join_le (hley.trans hΔ hu₁) (hlez.trans hΔ hu₂)
+    exact Shape.join_le hΔ (hley.trans hΔ hu₁) (hlez.trans hΔ hu₂)
 
 /-! ## Monotonicity on the right, and typed joins
 
@@ -825,9 +825,9 @@ theorem Evaluates.lift {Δ : List Term} {n k} (h : n ≤ k) {f : ShapeFun n} {A 
   | bot => rw [Shape.lift_bot]; exact .bot
   | entry e he hlab hin =>
     exact .entry ⟨e.ty, e.tm, e.inp.lift k, e.out.lift k⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
-      hlab ((Shape.lift_le_lift h).2 hin)
+      hlab (Shape.lift_le h hin)
   | lower hwf hle _ ih =>
-    exact .lower ((Shape.lift_wf h).2 hwf) ((Shape.lift_le_lift h).2 hle) ih
+    exact .lower ((Shape.lift_wf h).2 hwf) (Shape.lift_le h hle) ih
   | join hc _ _ ih₁ ih₂ =>
     rw [← Shape.lift_join h]
     exact .join ((Shape.lift_compat h).2 hc) ih₁ ih₂
@@ -867,7 +867,7 @@ theorem Evaluates.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) {f
   rw [ShapeFun.map_lift_inp] at hji
   rw [ShapeFun.map_lift_out] at hjo
   have hinx : ∀ e ∈ s₀, Shape.LE Δ e.inp x := fun e he =>
-    (Shape.lift_le_lift h).1
+    (Shape.lift_le_lift hΔ h).1
       ((hji.le hwji _ (List.mem_map.2 ⟨e.inp, List.mem_map.2 ⟨e, he, rfl⟩, rfl⟩)).trans hΔ hjix)
   have ⟨J, hJ, hwJ, hevJ⟩ :=
     Evaluates.of_sublist hΔ hwf hco hwx.coherent hs₀
@@ -889,15 +889,15 @@ theorem Evaluates.lift_iff {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) {
       Evaluates Δ f A a x c := by
   refine ⟨fun H => ?_, Evaluates.lift h⟩
   have ⟨c₀, hle, hc₀⟩ := Evaluates.lift_of hΔ h hwf hco hwx H
-  exact .lower hwc ((Shape.lift_le_lift h).1 hle) hc₀
+  exact .lower hwc ((Shape.lift_le_lift hΔ h).1 hle) hc₀
 
 theorem ShapeFun.LE.lift {Δ : List Term} {n k} (h : n ≤ k) {f g : ShapeFun n}
-    (H : ShapeFun.LE Δ (Shape.LE Δ) f g) :
-    ShapeFun.LE Δ (Shape.LE Δ) (ShapeFun.lift (Shape.lift k) f)
+    (H : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) f g) :
+    ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) (ShapeFun.lift (Shape.lift k) f)
       (ShapeFun.lift (Shape.lift k) g) := by
-  intro e' he'
+  refine ⟨fun e' he' => ?_, ShapeFun.lift_wf h H.2.1, ShapeFun.lift_wf h H.2.2⟩
   obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'
-  exact ShapeFun.Eval.lift h (Shape.lift_le_lift h).2 (H e he)
+  exact ShapeFun.Eval.lift h (Shape.lift_le h) (H.1 e he)
 
 /-- Numerals lift and reflect. -/
 theorem Shape.IsNumeral.lift_iff {n k} (h : n ≤ k) {v : Shape n} :
@@ -966,7 +966,7 @@ theorem Shape.HasType.lift_iff {Δ : List Term} (hΔ : ⊢ Δ)
     have hwc₁ := Evaluates.wf hΔ houts hev₁
     refine ⟨c₁, hwc₁, hev₁, (ih h' hwy hwc₁).1 (Shape.HasType.mono_r (r := true) hΔ
       ((Shape.lift_wf h').2 hwy) ((Shape.lift_wf h').2 hwc₁) hty'
-      (hle.trans hΔ ((Shape.lift_le_lift h').2 hc₀c₁)) ?_)⟩
+      (hle.trans hΔ (Shape.lift_le h' hc₀c₁)) ?_)⟩
     exact (ihs hwc₁).2 hc₁ty
   suffices ∀ {m a}, WF Δ m → WF Δ a →
       (HasType Δ (lift (k + 1) a) .type ↔ HasType Δ a .type) →
@@ -1045,7 +1045,7 @@ theorem Shape.HasType.lift_iff {Δ : List Term} (hΔ : ⊢ Δ)
       have hwx₀ := hwx.join hΔ hcx hwji₀
       have hle₀ : Shape.LE Δ ((x.join ji₀).lift k) X₀ := by
         rw [← Shape.lift_join h']
-        exact Shape.join_le hxle (hji₂.trans hΔ hjiX)
+        exact Shape.join_le hΔ hxle (hji₂.trans hΔ hjiX)
       have hx₀d := (ih h' hwx₀ hwd).1 (hxd.mono_l hΔ hle₀)
       have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwx hwji₀ hcx
       have ⟨J, hJ, hwJ, hevJ⟩ :=
@@ -1061,7 +1061,7 @@ theorem Shape.HasType.lift_iff {Δ : List Term} (hΔ : ⊢ Δ)
         ((Shape.lift_wf h').2 hwJ') ?_ ?_
       · refine hCjo.trans hΔ <| hjo.min ((Shape.lift_wf h').2 hwJ') fun v hv => ?_
         obtain ⟨w, hw, rfl⟩ := List.mem_map.1 hv
-        exact (Shape.lift_le_lift h').2 ((hJ.le hwJ w hw).trans hΔ hJJ')
+        exact Shape.lift_le h' ((hJ.le hwJ w hw).trans hΔ hJJ')
       · exact (ihs hwJ').2 hJ'ty
   · clear hs; induction H with
     | bot _ ihb => exact .bot <| ihb hwa <| by cases n <;> trivial
@@ -1080,7 +1080,7 @@ theorem Shape.HasType.lift_iff {Δ : List Term} (hΔ : ⊢ Δ)
       exact ⟨c.lift k, (Shape.lift_wf h').2 hwc, hev.lift h',
         (ih h' (hwm.2.2.1 e he).2.2.2 hwc).2 hcty⟩
     | pair hpi hxle hwx hxd hwc hev hyc =>
-      exact .pair ((ihpi hwa.2.2.1 hwa.2.2.2).2 hpi) ((Shape.lift_le_lift h').2 hxle)
+      exact .pair ((ihpi hwa.2.2.1 hwa.2.2.2).2 hpi) (Shape.lift_le h' hxle)
         ((Shape.lift_wf h').2 hwx) ((ih h' hwx hwa.2.2.1).2 hxd)
         ((Shape.lift_wf h').2 hwc) (hev.lift h')
         ((ih h' hwm.2.2.2.1 hwc).2 hyc)
@@ -1142,7 +1142,7 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m m' a : TShape}
     Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_left ..)
   have h3 : m'.1 ≤ max (max m.1 a.1) (max m'.1 a.1) :=
     Nat.le_trans (Nat.le_max_left ..) (Nat.le_max_right ..)
-  have key := Shape.HasType.mono_l hΔ ((TShape.LE.def h3 h1).1 hle)
+  have key := Shape.HasType.mono_l hΔ ((TShape.LE.def_mp h3 h1) hle)
     (TShape.HasType.def hΔ hwm hwa h1 h2 H)
   show Shape.HasType Δ (m'.2.lift (max m'.1 a.1)) (a.2.lift (max m'.1 a.1))
   refine (Shape.HasType.lift_iff hΔ (Nat.max_le.2 ⟨h3, h2⟩)
@@ -1165,7 +1165,7 @@ theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a a' : TShape} 
   rw [show ((TShape.sort r).2.lift (max (max m.1 a.1) (max a'.1 0))) = Shape.sort r from
     Shape.lift_sort] at hAk
   have key := Shape.HasType.mono_r hΔ ((Shape.lift_wf h1).2 hwm) ((Shape.lift_wf h3).2 hwa')
-    (TShape.HasType.def hΔ hwm hwa h1 h2 H) ((TShape.LE.def h2 h3).1 hle) hAk
+    (TShape.HasType.def hΔ hwm hwa h1 h2 H) ((TShape.LE.def_mp h2 h3) hle) hAk
   show Shape.HasType Δ (m.2.lift (max m.1 a'.1)) (a'.2.lift (max m.1 a'.1))
   refine (Shape.HasType.lift_iff hΔ (Nat.max_le.2 ⟨h1, h3⟩)
     ((Shape.lift_wf (Nat.le_max_left ..)).2 hwm)
