@@ -710,11 +710,40 @@ development carry its own directedness, as his Π half does.
 
 Current `ShapeFun.LE`: every entry of `f` is covered by *one* entry of
 `f'`.  Required (η →, `fst_snd`, and every place a join of lookups has to
-sit below an approximant):
+sit below an approximant): coverage by a *lookup* rather than an entry.
+
+**That cannot be spelled with `Evaluates`.**  `Evaluates` lives in
+`HasType.lean` and is defined *using* `Shape.LE` (its `entry` and `lower`
+rules), so `Shape.LE` cannot mention it.  What breaks the circle is that
+the dependency descends a level — `Shape.LE` at `n+1` would need the
+lookup at `n`, which needs `Shape.LE` at `n` — so the lookup has to be a
+separate, smaller relation defined in `Shape.lean`, parameterised by the
+order one level down:
 
 ```lean
-def ShapeFun.LE Δ R f f' := ∀ e ∈ f, ∃ y, Evaluates Δ f' e.ty e.tm e.inp y ∧ R e.out y
+inductive ShapeFun.Covers (Δ) {n} (R : Shape n → Shape n → Prop)
+    (f : ShapeFun n) (A a : Term) (x : Shape n) : Shape n → Prop
+  | bot : Covers .bot
+  | entry (e) : e ∈ f → LabelEq Δ e.ty e.tm A a → R e.inp x → Covers e.out
+  | join {y z} : Covers y → Covers z → Covers (y.join z)
+
+def ShapeFun.LE Δ R f f' := ∀ e ∈ f, ∃ y, Covers Δ R f' e.ty e.tm e.inp y ∧ R e.out y
 ```
+
+`Covers` is `Evaluates` minus `lower` and minus the `WF`/`Compat` side
+conditions, and that is not a compromise: `lower` is subsumed by the
+`R e.out y` of the order itself, and the side conditions exist to keep
+`Evaluates.wf` true, which an order does not care about.  So `Covers`
+needs only `R` and `Shape.join`, and `Shape.join` is purely structural.
+
+Two consequential ordering facts in `Shape.lean`: `Shape.join` is
+currently defined *after* `Shape.LE` (line 677 vs 360) and must move up;
+`Compat` and `WF` do not depend on `LE`, so nothing else has to move.
+
+η then goes through by induction on `Evaluates g_t … y`: `bot` and `join`
+map to the corresponding `Covers` rules, `entry` uses `g_t ≤ G` plus
+monotonicity of `Covers` in its input (which is the `entry` rule's
+`R e.inp x` and transitivity of `R`), and `lower` reuses the witness.
 
 Single-entry coverage is master's order, right there because saturated
 graphs store their joins; it is also his `Graph.LE` (`Entry.mem`), right
@@ -749,16 +778,25 @@ needed for anything above; a simplification to take when convenient.
 
 ### 5.5 Summary of statement changes
 
-| where | change | why |
-|---|---|---|
-| `SoundDir` | `Adm` → `Valuation.WF`; upper-bound conclusion; separate lemma `IsDefEq.dir` by induction on typing | §2.3 |
-| `IsDefEq.sound` | two conclusions, `SoundEq ∧ SoundTy` | §2.3 |
-| `Interp.forallE/sigma/lam`, `Interp.tr` | `+ HasType d type` resp. `+ HasType cb type` | §2.4, §4.7 |
-| `Interp.stage` → `IsDefEq.stage` | indexed by a typing derivation | §3.1 |
-| `Interp.subst_iff` → `Interp.substTerm` | directedness of the `θ i` as a hypothesis | §3.3 |
-| `Interp.inst` | takes `SoundDir Γ a` | §3.3 |
-| `Adm.subst` | delete | §3.5 |
-| `ShapeFun.LE` | lookup coverage | §5.2 |
-| `InterpTyped` at Π (and Σ) types | witness carries lookup-form `HasDom` | §4.5(a), §5.1(a) |
-| `SoundJoin` | keep, upper-bound form; prove per former alongside `sound` | §5.1 |
+| where | change | why | |
+|---|---|---|---|
+| `SoundDir` | `Adm` → `Valuation.WF`; upper-bound conclusion; separate lemma `IsDefEq.dir` by induction on typing | §2.3 | **done** |
+| `IsDefEq.sound` | two conclusions, `SoundEq ∧ SoundTy` | §2.3 | **done** |
+| `Interp.forallE/sigma/lam`, `Interp.tr` | `+ HasType d type` resp. `+ HasType cb type` | §2.4, §4.7 | **done** |
+| `Interp.stage` → `IsDefEq.stage` | indexed by a typing derivation | §3.1 | **done** (stated) |
+| `Interp.subst_iff` → `Interp.substTerm` | directedness of the `θ i` as a hypothesis (`Interp.Dir`) | §3.3 | **done** (stated) |
+| `Interp.inst` | takes `Interp.Dir` of the substituted term | §3.3 | **done** (stated) |
+| `Adm.subst` | delete | §3.5 | **done** |
+| `ShapeFun.LE` | lookup coverage, via a new `ShapeFun.Covers` | §5.2 | open |
+| `InterpTyped` at Π (and Σ) types | witness carries lookup-form `HasDom` | §4.5(a), §5.1(a) | open |
+| `SoundJoin` | keep, upper-bound form; prove per former alongside `sound` | §5.1 | **done** (kept) |
+
+`Interp.Dir Δ Γ t σ ρ` is the one-stage form of directedness, introduced
+so that `substTerm`/`inst` can take it as a hypothesis; `SoundDir` is its
+closure over well-formed stages and `Interp.Dir.join` is master's form.
+
+The two open rows are both restructurings rather than restatements: the
+first moves `Shape.join` and rewrites `Shape.lean`'s order section (~38
+call sites across `Shape.lean` and `HasType.lean`), the second changes
+what `SoundTy` promises and so touches every case that consumes it.
 
