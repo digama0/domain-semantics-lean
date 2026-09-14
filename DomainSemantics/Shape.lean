@@ -387,18 +387,21 @@ needs the lookup at `n`, which needs `LE` at `n`.  `HasType.lean`'s
 entries, closed downwards and under compatible joins.  The other repo's
 `Evaluates`, with the order it is relative to as a parameter.
 
-The two side conditions are not decoration.  `lower` carries `WF` because
-`WF` is not downward closed — a smaller λ-shape may have a bottom output —
-so without it `Evaluates.wf` fails; and `join` carries `Compat` so that
-the join is a genuine least upper bound.  Together they are what makes the
-lookup's values well behaved enough for the order built on them to reflect
-along `lift`. -/
+The side condition on `join` is not decoration: it makes the join a
+genuine least upper bound, and with it the lookup's values are well
+behaved enough (`Eval.wf`, `Eval.compat`) for the order built on them to
+reflect along `lift`.
+
+`lower` needs no such condition, even though `WF` is not downward closed —
+a smaller λ-shape may have a bottom output.  At `R := Shape.LE Δ` the
+order carries the well-formedness of its lower bound (`Shape.LE.wf`), so
+`Eval.wf` reads it off `R y z` itself. -/
 inductive ShapeFun.Eval (Δ : List Term) {n} (R : Shape n → Shape n → Prop)
     (f : ShapeFun n) (A a : Term) (x : Shape n) : Shape n → Prop where
   | bot : Eval Δ R f A a x .bot
   | entry (e : Entry (Shape n)) : e ∈ f → LabelEq Δ e.ty e.tm A a → R e.inp x →
     Eval Δ R f A a x e.out
-  | lower {y z} : Shape.WF Δ y → R y z → Eval Δ R f A a x z → Eval Δ R f A a x y
+  | lower {y z} : R y z → Eval Δ R f A a x z → Eval Δ R f A a x y
   | join {y z} : Shape.Compat Δ y z → Eval Δ R f A a x y → Eval Δ R f A a x z →
     Eval Δ R f A a x (y.join z)
 
@@ -446,7 +449,7 @@ theorem ShapeFun.Eval.mono {Δ : List Term} {n} {R : Shape n → Shape n → Pro
   induction H with
   | bot => exact .bot
   | entry e he hl hin => exact .entry e he (hl.trans hlab) (htr _ _ _ hin hx)
-  | lower hw hle _ ih => exact .lower hw hle ih
+  | lower hle _ ih => exact .lower hle ih
   | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
 
 /-- A lookup in a covered graph is a lookup in the covering one: this is
@@ -460,7 +463,7 @@ theorem ShapeFun.Eval.trans {Δ : List Term} {n} {R : Shape n → Shape n → Pr
   induction H with
   | bot => exact .bot
   | entry e he hl hin => exact ShapeFun.Eval.mono htr hl hin (hf e he)
-  | lower hw hle _ ih => exact .lower hw hle ih
+  | lower hle _ ih => exact .lower hle ih
   | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
 
 /-- Adding entries preserves a lookup. -/
@@ -470,10 +473,25 @@ theorem ShapeFun.Eval.sub {Δ : List Term} {n} {R : Shape n → Shape n → Prop
   induction H with
   | bot => exact .bot
   | entry e he hl hin => exact .entry e (hsub e he) hl hin
-  | lower hw hle _ ih => exact .lower hw hle ih
+  | lower hle _ ih => exact .lower hle ih
   | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
 
-/-- The approximation order, by recursion on the level. -/
+/-- The approximation order, by recursion on the level.
+
+**The order carries the well-formedness of its lower bound**
+(`Shape.LE.wf`).  Almost every clause gives it away for free — the label
+conjuncts come out of `LabelEq`/`PiLabelEq`/`IdLabelEq`, the sub-shape
+conjuncts out of the recursive `LE`, a graph's out of `ShapeFun.LE` — and
+the two exceptions are the two non-degeneracy conditions, which no
+comparison can see: a `pair` of two `⊥`s and a `λ` with a `⊥` output are
+below plenty of things.  So those two are stated here, on the left-hand
+side only.
+
+Not on the right-hand side: `⊥` is below *everything*, well formed or
+not, and it has to be, or `Interp.le_id` could not invert the `bot` rule
+without knowing the label is typed.  Well-formedness of an upper bound is
+available only for graphs, where `ShapeFun.LE` asks for it outright
+because the lookup needs it. -/
 def Shape.LE (Γ : List Term) : ∀ {n}, Shape n → Shape n → Prop
   | 0, .bot, _ => True
   | 0, .sort r, .sort r' => r = r'
@@ -486,12 +504,49 @@ def Shape.LE (Γ : List Term) : ∀ {n}, Shape n → Shape n → Prop
   | _+1, .sigma A B d f, .sigma A' B' d' f' =>
     PiLabelEq Γ A B A' B' ∧ LE Γ d d' ∧ ShapeFun.LE Γ (LE Γ) (WF Γ) f f'
   | _+1, .pair ty tm a b, .pair ty' tm' a' b' =>
-      LabelEq Γ ty tm ty' tm' ∧ LE Γ a a' ∧ LE Γ b b'
-  | _+1, .lam f, .lam f' => ShapeFun.LE Γ (LE Γ) (WF Γ) f f'
+      LabelEq Γ ty tm ty' tm' ∧ LE Γ a a' ∧ LE Γ b b' ∧ ¬ (a.IsBot ∧ b.IsBot)
+  | _+1, .lam f, .lam f' =>
+      ShapeFun.LE Γ (LE Γ) (WF Γ) f f' ∧ f ≠ [] ∧ ∀ e ∈ f, ¬ e.out.IsBot
   | _+1, _, _ => False
 
 @[simp] theorem Shape.LE.bot {s : Shape n} : Shape.LE Γ .bot s := by
   cases n <;> trivial
+
+/-- **The order carries the well-formedness of its lower bound.**
+
+Everything here is a projection: the label conjuncts out of the label
+equalities, the sub-shape conjuncts out of the recursive `LE`, a graph's
+out of `ShapeFun.LE`, and the two non-degeneracy conditions out of the
+clauses that were put there for this.  It is why `Eval`'s `lower` rule
+needs no side condition, and why `Shape.WF Γ x` and `Shape.LE Γ x x` are
+interchangeable (with `LE.refl`). -/
+theorem Shape.LE.wf {Γ : List Term} :
+    ∀ {n} {x y : Shape n}, Shape.LE Γ x y → Shape.WF Γ x := by
+  intro n
+  induction n with
+  | zero => intro x _ _; cases x <;> trivial
+  | succ n ih =>
+    intro x y h
+    cases x with
+    | bot | nat | zero | sort | unit => trivial
+    | succ v => cases y <;> first | exact absurd h id | exact ih h
+    | refl v => cases y <;> first | exact absurd h id | exact ih h
+    | id =>
+      cases y <;> try exact absurd h id
+      have ⟨_, ⟨u, hA⟩, ha, hb⟩ := h
+      exact ⟨⟨u, hA.hasType.1⟩, ha.hasType.1, hb.hasType.1⟩
+    | forallE | sigma =>
+      cases y <;> try exact absurd h id
+      all_goals
+        have ⟨⟨⟨u, hA⟩, v, hB⟩, hd, hf⟩ := h
+        exact ⟨⟨u, hA.hasType.1⟩, ⟨v, hB.hasType.1⟩, ih hd, hf.2.1⟩
+    | pair =>
+      cases y <;> try exact absurd h id
+      have ⟨⟨⟨u, hty⟩, htm⟩, ha, hb, hnb⟩ := h
+      exact ⟨⟨u, hty.hasType.1⟩, htm.hasType.1, ih ha, ih hb, hnb⟩
+    | lam =>
+      cases y <;> try exact absurd h id
+      exact ⟨h.2.1, h.2.2, h.1.2.1⟩
 
 theorem Shape.LE.refl {n} {s : Shape n} (hs : Shape.WF Γ s) : Shape.LE Γ s s := by
   induction n with
@@ -516,9 +571,9 @@ theorem Shape.LE.refl {n} {s : Shape n} (hs : Shape.WF Γ s) : Shape.LE Γ s s :
       have ⟨⟨_, hA⟩, ⟨_, hB⟩, hd, hf⟩ := hs
       exact ⟨.refl hA hB, ih hd, hfun hf⟩
     | pair ty tm a b =>
-      have ⟨⟨_, hty⟩, htm, ha, hb, _⟩ := hs
-      exact ⟨LabelEq.refl hty htm, ih ha, ih hb⟩
-    | lam => exact hfun hs.2.2
+      have ⟨⟨_, hty⟩, htm, ha, hb, hnb⟩ := hs
+      exact ⟨LabelEq.refl hty htm, ih ha, ih hb, hnb⟩
+    | lam => exact ⟨hfun hs.2.2, hs.1, hs.2.1⟩
 
 /-- With the collapse clauses gone, only `⊥` is below `⊥`. -/
 theorem Shape.le_bot_iff {n} {s : Shape n} : Shape.LE Δ s .bot ↔ s = .bot := by
@@ -786,7 +841,7 @@ theorem Shape.LE.trans (hΓ : ⊢ Γ) {n} {s t u : Shape n}
     cases t with
     | lam f' =>
       cases u with
-      | lam f'' => exact h₁.trans_of ih h₂
+      | lam f'' => exact ⟨h₁.1.trans_of ih h₂.1, h₁.2⟩
       | _ => exact absurd h₂ id
     | _ => exact absurd h₁ id
   | succ | refl =>
@@ -796,7 +851,7 @@ theorem Shape.LE.trans (hΓ : ⊢ Γ) {n} {s t u : Shape n}
   | pair =>
     cases t <;> try exact absurd h₁ id
     cases u <;> try exact absurd h₂ id
-    exact ⟨LabelEq.trans h₁.1 h₂.1, ih h₁.2.1 h₂.2.1, ih h₁.2.2 h₂.2.2⟩
+    exact ⟨LabelEq.trans h₁.1 h₂.1, ih h₁.2.1 h₂.2.1, ih h₁.2.2.1 h₂.2.2.1, h₁.2.2.2⟩
   | id =>
     cases t <;> cases h₁
     cases u <;> cases h₂
@@ -1085,7 +1140,7 @@ theorem ShapeFun.Eval.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f : ShapeFu
   | bot => simp only [Shape.subst_bot]; exact .bot
   | entry e he hlab hin =>
     exact .entry _ (ShapeFun.mem_subst.2 ⟨e, he, rfl⟩) (hlab.subst hΘ W) (ih hin)
-  | lower hw hle _ ihe => exact .lower (Shape.WF.subst hΘ W hw) (ih hle) ihe
+  | lower hle _ ihe => exact .lower (ih hle) ihe
   | join hc _ _ ih₁ ih₂ => exact Shape.join_subst ▸ .join (hc.subst hΘ W) ih₁ ih₂
 
 
@@ -1107,11 +1162,13 @@ theorem Shape.LE.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.
   | bot => trivial
   | lam =>
     cases t with | lam => ?_ | _ => cases h
-    exact ShapeFun.LE.subst_of hΘ W ih h
+    have hw := Shape.WF.subst hΘ W h.wf
+    exact ⟨ShapeFun.LE.subst_of hΘ W ih h.1, hw.1, hw.2.1⟩
   | succ | refl => cases t <;> (try cases h); exact ih h
   | pair =>
     cases t <;> try exact absurd h id
-    exact ⟨LabelEq.subst hΘ W h.1, ih h.2.1, ih h.2.2⟩
+    exact ⟨LabelEq.subst hΘ W h.1, ih h.2.1, ih h.2.2.1,
+      fun hbb => h.2.2.2 ⟨Shape.isBot_subst_iff.1 hbb.1, Shape.isBot_subst_iff.1 hbb.2⟩⟩
   | id => cases t <;> cases h; exact ⟨‹_›, .subst hΘ W ‹_›⟩
   | forallE | sigma =>
     cases t <;> cases h; rename_i h₁ h₂
@@ -1218,6 +1275,32 @@ theorem Shape.Compat.join : ∀ {n} {Δ : List Term} {y z d : Shape n}, ⊢ Δ �
     | zero => cases z with | bot => exact hy | _ => exact hy
     | id r A₁ a₁ b₁ => cases z with | bot => exact hy | _ => exact hy
 
+/-- The graph half of `Shape.Compat.anti_right`, once, for the three
+clauses that carry a graph.  The covering fact is a lookup derivation, so
+the coherence of the bigger graph is applied once per matching entry and
+the results recombined; `ih` is the order-antitonicity one level down,
+which the recursion supplies. -/
+theorem ShapeFun.Compat.anti_right_of {Δ : List Term} {n} {f g g' : ShapeFun n}
+    (ih : ∀ {Θ : List Term} {a b b' : Shape n}, ⊢ Θ →
+      Shape.Compat Θ a b → Shape.LE Θ b' b → Shape.Compat Θ a b')
+    (h : ShapeFun.Compat Shape.Compat Δ f g)
+    (hb : ∀ e ∈ g', ShapeFun.Eval Δ (Shape.LE Δ) g e.ty e.tm e.inp e.out) :
+    ShapeFun.Compat Shape.Compat Δ f g' := by
+  intro e he e' he' Θ τ hΘ W hlab hin
+  have key : ∀ {y}, ShapeFun.Eval Δ (Shape.LE Δ) g e'.ty e'.tm e'.inp y →
+      Shape.Compat Θ (e.out.subst τ) (y.subst τ) := by
+    intro y hy
+    induction hy with
+    | bot => simpa only [Shape.subst_bot] using Shape.Compat.bot_right
+    | entry e₂ he₂ hl₂ hi₂ =>
+      exact h e he e₂ he₂ Θ τ hΘ W
+        (hlab.trans (hl₂.subst hΘ W).symm)
+        (ih hΘ hin (Shape.LE.subst hΘ W hi₂))
+    | lower hle _ ihz => exact ih hΘ ihz (Shape.LE.subst hΘ W hle)
+    | join _ _ _ ih₁ ih₂ =>
+      exact Shape.join_subst ▸ ((ih₁.symm hΘ).join hΘ (ih₂.symm hΘ)).symm hΘ
+  exact key (hb e' he')
+
 /-- Compatibility is **anti-monotone on the right**.
 
 The graph case is where the hereditary quantification earns its keep: the
@@ -1246,24 +1329,7 @@ theorem Shape.Compat.anti_right : ∀ {n} {Δ : List Term} {a b b' : Shape n}, �
       | lam g =>
         cases b' with
         | bot => trivial
-        | lam g' =>
-            intro e he e' he' Θ τ hΘ W hlab hin
-            -- the covering fact is now a lookup derivation, so the
-            -- coherence of the bigger graph is applied once per matching
-            -- entry and the results recombined
-            have key : ∀ {y}, ShapeFun.Eval Δ (Shape.LE Δ) g e'.ty e'.tm e'.inp y →
-                Shape.Compat Θ (e.out.subst τ) (y.subst τ) := by
-              intro y hy
-              induction hy with
-              | bot => simpa only [Shape.subst_bot] using Shape.Compat.bot_right
-              | entry e₂ he₂ hl₂ hi₂ =>
-                exact h e he e₂ he₂ Θ τ hΘ W
-                  (hlab.trans (hl₂.subst hΘ W).symm)
-                  (ih hΘ hin (Shape.LE.subst hΘ W hi₂))
-              | lower _ hle _ ihz => exact ih hΘ ihz (Shape.LE.subst hΘ W hle)
-              | join _ _ _ ih₁ ih₂ =>
-                exact Shape.join_subst ▸ ((ih₁.symm hΘ).join hΘ (ih₂.symm hΘ)).symm hΘ
-            exact key (hb.1 e' he')
+        | lam g' => exact ShapeFun.Compat.anti_right_of ih h hb.1.1
         | _ => exact absurd hb id
       | _ => exact absurd h id
     | succ v =>
@@ -1293,7 +1359,7 @@ theorem Shape.Compat.anti_right : ∀ {n} {Δ : List Term} {a b b' : Shape n}, �
         cases b' with
         | bot => trivial
         | pair u' v' =>
-          exact ⟨LabelEq.trans h.1 hb.1.symm, ih hΔ h.2.1 hb.2.1, ih hΔ h.2.2 hb.2.2⟩
+          exact ⟨LabelEq.trans h.1 hb.1.symm, ih hΔ h.2.1 hb.2.1, ih hΔ h.2.2 hb.2.2.1⟩
         | _ => exact absurd hb id
       | _ => exact absurd h id
     | id r A₀ a₀ b₀ =>
@@ -1313,24 +1379,8 @@ theorem Shape.Compat.anti_right : ∀ {n} {Δ : List Term} {a b b' : Shape n}, �
         cases b' with
         | bot => trivial
         | forallE A₁ B₁ e' g' =>
-          refine ⟨h.1.trans hΔ (hb.1.symm hΔ), ih hΔ h.2.1 hb.2.1, ?_⟩
-          intro e he e' he' Θ τ hΘ W hlab hin
-          -- the covering fact is now a lookup derivation, so the
-          -- coherence of the bigger graph is applied once per matching
-          -- entry and the results recombined
-          have key : ∀ {y}, ShapeFun.Eval Δ (Shape.LE Δ) fb e'.ty e'.tm e'.inp y →
-              Shape.Compat Θ (e.out.subst τ) (y.subst τ) := by
-            intro y hy
-            induction hy with
-            | bot => simpa only [Shape.subst_bot] using Shape.Compat.bot_right
-            | entry e₂ he₂ hl₂ hi₂ =>
-              exact h.2.2 e he e₂ he₂ Θ τ hΘ W
-                (hlab.trans (hl₂.subst hΘ W).symm)
-                (ih hΘ hin (Shape.LE.subst hΘ W hi₂))
-            | lower _ hle _ ihz => exact ih hΘ ihz (Shape.LE.subst hΘ W hle)
-            | join _ _ _ ih₁ ih₂ =>
-              exact Shape.join_subst ▸ ((ih₁.symm hΘ).join hΘ (ih₂.symm hΘ)).symm hΘ
-          exact key (hb.2.2.1 e' he')
+          exact ⟨h.1.trans hΔ (hb.1.symm hΔ), ih hΔ h.2.1 hb.2.1,
+            ShapeFun.Compat.anti_right_of ih h.2.2 hb.2.2.1⟩
         | _ => exact absurd hb id
       | _ => exact absurd h id
     | sigma A₀ B₀ d f =>
@@ -1340,24 +1390,8 @@ theorem Shape.Compat.anti_right : ∀ {n} {Δ : List Term} {a b b' : Shape n}, �
         cases b' with
         | bot => trivial
         | sigma A₁ B₁ e' g' =>
-          refine ⟨h.1.trans hΔ (hb.1.symm hΔ), ih hΔ h.2.1 hb.2.1, ?_⟩
-          intro e he e' he' Θ τ hΘ W hlab hin
-          -- the covering fact is now a lookup derivation, so the
-          -- coherence of the bigger graph is applied once per matching
-          -- entry and the results recombined
-          have key : ∀ {y}, ShapeFun.Eval Δ (Shape.LE Δ) fb e'.ty e'.tm e'.inp y →
-              Shape.Compat Θ (e.out.subst τ) (y.subst τ) := by
-            intro y hy
-            induction hy with
-            | bot => simpa only [Shape.subst_bot] using Shape.Compat.bot_right
-            | entry e₂ he₂ hl₂ hi₂ =>
-              exact h.2.2 e he e₂ he₂ Θ τ hΘ W
-                (hlab.trans (hl₂.subst hΘ W).symm)
-                (ih hΘ hin (Shape.LE.subst hΘ W hi₂))
-            | lower _ hle _ ihz => exact ih hΘ ihz (Shape.LE.subst hΘ W hle)
-            | join _ _ _ ih₁ ih₂ =>
-              exact Shape.join_subst ▸ ((ih₁.symm hΘ).join hΘ (ih₂.symm hΘ)).symm hΘ
-          exact key (hb.2.2.1 e' he')
+          exact ⟨h.1.trans hΔ (hb.1.symm hΔ), ih hΔ h.2.1 hb.2.1,
+            ShapeFun.Compat.anti_right_of ih h.2.2 hb.2.2.1⟩
         | _ => exact absurd hb id
       | _ => exact absurd h id
     | sort r =>
@@ -1403,6 +1437,27 @@ supplies the hypothesis that coherence asks for. -/
 theorem Shape.Compat.of_common_upper {n} {Δ : List Term} {a b c : Shape n} (hΔ : ⊢ Δ)
     (hc : Shape.Compat Δ c c) (ha : Shape.LE Δ a c) (hb : Shape.LE Δ b c) :
     Shape.Compat Δ a b := Shape.Compat.anti hΔ hc ha hb
+
+theorem ShapeFun.Compat.symm {n} {Δ : List Term} {f f' : ShapeFun n}
+    (h : ShapeFun.Compat Shape.Compat Δ f f') : ShapeFun.Compat Shape.Compat Δ f' f :=
+  fun e he e' he' Θ τ hΘ W hlab hin =>
+    Shape.Compat.symm hΘ
+      (h e' he' e he Θ τ hΘ W (LabelEq.symm hlab) (Shape.Compat.symm hΘ hin))
+
+/-- Two graphs under a common self-coherent graph are coherent with each
+other.  The shape-level `of_common_upper` cannot be used through a `.lam`
+wrapper any more — that would ask for the λ non-degeneracy of graphs which
+need not have it — so it goes through `anti_right_of` directly. -/
+theorem ShapeFun.Compat.of_common_upper {n} {Δ : List Term} {f f' g : ShapeFun n}
+    (hg : ShapeFun.Compat Shape.Compat Δ g g)
+    (h₁ : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) f g)
+    (h₂ : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) f' g) :
+    ShapeFun.Compat Shape.Compat Δ f f' :=
+  have anti : ∀ {Θ : List Term} {a b b' : Shape n}, ⊢ Θ →
+      Shape.Compat Θ a b → Shape.LE Θ b' b → Shape.Compat Θ a b' :=
+    fun hΘ => Shape.Compat.anti_right hΘ
+  ShapeFun.Compat.anti_right_of anti
+    (ShapeFun.Compat.symm (ShapeFun.Compat.anti_right_of anti hg h₁.1)) h₂.1
 
 @[simp] theorem Shape.subst_id : ∀ {n} {s : Shape n}, s.subst .id = s := by
   intro n
@@ -1458,7 +1513,7 @@ theorem Shape.IsBot.of_join_left : ∀ {n} {x y : Shape n}, (x.join y).IsBot →
       | _ => exact h
     | _ => cases y <;> exact h
 
-theorem Shape.join_le (hΔ : ⊢ Δ) : ∀ {n} {x y w : Shape n},
+theorem Shape.join_le : ∀ {n} {x y w : Shape n},
     Shape.LE Δ x w → Shape.LE Δ y w → Shape.LE Δ (x.join y) w := by
   intro n
   induction n with
@@ -1477,10 +1532,11 @@ theorem Shape.join_le (hΔ : ⊢ Δ) : ∀ {n} {x y w : Shape n},
       | lam f' =>
         cases w with
         | lam g =>
-          have hc : Shape.Compat Δ (Shape.lam f) (Shape.lam f') :=
-            Shape.Compat.of_common_upper hΔ
-              (show Shape.Compat Δ (Shape.lam g) (Shape.lam g) from h₁.2.2.2) h₁ h₂
-          exact ShapeFun.LE.append hc (Shape.Compat.symm hΔ hc) h₁ h₂
+          have hc : ShapeFun.Compat Shape.Compat Δ f f' :=
+            ShapeFun.Compat.of_common_upper h₁.1.2.2.2 h₁.1 h₂.1
+          exact ⟨ShapeFun.LE.append hc (ShapeFun.Compat.symm hc) h₁.1 h₂.1,
+            fun hnil => h₁.2.1 (List.append_eq_nil_iff.1 hnil).1,
+            fun e he => (List.mem_append.1 he).elim (h₁.2.2 e) (h₂.2.2 e)⟩
         | _ => exact absurd h₁ id
       | _ => exact h₁
     | forallE A B d f =>
@@ -1490,12 +1546,9 @@ theorem Shape.join_le (hΔ : ⊢ Δ) : ∀ {n} {x y w : Shape n},
         cases w <;> first
           | exact absurd h₁ id
           | exact ⟨h₁.1, ih h₁.2.1 h₂.2.1,
-              have hc : Shape.Compat Δ (Shape.lam f) (Shape.lam f') :=
-                Shape.Compat.of_common_upper hΔ
-                  (show Shape.Compat Δ (Shape.lam _) (Shape.lam _) from h₁.2.2.2.2.2)
-                  (show Shape.LE Δ (Shape.lam f) (Shape.lam _) from h₁.2.2)
-                  (show Shape.LE Δ (Shape.lam f') (Shape.lam _) from h₂.2.2)
-              ShapeFun.LE.append hc (Shape.Compat.symm hΔ hc) h₁.2.2 h₂.2.2⟩
+              have hc : ShapeFun.Compat Shape.Compat Δ f f' :=
+                ShapeFun.Compat.of_common_upper h₁.2.2.2.2.2 h₁.2.2 h₂.2.2
+              ShapeFun.LE.append hc (ShapeFun.Compat.symm hc) h₁.2.2 h₂.2.2⟩
       | _ => exact h₁
     | sigma A B d f =>
       cases y with
@@ -1504,12 +1557,9 @@ theorem Shape.join_le (hΔ : ⊢ Δ) : ∀ {n} {x y w : Shape n},
         cases w <;> first
           | exact absurd h₁ id
           | exact ⟨h₁.1, ih h₁.2.1 h₂.2.1,
-              have hc : Shape.Compat Δ (Shape.lam f) (Shape.lam f') :=
-                Shape.Compat.of_common_upper hΔ
-                  (show Shape.Compat Δ (Shape.lam _) (Shape.lam _) from h₁.2.2.2.2.2)
-                  (show Shape.LE Δ (Shape.lam f) (Shape.lam _) from h₁.2.2)
-                  (show Shape.LE Δ (Shape.lam f') (Shape.lam _) from h₂.2.2)
-              ShapeFun.LE.append hc (Shape.Compat.symm hΔ hc) h₁.2.2 h₂.2.2⟩
+              have hc : ShapeFun.Compat Shape.Compat Δ f f' :=
+                ShapeFun.Compat.of_common_upper h₁.2.2.2.2.2 h₁.2.2 h₂.2.2
+              ShapeFun.LE.append hc (ShapeFun.Compat.symm hc) h₁.2.2 h₂.2.2⟩
       | _ => exact h₁
     | succ v =>
       cases y with
@@ -1527,7 +1577,9 @@ theorem Shape.join_le (hΔ : ⊢ Δ) : ∀ {n} {x y w : Shape n},
       | pair a' b' =>
         cases w <;> first
           | exact absurd h₁ id
-          | exact ⟨h₁.1, ih h₁.2.1 h₂.2.1, ih h₁.2.2 h₂.2.2⟩
+          | exact ⟨h₁.1, ih h₁.2.1 h₂.2.1, ih h₁.2.2.1 h₂.2.2.1,
+              fun hbb => h₁.2.2.2
+                ⟨Shape.IsBot.of_join_left hbb.1, Shape.IsBot.of_join_left hbb.2⟩⟩
       | _ => exact h₁
     | sort r => cases y with | bot => exact h₁ | _ => exact h₁
     | unit r => cases y with | bot => exact h₁ | _ => exact h₁
@@ -1581,7 +1633,8 @@ theorem Shape.le_join (hΔ : ⊢ Δ) : ∀ {n} {x y : Shape n}, Shape.WF Δ x �
       | bot => exact ⟨.refl hx, trivial⟩
       | lam f' =>
         have hfg := ShapeFun.WF.append hx.2.2 hy.2.2 h (Shape.Compat.symm (a := Shape.lam f) hΔ h)
-        exact ⟨ShapeFun.LE.append_left hx.2.2 hfg, ShapeFun.LE.append_right hy.2.2 hfg⟩
+        exact ⟨⟨ShapeFun.LE.append_left hx.2.2 hfg, hx.1, hx.2.1⟩,
+          ⟨ShapeFun.LE.append_right hy.2.2 hfg, hy.1, hy.2.1⟩⟩
       | _ => exact absurd h id
     | forallE A B d f =>
       cases y with
@@ -1626,10 +1679,10 @@ theorem Shape.le_join (hΔ : ⊢ Δ) : ∀ {n} {x y : Shape n}, Shape.WF Δ x �
       | bot => exact ⟨.refl hx, trivial⟩
       | lam f' => exact absurd h id
       | pair ty' tm' a' b' =>
-        have ⟨⟨_, hty⟩, htm, hxa, hxb, _⟩ := hx
-        have ⟨_, _, hya, hyb, _⟩ := hy
-        exact ⟨⟨LabelEq.refl hty htm, (ih hxa hya h.2.1).1, (ih hxb hyb h.2.2).1⟩,
-          ⟨h.1.symm, (ih hxa hya h.2.1).2, (ih hxb hyb h.2.2).2⟩⟩
+        have ⟨⟨_, hty⟩, htm, hxa, hxb, hxn⟩ := hx
+        have ⟨_, _, hya, hyb, hyn⟩ := hy
+        exact ⟨⟨LabelEq.refl hty htm, (ih hxa hya h.2.1).1, (ih hxb hyb h.2.2).1, hxn⟩,
+          ⟨h.1.symm, (ih hxa hya h.2.1).2, (ih hxb hyb h.2.2).2, hyn⟩⟩
       | _ => exact absurd h id
     | sort r =>
       cases y with
@@ -1670,7 +1723,7 @@ theorem Shape.exists_join (hΔ : ⊢ Δ) {n} {x y : Shape n}
     (hx : Shape.WF Δ x) (hy : Shape.WF Δ y) (h : Shape.Compat Δ x y) :
     Shape.Join Δ x y (x.join y) := by
   have ⟨hl, hr⟩ := Shape.le_join hΔ hx hy h
-  exact fun w => ⟨fun hw => ⟨hl.trans hΔ hw, hr.trans hΔ hw⟩, fun ⟨h₁, h₂⟩ => Shape.join_le hΔ h₁ h₂⟩
+  exact fun w => ⟨fun hw => ⟨hl.trans hΔ hw, hr.trans hΔ hw⟩, fun ⟨h₁, h₂⟩ => Shape.join_le h₁ h₂⟩
 
 /-! ## Well-formedness, compatibility and join under substitution
 
@@ -1815,8 +1868,8 @@ theorem Shape.WF.coherent : ∀ {n} {s : Shape n},
 
 /-! ## The lookup's own theory, and reflection of the order along `lift`
 
-`Eval.wf` and `Eval.compat` are what the lookup's two side conditions were
-put there for, and `Eval.lift_of` is what they buy: a lookup over a lifted
+`Eval.wf` and `Eval.compat` are what the lookup's `join` side condition
+was put there for, and `Eval.lift_of` is what it buys: a lookup over a lifted
 graph lands below the lift of a lookup over the original.  With that, the
 order reflects along `lift`, which is what makes the level index invisible
 (`TShape.LE.def`).  Entry coverage would get the reflection for free —
@@ -1831,7 +1884,7 @@ theorem ShapeFun.Eval.wf {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A
   induction h with
   | bot => cases n <;> trivial
   | entry e he _ _ => exact hf e he
-  | lower hw _ _ _ => exact hw
+  | lower hle _ _ => exact hle.wf
   | join hc _ _ ih₁ ih₂ => exact Shape.WF.join hΔ hc ih₁ ih₂
 
 /-- Any two values of one lookup are compatible, given a coherent graph
@@ -1842,7 +1895,7 @@ theorem ShapeFun.Eval.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n
     (hz : ShapeFun.Eval Δ (Shape.LE Δ) f A a x z) : Shape.Compat Δ y z := by
   induction hy with
   | bot => exact .bot_left
-  | lower _ hle _ ih => exact ih.symm hΔ |>.anti_right hΔ hle |>.symm hΔ
+  | lower hle _ ih => exact ih.symm hΔ |>.anti_right hΔ hle |>.symm hΔ
   | join _ _ _ ih₁ ih₂ => exact ih₁.join hΔ ih₂
   | entry e he hlab hin
   induction hz with
@@ -1851,7 +1904,7 @@ theorem ShapeFun.Eval.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n
     simpa using hf e he e' he' Δ .id hΔ (.id hΔ)
       (by simpa using hlab.trans hlab'.symm)
       (by simpa using hx.of_common_upper hΔ hin hin')
-  | lower _ hle _ ih => exact ih.anti_right hΔ hle
+  | lower hle _ ih => exact ih.anti_right hΔ hle
   | join _ _ _ ih₁ ih₂ => exact ((ih₁.symm hΔ).join hΔ (ih₂.symm hΔ)).symm hΔ
 
 /-- A lookup transports up a level. -/
@@ -1864,12 +1917,12 @@ theorem ShapeFun.Eval.lift {Δ : List Term} {n k} (h : n ≤ k) {f : ShapeFun n}
   | bot => rw [Shape.lift_bot]; exact .bot
   | entry e he hlab hin =>
     exact .entry _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩) hlab (ihlift hin)
-  | lower hw hle _ ih => exact .lower ((Shape.lift_wf h).2 hw) (ihlift hle) ih
+  | lower hle _ ih => exact .lower (ihlift hle) ih
   | join hc _ _ ih₁ ih₂ =>
     exact Shape.lift_join h ▸ .join ((Shape.lift_compat h).2 hc) ih₁ ih₂
 
 /-- A lookup over a lifted graph lands below the lift of a lookup over the
-original.  The `join` case is where the side conditions earn their keep:
+original.  The `join` case is where the side condition earns its keep:
 the two reflected values are compatible (`Eval.compat`) and well formed
 (`Eval.wf`), so `le_join` applies and their join is an upper bound. -/
 theorem ShapeFun.Eval.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) {f : ShapeFun n}
@@ -1887,7 +1940,7 @@ theorem ShapeFun.Eval.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k
     obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'
     exact ⟨e.out, Shape.LE.refl ((Shape.lift_wf h).2 (hwf.1 e he).2.2.2),
       .entry e he hlab (ihlift.1 hin)⟩
-  | lower _ hle _ ih =>
+  | lower hle _ ih =>
     have ⟨c, hc, hev⟩ := ih
     exact ⟨c, hle.trans hΔ hc, hev⟩
   | join _ _ _ ih₁ ih₂ =>
@@ -1900,7 +1953,7 @@ theorem ShapeFun.Eval.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k
     have hw₂ := ShapeFun.Eval.wf hΔ houts hev₂
     have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hw₁ hw₂ hcc
     exact ⟨c₁.join c₂,
-      Shape.join_le hΔ (hc₁.trans hΔ (ihlift.2 hu₁)) (hc₂.trans hΔ (ihlift.2 hu₂)),
+      Shape.join_le (hc₁.trans hΔ (ihlift.2 hu₁)) (hc₂.trans hΔ (ihlift.2 hu₂)),
       .join hcc hev₁ hev₂⟩
 
 
@@ -1947,14 +2000,27 @@ theorem Shape.lift_le_lift (hΓ : ⊢ Γ) {n m} (h : n ≤ m) {s t : Shape n} :
       have hwe := (hwfiff.1 H.2.1).1 e he
       have ⟨c, hc, hev⟩ :=
         ShapeFun.Eval.lift_of hΓ h' (ih h') hwf' hwf'.2 hwe.2.2.1 hlk
-      exact .lower hwe.2.2.2 ((ih h').1 hc) hev
+      exact .lower ((ih h').1 hc) hev
     · obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'
       exact ShapeFun.Eval.lift h' (ih h').2 (H.1 e he)
+  have hnil : ∀ {f : ShapeFun n}, ShapeFun.lift (Shape.lift m) f ≠ [] ↔ f ≠ [] := by
+    intro f; cases f <;> simp [ShapeFun.lift]
+  have hnb : ∀ {f : ShapeFun n},
+      (∀ e ∈ ShapeFun.lift (Shape.lift m) f, ¬ e.out.IsBot) ↔ (∀ e ∈ f, ¬ e.out.IsBot) := by
+    intro f
+    constructor
+    · intro H e he hb
+      exact H ⟨e.ty, e.tm, e.inp.lift m, e.out.lift m⟩
+        (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩) ((Shape.lift_isBot h').2 hb)
+    · intro H e'' he'' hb
+      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
+      exact H e he ((Shape.lift_isBot h').1 hb)
   cases s <;> cases t <;> (try rfl)
   · exact and_congr Iff.rfl (and_congr (ih h') ihf)
-  · exact ihf
+  · exact and_congr ihf (and_congr hnil hnb)
   · exact and_congr Iff.rfl (and_congr (ih h') ihf)
-  · exact and_congr Iff.rfl (and_congr (ih h') (ih h'))
+  · exact and_congr Iff.rfl (and_congr (ih h') (and_congr (ih h')
+      (not_congr (and_congr (Shape.lift_isBot h') (Shape.lift_isBot h')))))
   · exact ih h'
   · exact ih h'
 
@@ -1988,15 +2054,23 @@ theorem Shape.lift_le {n m} (h : n ≤ m) :
     refine ⟨fun e' he' => ?_, hwf H.2.1, hwf H.2.2⟩
     obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'
     exact ShapeFun.Eval.lift h' (ih h') (H.1 e he)
+  have hnil {f : ShapeFun n} (H : f ≠ []) : ShapeFun.lift (Shape.lift m) f ≠ [] := by
+    cases f <;> simp_all [ShapeFun.lift]
+  have hnb {f : ShapeFun n} (H : ∀ e ∈ f, ¬ e.out.IsBot) :
+      ∀ e ∈ ShapeFun.lift (Shape.lift m) f, ¬ e.out.IsBot := by
+    intro e'' he'' hb
+    obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
+    exact H e he ((Shape.lift_isBot h').1 hb)
   intro s t H
   cases s <;> cases t <;> first
     | exact H
     | trivial
     | exact absurd H id
     | exact ih h' H
-    | exact hfun H
+    | exact ⟨hfun H.1, hnil H.2.1, hnb H.2.2⟩
     | exact ⟨H.1, ih h' H.2.1, hfun H.2.2⟩
-    | exact ⟨H.1, ih h' H.2.1, ih h' H.2.2⟩
+    | exact ⟨H.1, ih h' H.2.1, ih h' H.2.2.1, fun hbb =>
+        H.2.2.2 ⟨(Shape.lift_isBot h').1 hbb.1, (Shape.lift_isBot h').1 hbb.2⟩⟩
 
 /-! ## The total shape domain, continued
 
@@ -2210,7 +2284,7 @@ theorem join_le {Δ : List Term} (hΔ : ⊢ Δ) {x y w : TShape}
   have hw : w.1 ≤ max (max x.1 y.1) w.1 := Nat.le_max_right ..
   refine (TShape.LE.def hΔ (Nat.max_le.2 ⟨hx, hy⟩) hw).2 ?_
   rw [TShape.join.def hx hy]
-  exact Shape.join_le hΔ ((TShape.LE.def_mp hx hw) h₁) ((TShape.LE.def_mp hy hw) h₂)
+  exact Shape.join_le ((TShape.LE.def_mp hx hw) h₁) ((TShape.LE.def_mp hy hw) h₂)
 
 theorem le_join {Δ : List Term} (hΔ : ⊢ Δ) {x y : TShape}
     (hx : TShape.WF Δ x) (hy : TShape.WF Δ y) (hc : TShape.Compat Δ x y) :
@@ -2366,7 +2440,7 @@ theorem Shape.Joins.cons {Δ : List Term} (hΔ : ⊢ Δ) {n} {x j : Shape n} {s 
     (h : Shape.Joins Δ s j) : Shape.Joins Δ (x :: s) (x.join j) := by
   have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hx hj hc
   refine .of hΔ (fun y hy => ?_) fun w hw hle =>
-    Shape.join_le hΔ (hle x (.head _)) (h.min hw fun y hy => hle y (.tail _ hy))
+    Shape.join_le (hle x (.head _)) (h.min hw fun y hy => hle y (.tail _ hy))
   match List.mem_cons.1 hy with
   | .inl h' => cases h'; exact hu₁
   | .inr h' => exact (h.le hj y h').trans hΔ hu₂
@@ -2381,7 +2455,7 @@ theorem Shape.Joins.append {Δ : List Term} (hΔ : ⊢ Δ) {n} {s t : List (Shap
     (fun y hy => match List.mem_append.1 hy with
       | .inl h' => (hs.le hj y h').trans hΔ hu₁
       | .inr h' => (ht.le hk y h').trans hΔ hu₂)
-    (fun _ hw hle => Shape.join_le hΔ
+    (fun _ hw hle => Shape.join_le
       (hs.min hw fun y hy => hle y (List.mem_append.2 (.inl hy)))
       (ht.min hw fun y hy => hle y (List.mem_append.2 (.inr hy))))
 
@@ -2401,7 +2475,7 @@ theorem Shape.exists_joins {Δ : List Term} (hΔ : ⊢ Δ) {n} {w : Shape n} (hw
     have hx := hwf x (.head _)
     have hc := Shape.Compat.of_common_upper hΔ hw.coherent (hle x (.head _)) hjw
     exact ⟨x.join j, hj.cons hΔ hx hwj hc, Shape.WF.join hΔ hc hx hwj,
-      Shape.join_le hΔ (hle x (.head _)) hjw⟩
+      Shape.join_le (hle x (.head _)) hjw⟩
 
 /-- `Joins` transfers along mutual `≤`, since that is all it pins down. -/
 theorem Shape.Joins.congr {Δ : List Term} (hΔ : ⊢ Δ) {n} {L : List (Shape n)} {j j' : Shape n}

@@ -47,8 +47,8 @@ variable {Δ : List Term} {n} {f : ShapeFun n} {A a : Term} {x : Shape n}
 @[match_pattern] abbrev entry (e : Entry (Shape n)) (he : e ∈ f)
     (hl : LabelEq Δ e.ty e.tm A a) (hin : Shape.LE Δ e.inp x) :
     Evaluates Δ f A a x e.out := ShapeFun.Eval.entry e he hl hin
-@[match_pattern] abbrev lower {y z} (hw : Shape.WF Δ y) (hle : Shape.LE Δ y z)
-    (h : Evaluates Δ f A a x z) : Evaluates Δ f A a x y := ShapeFun.Eval.lower hw hle h
+@[match_pattern] abbrev lower {y z} (hle : Shape.LE Δ y z)
+    (h : Evaluates Δ f A a x z) : Evaluates Δ f A a x y := ShapeFun.Eval.lower hle h
 @[match_pattern] abbrev join {y z} (hc : Shape.Compat Δ y z)
     (hy : Evaluates Δ f A a x y) (hz : Evaluates Δ f A a x z) :
     Evaluates Δ f A a x (y.join z) := ShapeFun.Eval.join hc hy hz
@@ -80,7 +80,7 @@ theorem Evaluates.mono_sub {Δ : List Term} {n} {f f' : ShapeFun n} {A a : Term}
   induction H with
   | bot => exact .bot
   | entry e he hlab hin => exact .entry e (hsub e he) hlab hin
-  | lower hw hle _ ih => exact .lower hw hle ih
+  | lower hle _ ih => exact .lower hle ih
   | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
 
 /-- The graph is a family **over the domain**: every entry's output is
@@ -297,7 +297,7 @@ theorem Evaluates.mono_input {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n
   induction H with
   | bot => exact .bot
   | entry e he hlab hin => exact .entry e he hlab (Shape.LE.trans hΔ hin hxx)
-  | lower hw hle _ ih => exact .lower hw hle ih
+  | lower hle _ ih => exact .lower hle ih
   | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
 
 /-- And it only sees the query label up to definitional equality. -/
@@ -307,7 +307,7 @@ theorem Evaluates.label {Δ : List Term} {n} {f : ShapeFun n} {A a A' a' : Term}
   induction H with
   | bot => exact .bot
   | entry e he hl hin => exact .entry e he (hl.trans hlab) hin
-  | lower hw hle _ ih => exact .lower hw hle ih
+  | lower hle _ ih => exact .lower hle ih
   | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
 
 /-- Numerals are downward closed. -/
@@ -372,7 +372,7 @@ theorem Shape.HasType.mono_l (hΔ : ⊢ Δ) {n} {m m' a : Shape n}
     exact sorry
   | pair hpi hxle hwx hxd hwc hev hyc =>
     cases m' with | bot => exact .bot hty | pair => ?_ | _ => cases hle
-    exact .pair hpi (hle.2.1.trans hΔ hxle) hwx hxd hwc (hev.label hle.1.symm) (ih hle.2.2 hyc)
+    exact .pair hpi (hle.2.1.trans hΔ hxle) hwx hxd hwc (hev.label hle.1.symm) (ih hle.2.2.1 hyc)
   | refl => cases m' with | bot => exact .bot hty | refl => exact .refl | _ => cases hle
 
 theorem Evaluates.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
@@ -385,7 +385,7 @@ theorem Evaluates.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx
   | bot => simp only [Shape.subst_bot]; exact .bot
   | entry e he hlab hin =>
     exact .entry _ (ShapeFun.mem_subst.2 ⟨e, he, rfl⟩) (hlab.subst hΘ W) (hin.subst hΘ W)
-  | lower hw hle _ ih => exact .lower (hw.subst hΘ W) (hle.subst hΘ W) ih
+  | lower hle _ ih => exact .lower (hle.subst hΘ W) ih
   | join hc _ _ ih₁ ih₂ => exact Shape.join_subst ▸ .join (hc.subst hΘ W) ih₁ ih₂
 
 theorem ShapeFun.HasDom.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f : ShapeFun n}
@@ -471,7 +471,7 @@ theorem Evaluates.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A
     Shape.Compat Δ y z := by
   induction hy with
   | bot => exact .bot_left
-  | lower _ hle _ ih => exact ih.symm hΔ |>.anti_right hΔ hle |>.symm hΔ
+  | lower hle _ ih => exact ih.symm hΔ |>.anti_right hΔ hle |>.symm hΔ
   | join _ _ _ ih₁ ih₂ => exact ih₁.join hΔ ih₂
   | entry e he hlab hin
   induction hz with
@@ -480,13 +480,13 @@ theorem Evaluates.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A
     simpa using hf e he e' he' Δ .id hΔ (.id hΔ)
       (by simpa using hlab.trans hlab'.symm)
       (by simpa using hx.of_common_upper hΔ hin hin')
-  | lower _ hle _ ih => exact ih.anti_right hΔ hle
+  | lower hle _ ih => exact ih.anti_right hΔ hle
   | join _ _ _ ih₁ ih₂ => exact ((ih₁.symm hΔ).join hΔ (ih₂.symm hΔ)).symm hΔ
 
 /-- Everything the lookup returns is well formed, structurally: it is `⊥`,
-an entry output, a join of those, or an explicitly well-formed lowering.
-The `WF` premise on `lower` is exactly what makes this hold — `WF` is not
-downward closed, so unconstrained lowering would break it. -/
+an entry output, a join of those, or a lowering.  `WF` is not downward
+closed, so the last case is not free — it holds because the order carries
+the well-formedness of its lower bound (`Shape.LE.wf`). -/
 theorem Evaluates.wf {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term}
     {x : Shape n} (hf : ∀ e ∈ f, Shape.WF Δ e.out) :
     ∀ {y : Shape n}, Evaluates Δ f A a x y → Shape.WF Δ y := by
@@ -494,7 +494,7 @@ theorem Evaluates.wf {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a :
   induction h with
   | bot => cases n <;> trivial
   | entry e he _ _ => exact hf e he
-  | lower hw _ _ _ => exact hw
+  | lower hle _ _ => exact hle.wf
   | join hc _ _ ih₁ ih₂ => exact Shape.WF.join hΔ hc ih₁ ih₂
 
 /-! ## `Evaluates`, without `Evaluates`
@@ -553,7 +553,7 @@ theorem Evaluates.tighten {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
       (fun e' he' => by cases List.mem_singleton.1 he'; exact hlab),
       Shape.Joins.singleton hΔ hwi, hwi, hin,
       Shape.Joins.singleton hΔ hwo, hwo, Shape.LE.refl hwo⟩
-  | lower _ hle _ ih =>
+  | lower hle _ ih =>
     have ⟨s, ji, jo, hs, hlab, hji, hwji, hjix, hjo, hwjo, hyjo⟩ := ih
     exact ⟨s, ji, jo, hs, hlab, hji, hwji, hjix, hjo, hwjo, hle.trans hΔ hyjo⟩
   | join hc _ _ ih₁ ih₂ =>
@@ -579,14 +579,14 @@ theorem Evaluates.tighten {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
       have ⟨e, he, hv⟩ := List.mem_map.1 hv
       hv ▸ hJ.le hwJ _ (List.mem_map.2 ⟨e, ht.subset he, rfl⟩)
     exact ⟨s, ji, J, hs, hlab, hji, hwji, hjix, hJ, hwJ,
-      Shape.join_le hΔ (hy₁.trans hΔ (hjo₁.min hwJ (hout hss₁)))
+      Shape.join_le (hy₁.trans hΔ (hjo₁.min hwJ (hout hss₁)))
         (hy₂.trans hΔ (hjo₂.min hwJ (hout hss₂)))⟩
 
 open List in
 /-- The characterisation, as the equivalence it is. -/
 theorem Evaluates.joins_iff {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
     (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ f f)
-    {A a : Term} {x y : Shape n} (hwx : Shape.WF Δ x) (hwy : Shape.WF Δ y) :
+    {A a : Term} {x y : Shape n} (hwx : Shape.WF Δ x) :
     Evaluates Δ f A a x y ↔
       ∃ (s : List (Entry (Shape n))) (ji jo : Shape n), s <+ f ∧
         (∀ e ∈ s, LabelEq Δ e.ty e.tm A a) ∧
@@ -597,7 +597,7 @@ theorem Evaluates.joins_iff {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
   have ⟨J, hJ, hwJ, hev⟩ :=
     Evaluates.of_sublist hΔ hwf hco hwx.coherent hs hlab fun e he =>
       (hji.le hwji _ (List.mem_map.2 ⟨e, he, rfl⟩)).trans hΔ hjix
-  exact .lower hwy (hyjo.trans hΔ (hjo.min hwJ (hJ.le hwJ))) hev
+  exact .lower (hyjo.trans hΔ (hjo.min hwJ (hJ.le hwJ))) hev
 
 /-- The lookup is monotone in the graph, plainly: a dominating graph
 reaches at least as much.  `mono_graph` below adds that the witness can be
@@ -605,9 +605,7 @@ taken to be a type; this version needs no typing at all and is what the
 `lam`/`pair` cases of `mono_r` use, since they transport the code back down
 with `lower` rather than retyping at a bigger one. -/
 theorem Evaluates.mono_graph' {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFun n}
-    {A a : Term} {x : Shape n}
-    (hf' : ShapeFun.Compat Shape.Compat Δ f' f') (hx : Shape.Compat Δ x x)
-    (hwf : ∀ e ∈ f', Shape.WF Δ e.out)
+    {A a : Term} {x : Shape n} (hwf : ∀ e ∈ f', Shape.WF Δ e.out)
     (hff' : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) f f') :
     ∀ {c : Shape n}, Evaluates Δ f A a x c →
       ∃ c', Evaluates Δ f' A a x c' ∧ Shape.LE Δ c c' := by
@@ -641,7 +639,7 @@ theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFu
   | entry e he hlab hin =>
     -- SET ASIDE (order change), as `mono_graph'` above.
     exact sorry
-  | lower _ hle _ ih =>
+  | lower hle _ ih =>
     have ⟨c', hc', hle', hty'⟩ := ih
     exact ⟨c', hc', hle.trans hΔ hle', hty'⟩
   | join _ _ _ ih₁ ih₂ =>
@@ -652,7 +650,7 @@ theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFu
     have hwz := Evaluates.wf hΔ hwf hz'
     have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwy hwz hc
     refine ⟨y'.join z', .join hc hy' hz', ?_, hjoin hwy hwz hc htyy htyz⟩
-    exact Shape.join_le hΔ (hley.trans hΔ hu₁) (hlez.trans hΔ hu₂)
+    exact Shape.join_le (hley.trans hΔ hu₁) (hlez.trans hΔ hu₂)
 
 /-! ## Monotonicity on the right, and typed joins
 
@@ -701,16 +699,16 @@ theorem Shape.HasType.mono_r_join (hΔ : ⊢ Δ) : ∀ {n},
       cases hA with | forallE hpiA
       refine .lam (hpiA.cod (Shape.HasType.cumul · (Bool.le_true' r))) fun e he => ?_
       have ⟨c, hwc, hev, hcty⟩ := hcod e he
-      have ⟨c', hev', hcle⟩ := hev.mono_graph' hΔ hwa.2.2.2.2
-        (hwm.2.2.1 e he).2.2.1.coherent (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2) hle.2.2
-      exact ⟨c, hwc, .lower hwc hcle hev', hcty⟩
+      have ⟨c', hev', hcle⟩ := hev.mono_graph' hΔ
+        (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2) hle.2.2
+      exact ⟨c, hwc, .lower hcle hev', hcty⟩
     | pair hpi hxle hwx hxd hwc hev hyc =>
       cases a' with | sigma A₁ B₁ d' f' => ?_ | _ => cases hle
       cases hA with | sigma hpiA => ?_
       have hd' : Shape.HasType Δ d' .type := hpiA.1
-      have ⟨c', hev', hcle⟩ := hev.mono_graph' hΔ hwa.2.2.2.2
-        hwx.coherent (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2) hle.2.2
-      exact .pair hpiA hxle hwx (ihm hwx hwa.2.2.1 hxd hle.2.1 hd') hwc (.lower hwc hcle hev') hyc
+      have ⟨c', hev', hcle⟩ := hev.mono_graph' hΔ
+        (fun e' he' => (hwa.2.2.2.1 e' he').2.2.2) hle.2.2
+      exact .pair hpiA hxle hwx (ihm hwx hwa.2.2.1 hxd hle.2.1 hd') hwc (.lower hcle hev') hyc
   · -- typed joins
     cases y with
     | bot => exact hz
@@ -826,8 +824,7 @@ theorem Evaluates.lift {Δ : List Term} {n k} (h : n ≤ k) {f : ShapeFun n} {A 
   | entry e he hlab hin =>
     exact .entry ⟨e.ty, e.tm, e.inp.lift k, e.out.lift k⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
       hlab (Shape.lift_le h hin)
-  | lower hwf hle _ ih =>
-    exact .lower ((Shape.lift_wf h).2 hwf) (Shape.lift_le h hle) ih
+  | lower hle _ ih => exact .lower (Shape.lift_le h hle) ih
   | join hc _ _ ih₁ ih₂ =>
     rw [← Shape.lift_join h]
     exact .join ((Shape.lift_compat h).2 hc) ih₁ ih₂
@@ -884,12 +881,12 @@ below, the lifted graph relates exactly what the original one did. -/
 theorem Evaluates.lift_iff {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) {f : ShapeFun n}
     {A a : Term} {x c : Shape n}
     (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ f f)
-    (hwx : Shape.WF Δ x) (hwc : Shape.WF Δ c) :
+    (hwx : Shape.WF Δ x) :
     Evaluates Δ (ShapeFun.lift (Shape.lift k) f) A a (x.lift k) (c.lift k) ↔
       Evaluates Δ f A a x c := by
   refine ⟨fun H => ?_, Evaluates.lift h⟩
   have ⟨c₀, hle, hc₀⟩ := Evaluates.lift_of hΔ h hwf hco hwx H
-  exact .lower hwc ((Shape.lift_le_lift hΔ h).1 hle) hc₀
+  exact .lower ((Shape.lift_le_lift hΔ h).1 hle) hc₀
 
 theorem ShapeFun.LE.lift {Δ : List Term} {n k} (h : n ≤ k) {f g : ShapeFun n}
     (H : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) f g) :
@@ -1045,7 +1042,7 @@ theorem Shape.HasType.lift_iff {Δ : List Term} (hΔ : ⊢ Δ)
       have hwx₀ := hwx.join hΔ hcx hwji₀
       have hle₀ : Shape.LE Δ ((x.join ji₀).lift k) X₀ := by
         rw [← Shape.lift_join h']
-        exact Shape.join_le hΔ hxle (hji₂.trans hΔ hjiX)
+        exact Shape.join_le hxle (hji₂.trans hΔ hjiX)
       have hx₀d := (ih h' hwx₀ hwd).1 (hxd.mono_l hΔ hle₀)
       have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwx hwji₀ hcx
       have ⟨J, hJ, hwJ, hevJ⟩ :=
