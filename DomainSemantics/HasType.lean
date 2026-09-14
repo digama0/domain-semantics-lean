@@ -186,9 +186,11 @@ inductive Shape.HasTypeS (Δ : List Term) {n} (T : Shape n → Shape n → Prop)
   -- WRONG under lookup coverage, and `mono_l`'s `lam` case is the sorry
   -- that says so: `g' ≤ g` reaches an entry output that is a *join* of
   -- outputs of `g`, and typing that join asks for join-closure of a type's
-  -- extension, which is false at Σ.  §5.5 of `presheaf-proof-strategy.md`
-  -- has the counterexample; the fix is a dominating graph `g₀ ≥ g`, as the
-  -- `pair` clause has a dominating first component
+  -- extension, which is false at Σ.  A dominating graph `g₀ ≥ g` would fix
+  -- that and break reflection along `lift` instead (see the note above
+  -- `Evaluates.lift`), so lower-closure of typing has to become semantic.
+  -- §5.5 of `presheaf-proof-strategy.md` has the counterexample and the
+  -- options; `mono_l_sort` below is the part that survives here
   | lam {g A B d f} :
     ShapeFun.HasPi T d f .type →
     (∀ e ∈ g, ∃ c, Shape.WF Δ c ∧ Evaluates Δ f e.ty e.tm e.inp c ∧ T e.out c) →
@@ -785,12 +787,48 @@ theorem Shape.HasType.mono_l (hΔ : ⊢ Δ) {n} {m m' a : Shape n}
     cases m' with | bot => exact .bot hty | lam => ?_ | _ => cases hle
     refine .lam hpi fun e he => ?_
     -- FALSE as stated: see the `lam` constructor's comment and §5.5 of
-    -- `presheaf-proof-strategy.md`.  Waiting on the dominating graph.
+    -- `presheaf-proof-strategy.md`.  Lower-closure at `lam` holds only of
+    -- approximants of a term, so it belongs beside `sound`, not here.
     exact sorry
   | pair hpi hxle hwx hxd hwc hev hyc =>
     cases m' with | bot => exact .bot hty | pair => ?_ | _ => cases hle
     exact .pair hpi (hle.2.1.trans hΔ hxle) hwx hxd hwc (hev.label hle.1.symm) (ih hle.2.2.1 hyc)
   | refl => cases m' with | bot => exact .bot hty | refl => exact .refl | _ => cases hle
+
+/-- **Left monotonicity at a sort**, which is the part of `mono_l` that is
+true at the shape level.
+
+The `lam`, `pair`, `zero`, `succ` and `refl` clauses cannot arise — their
+types are a `forallE`, a `sigma`, `nat` and an `id` — so the case that
+makes `mono_l` false never comes up, and what is left is `HasPi.lower` at
+the two graph formers.  `SoundTy.hasType` uses exactly this. -/
+theorem Shape.HasType.mono_l_sort {Δ : List Term} (hΔ : ⊢ Δ) :
+    ∀ {n} {m m' : Shape n} {r : Bool},
+    Shape.LE Δ m' m → Shape.HasType Δ m (.sort r) → Shape.HasType Δ m' (.sort r) := by
+  intro n
+  induction n with
+  | zero =>
+    intro m m' r hle h
+    cases m' with | bot => exact Shape.HasType0.bot | sort s
+    cases m <;> cases hle; exact h
+  | succ n ih =>
+    intro m m' r hle h
+    have hty := h.isType
+    cases h with
+    | bot hb => cases Shape.le_bot_iff.1 hle; exact .bot hb
+    | sort =>
+      cases m' with | bot => exact .bot hty | sort s' => cases hle; exact .sort | _ => cases hle
+    | unit hj =>
+      cases m' with | bot => exact .bot hty | unit r' => cases hle; exact .unit hj | _ => cases hle
+    | nat => cases m' with | bot => exact .bot hty | nat => exact .nat | _ => cases hle
+    | id hj =>
+      cases m' with | bot => exact .bot hty | id => cases hle.1; exact .id hj | _ => cases hle
+    | forallE hpi =>
+      cases m' with | bot => exact .bot hty | forallE => ?_ | _ => cases hle
+      exact .forallE <| hpi.lower hΔ ih ih hle.2.1 hle.2.2
+    | sigma hpi =>
+      cases m' with | bot => exact .bot hty | sigma => ?_ | _ => cases hle
+      exact .sigma <| hpi.lower hΔ ih ih hle.2.1 hle.2.2
 
 /-! ## Proof irrelevance
 
