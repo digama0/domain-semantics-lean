@@ -953,6 +953,61 @@ theorem Shape.IsNumeral.lift_iff {n k} (h : n ≤ k) {v : Shape n} :
     | zero => let k+1 := k; exact .zero
     | succ _ ih => let k+1 := k; exact .succ (ih (Nat.le_of_succ_le_succ h))
 
+/-- Lifting **preserves** typing, with no hypothesis at all.
+
+Split off from `lift_iff` for the same reason as `Shape.lift_le`: only the
+reflection direction needs `⊢ Δ` and well-formedness of both sides, and
+every clause here gets the well-formedness it needs out of the constructor
+it is looking at. -/
+theorem Shape.HasType.lift {Δ : List Term} : ∀ {n k}, n ≤ k → ∀ {m a : Shape n},
+    Shape.HasType Δ m a → Shape.HasType Δ (m.lift k) (a.lift k) := by
+  intro n
+  induction n with
+  | zero =>
+    intro k h m a H
+    cases k with
+    | zero => rwa [Shape.lift_self, Shape.lift_self]
+    | succ k =>
+      cases H with
+      | bot => cases a with | bot => exact .bot (.bot .sort) | sort => exact .bot .sort
+      | sort => exact .sort
+  | succ n ih
+  intro k h
+  let k+1 := k; have h' := Nat.le_of_succ_le_succ h
+  have ihs : ∀ {d : Shape n} {r : Bool}, Shape.HasType Δ d (.sort r) →
+      Shape.HasType Δ (d.lift k) (.sort r) := by
+    intro d r H
+    have := ih h' (a := Shape.sort r) H
+    rwa [Shape.lift_sort] at this
+  have ihpi : ∀ {d : Shape n} {f : ShapeFun n} {r : Bool},
+      ShapeFun.HasPi (Shape.HasType Δ) d f (.sort r) →
+      ShapeFun.HasPi (Shape.HasType Δ) (d.lift k)
+        (ShapeFun.lift (Shape.lift k) f) (.sort r) := by
+    intro d f r hpi
+    refine ⟨ihs hpi.1, fun e'' he'' => ?_⟩
+    obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
+    exact ihs (hpi.2 e he)
+  intro m a H
+  induction H with
+  | bot _ ihb => exact .bot (by simpa only [Shape.lift_sort] using ihb)
+  | sort => exact .sort
+  | unit hj => exact .unit hj
+  | nat => exact .nat
+  | zero => exact .zero
+  | succ hN => exact .succ ((Shape.IsNumeral.lift_iff h').2 hN)
+  | id hj => exact .id hj
+  | forallE hpi => exact .forallE (ihpi hpi)
+  | sigma hpi => exact .sigma (ihpi hpi)
+  | lam hpi hcod =>
+    refine .lam (ihpi hpi) fun e'' he'' => ?_
+    obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
+    have ⟨c, hwc, hev, hcty⟩ := hcod e he
+    exact ⟨c.lift k, (Shape.lift_wf h').2 hwc, hev.lift h', ih h' hcty⟩
+  | pair hpi hxle hwx hxd hwc hev hyc =>
+    exact .pair (ihpi hpi) (Shape.lift_le h' hxle) ((Shape.lift_wf h').2 hwx)
+      (ih h' hxd) ((Shape.lift_wf h').2 hwc) (hev.lift h') (ih h' hyc)
+  | refl => exact .refl
+
 /-- **Fullness for typing.**  On the shapes that come from the level below,
 the higher level types exactly what the lower one did. -/
 theorem Shape.HasType.lift_iff {Δ : List Term} (hΔ : ⊢ Δ)
@@ -1003,8 +1058,8 @@ theorem Shape.HasType.lift_iff {Δ : List Term} (hΔ : ⊢ Δ)
       (hle.trans hΔ (Shape.lift_le h' hc₀c₁)) ?_)⟩
     exact (ihs hwc₁).2 hc₁ty
   suffices ∀ {m a}, WF Δ m → WF Δ a →
-      (HasType Δ (lift (k + 1) a) .type ↔ HasType Δ a .type) →
-      (HasType Δ (lift (k + 1) m) (lift (k + 1) a) ↔ HasType Δ m a) from
+      (HasType Δ (Shape.lift (k + 1) a) .type ↔ HasType Δ a .type) →
+      (HasType Δ (Shape.lift (k + 1) m) (Shape.lift (k + 1) a) ↔ HasType Δ m a) from
     this hwm hwa <| this (a := .type) hwa trivial ⟨fun _ => .sort, fun _ => .sort⟩
   intro m a hwm hwa hs
   constructor <;> intro H
