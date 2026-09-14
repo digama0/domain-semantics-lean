@@ -973,7 +973,7 @@ so the fallback is now the live option.  Three ways forward:
       its virtue survives.
 
 (d) is the way out, and two things about it have been checked in Lean
-(`presheaf-thastype-probe.lean`):
+(`DomainSemantics/HasType.lean`):
 
 * **Strict positivity holds.**  Every recursive occurrence is a premise
   under `∀`/`→`, never to the left of an arrow into itself.
@@ -988,13 +988,24 @@ so the fallback is now the live option.  Three ways forward:
   `HasTypeS` gets away with `∃ c, …` because there the recursive slot is
   the *parameter* `T`, not the inductive being defined.)
 
-With that, `mono_l` at `lam` is one line — checked:
+It is now in the tree: `TShape.HasTypeOld` is the old definition, renamed
+and untouched, and `TShape.HasType` is the inductive.  Every clause names
+a **generator** and asks the shape to be below it, and a **co-generator**
+and asks the type to be above it, so `mono_l` *and* `mono_r` are both
+transitivity of `TShape.LE` and neither is a rule.  Being above the
+co-generator does not by itself make the type a type — a `forallE` above a
+`forallE` may have an untyped codomain graph — so the clauses whose type
+is not a sort carry `HasType Δ a TShape.type` outright, which is also what
+`isType` reads off them; the sort-typed clauses must not carry it, or
+`sort` would regress, and they do not need to, because a sort is rigid
+(`TShape.LE.sort_symm`).  Proved: `isType`, `mono_l`, `mono_r`, `wf`,
+`bot_r`, `lift_subject`/`unlift_subject`.
+
+The shape of `mono_l` at `lam`:
 
 ```lean
-example … (hdom : TShape.LE Δ ⟨n+1, .lam g⟩ ⟨n₀+1, .lam g₀⟩) …
-    (hle : TShape.LE Δ ⟨k+1, .lam g'⟩ ⟨n+1, .lam g⟩) :
-    THasType Δ ⟨k+1, .lam g'⟩ ⟨n'+1, .forallE A B d f⟩ :=
-  .lam cs h1 h2 (hle.trans hΔ hdom) h4 h5 h6
+| lam cs hd hf hwc hev hty hg hc hA _ _ _ _ =>
+  exact fun h => .lam cs hd hf hwc hev hty (h.trans hΔ hg) hc hA
 ```
 
 What replaces obligation 2 is **lift-invariance of the relation**:
@@ -1035,7 +1046,7 @@ arises there.  (a) remains the smaller change if (d) proves too large.
 | `ShapeFun.Eval.lower` | drop the `WF` side condition (`Shape.LE.wf`) | §5.2 | **done** |
 | `Shape.LE` | `WF` of the lower bound at `pair`/`lam`; `Shape.LE.wf` | §5.2 | **done** |
 | `Shape.HasType.mono_l` | false at `lam` | §5.5 | open |
-| `TShape.HasType` | one inductive over `TShape`, `lam` with a dominating graph | §5.5(d) | open, recommended |
+| `TShape.HasType` | one inductive over `TShape`, generator/co-generator clauses | §5.5(d) | **done** (old kept as `HasTypeOld`) |
 | `Shape.HasType.lift` | preservation split off `lift_iff` | §5.5 | **done** |
 | `InterpTyped` at Π (and Σ) types | witness carries lookup-form `HasDom` | §4.5(a), §5.1(a) | open |
 | `SoundJoin` | keep, upper-bound form; prove per former alongside `sound` | §5.1 | **done** (kept) |

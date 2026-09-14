@@ -1379,110 +1379,157 @@ def ShapeFun.THasPi (T : TShape → TShape → Prop) {n}
     (d : Shape n) (f : ShapeFun n) (a : TShape) : Prop :=
   T d.T TShape.type ∧ ∀ e ∈ f, T e.out.T a
 
+/-- A sort is well formed at every level. -/
+theorem Shape.WF.sort {Δ : List Term} {n} {r : Bool} :
+    Shape.WF Δ (Shape.sort r : Shape n) := by cases n <;> trivial
+
+/-- Only `Shape.bot` is below a sort. -/
+theorem Shape.sort_le {Δ : List Term} : ∀ {n} {s : Shape n} {r : Bool},
+    Shape.LE Δ (Shape.sort r) s → s = Shape.sort r := by
+  intro n s r h
+  cases n with
+  | zero => cases s with | bot => exact absurd h id | sort r' => cases h; rfl
+  | succ n =>
+    cases s with
+    | sort r' => cases h; rfl
+    | _ => exact absurd h id
+
+/-- A sort is rigid: anything above it is it, so the order is symmetric
+there.  This is what lets `isType` read a type off a clause whose type is
+a sort, without that clause having to carry the typing as a premise. -/
+theorem TShape.LE.sort_symm {Δ : List Term} {r : Bool} {a : TShape}
+    (h : TShape.LE Δ (TShape.sort r) a) : TShape.LE Δ a (TShape.sort r) := by
+  have h' : Shape.LE Δ (Shape.sort r) a.2 := by
+    have h2 : Shape.LE Δ ((Shape.sort r : Shape 0).lift (max 0 a.1))
+        (a.2.lift (max 0 a.1)) := h
+    rwa [Nat.zero_max, Shape.lift_sort, Shape.lift_self] at h2
+  show Shape.LE Δ (a.2.lift (max a.1 0)) ((Shape.sort r : Shape 0).lift (max a.1 0))
+  rw [Nat.max_zero, Shape.lift_self, Shape.lift_sort, Shape.sort_le h']
+  exact Shape.LE.refl Shape.WF.sort
+
 /-- Typing, over `TShape`.  Each clause names a **generator** and asks that
-the shape be below it. -/
+the shape be below it, and names a **co-generator** and asks that the type
+be above it.  So `mono_l` is transitivity on the left and `mono_r` is
+transitivity on the right, and neither is a rule.
+
+Being above the co-generator does not by itself make the type a type — a
+`forallE` above a `forallE` may have an untyped codomain graph — so the
+clauses whose type is not a sort carry `HasType Δ a TShape.type` outright.
+That is also what `isType` reads off them.  The sort-typed clauses need no
+such premise (and must not have one, or `sort` would regress), because a
+sort is rigid: `TShape.LE.sort_symm`. -/
 inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
   | bot {m a} : m.2 = Shape.bot → HasType Δ a TShape.type → HasType Δ m a
-  | sort {m n r} : TShape.LE Δ m (Shape.T (n := n) (Shape.sort r)) →
-    HasType Δ m (TShape.sort true)
-  | unit {m n r j} : r ≤ j → TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.unit r)) →
-    HasType Δ m (TShape.sort j)
-  | nat {m n} : TShape.LE Δ m (Shape.T (n := n+1) ShapeS.nat) →
-    HasType Δ m (TShape.sort true)
-  | zero {m n k} : TShape.LE Δ m (Shape.T (n := n+1) ShapeS.zero) →
-    HasType Δ m (Shape.T (n := k+1) ShapeS.nat)
-  | succ {m n k} {v : Shape n} : Shape.IsNumeral v →
+  | sort {m a n r} : TShape.LE Δ m (Shape.T (n := n) (Shape.sort r)) →
+    TShape.LE Δ (TShape.sort true) a → HasType Δ m a
+  | unit {m a n r j} : r ≤ j →
+    TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.unit r)) →
+    TShape.LE Δ (TShape.sort j) a → HasType Δ m a
+  | nat {m a n} : TShape.LE Δ m (Shape.T (n := n+1) ShapeS.nat) →
+    TShape.LE Δ (TShape.sort true) a → HasType Δ m a
+  | zero {m a n} : TShape.LE Δ m (Shape.T (n := n+1) ShapeS.zero) →
+    TShape.LE Δ (Shape.T (n := 1) ShapeS.nat) a →
+    HasType Δ a TShape.type → HasType Δ m a
+  | succ {m a n} {v : Shape n} : Shape.IsNumeral v →
     TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.succ v)) →
-    HasType Δ m (Shape.T (n := k+1) ShapeS.nat)
-  | id {m n r j} {A a b : Term} : r ≤ j →
-    TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.id r A a b)) →
-    HasType Δ m (TShape.sort j)
-  | forallE {m n} {A B : Term} {d : Shape n} {f : ShapeFun n} {r : Bool} :
+    TShape.LE Δ (Shape.T (n := 1) ShapeS.nat) a →
+    HasType Δ a TShape.type → HasType Δ m a
+  | id {m a n r j} {A x y : Term} : r ≤ j →
+    TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.id r A x y)) →
+    TShape.LE Δ (TShape.sort j) a → HasType Δ m a
+  | forallE {m a n} {A B : Term} {d : Shape n} {f : ShapeFun n} {r : Bool} :
     HasType Δ d.T TShape.type →
     (∀ e ∈ f, HasType Δ e.out.T (TShape.sort r)) →
     TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.forallE A B d f)) →
-    HasType Δ m (TShape.sort r)
-  | sigma {m n} {A B : Term} {d : Shape n} {f : ShapeFun n} :
+    TShape.LE Δ (TShape.sort r) a → HasType Δ m a
+  | sigma {m a n} {A B : Term} {d : Shape n} {f : ShapeFun n} :
     HasType Δ d.T TShape.type →
     (∀ e ∈ f, HasType Δ e.out.T TShape.type) →
     TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.sigma A B d f)) →
-    HasType Δ m (TShape.sort true)
-  | lam {m n₀ n'} {g₀ : ShapeFun n₀} {f : ShapeFun n'} {A B : Term} {d : Shape n'}
+    TShape.LE Δ (TShape.sort true) a → HasType Δ m a
+  | lam {m a n₀ n'} {g₀ : ShapeFun n₀} {f : ShapeFun n'} {A B : Term} {d : Shape n'}
       (cs : Entry (Shape n₀) → TShape) :
     HasType Δ d.T TShape.type →
     (∀ e ∈ f, HasType Δ e.out.T TShape.type) →
     (∀ e ∈ g₀, TShape.WF Δ (cs e)) →
     (∀ e ∈ g₀, TEvaluates Δ f e.ty e.tm e.inp.T (cs e)) →
     (∀ e ∈ g₀, HasType Δ e.out.T (cs e)) →
-    Shape.WF (n := n'+1) Δ (ShapeS.forallE A B d f) →
     TShape.LE Δ m (Shape.T (n := n₀+1) (ShapeS.lam g₀)) →
-    HasType Δ m (Shape.T (n := n'+1) (ShapeS.forallE A B d f))
-  | pair {m n₀ n'} {ty tm : Term} {x₀ y₀ : Shape n₀} {c : TShape}
+    TShape.LE Δ (Shape.T (n := n'+1) (ShapeS.forallE A B d f)) a →
+    HasType Δ a TShape.type → HasType Δ m a
+  | pair {m a n₀ n'} {ty tm : Term} {x₀ y₀ : Shape n₀} {c : TShape}
       {A B : Term} {d : Shape n'} {f : ShapeFun n'} :
     HasType Δ d.T TShape.type →
     (∀ e ∈ f, HasType Δ e.out.T TShape.type) →
     TShape.WF Δ x₀.T → HasType Δ x₀.T d.T →
     TShape.WF Δ c → TEvaluates Δ f ty tm x₀.T c → HasType Δ y₀.T c →
-    Shape.WF (n := n'+1) Δ (ShapeS.sigma A B d f) →
     TShape.LE Δ m (Shape.T (n := n₀+1) (ShapeS.pair ty tm x₀ y₀)) →
-    HasType Δ m (Shape.T (n := n'+1) (ShapeS.sigma A B d f))
-  | refl {m n k} {w : Shape n} {A a b : Term} :
-    Shape.WF (n := k+1) Δ (ShapeS.id true A a b) →
+    TShape.LE Δ (Shape.T (n := n'+1) (ShapeS.sigma A B d f)) a →
+    HasType Δ a TShape.type → HasType Δ m a
+  | refl {m a n k} {w : Shape n} {A x y : Term} :
     TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.refl w)) →
-    HasType Δ m (Shape.T (n := k+1) (ShapeS.id true A a b))
-  -- **upward closure in the type**, the companion of the downward closure
-  -- each clause above builds in.  A rule rather than a theorem for two
-  -- reasons: it is the other repo's shape exactly (a type is a lower set,
-  -- membership is upward closed in the type), and the level index makes it
-  -- necessary anyway -- `a` and `⟨k, a.2.lift k⟩` are order-equivalent, so
-  -- without it the type index of every clause above would have to be
-  -- stated up to order-equivalence instead
-  | mono_r {m a a'} : HasType Δ m a → TShape.LE Δ a a' →
-    HasType Δ a' TShape.type → HasType Δ m a'
+    TShape.LE Δ (Shape.T (n := k+1) (ShapeS.id true A x y)) a →
+    HasType Δ a TShape.type → HasType Δ m a
 
-/-- **Everything a shape is typed at is a type.**  One line per clause, as
-before; the `lam`, `pair` and `refl` clauses need the well-formedness of
-the type they name, because saying it is a type means putting it below
-itself. -/
+/-- **Everything a shape is typed at is a type.** -/
 theorem TShape.HasType.isType {Δ : List Term} {m a : TShape}
     (H : TShape.HasType Δ m a) : TShape.HasType Δ a TShape.type := by
   induction H with
   | bot _ ha _ => exact ha
-  | sort _ => exact .sort (TShape.LE.refl trivial)
-  | unit _ _ => exact .sort (TShape.LE.refl trivial)
-  | nat _ => exact .sort (TShape.LE.refl trivial)
-  | zero _ => exact .nat (TShape.LE.refl trivial)
-  | succ _ _ => exact .nat (TShape.LE.refl trivial)
-  | id _ _ => exact .sort (TShape.LE.refl trivial)
-  | forallE _ _ _ _ _ => exact .sort (TShape.LE.refl trivial)
-  | sigma _ _ _ _ _ => exact .sort (TShape.LE.refl trivial)
-  | lam _ hd hf _ _ _ hwPi _ _ _ _ => exact .forallE hd hf (TShape.LE.refl hwPi)
-  | pair hd hf _ _ _ _ _ hwSg _ _ _ _ _ => exact .sigma hd hf (TShape.LE.refl hwSg)
-  | refl hwid _ => exact .id (Bool.le_true' true) (TShape.LE.refl hwid)
-  | mono_r _ _ hA _ _ => exact hA
+  | sort _ hc => exact .sort hc.sort_symm (TShape.LE.refl trivial)
+  | unit _ _ hc => exact .sort hc.sort_symm (TShape.LE.refl trivial)
+  | nat _ hc => exact .sort hc.sort_symm (TShape.LE.refl trivial)
+  | zero _ _ hA _ => exact hA
+  | succ _ _ _ hA _ => exact hA
+  | id _ _ hc => exact .sort hc.sort_symm (TShape.LE.refl trivial)
+  | forallE _ _ _ hc _ _ => exact .sort hc.sort_symm (TShape.LE.refl trivial)
+  | sigma _ _ _ hc _ _ => exact .sort hc.sort_symm (TShape.LE.refl trivial)
+  | lam _ _ _ _ _ _ _ _ hA _ _ _ _ => exact hA
+  | pair _ _ _ _ _ _ _ _ _ hA _ _ _ _ _ => exact hA
+  | refl _ _ hA _ => exact hA
 
-/-- **Left monotonicity**, which is why the relation is stated this way:
-every clause puts the shape below a generator, so lowering it is
-transitivity of the order and nothing else. -/
+/-- **Left monotonicity**: transitivity of the order on the left. -/
 theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
     (H : TShape.HasType Δ m a) :
     ∀ {m' : TShape}, TShape.LE Δ m' m → TShape.HasType Δ m' a := by
   induction H with
-  | bot hb ha _ => exact fun hle => .bot (TShape.le_bot hΔ hb hle) ha
-  | sort hg => exact fun hle => .sort (hle.trans hΔ hg)
-  | unit hj hg => exact fun hle => .unit hj (hle.trans hΔ hg)
-  | nat hg => exact fun hle => .nat (hle.trans hΔ hg)
-  | zero hg => exact fun hle => .zero (hle.trans hΔ hg)
-  | succ hN hg => exact fun hle => .succ hN (hle.trans hΔ hg)
-  | id hj hg => exact fun hle => .id hj (hle.trans hΔ hg)
-  | forallE hd hf hg _ _ => exact fun hle => .forallE hd hf (hle.trans hΔ hg)
-  | sigma hd hf hg _ _ => exact fun hle => .sigma hd hf (hle.trans hΔ hg)
-  | lam cs hd hf hwc hev hty hwPi hg _ _ _ =>
-    exact fun hle => .lam cs hd hf hwc hev hty hwPi (hle.trans hΔ hg)
-  | pair hd hf hwx hxd hwc hev hyc hwSg hg _ _ _ _ =>
-    exact fun hle => .pair hd hf hwx hxd hwc hev hyc hwSg (hle.trans hΔ hg)
-  | refl hwid hg => exact fun hle => .refl hwid (hle.trans hΔ hg)
-  | mono_r _ haa hA ih _ => exact fun hle => .mono_r (ih hle) haa hA
+  | bot hb ha _ => exact fun h => .bot (TShape.le_bot hΔ hb h) ha
+  | sort hg hc => exact fun h => .sort (h.trans hΔ hg) hc
+  | unit hj hg hc => exact fun h => .unit hj (h.trans hΔ hg) hc
+  | nat hg hc => exact fun h => .nat (h.trans hΔ hg) hc
+  | zero hg hc hA _ => exact fun h => .zero (h.trans hΔ hg) hc hA
+  | succ hN hg hc hA _ => exact fun h => .succ hN (h.trans hΔ hg) hc hA
+  | id hj hg hc => exact fun h => .id hj (h.trans hΔ hg) hc
+  | forallE hd hf hg hc _ _ => exact fun h => .forallE hd hf (h.trans hΔ hg) hc
+  | sigma hd hf hg hc _ _ => exact fun h => .sigma hd hf (h.trans hΔ hg) hc
+  | lam cs hd hf hwc hev hty hg hc hA _ _ _ _ =>
+    exact fun h => .lam cs hd hf hwc hev hty (h.trans hΔ hg) hc hA
+  | pair hd hf hwx hxd hwc hev hyc hg hc hA _ _ _ _ _ =>
+    exact fun h => .pair hd hf hwx hxd hwc hev hyc (h.trans hΔ hg) hc hA
+  | refl hg hc hA _ => exact fun h => .refl (h.trans hΔ hg) hc hA
+
+/-- **Right monotonicity**: transitivity of the order on the right.  The
+hypothesis that the bigger type is a type is what the clauses whose type is
+not a sort need, and is exactly what they carry. -/
+theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
+    (H : TShape.HasType Δ m a) :
+    ∀ {a' : TShape}, TShape.LE Δ a a' → TShape.HasType Δ a' TShape.type →
+      TShape.HasType Δ m a' := by
+  induction H with
+  | bot hb _ _ => exact fun _ hA' => .bot hb hA'
+  | sort hg hc => exact fun h _ => .sort hg (hc.trans hΔ h)
+  | unit hj hg hc => exact fun h _ => .unit hj hg (hc.trans hΔ h)
+  | nat hg hc => exact fun h _ => .nat hg (hc.trans hΔ h)
+  | zero hg hc _ _ => exact fun h hA' => .zero hg (hc.trans hΔ h) hA'
+  | succ hN hg hc _ _ => exact fun h hA' => .succ hN hg (hc.trans hΔ h) hA'
+  | id hj hg hc => exact fun h _ => .id hj hg (hc.trans hΔ h)
+  | forallE hd hf hg hc _ _ => exact fun h _ => .forallE hd hf hg (hc.trans hΔ h)
+  | sigma hd hf hg hc _ _ => exact fun h _ => .sigma hd hf hg (hc.trans hΔ h)
+  | lam cs hd hf hwc hev hty hg hc _ _ _ _ _ =>
+    exact fun h hA' => .lam cs hd hf hwc hev hty hg (hc.trans hΔ h) hA'
+  | pair hd hf hwx hxd hwc hev hyc hg hc _ _ _ _ _ _ =>
+    exact fun h hA' => .pair hd hf hwx hxd hwc hev hyc hg (hc.trans hΔ h) hA'
+  | refl hg hc _ _ => exact fun h hA' => .refl hg (hc.trans hΔ h) hA'
 
 /-- The order carries the well-formedness of its lower bound at the total
 level too, which is `Shape.LE.wf` through the canonical level. -/
@@ -1490,34 +1537,30 @@ theorem TShape.LE.wf {Δ : List Term} {a b : TShape} (h : TShape.LE Δ a b) :
     TShape.WF Δ a :=
   (Shape.lift_wf (Nat.le_max_left ..)).1 (Shape.LE.wf h)
 
-/-- **Everything typed is well formed.**  Immediate: every clause but `bot`
-puts the shape below a generator, and the order carries the
-well-formedness of its lower bound. -/
+/-- **Everything typed is well formed.**  Every clause but `bot` puts the
+shape below a generator, and the order carries the well-formedness of its
+lower bound. -/
 theorem TShape.HasType.wf {Δ : List Term} {m a : TShape}
     (H : TShape.HasType Δ m a) : TShape.WF Δ m := by
   induction H with
-  | bot hb _ _ =>
-    show Shape.WF Δ _
-    rw [hb]
-    exact TShape.WF.bot
-  | sort hg => exact hg.wf
-  | unit _ hg => exact hg.wf
-  | nat hg => exact hg.wf
-  | zero hg => exact hg.wf
-  | succ _ hg => exact hg.wf
-  | id _ hg => exact hg.wf
-  | forallE _ _ hg _ _ => exact hg.wf
-  | sigma _ _ hg _ _ => exact hg.wf
-  | lam _ _ _ _ _ _ _ hg _ _ _ => exact hg.wf
-  | pair _ _ _ _ _ _ _ _ hg _ _ _ _ => exact hg.wf
-  | refl _ hg => exact hg.wf
-  | mono_r _ _ _ ih _ => exact ih
+  | bot hb _ _ => show Shape.WF Δ _; rw [hb]; exact TShape.WF.bot
+  | sort hg _ => exact hg.wf
+  | unit _ hg _ => exact hg.wf
+  | nat hg _ => exact hg.wf
+  | zero hg _ _ _ => exact hg.wf
+  | succ _ hg _ _ _ => exact hg.wf
+  | id _ hg _ => exact hg.wf
+  | forallE _ _ hg _ _ _ => exact hg.wf
+  | sigma _ _ hg _ _ _ => exact hg.wf
+  | lam _ _ _ _ _ _ hg _ _ _ _ _ _ => exact hg.wf
+  | pair _ _ _ _ _ _ _ hg _ _ _ _ _ _ _ => exact hg.wf
+  | refl hg _ _ _ => exact hg.wf
 
 /-- Typing does not see the level of its subject: `⟨n, m⟩` and
 `⟨k, m.lift k⟩` are order-equivalent, and every clause reaches the subject
-only through the order.  Contrast `Shape.HasType.lift_iff`, which is 160
-lines and whose reflection direction is what §5.5 shows cannot survive a
-dominating graph. -/
+only through the order.  Contrast `Shape.HasType.lift_iff`, 160 lines,
+whose reflection direction is what §5.5 shows a dominating graph cannot
+survive. -/
 theorem TShape.HasType.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {k}
     {m a : TShape} (hk : m.1 ≤ k) (H : TShape.HasType Δ m a) :
     TShape.HasType Δ (m.lift k) a :=
@@ -1528,30 +1571,36 @@ theorem TShape.HasType.unlift_subject {Δ : List Term} (hΔ : ⊢ Δ) {k}
     TShape.HasType Δ m a :=
   H.mono_l hΔ (TShape.LE.le_lift hΔ hk ((Shape.lift_wf hk).1 H.wf))
 
-/-- Right monotonicity, which is a rule here rather than a theorem. -/
-theorem TShape.HasType.mono_r' {Δ : List Term} {m a a' : TShape}
-    (H : TShape.HasType Δ m a) (hle : TShape.LE Δ a a')
-    (hA : TShape.HasType Δ a' TShape.type) : TShape.HasType Δ m a' :=
-  .mono_r H hle hA
-
 /-- `⊥` is typed at `⊥`, since `⊥` is a type. -/
 theorem TShape.HasType.bot_bot {Δ : List Term} {m : TShape} (h : m.2 = Shape.bot) :
     TShape.HasType Δ m TShape.bot :=
-  .bot h (.bot rfl (.sort (TShape.LE.refl trivial)))
+  .bot h (.bot rfl (.sort (TShape.LE.refl trivial) (TShape.LE.refl trivial)))
 
-/-- Nothing but `⊥` is typed at `⊥`. -/
+/-- Nothing but `⊥` is typed at `⊥`.  Uniform in the new form: every clause
+but `bot` puts a co-generator with a head below the type, and `⊥` has none. -/
 theorem TShape.HasType.bot_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
-    (H : TShape.HasType Δ m a) (ha : a.2 = Shape.bot) : m.2 = Shape.bot := by
-  -- every generator clause names a type with a head, so only `bot` and
-  -- `mono_r` survive; `mono_r` is `TShape.le_bot` then the IH
-  sorry
+    (H : TShape.HasType Δ m a) : a.2 = Shape.bot → m.2 = Shape.bot := by
+  have no {b : TShape} {c : TShape} (hc : TShape.LE Δ c b)
+      (hb : b.2 = Shape.bot) (hcb : c.2 ≠ Shape.bot) : m.2 = Shape.bot :=
+    absurd (TShape.le_bot hΔ hb hc) hcb
+  induction H with
+  | bot hb _ _ => exact fun _ => hb
+  | sort _ hc => exact fun ha => no hc ha nofun
+  | unit _ _ hc => exact fun ha => no hc ha nofun
+  | nat _ hc => exact fun ha => no hc ha nofun
+  | zero _ hc _ _ => exact fun ha => no hc ha nofun
+  | succ _ _ hc _ _ => exact fun ha => no hc ha nofun
+  | id _ _ hc => exact fun ha => no hc ha nofun
+  | forallE _ _ _ hc _ _ => exact fun ha => no hc ha nofun
+  | sigma _ _ _ hc _ _ => exact fun ha => no hc ha nofun
+  | lam _ _ _ _ _ _ _ hc _ _ _ _ _ => exact fun ha => no hc ha nofun
+  | pair _ _ _ _ _ _ _ _ hc _ _ _ _ _ _ => exact fun ha => no hc ha nofun
+  | refl _ hc _ _ => exact fun ha => no hc ha nofun
 
 /-- Cumulativity. -/
 theorem TShape.HasType.cumul {Δ : List Term} (hΔ : ⊢ Δ) {m : TShape} {r s : Bool}
     (H : TShape.HasType Δ m (TShape.sort r)) (hrs : r ≤ s) :
     TShape.HasType Δ m (TShape.sort s) := by
-  -- an induction over `H` with the type index generalised to `a.2 = .sort r`;
-  -- the `mono_r` case splits on `TShape.le_bot` and needs `bot_r`
   sorry
 
 /-- Typed substitution.
