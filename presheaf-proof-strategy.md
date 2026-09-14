@@ -823,7 +823,89 @@ ours inspects the codomain.  With `mono_r` now `lower`-based this weakening
 is available and would make `SoundTy` for `forallEDF` at `type` free.  Not
 needed for anything above; a simplification to take when convenient.
 
-### 5.5 Summary of statement changes
+### 5.5 `mono_l` at `lam`: the λ clause needs its dominating graph back
+
+The one thing lookup coverage breaks, and it is not a gap in a proof but a
+false statement.
+
+`Shape.HasType.mono_l` at `.lam` has to turn a typing of `.lam g` into one
+of `.lam g'` for `g' ≤ g`.  The clause is stated per entry,
+
+```lean
+| lam : ShapeFun.HasPi T d f .type →
+    (∀ e ∈ g, ∃ c, WF c ∧ Evaluates Δ f e.ty e.tm e.inp c ∧ T e.out c) → …
+```
+
+so for `e ∈ g'` one must walk the lookup derivation `Eval g e.ty e.tm
+e.inp e.out`.  `bot` and `entry` are immediate and `lower` is the
+induction hypothesis, but `join` asks for
+
+```
+T y c₁ → T z c₂ → Compat y z → T (y ⊔ z) (c₁ ⊔ c₂)
+```
+
+at an *arbitrary* type, and that is false — for the reason §5.1 gives for
+`SoundJoin`, made concrete:
+
+> Let `f` be a Σ codomain graph with entries at `.zero ↦ c₁` and
+> `.succ ⊥ ↦ c₂`, and let `y = .pair ty tm ⊥ b₁`, `z = .pair ty tm ⊥ b₂`
+> with `b₁ : c₁`, `b₂ : c₂` both non-`⊥` and compatible.  Each pair is
+> typed at `.sigma A B .nat f`, with dominators `.zero` and `.succ ⊥`.
+> They are compatible (their first components are both `⊥`).  Their join
+> `.pair ty tm ⊥ (b₁ ⊔ b₂)` is typed at that Σ only if some single input
+> `x₀` has `Eval f ty tm x₀ c` with `b₁ ⊔ b₂ : c`, and no numeral is above
+> both `.zero` and `.succ ⊥`.
+
+Put a `g` with two entries carrying those outputs at compatible inputs and
+a `g'` with the single joined entry above them: `g' ≤ g`, both well
+formed, `.lam g` typed, `.lam g'` not.  So `mono_l` is false as stated.
+
+The three repairs that suggest themselves all fail:
+
+* *Prove the element-level join.*  It is the statement just shown false.
+* *Make `HasType` join-closed by a constructor.*  It would type
+  `.pair ty tm ⊥ (b₁ ⊔ b₂)` at the Σ, which is not what the domain model
+  says: the two pairs approximate different values and a shape does not
+  record which.  `HasType` would over-approximate, and `proofIrrel` and
+  adequacy are downstream of it being tight.
+* *Drop the dominator from the `pair` clause* and type the second
+  component at the lookup at the pair's own first component.  Then joins
+  work (`mono_input` puts both codomain values at `a₁ ⊔ a₂`) but downward
+  closure fails, which is what the dominator was for.  Downward closure
+  and join closure are genuinely in conflict for dependent pairs at the
+  shape level; that conflict is the content of §5.1.
+
+**Resolution: give the `lam` clause a dominating graph**, as `pair` has a
+dominating first component:
+
+```lean
+| lam : ShapeFun.HasPi T d f .type →
+    (∃ g₀, ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) g g₀ ∧
+       ∀ e ∈ g₀, ∃ c, WF c ∧ Evaluates Δ f e.ty e.tm e.inp c ∧ T e.out c) → …
+```
+
+"`g` is below a graph whose entries are typed".  Then `mono_l` at `lam` is
+transitivity of `ShapeFun.LE` and nothing else — which is what its own
+docstring always claimed ("the dominating existentials in `HasPi`, `lam`
+and `pair` absorb the approximation by transitivity").  The `lam`
+constructor's current comment, "no dominating graph: with `HasDom` gone
+the condition is downward closed in `g` on its own", was sound reasoning
+under *entry* coverage and is exactly what lookup coverage invalidates.
+
+Note this is not `HasDom` returning: no typedness of inputs is asked for,
+so §5.3's decision stands and η ← still needs §4.5(a).
+
+Establishing the clause is unchanged (`g₀ := g`, by `ShapeFun.LE.refl`),
+and `mono_r`, `subst` and `lift` transport `g₀` with the lemmas they
+already use (`mono_graph'`, `ShapeFun.LE.subst_of`, `ShapeFun.LE.lift`).
+What changes is *reading* it: a consumer that wants an entry of `g` typed
+now gets it only through the lookup in `g₀`, so it gets the `bounded` form
+— a typed value *above* — rather than the exact one.  `proofIrrel`'s Π
+case already works that way; the others (`beta` ←, η ←, `Inversion`) have
+to be checked, and §4.5(a) is where the exact form would have to be
+recovered if one of them needs it.
+
+### 5.6 Summary of statement changes
 
 | where | change | why | |
 |---|---|---|---|
@@ -837,6 +919,7 @@ needed for anything above; a simplification to take when convenient.
 | `ShapeFun.LE` | lookup coverage, carrying `WF` of both graphs | §5.2 | **done** |
 | `ShapeFun.Eval.lower` | drop the `WF` side condition (`Shape.LE.wf`) | §5.2 | **done** |
 | `Shape.LE` | `WF` of the lower bound at `pair`/`lam`; `Shape.LE.wf` | §5.2 | **done** |
+| `HasTypeS.lam` | dominating graph `g₀ ≥ g` with typed entries | §5.5 | open |
 | `InterpTyped` at Π (and Σ) types | witness carries lookup-form `HasDom` | §4.5(a), §5.1(a) | open |
 | `SoundJoin` | keep, upper-bound form; prove per former alongside `sound` | §5.1 | **done** (kept) |
 

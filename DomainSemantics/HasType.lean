@@ -182,7 +182,13 @@ inductive Shape.HasTypeS (Δ : List Term) {n} (T : Shape n → Shape n → Prop)
     ShapeFun.HasPi T d f .type → HasTypeS Δ T (.sigma A B d f) (.sort true)
   -- no dominating graph: with `HasDom` gone the condition is downward
   -- closed in `g` on its own, by `mono_input` on the code and `mono_l` on
-  -- the output
+  -- the output.
+  -- WRONG under lookup coverage, and `mono_l`'s `lam` case is the sorry
+  -- that says so: `g' ≤ g` reaches an entry output that is a *join* of
+  -- outputs of `g`, and typing that join asks for join-closure of a type's
+  -- extension, which is false at Σ.  §5.5 of `presheaf-proof-strategy.md`
+  -- has the counterexample; the fix is a dominating graph `g₀ ≥ g`, as the
+  -- `pair` clause has a dominating first component
   | lam {g A B d f} :
     ShapeFun.HasPi T d f .type →
     (∀ e ∈ g, ∃ c, Shape.WF Δ c ∧ Evaluates Δ f e.ty e.tm e.inp c ∧ T e.out c) →
@@ -778,7 +784,8 @@ theorem Shape.HasType.mono_l (hΔ : ⊢ Δ) {n} {m m' a : Shape n}
   | lam hpi hcod =>
     cases m' with | bot => exact .bot hty | lam => ?_ | _ => cases hle
     refine .lam hpi fun e he => ?_
-    -- SET ASIDE (order change): `hle e he` is a lookup derivation.
+    -- FALSE as stated: see the `lam` constructor's comment and §5.5 of
+    -- `presheaf-proof-strategy.md`.  Waiting on the dominating graph.
     exact sorry
   | pair hpi hxle hwx hxd hwc hev hyc =>
     cases m' with | bot => exact .bot hty | pair => ?_ | _ => cases hle
