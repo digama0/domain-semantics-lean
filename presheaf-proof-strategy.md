@@ -963,8 +963,62 @@ so the fallback is now the live option.  Three ways forward:
       which is the whole reason for lookup coverage (§5.2).  Only worth it
       if η can be had another way.
 
-(a) is recommended: it is the same move as §5.1(a) and §4.5(a), it is
-local (three call sites), and it does not disturb anything §5.2 bought.
+  (d) **Define typing as one inductive over `TShape`.**  Obligation 2
+      exists only because `Shape.HasType` is defined *by recursion on the
+      level*, so a typing at level `k` has to be walked back to level `n`.
+      An inductive over `TShape` has no per-level definition to walk back,
+      and the dominating graph may then live at *any* level, because
+      `TShape.LE Δ ⟨n+1, .lam g⟩ ⟨n₀+1, .lam g₀⟩` is already
+      level-independent (§5.2).  Candidate (B)'s only defect vanishes and
+      its virtue survives.
+
+(d) is the way out, and two things about it have been checked in Lean
+(`presheaf-thastype-probe.lean`):
+
+* **Strict positivity holds.**  Every recursive occurrence is a premise
+  under `∀`/`→`, never to the left of an arrow into itself.
+* **A different kernel restriction bites, and is dodgeable.**  Writing the
+  codomain witness as `∃ c, … ∧ THasType …` makes `THasType` a *nested*
+  occurrence inside `Exists`, and the kernel refuses: *"invalid nested
+  inductive datatype 'Exists', nested inductive datatypes parameters
+  cannot contain local variables"* — `Exists`'s type parameter is
+  `Shape n'`, which mentions a local.  Hoisting the witness into a
+  function argument `cs : Entry (Shape n₀) → Shape n'` and splitting the
+  conjunction into separate premises is accepted.  (The present
+  `HasTypeS` gets away with `∃ c, …` because there the recursive slot is
+  the *parameter* `T`, not the inductive being defined.)
+
+With that, `mono_l` at `lam` is one line — checked:
+
+```lean
+example … (hdom : TShape.LE Δ ⟨n+1, .lam g⟩ ⟨n₀+1, .lam g₀⟩) …
+    (hle : TShape.LE Δ ⟨k+1, .lam g'⟩ ⟨n+1, .lam g⟩) :
+    THasType Δ ⟨k+1, .lam g'⟩ ⟨n'+1, .forallE A B d f⟩ :=
+  .lam cs h1 h2 (hle.trans hΔ hdom) h4 h5 h6
+```
+
+What replaces obligation 2 is **lift-invariance of the relation**:
+`⟨n, m⟩` and `⟨k, m.lift k⟩` are distinct `TShape`s denoting the same
+value, so `THasType` must not separate them.  Preservation is an induction
+on the derivation (re-apply the same constructor with the entries' TShapes
+lifted); reflection should be too, since the dominating graph is reused
+unchanged and `TShape.LE` is already lift-invariant — and if it is not, it
+can be a constructor, which the kernel also accepts and which is
+semantically valid, levels being bookkeeping and `lift` an embedding.
+
+The shape of the refactor: the semantic layer moves to `TShape` wholesale.
+Order, `WF`, `Compat` and `join` are level-independent already; the lookup
+becomes an inductive `TEval` over `TShape` with the same four rules,
+level-independent by construction instead of by `Evaluates.lift_iff`; and
+typing becomes `THasType`.  `Shape n` is then only the carrier and the
+`lift` lemmas are bridges used once.  `Shape.HasType.lift_iff` and the
+whole `TShape.HasType.def`/`T`/`sort_T` wrapper layer go.  Not yet
+checked: `proofIrrel`, `Inversion.lean`, and whether `ShapeFun.HasPi` stays
+transparent enough for the positivity checker when it is not inlined.
+
+Note `mono_r_join`'s induction on the level survives unchanged, because a
+*type* is never a λ, so the clause whose premises escape the level never
+arises there.  (a) remains the smaller change if (d) proves too large.
 
 ### 5.6 Summary of statement changes
 
@@ -980,7 +1034,8 @@ local (three call sites), and it does not disturb anything §5.2 bought.
 | `ShapeFun.LE` | lookup coverage, carrying `WF` of both graphs | §5.2 | **done** |
 | `ShapeFun.Eval.lower` | drop the `WF` side condition (`Shape.LE.wf`) | §5.2 | **done** |
 | `Shape.LE` | `WF` of the lower bound at `pair`/`lam`; `Shape.LE.wf` | §5.2 | **done** |
-| `Shape.HasType.mono_l` | false at `lam`; lower-closure becomes semantic | §5.5 | open |
+| `Shape.HasType.mono_l` | false at `lam` | §5.5 | open |
+| `TShape.HasType` | one inductive over `TShape`, `lam` with a dominating graph | §5.5(d) | open, recommended |
 | `Shape.HasType.lift` | preservation split off `lift_iff` | §5.5 | **done** |
 | `InterpTyped` at Π (and Σ) types | witness carries lookup-form `HasDom` | §4.5(a), §5.1(a) | open |
 | `SoundJoin` | keep, upper-bound form; prove per former alongside `sound` | §5.1 | **done** (kept) |
