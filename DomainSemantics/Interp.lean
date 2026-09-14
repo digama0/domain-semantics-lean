@@ -140,10 +140,10 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
   definition. -/
   | lam {n} {g : ShapeFun n} {d : TShape} {A b : Term} :
     Interp Δ Γ A σ ρ d →
-    TShape.HasType Δ d TShape.type →
+    TShape.HasTypeOld Δ d TShape.type →
     Shape.WF Δ (Shape.lam g) →
     (∀ e ∈ g, ∃ u, Δ ⊢ e.ty ≡ A.subst σ : .sort u) →
-    (∀ e ∈ g, TShape.HasType Δ e.inp.T d) →
+    (∀ e ∈ g, TShape.HasTypeOld Δ e.inp.T d) →
     (∀ e ∈ g, Interp Δ (A :: Γ) b (σ.cons e.tm) (ρ.push e.inp.T) e.out.T) →
     TShape.WF Δ m →
     TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.lam g)) →
@@ -153,10 +153,10 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
   projecting it. -/
   | forallE {n} {g : ShapeFun n} {d : Shape n} {A B : Term} :
     Interp Δ Γ A σ ρ (Shape.T d) →
-    TShape.HasType Δ (Shape.T d) TShape.type →
+    TShape.HasTypeOld Δ (Shape.T d) TShape.type →
     Shape.WF (n := n+1) Δ (.forallE (A.subst σ) (B.subst σ.lift) d g) →
     (∀ e ∈ g, ∃ u, Δ ⊢ e.ty ≡ A.subst σ : .sort u) →
-    (∀ e ∈ g, TShape.HasType Δ e.inp.T d.T) →
+    (∀ e ∈ g, TShape.HasTypeOld Δ e.inp.T d.T) →
     (∀ e ∈ g, Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push e.inp.T) e.out.T) →
     TShape.WF Δ m →
     TShape.LE Δ m (Shape.T (n := n+1) (.forallE (A.subst σ) (B.subst σ.lift) d g)) →
@@ -164,10 +164,10 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
   /-- Σ, mirroring `forallE` exactly. -/
   | sigma {n} {g : ShapeFun n} {d : Shape n} {A B : Term} :
       Interp Δ Γ A σ ρ (Shape.T d) →
-      TShape.HasType Δ (Shape.T d) TShape.type →
+      TShape.HasTypeOld Δ (Shape.T d) TShape.type →
       Shape.WF (n := n+1) Δ (ShapeS.sigma (A.subst σ) (B.subst σ.lift) d g) →
       (∀ e ∈ g, ∃ u, Δ ⊢ e.ty ≡ A.subst σ : .sort u) →
-      (∀ e ∈ g, TShape.HasType Δ (Shape.T e.inp) (Shape.T d)) →
+      (∀ e ∈ g, TShape.HasTypeOld Δ (Shape.T e.inp) (Shape.T d)) →
       (∀ e ∈ g, Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push (Shape.T e.inp)) (Shape.T e.out)) →
       TShape.WF Δ m →
       TShape.LE Δ m
@@ -239,10 +239,10 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
     Interp Δ Γ b σ ρ v →
     Interp Δ Γ A σ ρ vA →
     TShape.WF Δ v →
-    TShape.HasType Δ v vA →
+    TShape.HasTypeOld Δ v vA →
     Interp Δ (A :: Γ) C (σ.cons (b.subst σ)) (ρ.push v) cb →
-    TShape.HasType Δ cb TShape.type →
-    TShape.HasType Δ m' cb →
+    TShape.HasTypeOld Δ cb TShape.type →
+    TShape.HasTypeOld Δ m' cb →
     (r = true → Interp Δ Γ H σ ρ (Shape.T (n := v.1+1) (ShapeS.refl v.2))) →
     Interp Δ Γ (.tr r A a b C X H) σ ρ m
 
@@ -490,7 +490,7 @@ approximants. -/
 theorem Interp.piAtom (hA : Δ ⊢ A.subst σ : .sort u)
     (hB : A.subst σ :: Δ ⊢ B.subst σ.lift : .sort v) :
     Interp Δ Γ (.forallE A B) σ ρ (Shape.T (n := 1) (.piAtom (A.subst σ) (B.subst σ.lift))) :=
-  .forallE (d := (Shape.bot : Shape 0)) .bot (TShape.HasType.T.2 Shape.HasType0.bot)
+  .forallE (d := (Shape.bot : Shape 0)) .bot (TShape.HasTypeOld.T.2 Shape.HasType0.bot)
     (Shape.WF.piAtom hA hB) nofun nofun nofun
     (.piAtom hA hB) (TShape.LE.T.2 (.refl (.piAtom hA hB)))
 
@@ -531,7 +531,7 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
     rw [subst_subst] at hev'
     exact .app (ihF hΘ W) (iha hΘ W) hev' (hw.subst hΘ W) (h1.subst hΘ W)
   | lam _ hd hwf hlab hdom _ hw h1 ihA ihbody =>
-    refine .lam (ihA hΘ W) (TShape.HasType.subst hΘ W hd) (hwf.subst hΘ W) ?_ ?_ ?_
+    refine .lam (ihA hΘ W) (TShape.HasTypeOld.subst hΘ W hd) (hwf.subst hΘ W) ?_ ?_ ?_
       (hw.subst hΘ W) (h1.subst hΘ W)
     · intro e' he'
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
@@ -539,7 +539,7 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
       exact ⟨u, by rw [← subst_subst]; exact hu.subst hΘ W⟩
     · intro e' he'
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
-      exact TShape.HasType.subst hΘ W (hdom e he)
+      exact TShape.HasTypeOld.subst hΘ W (hdom e he)
     · intro e' he'
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
       have := ihbody e he hΘ W
@@ -548,13 +548,13 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
     have hwf' := hwf.subst hΘ W
     have h1' := h1.subst hΘ W
     simp only [TShape.subst_T, Shape.subst, subst_subst, ← Subst.comp_lift] at hwf' h1'
-    refine .forallE (ihA hΘ W) (TShape.HasType.subst hΘ W hd) hwf' (fun e' he' => ?_) (fun e' he' => ?_)
+    refine .forallE (ihA hΘ W) (TShape.HasTypeOld.subst hΘ W hd) hwf' (fun e' he' => ?_) (fun e' he' => ?_)
       (fun e' he' => ?_) (hw.subst hΘ W) h1'
     · obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
       have ⟨u, hu⟩ := hlab e he
       exact ⟨u, by rw [← subst_subst]; exact hu.subst hΘ W⟩
     · obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
-      exact TShape.HasType.subst hΘ W (hdom e he)
+      exact TShape.HasTypeOld.subst hΘ W (hdom e he)
     · obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
       have := ihbody e he hΘ W
       rwa [Subst.cons_comp, Valuation.subst_push, TShape.subst_T] at this
@@ -562,13 +562,13 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
     have hwf' := hwf.subst hΘ W
     have h1' := h1.subst hΘ W
     simp only [TShape.subst_T, Shape.subst, subst_subst, ← Subst.comp_lift] at hwf' h1'
-    refine .sigma (ihA hΘ W) (TShape.HasType.subst hΘ W hd) hwf' (fun e' he' => ?_) (fun e' he' => ?_)
+    refine .sigma (ihA hΘ W) (TShape.HasTypeOld.subst hΘ W hd) hwf' (fun e' he' => ?_) (fun e' he' => ?_)
       (fun e' he' => ?_) (hw.subst hΘ W) h1'
     · obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
       have ⟨u, hu⟩ := hlab e he
       exact ⟨u, by rw [← subst_subst]; exact hu.subst hΘ W⟩
     · obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
-      exact TShape.HasType.subst hΘ W (hdom e he)
+      exact TShape.HasTypeOld.subst hΘ W (hdom e he)
     · obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
       have := ihbody e he hΘ W
       rwa [Subst.cons_comp, Valuation.subst_push, TShape.subst_T] at this

@@ -889,7 +889,7 @@ the lift of anything — the order on graphs is contravariant in the input,
 so a shape below a lifted shape need not itself be a lift.  Master has the
 equivalence only because its lookup is a function.
 
-One direction is enough: `TShape.HasType` is defined at the canonical
+One direction is enough: `TShape.HasTypeOld` is defined at the canonical
 level and read off at any higher one. -/
 
 theorem Evaluates.lift {Δ : List Term} {n k} (h : n ≤ k) {f : ShapeFun n} {A a : Term}
@@ -1214,14 +1214,14 @@ theorem Shape.HasType.lift_iff {Δ : List Term} (hΔ : ⊢ Δ)
 
 /-- Typing at the total level: at the canonical level, and (by
 `lift_mono`) at every level above it. -/
-def TShape.HasType (Δ : List Term) (m a : TShape) : Prop :=
+def TShape.HasTypeOld (Δ : List Term) (m a : TShape) : Prop :=
   Shape.HasType Δ (m.2.lift (max m.1 a.1)) (a.2.lift (max m.1 a.1))
 
 /-- One direction only, for the reason given above: a witness at the
 canonical level can be read at any higher level. -/
-theorem TShape.HasType.def {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape} {k}
+theorem TShape.HasTypeOld.def {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape} {k}
     (hwm : Shape.WF Δ m.2) (hwa : Shape.WF Δ a.2)
-    (h1 : m.1 ≤ k) (h2 : a.1 ≤ k) (H : TShape.HasType Δ m a) :
+    (h1 : m.1 ≤ k) (h2 : a.1 ≤ k) (H : TShape.HasTypeOld Δ m a) :
     Shape.HasType Δ (m.2.lift k) (a.2.lift k) := by
   rw [show m.2.lift k = (m.2.lift (max m.1 a.1)).lift k from
         (Shape.lift_lift (Nat.le_max_left ..)).symm,
@@ -1232,25 +1232,25 @@ theorem TShape.HasType.def {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape} {k}
     ((Shape.lift_wf (Nat.le_max_right ..)).2 hwa)).2 H
 
 /-- At a common level the two agree. -/
-theorem TShape.HasType.T {Δ : List Term} {n} {m a : Shape n} :
-    TShape.HasType Δ (Shape.T m) (Shape.T a) ↔ Shape.HasType Δ m a := by
+theorem TShape.HasTypeOld.T {Δ : List Term} {n} {m a : Shape n} :
+    TShape.HasTypeOld Δ (Shape.T m) (Shape.T a) ↔ Shape.HasType Δ m a := by
   show Shape.HasType Δ (m.lift (max n n)) (a.lift (max n n)) ↔ _
   rw [Nat.max_self, Shape.lift_self, Shape.lift_self]
 
 /-- At a sort the two agree as well, without the levels having to match:
 a sort is the same shape at every level, so the canonical level of
 `⟨n, m⟩ : TShape` typed at `TShape.sort r` is just `n`. -/
-theorem TShape.HasType.sort_T {Δ : List Term} {n} {m : Shape n} {r : Bool} :
-    TShape.HasType Δ (Shape.T m) (TShape.sort r) ↔ Shape.HasType Δ m (Shape.sort r) := by
+theorem TShape.HasTypeOld.sort_T {Δ : List Term} {n} {m : Shape n} {r : Bool} :
+    TShape.HasTypeOld Δ (Shape.T m) (TShape.sort r) ↔ Shape.HasType Δ m (Shape.sort r) := by
   show Shape.HasType Δ (m.lift (max n 0)) ((Shape.sort r).lift (max n 0)) ↔ _
   rw [Nat.max_zero, Shape.lift_self, Shape.lift_sort]
 
 /-- Typing at the total level transports along a typed substitution of the
 context.  The level is untouched, so the canonical level is too, and the
 statement is `Shape.HasType.subst` with `lift_subst` on each side. -/
-theorem TShape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
-    (W : Ctx.SubstEq Θ τ τ Δ) {m a : TShape} (H : TShape.HasType Δ m a) :
-    TShape.HasType Θ (m.subst τ) (a.subst τ) := by
+theorem TShape.HasTypeOld.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) {m a : TShape} (H : TShape.HasTypeOld Δ m a) :
+    TShape.HasTypeOld Θ (m.subst τ) (a.subst τ) := by
   show Shape.HasType Θ (Shape.lift (max m.1 a.1) (m.2.subst τ))
     (Shape.lift (max m.1 a.1) (a.2.subst τ))
   rw [Shape.lift_subst, Shape.lift_subst]
@@ -1259,9 +1259,9 @@ theorem TShape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
 /-- Left monotonicity at the total level: lift both sides to a level above
 everything, use `Shape.HasType.mono_l` there, and reflect back down with
 `lift_iff` -- the reflection direction is what makes this statable at all. -/
-theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m m' a : TShape}
+theorem TShape.HasTypeOld.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m m' a : TShape}
     (hwm : Shape.WF Δ m.2) (hwm' : Shape.WF Δ m'.2) (hwa : Shape.WF Δ a.2)
-    (hle : TShape.LE Δ m' m) (H : TShape.HasType Δ m a) : TShape.HasType Δ m' a := by
+    (hle : TShape.LE Δ m' m) (H : TShape.HasTypeOld Δ m a) : TShape.HasTypeOld Δ m' a := by
   have h1 : m.1 ≤ max (max m.1 a.1) (max m'.1 a.1) :=
     Nat.le_trans (Nat.le_max_left ..) (Nat.le_max_left ..)
   have h2 : a.1 ≤ max (max m.1 a.1) (max m'.1 a.1) :=
@@ -1269,7 +1269,7 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m m' a : TShape}
   have h3 : m'.1 ≤ max (max m.1 a.1) (max m'.1 a.1) :=
     Nat.le_trans (Nat.le_max_left ..) (Nat.le_max_right ..)
   have key := Shape.HasType.mono_l hΔ ((TShape.LE.def_mp h3 h1) hle)
-    (TShape.HasType.def hΔ hwm hwa h1 h2 H)
+    (TShape.HasTypeOld.def hΔ hwm hwa h1 h2 H)
   show Shape.HasType Δ (m'.2.lift (max m'.1 a.1)) (a.2.lift (max m'.1 a.1))
   refine (Shape.HasType.lift_iff hΔ (Nat.max_le.2 ⟨h3, h2⟩)
     ((Shape.lift_wf (Nat.le_max_left ..)).2 hwm')
@@ -1277,21 +1277,21 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m m' a : TShape}
   rwa [Shape.lift_lift (Nat.le_max_left ..), Shape.lift_lift (Nat.le_max_right ..)]
 
 /-- Right monotonicity at the total level, by the same lift-and-reflect. -/
-theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a a' : TShape} {r : Bool}
+theorem TShape.HasTypeOld.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a a' : TShape} {r : Bool}
     (hwm : Shape.WF Δ m.2) (hwa : Shape.WF Δ a.2) (hwa' : Shape.WF Δ a'.2)
-    (H : TShape.HasType Δ m a) (hle : TShape.LE Δ a a')
-    (hA : TShape.HasType Δ a' (TShape.sort r)) : TShape.HasType Δ m a' := by
+    (H : TShape.HasTypeOld Δ m a) (hle : TShape.LE Δ a a')
+    (hA : TShape.HasTypeOld Δ a' (TShape.sort r)) : TShape.HasTypeOld Δ m a' := by
   have h1 : m.1 ≤ max (max m.1 a.1) (max a'.1 0) :=
     Nat.le_trans (Nat.le_max_left ..) (Nat.le_max_left ..)
   have h2 : a.1 ≤ max (max m.1 a.1) (max a'.1 0) :=
     Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_left ..)
   have h3 : a'.1 ≤ max (max m.1 a.1) (max a'.1 0) :=
     Nat.le_trans (Nat.le_max_left ..) (Nat.le_max_right ..)
-  have hAk := TShape.HasType.def (a := TShape.sort r) hΔ hwa' trivial h3 (Nat.zero_le _) hA
+  have hAk := TShape.HasTypeOld.def (a := TShape.sort r) hΔ hwa' trivial h3 (Nat.zero_le _) hA
   rw [show ((TShape.sort r).2.lift (max (max m.1 a.1) (max a'.1 0))) = Shape.sort r from
     Shape.lift_sort] at hAk
   have key := Shape.HasType.mono_r hΔ ((Shape.lift_wf h1).2 hwm) ((Shape.lift_wf h3).2 hwa')
-    (TShape.HasType.def hΔ hwm hwa h1 h2 H) ((TShape.LE.def_mp h2 h3) hle) hAk
+    (TShape.HasTypeOld.def hΔ hwm hwa h1 h2 H) ((TShape.LE.def_mp h2 h3) hle) hAk
   show Shape.HasType Δ (m.2.lift (max m.1 a'.1)) (a'.2.lift (max m.1 a'.1))
   refine (Shape.HasType.lift_iff hΔ (Nat.max_le.2 ⟨h1, h3⟩)
     ((Shape.lift_wf (Nat.le_max_left ..)).2 hwm)
@@ -1299,9 +1299,9 @@ theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a a' : TShape} 
   rwa [Shape.lift_lift (Nat.le_max_left ..), Shape.lift_lift (Nat.le_max_right ..)]
 
 /-- Cumulativity at the total level. -/
-theorem TShape.HasType.cumul {Δ : List Term} {a : TShape} {r s : Bool}
-    (h : TShape.HasType Δ a (TShape.sort r)) (hrs : r ≤ s) :
-    TShape.HasType Δ a (TShape.sort s) := by
+theorem TShape.HasTypeOld.cumul {Δ : List Term} {a : TShape} {r s : Bool}
+    (h : TShape.HasTypeOld Δ a (TShape.sort r)) (hrs : r ≤ s) :
+    TShape.HasTypeOld Δ a (TShape.sort s) := by
   show Shape.HasType Δ (Shape.lift (max a.1 0) a.2) (Shape.lift (max a.1 0) (Shape.sort s))
   rw [Shape.lift_sort]
   exact Shape.HasType.cumul (by rw [← Shape.lift_sort (m := max a.1 0)]; exact h) hrs
@@ -1332,3 +1332,242 @@ Everything the cycle argument was built for went with them:
 `find_cycle`, `List.Sublist.union`/`allSublists`/`sublist_map`,
 `Shape.Joins` and `Evaluates.tighten`/`of_sublist`/`joins_iff` all stay --
 they are independent, and `Evaluates.lift_of` is proved from them. -/
+
+/-! ## Typing over `TShape`, as one inductive
+
+`TShape.HasTypeOld` above is `Shape.HasType` at the canonical level, so it
+is defined by *recursion on the level* and every fact about it has to be
+transported along `lift` — and the reflection direction of that transport
+is what `Shape.HasType.lift_iff` costs.  That is also what makes
+`Shape.HasType.mono_l` unfixable at `lam` (§5.5 of
+`presheaf-proof-strategy.md`): the clause has to be per entry to reflect,
+and per entry it is not closed under the order, whose lookup has joins.
+
+Defined directly on `TShape` there is nothing to reflect.  Every clause is
+then stated in the form the other repo uses throughout — *the conditions
+constrain a generator above the shape being classified, never the shape
+itself* (`ΩLower`, `piGenerator`; see the `ShapeFun.HasPi` comment) — and
+the generator may live at any level, because `TShape.LE` already does not
+see levels.  Two consequences:
+
+* `mono_l` is transitivity of `TShape.LE`, uniformly, in every clause;
+* the dominating first component of a `pair` is just the generator's, and
+  the dominating graph of a `lam` is just the generator's graph, so the
+  two ad-hoc existentials of `HasTypeS` disappear into one pattern.
+
+The codomain witness of `lam` is a **function** `cs`, not an `∃` inside
+the premise: `∃ c, … ∧ HasType …` would put the inductive under `Exists`,
+and the kernel refuses a nested inductive whose parameters mention locals
+(here `Shape n'` mentions `n'`).  `HasTypeS` is not affected because there
+the recursive slot is its parameter `T`. -/
+
+/-- The lookup over `TShape`: the four rules of `ShapeFun.Eval`, comparing
+with the level-independent `TShape.LE`, so it needs no `lift` lemma. -/
+inductive TEvaluates (Δ : List Term) {n} (f : ShapeFun n) (A a : Term) (x : TShape) :
+    TShape → Prop where
+  | bot : TEvaluates Δ f A a x TShape.bot
+  | entry (e : Entry (Shape n)) : e ∈ f → LabelEq Δ e.ty e.tm A a →
+    TShape.LE Δ e.inp.T x → TEvaluates Δ f A a x e.out.T
+  | lower {y z} : TShape.LE Δ y z → TEvaluates Δ f A a x z → TEvaluates Δ f A a x y
+  | join {y z} : TShape.Compat Δ y z → TEvaluates Δ f A a x y → TEvaluates Δ f A a x z →
+    TEvaluates Δ f A a x (y.join z)
+
+/-- `ShapeFun.HasPi`, over `TShape`.  Only for stating lemmas: the
+constructors spell it out, because the kernel will not take the inductive
+being declared as an argument to a definition. -/
+def ShapeFun.THasPi (T : TShape → TShape → Prop) {n}
+    (d : Shape n) (f : ShapeFun n) (a : TShape) : Prop :=
+  T d.T TShape.type ∧ ∀ e ∈ f, T e.out.T a
+
+/-- Typing, over `TShape`.  Each clause names a **generator** and asks that
+the shape be below it. -/
+inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
+  | bot {m a} : m.2 = Shape.bot → HasType Δ a TShape.type → HasType Δ m a
+  | sort {m n r} : TShape.LE Δ m (Shape.T (n := n) (Shape.sort r)) →
+    HasType Δ m (TShape.sort true)
+  | unit {m n r j} : r ≤ j → TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.unit r)) →
+    HasType Δ m (TShape.sort j)
+  | nat {m n} : TShape.LE Δ m (Shape.T (n := n+1) ShapeS.nat) →
+    HasType Δ m (TShape.sort true)
+  | zero {m n k} : TShape.LE Δ m (Shape.T (n := n+1) ShapeS.zero) →
+    HasType Δ m (Shape.T (n := k+1) ShapeS.nat)
+  | succ {m n k} {v : Shape n} : Shape.IsNumeral v →
+    TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.succ v)) →
+    HasType Δ m (Shape.T (n := k+1) ShapeS.nat)
+  | id {m n r j} {A a b : Term} : r ≤ j →
+    TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.id r A a b)) →
+    HasType Δ m (TShape.sort j)
+  | forallE {m n} {A B : Term} {d : Shape n} {f : ShapeFun n} {r : Bool} :
+    HasType Δ d.T TShape.type →
+    (∀ e ∈ f, HasType Δ e.out.T (TShape.sort r)) →
+    TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.forallE A B d f)) →
+    HasType Δ m (TShape.sort r)
+  | sigma {m n} {A B : Term} {d : Shape n} {f : ShapeFun n} :
+    HasType Δ d.T TShape.type →
+    (∀ e ∈ f, HasType Δ e.out.T TShape.type) →
+    TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.sigma A B d f)) →
+    HasType Δ m (TShape.sort true)
+  | lam {m n₀ n'} {g₀ : ShapeFun n₀} {f : ShapeFun n'} {A B : Term} {d : Shape n'}
+      (cs : Entry (Shape n₀) → TShape) :
+    HasType Δ d.T TShape.type →
+    (∀ e ∈ f, HasType Δ e.out.T TShape.type) →
+    (∀ e ∈ g₀, TShape.WF Δ (cs e)) →
+    (∀ e ∈ g₀, TEvaluates Δ f e.ty e.tm e.inp.T (cs e)) →
+    (∀ e ∈ g₀, HasType Δ e.out.T (cs e)) →
+    Shape.WF (n := n'+1) Δ (ShapeS.forallE A B d f) →
+    TShape.LE Δ m (Shape.T (n := n₀+1) (ShapeS.lam g₀)) →
+    HasType Δ m (Shape.T (n := n'+1) (ShapeS.forallE A B d f))
+  | pair {m n₀ n'} {ty tm : Term} {x₀ y₀ : Shape n₀} {c : TShape}
+      {A B : Term} {d : Shape n'} {f : ShapeFun n'} :
+    HasType Δ d.T TShape.type →
+    (∀ e ∈ f, HasType Δ e.out.T TShape.type) →
+    TShape.WF Δ x₀.T → HasType Δ x₀.T d.T →
+    TShape.WF Δ c → TEvaluates Δ f ty tm x₀.T c → HasType Δ y₀.T c →
+    Shape.WF (n := n'+1) Δ (ShapeS.sigma A B d f) →
+    TShape.LE Δ m (Shape.T (n := n₀+1) (ShapeS.pair ty tm x₀ y₀)) →
+    HasType Δ m (Shape.T (n := n'+1) (ShapeS.sigma A B d f))
+  | refl {m n k} {w : Shape n} {A a b : Term} :
+    Shape.WF (n := k+1) Δ (ShapeS.id true A a b) →
+    TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.refl w)) →
+    HasType Δ m (Shape.T (n := k+1) (ShapeS.id true A a b))
+  -- **upward closure in the type**, the companion of the downward closure
+  -- each clause above builds in.  A rule rather than a theorem for two
+  -- reasons: it is the other repo's shape exactly (a type is a lower set,
+  -- membership is upward closed in the type), and the level index makes it
+  -- necessary anyway -- `a` and `⟨k, a.2.lift k⟩` are order-equivalent, so
+  -- without it the type index of every clause above would have to be
+  -- stated up to order-equivalence instead
+  | mono_r {m a a'} : HasType Δ m a → TShape.LE Δ a a' →
+    HasType Δ a' TShape.type → HasType Δ m a'
+
+/-- **Everything a shape is typed at is a type.**  One line per clause, as
+before; the `lam`, `pair` and `refl` clauses need the well-formedness of
+the type they name, because saying it is a type means putting it below
+itself. -/
+theorem TShape.HasType.isType {Δ : List Term} {m a : TShape}
+    (H : TShape.HasType Δ m a) : TShape.HasType Δ a TShape.type := by
+  induction H with
+  | bot _ ha _ => exact ha
+  | sort _ => exact .sort (TShape.LE.refl trivial)
+  | unit _ _ => exact .sort (TShape.LE.refl trivial)
+  | nat _ => exact .sort (TShape.LE.refl trivial)
+  | zero _ => exact .nat (TShape.LE.refl trivial)
+  | succ _ _ => exact .nat (TShape.LE.refl trivial)
+  | id _ _ => exact .sort (TShape.LE.refl trivial)
+  | forallE _ _ _ _ _ => exact .sort (TShape.LE.refl trivial)
+  | sigma _ _ _ _ _ => exact .sort (TShape.LE.refl trivial)
+  | lam _ hd hf _ _ _ hwPi _ _ _ _ => exact .forallE hd hf (TShape.LE.refl hwPi)
+  | pair hd hf _ _ _ _ _ hwSg _ _ _ _ _ => exact .sigma hd hf (TShape.LE.refl hwSg)
+  | refl hwid _ => exact .id (Bool.le_true' true) (TShape.LE.refl hwid)
+  | mono_r _ _ hA _ _ => exact hA
+
+/-- **Left monotonicity**, which is why the relation is stated this way:
+every clause puts the shape below a generator, so lowering it is
+transitivity of the order and nothing else. -/
+theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
+    (H : TShape.HasType Δ m a) :
+    ∀ {m' : TShape}, TShape.LE Δ m' m → TShape.HasType Δ m' a := by
+  induction H with
+  | bot hb ha _ => exact fun hle => .bot (TShape.le_bot hΔ hb hle) ha
+  | sort hg => exact fun hle => .sort (hle.trans hΔ hg)
+  | unit hj hg => exact fun hle => .unit hj (hle.trans hΔ hg)
+  | nat hg => exact fun hle => .nat (hle.trans hΔ hg)
+  | zero hg => exact fun hle => .zero (hle.trans hΔ hg)
+  | succ hN hg => exact fun hle => .succ hN (hle.trans hΔ hg)
+  | id hj hg => exact fun hle => .id hj (hle.trans hΔ hg)
+  | forallE hd hf hg _ _ => exact fun hle => .forallE hd hf (hle.trans hΔ hg)
+  | sigma hd hf hg _ _ => exact fun hle => .sigma hd hf (hle.trans hΔ hg)
+  | lam cs hd hf hwc hev hty hwPi hg _ _ _ =>
+    exact fun hle => .lam cs hd hf hwc hev hty hwPi (hle.trans hΔ hg)
+  | pair hd hf hwx hxd hwc hev hyc hwSg hg _ _ _ _ =>
+    exact fun hle => .pair hd hf hwx hxd hwc hev hyc hwSg (hle.trans hΔ hg)
+  | refl hwid hg => exact fun hle => .refl hwid (hle.trans hΔ hg)
+  | mono_r _ haa hA ih _ => exact fun hle => .mono_r (ih hle) haa hA
+
+/-- The order carries the well-formedness of its lower bound at the total
+level too, which is `Shape.LE.wf` through the canonical level. -/
+theorem TShape.LE.wf {Δ : List Term} {a b : TShape} (h : TShape.LE Δ a b) :
+    TShape.WF Δ a :=
+  (Shape.lift_wf (Nat.le_max_left ..)).1 (Shape.LE.wf h)
+
+/-- **Everything typed is well formed.**  Immediate: every clause but `bot`
+puts the shape below a generator, and the order carries the
+well-formedness of its lower bound. -/
+theorem TShape.HasType.wf {Δ : List Term} {m a : TShape}
+    (H : TShape.HasType Δ m a) : TShape.WF Δ m := by
+  induction H with
+  | bot hb _ _ =>
+    show Shape.WF Δ _
+    rw [hb]
+    exact TShape.WF.bot
+  | sort hg => exact hg.wf
+  | unit _ hg => exact hg.wf
+  | nat hg => exact hg.wf
+  | zero hg => exact hg.wf
+  | succ _ hg => exact hg.wf
+  | id _ hg => exact hg.wf
+  | forallE _ _ hg _ _ => exact hg.wf
+  | sigma _ _ hg _ _ => exact hg.wf
+  | lam _ _ _ _ _ _ _ hg _ _ _ => exact hg.wf
+  | pair _ _ _ _ _ _ _ _ hg _ _ _ _ => exact hg.wf
+  | refl _ hg => exact hg.wf
+  | mono_r _ _ _ ih _ => exact ih
+
+/-- Typing does not see the level of its subject: `⟨n, m⟩` and
+`⟨k, m.lift k⟩` are order-equivalent, and every clause reaches the subject
+only through the order.  Contrast `Shape.HasType.lift_iff`, which is 160
+lines and whose reflection direction is what §5.5 shows cannot survive a
+dominating graph. -/
+theorem TShape.HasType.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {k}
+    {m a : TShape} (hk : m.1 ≤ k) (H : TShape.HasType Δ m a) :
+    TShape.HasType Δ (m.lift k) a :=
+  H.mono_l hΔ (TShape.LE.lift_le hΔ hk H.wf)
+
+theorem TShape.HasType.unlift_subject {Δ : List Term} (hΔ : ⊢ Δ) {k}
+    {m a : TShape} (hk : m.1 ≤ k) (H : TShape.HasType Δ (m.lift k) a) :
+    TShape.HasType Δ m a :=
+  H.mono_l hΔ (TShape.LE.le_lift hΔ hk ((Shape.lift_wf hk).1 H.wf))
+
+/-- Right monotonicity, which is a rule here rather than a theorem. -/
+theorem TShape.HasType.mono_r' {Δ : List Term} {m a a' : TShape}
+    (H : TShape.HasType Δ m a) (hle : TShape.LE Δ a a')
+    (hA : TShape.HasType Δ a' TShape.type) : TShape.HasType Δ m a' :=
+  .mono_r H hle hA
+
+/-- `⊥` is typed at `⊥`, since `⊥` is a type. -/
+theorem TShape.HasType.bot_bot {Δ : List Term} {m : TShape} (h : m.2 = Shape.bot) :
+    TShape.HasType Δ m TShape.bot :=
+  .bot h (.bot rfl (.sort (TShape.LE.refl trivial)))
+
+/-- Nothing but `⊥` is typed at `⊥`. -/
+theorem TShape.HasType.bot_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
+    (H : TShape.HasType Δ m a) (ha : a.2 = Shape.bot) : m.2 = Shape.bot := by
+  -- every generator clause names a type with a head, so only `bot` and
+  -- `mono_r` survive; `mono_r` is `TShape.le_bot` then the IH
+  sorry
+
+/-- Cumulativity. -/
+theorem TShape.HasType.cumul {Δ : List Term} (hΔ : ⊢ Δ) {m : TShape} {r s : Bool}
+    (H : TShape.HasType Δ m (TShape.sort r)) (hrs : r ≤ s) :
+    TShape.HasType Δ m (TShape.sort s) := by
+  -- an induction over `H` with the type index generalised to `a.2 = .sort r`;
+  -- the `mono_r` case splits on `TShape.le_bot` and needs `bot_r`
+  sorry
+
+/-- Typed substitution.
+
+**Open**, and the obstruction is in the *definition*: the `lam` clause's
+codomain witness is a function `cs : Entry (Shape n₀) → TShape`, because an
+`∃` in that premise would nest the inductive inside `Exists` and the kernel
+refuses it.  A substitution reindexes the generator graph to
+`g₀.subst τ`, and `fun e' => (cs e').subst τ` is the wrong function: it
+gives `(cs (e.subst τ)).subst τ` where `(cs e).subst τ` is wanted.  Two
+ways out, and the choice belongs with the definition rather than here:
+index `cs` by position in `g₀` (`Nat → TShape`, with `g₀[i]? = some e`
+premises), which substitution preserves; or keep the entry indexing and
+build the substituted witness with `Classical.skolem`, at the price of
+`Classical.choice` in the axiom list. -/
+theorem TShape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) {m a : TShape} (H : TShape.HasType Δ m a) :
+    TShape.HasType Θ (m.subst τ) (a.subst τ) := by
+  sorry

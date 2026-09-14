@@ -52,7 +52,7 @@ Each `cons` asks what his `SourceAdmissible` asks of a slot: the type's own
 interpretation is saturated (the `b'` premise, which is where the
 downward closure `HasType` does not have is put in by hand), the slot has
 a type among the type's approximants, and the slot is a fixed point of the
-decoder of that type — here, `TShape.HasType`.  The `WF` premise is what
+decoder of that type — here, `TShape.HasTypeOld`.  The `WF` premise is what
 master gets for free from its shapes being a `WF` subtype. -/
 
 inductive Adm (Δ : List Term) : List Term → List Term → Subst → Valuation → Prop where
@@ -61,10 +61,10 @@ inductive Adm (Δ : List Term) : List Term → List Term → Subst → Valuation
       Adm Δ Γ₀ Γ σ.tail ρ →
       (∀ b, Interp Δ Γ A σ.tail ρ b →
         ∃ b', TShape.LE Δ b b' ∧ Interp Δ Γ A σ.tail ρ b' ∧
-          TShape.HasType Δ b' TShape.type) →
+          TShape.HasTypeOld Δ b' TShape.type) →
       Interp Δ Γ A σ.tail ρ a →
       TShape.WF Δ x →
-      TShape.HasType Δ x a →
+      TShape.HasTypeOld Δ x a →
       Adm Δ Γ₀ (A :: Γ) σ (ρ.push x)
 
 /-- The all-bottom valuation is admissible, for free.  This is the whole
@@ -89,7 +89,7 @@ every approximant is *below* one that is typed.  This is master's
 def InterpTyped (Δ Γ : List Term) (t A : Term) (σ : Subst)
     (ρ : Valuation) (m : TShape) : Prop :=
   ∃ m' a, TShape.LE Δ m m' ∧ Interp Δ Γ t σ ρ m' ∧ Interp Δ Γ A σ ρ a ∧
-    TShape.HasType Δ m' a
+    TShape.HasTypeOld Δ m' a
 
 /-! ## What soundness says
 
@@ -181,8 +181,8 @@ theorem Interp.of_bot {Δ Γ σ ρ} {t : Term} {m : TShape} (h : m.2 = Shape.bot
   rw [h] at hm
   exact hm ▸ .bot
 
-theorem TShape.HasType.bot_bot {Δ : List Term} {m : TShape} (h : m.2 = Shape.bot) :
-    TShape.HasType Δ m TShape.bot := by
+theorem TShape.HasTypeOld.bot_bot {Δ : List Term} {m : TShape} (h : m.2 = Shape.bot) :
+    TShape.HasTypeOld Δ m TShape.bot := by
   show Shape.HasType Δ (Shape.lift (max m.1 0) m.2) (Shape.lift (max m.1 0) TShape.bot.2)
   rw [h]
   simp only [Shape.lift_bot]
@@ -210,7 +210,7 @@ theorem sound_of_bot {Γ : List Term} {t t' A : Term}
   ⟨fun _ _ _ _ _ _ _ _ =>
       ⟨fun hm => Interp.of_bot (h hm), fun hm => Interp.of_bot (h' hm)⟩,
     fun _ _ _ _ _ _ _ _ hm => ⟨_, TShape.bot, TShape.LE.refl hm.wf, hm, Interp.of_bot rfl,
-      TShape.HasType.bot_bot (h hm)⟩⟩
+      TShape.HasTypeOld.bot_bot (h hm)⟩⟩
 
 /-- Directedness for such a term: `⊥` is its own upper bound. -/
 theorem dir_of_bot {Γ : List Term} {t : Term}
@@ -248,9 +248,9 @@ theorem Interp.eq_bot_of_prop {Γ : List Term} {p t : Term}
   have kb : b.1 ≤ max (max m'.1 a.1) (max a'.1 b.1) :=
     Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_right ..)
   -- everything at one level
-  have hty' := TShape.HasType.def hΔ hm'.wf ha.wf km ka hty
+  have hty' := TShape.HasTypeOld.def hΔ hm'.wf ha.wf km ka hty
   have hlea' := (TShape.LE.def_mp ka ka') hlea
-  have htya' := TShape.HasType.def hΔ ha'.wf hb.wf ka' kb htya
+  have htya' := TShape.HasTypeOld.def hΔ ha'.wf hb.wf ka' kb htya
   have hble : Shape.LE Δ (b.2.lift (max (max m'.1 a.1) (max a'.1 b.1))) (Shape.sort false) := by
     have := (TShape.LE.def_mp kb (Nat.zero_le _)) (Interp.le_sort hb)
     rwa [show Shape.lift (max (max m'.1 a.1) (max a'.1 b.1)) (TShape.sort false).2
@@ -298,7 +298,7 @@ theorem sound_atom {Γ : List Term} {t A : Term} {s a : TShape}
     (hmk : ∀ {Δ Γ' σ ρ m}, TShape.WF Δ m → TShape.LE Δ m s → Interp Δ Γ' t σ ρ m)
     (ha : ∀ {Δ Γ' σ ρ}, Interp Δ Γ' A σ ρ a)
     (hws : ∀ {Δ : List Term}, TShape.WF Δ s)
-    (hsa : ∀ {Δ : List Term}, TShape.HasType Δ s a) :
+    (hsa : ∀ {Δ : List Term}, TShape.HasTypeOld Δ s a) :
     SoundEq Γ t t ∧ SoundTy Γ t A :=
   ⟨fun _ _ _ _ _ _ _ _ => Iff.rfl,
     fun _ _ _ _ _ _ _ _ hm => ⟨s, a, hle hm, hmk hws (TShape.LE.refl hws), ha, hsa⟩⟩
@@ -321,10 +321,10 @@ first moves the type from whatever approximates the sort up to the sort
 itself, along `Interp.le_sort`. -/
 theorem SoundTy.hasType {Γ : List Term} {A : Term} {u : Bool} (h : SoundTy Γ A (.sort u))
     {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
-    {b : TShape} (hb : Interp Δ Γ A σ ρ b) : TShape.HasType Δ b (TShape.sort u) := by
+    {b : TShape} (hb : Interp Δ Γ A σ ρ b) : TShape.HasTypeOld Δ b (TShape.sort u) := by
   have ⟨b', a, hle, hb', ha, hty⟩ := h hΔ W hAdm hb
-  refine TShape.HasType.mono_l hΔ hb'.wf hb.wf trivial hle
-    (TShape.HasType.mono_r (r := true) hΔ hb'.wf ha.wf trivial hty (Interp.le_sort ha) ?_)
+  refine TShape.HasTypeOld.mono_l hΔ hb'.wf hb.wf trivial hle
+    (TShape.HasTypeOld.mono_r (r := true) hΔ hb'.wf ha.wf trivial hty (Interp.le_sort ha) ?_)
   show Shape.HasType Δ _ _
   simp only [TShape.sort, Shape.lift_sort]
   exact Shape.HasType.sort
@@ -335,9 +335,9 @@ up to `.type`. -/
 theorem SoundTy.isType {Γ : List Term} {A : Term} {u : Bool} (h : SoundTy Γ A (.sort u))
     {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
     {b : TShape} (hb : Interp Δ Γ A σ ρ b) :
-    ∃ b', TShape.LE Δ b b' ∧ Interp Δ Γ A σ ρ b' ∧ TShape.HasType Δ b' TShape.type := by
+    ∃ b', TShape.LE Δ b b' ∧ Interp Δ Γ A σ ρ b' ∧ TShape.HasTypeOld Δ b' TShape.type := by
   have ⟨b', a, hle, hb', ha, hty⟩ := h hΔ W hAdm hb
-  exact ⟨b', hle, hb', TShape.HasType.cumul (r := u) (h.hasType hΔ W hAdm hb')
+  exact ⟨b', hle, hb', TShape.HasTypeOld.cumul (r := u) (h.hasType hΔ W hAdm hb')
     (show u ≤ true by cases u <;> decide)⟩
 
 /-- The `SoundTy` half of `forallEDF`, in isolation: a Π-type's
@@ -365,8 +365,8 @@ theorem sound_forallE_ty {Γ : List Term} {A B : Term} {u v : Bool}
       .forallE hA hd hwf hlab hdom hbody hwf (TShape.LE.refl hwf), Interp.sort', ?_⟩
     -- the domain half is now the constructor's own premise; only the
     -- codomain runs an induction hypothesis
-    refine TShape.HasType.sort_T.2 (Shape.HasTypeS.forallE ⟨?_, fun e he => ?_⟩)
-    · exact TShape.HasType.sort_T.1 hd
+    refine TShape.HasTypeOld.sort_T.2 (Shape.HasTypeS.forallE ⟨?_, fun e he => ?_⟩)
+    · exact TShape.HasTypeOld.sort_T.1 hd
     · -- the codomain, at the stage extended by the entry's label: the
       -- entry's own data is exactly what `Adm.cons` and `SubstEq.cons` ask for
       obtain ⟨_, hty⟩ := hlab e he
@@ -375,7 +375,7 @@ theorem sound_forallE_ty {Γ : List Term} {A B : Term} {u v : Bool}
         .cons W hAty (hty.defeqDF hwe.2.1)
       have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
         .cons hAdm (fun _ hb => ihA.isType hΔ W hAdm hb) hA hwe.2.2.1 (hdom e he)
-      exact TShape.HasType.sort_T.1 (ihB.hasType hΔ W' hAdm' (hbody e he))
+      exact TShape.HasTypeOld.sort_T.1 (ihB.hasType hΔ W' hAdm' (hbody e he))
 
 /-- One direction of the `SoundEq` half of `forallEDF`.
 
@@ -508,14 +508,14 @@ code to read at `x ⊔ y`.  He never meets this, having no Σ-types.
 
 **Its one consumer is `tr`** (`IsDefEq.dir`), where two approximants are
 typed at two approximants of the motive and the joined witness has to be
-typed at the joined motive; master does it with `TShape.HasType.join'` at
+typed at the joined motive; master does it with `TShape.HasTypeOld.join'` at
 an arbitrary type, which is the lemma this branch removed.  Π and λ do not
 need it, now that directedness runs under `Valuation.WF`. -/
 def SoundJoin (Γ : List Term) (A : Term) : Prop :=
   ∀ {{Δ Γ₀ : List Term}} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
     ∀ {a x y}, Interp Δ Γ A σ ρ a → TShape.WF Δ x → TShape.WF Δ y →
-      TShape.HasType Δ x a → TShape.HasType Δ y a → TShape.Compat Δ x y →
-      ∃ z, TShape.WF Δ z ∧ TShape.LE Δ x z ∧ TShape.LE Δ y z ∧ TShape.HasType Δ z a
+      TShape.HasTypeOld Δ x a → TShape.HasTypeOld Δ y a → TShape.Compat Δ x y →
+      ∃ z, TShape.WF Δ z ∧ TShape.LE Δ x z ∧ TShape.LE Δ y z ∧ TShape.HasTypeOld Δ z a
 
 /-- The common upper bound of two Π-shapes: same labels (both come from
 the same term at the same stage), domains joined by `A`'s directedness,
@@ -531,17 +531,17 @@ theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
     {Δ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hwρ : Valuation.WF Δ ρ)
     {n₁ n₂} {d₁ : Shape n₁} {g₁ : ShapeFun n₁} {d₂ : Shape n₂} {g₂ : ShapeFun n₂}
     (hA₁ : Interp Δ Γ A σ ρ (Shape.T d₁))
-    (hd₁ : TShape.HasType Δ (Shape.T d₁) TShape.type)
+    (hd₁ : TShape.HasTypeOld Δ (Shape.T d₁) TShape.type)
     (hwf₁ : Shape.WF (n := n₁+1) Δ (.forallE (A.subst σ) (B.subst σ.lift) d₁ g₁))
     (hlab₁ : ∀ e ∈ g₁, ∃ w, Δ ⊢ e.ty ≡ A.subst σ : .sort w)
-    (hdom₁ : ∀ e ∈ g₁, TShape.HasType Δ (Shape.T e.inp) (Shape.T d₁))
+    (hdom₁ : ∀ e ∈ g₁, TShape.HasTypeOld Δ (Shape.T e.inp) (Shape.T d₁))
     (hbody₁ : ∀ e ∈ g₁,
       Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push (Shape.T e.inp)) (Shape.T e.out))
     (hA₂ : Interp Δ Γ A σ ρ (Shape.T d₂))
-    (hd₂ : TShape.HasType Δ (Shape.T d₂) TShape.type)
+    (hd₂ : TShape.HasTypeOld Δ (Shape.T d₂) TShape.type)
     (hwf₂ : Shape.WF (n := n₂+1) Δ (.forallE (A.subst σ) (B.subst σ.lift) d₂ g₂))
     (hlab₂ : ∀ e ∈ g₂, ∃ w, Δ ⊢ e.ty ≡ A.subst σ : .sort w)
-    (hdom₂ : ∀ e ∈ g₂, TShape.HasType Δ (Shape.T e.inp) (Shape.T d₂))
+    (hdom₂ : ∀ e ∈ g₂, TShape.HasTypeOld Δ (Shape.T e.inp) (Shape.T d₂))
     (hbody₂ : ∀ e ∈ g₂,
       Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push (Shape.T e.inp)) (Shape.T e.out)) :
     ∃ s, TShape.WF Δ s ∧ Interp Δ Γ (.forallE A B) σ ρ s ∧
@@ -562,14 +562,14 @@ theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
       (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) := hdj
   -- and its typing, from the two domains' own, joined at a *sort*
   have hd₁' : Shape.HasType Δ (d₁.lift (max n₁ n₂)) (Shape.sort true) := by
-    have := TShape.HasType.def (a := TShape.type) hΔ hwd₁ trivial k₁ (Nat.zero_le _) hd₁
+    have := TShape.HasTypeOld.def (a := TShape.type) hΔ hwd₁ trivial k₁ (Nat.zero_le _) hd₁
     rwa [show ((TShape.type).2.lift (max n₁ n₂)) = Shape.sort true from Shape.lift_sort] at this
   have hd₂' : Shape.HasType Δ (d₂.lift (max n₁ n₂)) (Shape.sort true) := by
-    have := TShape.HasType.def (a := TShape.type) hΔ hwd₂ trivial k₂ (Nat.zero_le _) hd₂
+    have := TShape.HasTypeOld.def (a := TShape.type) hΔ hwd₂ trivial k₂ (Nat.zero_le _) hd₂
     rwa [show ((TShape.type).2.lift (max n₁ n₂)) = Shape.sort true from Shape.lift_sort] at this
-  have hdjty : TShape.HasType Δ
+  have hdjty : TShape.HasTypeOld Δ
       (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) TShape.type :=
-    TShape.HasType.sort_T.2
+    TShape.HasTypeOld.sort_T.2
       (Shape.HasType.join hΔ ((Shape.lift_wf k₁).2 hwd₁) ((Shape.lift_wf k₂).2 hwd₂)
         hcd' hd₁' hd₂')
   have hled₁ : TShape.LE Δ (Shape.T d₁)
@@ -585,13 +585,13 @@ theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
       exact (Shape.le_join hΔ ((Shape.lift_wf k₁).2 hwd₁)
         ((Shape.lift_wf k₂).2 hwd₂) hcd').2
   -- each graph entry's input, typed at the joined domain
-  have hdomj₁ : ∀ e ∈ g₁, TShape.HasType Δ (Shape.T e.inp)
+  have hdomj₁ : ∀ e ∈ g₁, TShape.HasTypeOld Δ (Shape.T e.inp)
       (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) := fun e he =>
-    TShape.HasType.mono_r hΔ (hwf₁.2.2.2.1 e he).2.2.1 hwd₁ hwdj
+    TShape.HasTypeOld.mono_r hΔ (hwf₁.2.2.2.1 e he).2.2.1 hwd₁ hwdj
       (hdom₁ e he) hled₁ hdjty
-  have hdomj₂ : ∀ e ∈ g₂, TShape.HasType Δ (Shape.T e.inp)
+  have hdomj₂ : ∀ e ∈ g₂, TShape.HasTypeOld Δ (Shape.T e.inp)
       (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) := fun e he =>
-    TShape.HasType.mono_r hΔ (hwf₂.2.2.2.1 e he).2.2.1 hwd₂ hwdj
+    TShape.HasTypeOld.mono_r hΔ (hwf₂.2.2.2.1 e he).2.2.1 hwd₂ hwdj
       (hdom₂ e he) hled₂ hdjty
   -- **the cross pairs**
   have hcross : ShapeFun.Compat Shape.Compat Δ
@@ -679,12 +679,12 @@ theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
     match List.mem_append.1 he with
     | .inl he =>
       obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
-      exact TShape.HasType.mono_l hΔ (hwf₁.2.2.2.1 a ha).2.2.1
+      exact TShape.HasTypeOld.mono_l hΔ (hwf₁.2.2.2.1 a ha).2.2.1
         ((Shape.lift_wf k₁).2 (hwf₁.2.2.2.1 a ha).2.2.1) hwdj
         (TShape.LE.lift_le hΔ (m := Shape.T a.inp) k₁ (hwf₁.2.2.2.1 a ha).2.2.1) (hdomj₁ a ha)
     | .inr he =>
       obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
-      exact TShape.HasType.mono_l hΔ (hwf₂.2.2.2.1 a ha).2.2.1
+      exact TShape.HasTypeOld.mono_l hΔ (hwf₂.2.2.2.1 a ha).2.2.1
         ((Shape.lift_wf k₂).2 (hwf₂.2.2.2.1 a ha).2.2.1) hwdj
         (TShape.LE.lift_le hΔ (m := Shape.T a.inp) k₂ (hwf₂.2.2.2.1 a ha).2.2.1) (hdomj₂ a ha)
   · -- bodies
@@ -835,10 +835,10 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   | bvar => sorry
   | sort =>
     refine sound_atom Interp.le_sort (fun hw h => .sort hw h) Interp.sort' trivial fun {_} => ?_
-    simpa [TShape.HasType, TShape.sort] using .sort
+    simpa [TShape.HasTypeOld, TShape.sort] using .sort
   | @unit _ r =>
     refine sound_atom Interp.le_unit (fun hw h => .unit hw h) Interp.sort' trivial fun {_} => ?_
-    simpa [TShape.HasType] using .unit id
+    simpa [TShape.HasTypeOld] using .unit id
   | star => exact sound_of_bot (fun .bot => rfl) (fun .bot => rfl)
   | appDF => sorry
   | lamDF => sorry
@@ -864,10 +864,10 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   | fst_snd => sorry
   | nat =>
     exact sound_atom Interp.le_nat (fun hw h => .nat hw h) Interp.sort' trivial
-      (fun {_} => by simpa [TShape.HasType] using Shape.HasTypeS.nat)
+      (fun {_} => by simpa [TShape.HasTypeOld] using Shape.HasTypeS.nat)
   | zero =>
     exact sound_atom Interp.le_zero (fun hw h => .zero hw h) Interp.nat' trivial
-      (fun {_} => by simpa [TShape.HasType] using Shape.HasTypeS.zero)
+      (fun {_} => by simpa [TShape.HasTypeOld] using Shape.HasTypeS.zero)
   | succDF => sorry
   | natCaseDF => sorry
   | natCase_zero => sorry
