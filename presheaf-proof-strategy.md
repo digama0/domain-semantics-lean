@@ -806,6 +806,9 @@ hypotheses in the process.
 
 ### 5.3 Lower-closed `HasType` vs `HasDom` in the λ clause
 
+Superseded in part by §5.5: lower closure is not available at the shape
+level at all.  What follows is the reasoning as it stood.
+
 Decided in favour of lower closure this session, and §4.5 shows the cost
 is exactly one thing: typedness of inputs of approximants of Π-typed
 terms, which master reads off the shape and we must carry semantically
@@ -823,7 +826,7 @@ ours inspects the codomain.  With `mono_r` now `lower`-based this weakening
 is available and would make `SoundTy` for `forallEDF` at `type` free.  Not
 needed for anything above; a simplification to take when convenient.
 
-### 5.5 `mono_l` at `lam`: the λ clause needs its dominating graph back
+### 5.5 `mono_l` at `lam`: lower-closure of typing is semantic
 
 The one thing lookup coverage breaks, and it is not a gap in a proof but a
 false statement.
@@ -875,8 +878,9 @@ The three repairs that suggest themselves all fail:
   and join closure are genuinely in conflict for dependent pairs at the
   shape level; that conflict is the content of §5.1.
 
-**Resolution: give the `lam` clause a dominating graph**, as `pair` has a
-dominating first component:
+**A dominating graph does not work either.**  The obvious repair is to
+give the `lam` clause a dominating graph, as `pair` has a dominating first
+component:
 
 ```lean
 | lam : ShapeFun.HasPi T d f .type →
@@ -884,26 +888,83 @@ dominating first component:
        ∀ e ∈ g₀, ∃ c, WF c ∧ Evaluates Δ f e.ty e.tm e.inp c ∧ T e.out c) → …
 ```
 
-"`g` is below a graph whose entries are typed".  Then `mono_l` at `lam` is
-transitivity of `ShapeFun.LE` and nothing else — which is what its own
-docstring always claimed ("the dominating existentials in `HasPi`, `lam`
-and `pair` absorb the approximation by transitivity").  The `lam`
-constructor's current comment, "no dominating graph: with `HasDom` gone
-the condition is downward closed in `g` on its own", was sound reasoning
-under *entry* coverage and is exactly what lookup coverage invalidates.
+`mono_l` at `lam` is then transitivity of `ShapeFun.LE` and nothing else.
+But the clause then does not **reflect along `lift`**, and this repo
+already knows it — the note above `Evaluates.lift` in `HasType.lean`, left
+from when `HasDom` was removed, says exactly this: *"the `lam` clause's
+dominating graph at the level above need not be a lift."*
 
-Note this is not `HasDom` returning: no typedness of inputs is asked for,
-so §5.3's decision stands and η ← still needs §4.5(a).
+That is the dilemma, and it is sharp:
 
-Establishing the clause is unchanged (`g₀ := g`, by `ShapeFun.LE.refl`),
-and `mono_r`, `subst` and `lift` transport `g₀` with the lemmas they
-already use (`mono_graph'`, `ShapeFun.LE.subst_of`, `ShapeFun.LE.lift`).
-What changes is *reading* it: a consumer that wants an entry of `g` typed
-now gets it only through the lookup in `g₀`, so it gets the `bounded` form
-— a typed value *above* — rather than the exact one.  `proofIrrel`'s Π
-case already works that way; the others (`beta` ←, η ←, `Inversion`) have
-to be checked, and §4.5(a) is where the exact form would have to be
-recovered if one of them needs it.
+* **Reflection** (`Shape.HasType.lift_iff`'s `→`) works clause by clause
+  because every object the per-entry clause mentions is a lift: the entry
+  is `e.lift`, its output is `e.out.lift`, and `ihcode` reflects the
+  codomain witness with `Evaluates.lift_of` and then reflects the typing
+  with the level-`n` induction hypothesis, *both of whose sides are
+  lifts*.  Any clause whose witness is an arbitrary object at the higher
+  level — a dominating graph, or a list of pieces the output is below the
+  join of — loses this, because there is nothing to pull the witness back
+  along.
+* **Downward closure** (`mono_l`) needs precisely such a witness, since
+  the entry outputs of `g' ≤ g` are joins.
+
+Per entry: reflects, does not close.  Dominating: closes, does not
+reflect.  There is no third form.
+
+Nor can the reflection be dodged by re-reading the level index.
+`TShape.HasType` is `Shape.HasType` at the canonical level `max m.1 a.1`,
+and reflection is what `TShape.HasType.mono_l` and `mono_r` are built on
+(lift both sides to a common level, work there, come back).  Reading
+`TShape.HasType` as "*at every* level above the canonical one" removes the
+reflection from `.def` and from `.T`'s `←`, but not from `mono_l`: `m` may
+sit at a higher level than both `m'` and `a`, so the hypothesis is
+available only above `m.1` and the conclusion is wanted at `max m'.1 a.1`.
+Reading it as "*at some* level" fixes `mono_l` and breaks `.T`'s `→`
+instead.  (What is worth keeping from that exercise is `Shape.HasType.lift`
+— preservation, hypothesis-free — which is now proved.)
+
+**The counterexample is semantically spurious, and that is the point.**
+`Shape.Compat` on pairs demands `LabelEq Δ ty tm ty' tm'`, so the two
+pairs in it carry definitionally equal labels: they approximate *the same
+term*.  Their dominating first components are therefore approximants of
+the same first projection, and are compatible by `dir` — `.zero` and
+`.succ ⊥` never both occur.  The configuration that breaks `mono_l` cannot
+arise in the image of `Interp`; the shape level simply cannot see that,
+because a shape records the term it approximates only in its labels and
+`HasType` does not read them.
+
+So the conclusion is the same one §5.1 reaches for `SoundJoin`, arrived at
+from the other side:
+
+> **Lower-closure of typing is not a shape-level fact.**  Like
+> join-closure, it holds only of approximants of a term, and the reason is
+> the same: a dominating existential is compatible with another only
+> through the term both dominate.
+
+§5.3 recorded lower closure as decided and named master's design as the
+fallback "if (a) proves awkward".  It is not awkward, it is unavailable,
+so the fallback is now the live option.  Three ways forward:
+
+  (a) **Semantic lower-closure.**  Keep the per-entry `lam` clause; drop
+      `Shape.HasType.mono_l` at `lam`; replace the uses of
+      `TShape.HasType.mono_l` by a lemma proved alongside `sound`, where
+      `dir` is available.  Its three uses are `SoundTy.hasType` — whose
+      type is a *sort*, and `mono_l` at a sort never reaches the `lam`
+      clause, so that one survives as a shape-level lemma — and two level
+      adjustments in `sound_forallE_ub`.  This is the smallest change and
+      it keeps §5.3's decision, semantically.
+  (b) **Master's design.**  `HasType` not lower-closed, `HasDom` back in
+      the `lam` clause, closure applied by `InterpTyped` at use sites.
+      Coherent, and it is what master does; it gives up `Evaluates.lift_iff`
+      reflection for `HasDom`, which is why it was dropped here.
+  (c) **Drop joins from the order.**  `ShapeFun.LE` through a join-free
+      lookup (`bot`/`entry`/`lower`) makes the per-entry clause downward
+      closed outright — the offending case disappears — at the cost of η →,
+      which is the whole reason for lookup coverage (§5.2).  Only worth it
+      if η can be had another way.
+
+(a) is recommended: it is the same move as §5.1(a) and §4.5(a), it is
+local (three call sites), and it does not disturb anything §5.2 bought.
 
 ### 5.6 Summary of statement changes
 
@@ -919,7 +980,8 @@ recovered if one of them needs it.
 | `ShapeFun.LE` | lookup coverage, carrying `WF` of both graphs | §5.2 | **done** |
 | `ShapeFun.Eval.lower` | drop the `WF` side condition (`Shape.LE.wf`) | §5.2 | **done** |
 | `Shape.LE` | `WF` of the lower bound at `pair`/`lam`; `Shape.LE.wf` | §5.2 | **done** |
-| `HasTypeS.lam` | dominating graph `g₀ ≥ g` with typed entries | §5.5 | open |
+| `Shape.HasType.mono_l` | false at `lam`; lower-closure becomes semantic | §5.5 | open |
+| `Shape.HasType.lift` | preservation split off `lift_iff` | §5.5 | **done** |
 | `InterpTyped` at Π (and Σ) types | witness carries lookup-form `HasDom` | §4.5(a), §5.1(a) | open |
 | `SoundJoin` | keep, upper-bound form; prove per former alongside `sound` | §5.1 | **done** (kept) |
 
