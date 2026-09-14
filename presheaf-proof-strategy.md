@@ -708,91 +708,101 @@ components.  Options:
 (a) is the honest one and fits the pattern; it makes the Σ half of the
 development carry its own directedness, as his Π half does.
 
-### 5.2 The graph order: lookup coverage is impossible, and why
+### 5.2 The graph order: lookup coverage, and what it cost
 
-**Tried, and it does not work.**  The proposal was to replace entry
-coverage
+**Implemented; the order is lookup coverage.**  Entry coverage
 
 ```lean
 def ShapeFun.LE Γ R f f' := ∀ e ∈ f, ∃ e' ∈ f', LabelEq Γ e'.ty e'.tm e.ty e.tm ∧
   R e'.inp e.inp ∧ R e.out e'.out
 ```
 
-by coverage through the lookup, because η → needs it: an entry of an
-η-expansion's graph has as its output a *join* of several outputs of the
-function's graph, and no single entry need dominate a join.
+cannot express η →: an entry of an η-expansion's graph has as its output a
+*join* of several outputs of the function's graph, and no single entry
+need dominate a join.  Master escapes because its graphs are saturated, so
+a join of matching outputs *is* an entry; the other repo because a λ-value
+is an ideal, closed under every graph valid for its action.  Levels *and*
+non-saturated graphs is our combination alone, and it needs the lookup.
 
-Two corrections, the second fatal.
-
-**(a) It cannot be spelled with `Evaluates`.**  `Evaluates` lives in
-`HasType.lean` and is defined *using* `Shape.LE`.  The dependency descends
-a level, though — `Shape.LE` at `n+1` would need the lookup at `n`, which
-needs `Shape.LE` at `n` — so the lookup can be re-given in `Shape.lean`,
-parameterised by the order one level down:
+**(a) It is spelled with `Evaluates`, moved.**  `Evaluates` was in
+`HasType.lean` and defined using `Shape.LE`, but the dependency descends a
+level — `Shape.LE` at `n+1` needs the lookup at `n`, which needs
+`Shape.LE` at `n` — so the lookup is given in `Shape.lean`, parameterised
+by the order one level down:
 
 ```lean
-inductive ShapeFun.Covers (Γ) {n} (R : Shape n → Shape n → Prop)
+inductive ShapeFun.Eval (Δ) {n} (R : Shape n → Shape n → Prop)
     (f : ShapeFun n) (A a : Term) (x : Shape n) : Shape n → Prop
-  | bot   : Covers .bot
-  | entry (e) : e ∈ f → LabelEq Γ e.ty e.tm A a → R e.inp x → Covers e.out
-  | lower {y z} : R y z → Covers z → Covers y
-  | join  {y z} : Covers y → Covers z → Covers (y.join z)
-
-def ShapeFun.LE Γ R f f' := ∀ e ∈ f, Covers Γ R f' e.ty e.tm e.inp e.out
+  | bot   : Eval .bot
+  | entry (e) : e ∈ f → LabelEq Δ e.ty e.tm A a → R e.inp x → Eval e.out
+  | lower {y z} : R y z → Eval z → Eval y
+  | join  {y z} : Shape.Compat Δ y z → Eval y → Eval z → Eval (y.join z)
 ```
 
-`Shape.join` has to move above `Shape.LE` (it sits 300 lines below);
-`Compat` and `WF` do not depend on `LE`, so nothing else moves.  With
-`lower` as a rule, `refl`, `trans` (`Covers.mono` + `Covers.trans`) and
-`sub` are four-line inductions.  This much was implemented and compiled.
+`HasType.lean`'s `Evaluates` is now this at `R := Shape.LE Δ`, a
+`@[reducible] def` with `@[match_pattern]` constructor aliases, so every
+existing `Evaluates` proof reads unchanged.  `Shape.join` moved above the
+order section; `Compat` and `WF` do not depend on `LE`, so nothing else
+moved.
 
-**(b) The order then does not reflect along `lift`, and that is fatal.**
-`Shape.lift_le_lift` — `LE (s.lift m) (t.lift m) ↔ LE s t` — is what makes
-the level index invisible; it is `TShape.LE.def`'s content, and that has
-117 call sites.  Its `→` direction fails for lookup coverage.  Take the
-motive `∀ v, LE (v.lift m) w → Covers f' A a x v`: `bot` needs
-`lift_eq_bot`, `entry` needs the level-`n` induction hypothesis, `lower`
-needs transitivity at level `n` (fine — `LE.trans` is independent of
-`lift_le_lift` and can move above it, at the cost of a `⊢ Γ` hypothesis).
-But `join` needs `LE (v.lift) (y₁ ⊔ y₂) → LE (v.lift) y₁`, which is false.
-The other motive, `∃ v, Covers f' A a x v ∧ LE w (v.lift m)`, gets through
-`join` only if `v₁.lift ≤ v₁.lift ⊔ v₂.lift` — that is `le_join`, which
-needs `Compat` and `WF`.  Exactly the hypotheses `Evaluates.lift_of`
-carries, and exactly the ones an order may not have: `Interp` is a lower
-set by design and `WF` is not downward closed, so `TShape.LE.def` is
-applied to shapes that are not well formed.
+**(b) The reflection along `lift` does go through.**  The earlier verdict
+here was wrong.  `Shape.lift_le_lift` — `LE (s.lift m) (t.lift m) ↔ LE s
+t`, the content of `TShape.LE.def` — is proved, by the motive `∃ c,
+LE c' (c.lift k) ∧ Eval f A a x c` (`Eval.lift_of`).  Three things make it
+work, and each is a change to a definition rather than to a proof:
 
-**Neither original meets this, for different reasons.**  Master's graphs
-are saturated, so a join of matching outputs *is* an entry and entry
-coverage suffices.  The other repo has **no level index at all** —
-`Shape Γ` is one inductive type, there is no `lift` and no reflection
-obligation — and its λ-value is an ideal, closed under every valid graph.
-Levels *and* non-saturated graphs is the combination that has no order,
-and it is ours alone.
+1. **`join` carries `Compat`.**  The `join` case wants `c₁.lift ⊔ c₂.lift`
+   to be an upper bound of the two reflected values, which is `le_join`,
+   which needs `Compat` and `WF` of the two.  `Eval.compat` supplies the
+   first (any two values of one lookup are compatible, given a coherent
+   graph and a coherent query) and `Eval.wf` the second.  Both hold
+   *because* of the side condition, which is why it is on the rule.
+2. **`ShapeFun.LE` carries the well-formedness of both graphs.**  This is
+   the move that was missing.  `Eval.lift_of` wants the covering graph
+   well formed and coherent; those cannot be hypotheses of `lift_le_lift`
+   (see 3), but they need not be, because the order on graphs asks for
+   them outright and `lift_le_lift`'s own hypothesis then supplies them.
+   The conjunct is not decoration elsewhere either: `∀ e ∈ f, Eval f'
+   e.ty e.tm e.inp e.out` says nothing whatever about an entry whose
+   output is `⊥`, since `Eval.bot` discharges it.  `ShapeFun.WF` absorbed
+   the graph's self-coherence at the same time, so `Shape.WF`'s
+   `forallE`/`sigma`/`lam` clauses lost their trailing `Compat` conjunct
+   and every projection into them was unchanged.
+3. **`WF` never lands on an upper bound.**  The old objection was that
+   `Interp.mono` and the `Interp` constructors' `hle` premises apply the
+   order to shapes with no `WF`.  That is true and harmless: the order
+   demands `WF` only of graphs and of its *lower* bound.  `Shape.LE.wf`
+   now states this outright — `LE Γ x y → WF Γ x` — and it is what lets
+   `Eval`'s `lower` rule drop its own `WF` side condition.  It cannot be
+   had for `y`: `⊥` is below everything, well formed or not, and has to
+   be, or `Interp.le_id` could not invert the `bot` rule without knowing
+   its label is typed.
 
-**Options, none cheap.**
+**Preservation and reflection are separate lemmas.**  Only reflection
+needs `⊢ Γ` (through `Eval.compat` and `le_join`), and reflection is the
+minority use — a `TShape.LE` is read at a higher level far more often than
+it is built from one.  So `Shape.lift_le` (preservation, hypothesis-free)
+sits beside `Shape.lift_le_lift` (the iff, with `⊢ Γ`), and
+`TShape.LE.def_mp` beside `TShape.LE.def`.  Of the 46 `LE.def` sites, 31
+were preservation.  Keeping preservation free is what stops `⊢ Δ` from
+spreading to every site that mentions the order, `Interp.sort'` among
+them.  A further group needed neither: at the canonical level `max a.1
+b.1` a `TShape.LE` *is* the shape order definitionally, so `LE.refl`,
+`bot_le`, `LE.T` and `bot_le'` are a `show` and a rewrite.
 
-1. *Carry `WF` through the lift reflection.*  Add well-formedness to
-   `lift_le_lift`'s `←` and to `TShape.LE.def`, and audit the 117 sites.
-   Plausible where `WF` is in scope, but `Interp.mono` and the `Interp`
-   constructors' `hle` premises apply the order to shapes with no `WF`,
-   so some sites genuinely cannot supply it.
-2. *Drop the level index*, as the other repo does, and find another
-   well-founded measure for the recursions `Shape n` currently supports.
-   Large, and it is the one structural decision this branch inherited from
-   master rather than chose.
-3. *Restore saturation in some form.*  Rejected in §4.1 of the plan
-   because label classes merge under substitution, so join-closure of a
-   graph is not preserved by reindexing.  The objection stands.
-4. *Prove η without the order*: find a route to η → that does not place
-   `lam g` below a single approximant of `e`.  Master has none — its `key`
-   and `main` (`Sound.lean:2283-2316`) are exactly this placement, made
-   possible by saturation — and the other repo's is the ideal equation
-   `⟦e⟧ = abstraction (arrowAction ⟦e⟧)`, which needs a value to be a set.
+**What it cost.**  A resequencing of `Shape.lean` (the substitution and
+compatibility block, 613 lines, above `Shape.join_le`); `Compat.anti_right`
+rewritten as an induction over the lookup, with its graph argument factored
+out as `ShapeFun.Compat.anti_right_of` (it had been written out three
+times); and `ShapeFun.Compat.of_common_upper` built from that rather than
+by wrapping graphs in `.lam`, which the λ non-degeneracy conjunct no longer
+permits.  `Shape.join_le` came out *without* a context hypothesis, as its
+comment always claimed it should.
 
-Until one is chosen, η stays open, and with it `fst_snd`.  Nothing else in
-§4 depends on the order changing: `forallEDF`, `lamDF`, `appDF`, `beta`
-and the `tr` rules all go through with entry coverage.
+**What it buys.**  η → as described in §4.5, and with it `fst_snd`; and
+`Evaluates.mono_graph'` became exact — the transport is `Eval.trans` on
+the nose, so the dominating witness is the shape itself — losing two
+hypotheses in the process.
 
 ### 5.3 Lower-closed `HasType` vs `HasDom` in the λ clause
 
@@ -824,7 +834,9 @@ needed for anything above; a simplification to take when convenient.
 | `Interp.subst_iff` → `Interp.substTerm` | directedness of the `θ i` as a hypothesis (`Interp.Dir`) | §3.3 | **done** (stated) |
 | `Interp.inst` | takes `Interp.Dir` of the substituted term | §3.3 | **done** (stated) |
 | `Adm.subst` | delete | §3.5 | **done** |
-| `ShapeFun.LE` | lookup coverage | §5.2 | **withdrawn**: breaks `lift_le_lift` |
+| `ShapeFun.LE` | lookup coverage, carrying `WF` of both graphs | §5.2 | **done** |
+| `ShapeFun.Eval.lower` | drop the `WF` side condition (`Shape.LE.wf`) | §5.2 | **done** |
+| `Shape.LE` | `WF` of the lower bound at `pair`/`lam`; `Shape.LE.wf` | §5.2 | **done** |
 | `InterpTyped` at Π (and Σ) types | witness carries lookup-form `HasDom` | §4.5(a), §5.1(a) | open |
 | `SoundJoin` | keep, upper-bound form; prove per former alongside `sound` | §5.1 | **done** (kept) |
 
@@ -832,8 +844,9 @@ needed for anything above; a simplification to take when convenient.
 so that `substTerm`/`inst` can take it as a hypothesis; `SoundDir` is its
 closure over well-formed stages and `Interp.Dir.join` is master's form.
 
-The graph-order row is withdrawn: §5.2 records why lookup coverage cannot
-be had, and what the alternatives for η cost.  The `InterpTyped` row
-remains open and is a restructuring rather than a restatement — it changes
-what `SoundTy` promises and so touches every case that consumes it.
+The graph-order rows are done: §5.2 records how lookup coverage was made
+to reflect along `lift`, which was the one thing standing between it and
+η.  The `InterpTyped` row remains open and is a restructuring rather than
+a restatement — it changes what `SoundTy` promises and so touches every
+case that consumes it.
 

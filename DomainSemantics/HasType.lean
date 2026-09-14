@@ -318,63 +318,6 @@ theorem Shape.IsNumeral.lower {Δ : List Term} {n} {v v' : Shape n}
   | zero => match v' with | .bot => exact .bot | .zero => exact .zero
   | succ _ ih => match v' with | .bot => exact .bot | .succ w' => exact .succ (ih hle)
 
-/-- A Π/Σ signature is inherited by anything it dominates: the whole point
-of stating it with a dominating pair. -/
-theorem ShapeFun.HasPi.lower {Δ : List Term} {n}
-    {d d' : Shape n} {f f' : ShapeFun n} {a : Shape n}
-    (ih : ∀ {m m' : Shape n}, Shape.LE Δ m' m → Shape.HasType Δ m a → Shape.HasType Δ m' a)
-    (ihty : ∀ {m m' : Shape n}, Shape.LE Δ m' m →
-      Shape.HasType Δ m .type → Shape.HasType Δ m' .type)
-    (hd : Shape.LE Δ d' d) (hf : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) f' f)
-    (h : ShapeFun.HasPi (Shape.HasType Δ) d f a) :
-    ShapeFun.HasPi (Shape.HasType Δ) d' f' a :=
-  -- SET ASIDE (order change): `hf e he` is a lookup derivation, so this is
-  -- an induction over it whose `join` case wants `HasType.join`.
-  ⟨ihty hd h.1, fun e he => sorry⟩
-
-/-- **Left monotonicity**: a type is a lower set.  Master has only the
-two-sided form (`WShape.HasType.mono_l`, a 70-line mutual induction whose
-graph cases run a cycle argument); here the clauses were arranged so that
-the genuine one-sided statement is an induction with no side conditions --
-the dominating existentials in `HasPi`, `lam` and `pair` absorb the
-approximation by transitivity, the componentwise clauses use the induction
-hypothesis, and every `m' = ⊥` branch is `.bot (isType h)`. -/
-theorem Shape.HasType.mono_l (hΔ : ⊢ Δ) {n} {m m' a : Shape n}
-    (hle : Shape.LE Δ m' m) (h : Shape.HasType Δ m a) : Shape.HasType Δ m' a := by
-  induction n with
-  | zero =>
-    cases m' with | bot => exact Shape.HasType0.bot | sort s
-    cases m <;> cases hle; exact h
-  | succ n ih
-  have hty := h.isType
-  cases h with
-  | bot hb => cases Shape.le_bot_iff.1 hle; exact .bot hb
-  | sort =>
-    cases m' with | bot => exact .bot hty | sort s' => cases hle; exact .sort | _ => cases hle
-  | unit hj =>
-    cases m' with | bot => exact .bot hty | unit r' => cases hle; exact .unit hj | _ => cases hle
-  | nat => cases m' with | bot => exact .bot hty | nat => exact .nat | _ => cases hle
-  | zero => cases m' with | bot => exact .bot hty | zero => exact .zero | _ => cases hle
-  | succ hN =>
-    cases m' with | bot => exact .bot hty | succ => exact .succ (hN.lower hle) | _ => cases hle
-  | id hj =>
-    cases m' with | bot => exact .bot hty | id => cases hle.1; exact .id hj | _ => cases hle
-  | forallE hpi =>
-    cases m' with | bot => exact .bot hty | forallE => ?_ | _ => cases hle
-    exact .forallE <| hpi.lower ih ih hle.2.1 hle.2.2
-  | sigma hpi =>
-    cases m' with | bot => exact .bot hty | sigma => ?_ | _ => cases hle
-    exact .sigma <| hpi.lower ih ih hle.2.1 hle.2.2
-  | lam hpi hcod =>
-    cases m' with | bot => exact .bot hty | lam => ?_ | _ => cases hle
-    refine .lam hpi fun e he => ?_
-    -- SET ASIDE (order change): `hle e he` is a lookup derivation.
-    exact sorry
-  | pair hpi hxle hwx hxd hwc hev hyc =>
-    cases m' with | bot => exact .bot hty | pair => ?_ | _ => cases hle
-    exact .pair hpi (hle.2.1.trans hΔ hxle) hwx hxd hwc (hev.label hle.1.symm) (ih hle.2.2.1 hyc)
-  | refl => cases m' with | bot => exact .bot hty | refl => exact .refl | _ => cases hle
-
 theorem Evaluates.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
     {n} {f : ShapeFun n} {A a : Term} {x c : Shape n} :
     Evaluates Δ f A a x c →
@@ -616,42 +559,6 @@ theorem Evaluates.mono_graph' {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeF
     (fun _ _ _ h₁ h₂ => h₁.trans hΔ h₂) hff'.1 h
   exact ⟨c, h', Shape.LE.refl (ShapeFun.Eval.wf hΔ hwf h')⟩
 
-/-- The lookup is **monotone in the graph**, and what it returns is a type
-whenever the graph's outputs are.  Master gets monotonicity from
-`app_mono_l`, its lookup being a function; ours produces a witness, and
-the `join` case needs the two witnesses to be compatible
-(`Evaluates.compat`), bounded (`le_join`, via `Evaluates.wf`), and typed
-(`hjoin`, which is `mono_r`'s companion at the level below). -/
-theorem Evaluates.mono_graph {Δ : List Term} (hΔ : ⊢ Δ) {n} {f f' : ShapeFun n}
-    {A a : Term} {x : Shape n} {r : Bool}
-    (hf' : ShapeFun.Compat Shape.Compat Δ f' f') (hx : Shape.Compat Δ x x)
-    (hwf : ∀ e ∈ f', Shape.WF Δ e.out)
-    (hty : ∀ e ∈ f', Shape.HasType Δ e.out (.sort r))
-    (hjoin : ∀ {y z : Shape n}, Shape.WF Δ y → Shape.WF Δ z → Shape.Compat Δ y z →
-      Shape.HasType Δ y (.sort r) → Shape.HasType Δ z (.sort r) →
-      Shape.HasType Δ (y.join z) (.sort r))
-    (hff' : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) f f')
-    {c : Shape n} (h : Evaluates Δ f A a x c) :
-    ∃ c', Evaluates Δ f' A a x c' ∧ Shape.LE Δ c c' ∧
-      Shape.HasType Δ c' (.sort r) := by
-  induction h with
-  | bot => exact ⟨.bot, .bot, Shape.LE.bot, Shape.HasType.bot_sort⟩
-  | entry e he hlab hin =>
-    -- SET ASIDE (order change), as `mono_graph'` above.
-    exact sorry
-  | lower hle _ ih =>
-    have ⟨c', hc', hle', hty'⟩ := ih
-    exact ⟨c', hc', hle.trans hΔ hle', hty'⟩
-  | join _ _ _ ih₁ ih₂ =>
-    have ⟨y', hy', hley, htyy⟩ := ih₁
-    have ⟨z', hz', hlez, htyz⟩ := ih₂
-    have hc : Shape.Compat Δ y' z' := Evaluates.compat hΔ hf' hx hy' hz'
-    have hwy := Evaluates.wf hΔ hwf hy'
-    have hwz := Evaluates.wf hΔ hwf hz'
-    have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwy hwz hc
-    refine ⟨y'.join z', .join hc hy' hz', ?_, hjoin hwy hwz hc htyy htyz⟩
-    exact Shape.join_le (hley.trans hΔ hu₁) (hlez.trans hΔ hu₂)
-
 /-! ## Monotonicity on the right, and typed joins
 
 These two are **mutually recursive on the level** and so are proved
@@ -742,6 +649,142 @@ theorem Shape.HasType.join (hΔ : ⊢ Δ) {n} {y z : Shape n} {r : Bool}
     (hy : Shape.HasType Δ y (.sort r)) (hz : Shape.HasType Δ z (.sort r)) :
     Shape.HasType Δ (y.join z) (.sort r) := (Shape.HasType.mono_r_join hΔ).2 hwy hwz hc hy hz
 
+/-! ## Reading the lookup off, once the graph's outputs are typed
+
+Two forms, and the difference between them is the whole reason the `lam`
+typing clause is where the order change bites (§5.3).  `hasType` types the
+value *itself*, and so needs the type's extension to be closed under
+lowering and joins; `bounded` only produces a typed value *above* it, and
+needs neither -- the `lower` case keeps the bigger witness and the `join`
+case joins the two witnesses.  At a sort both are available, since
+`HasType.mono_l` and `HasType.join` are exactly those two closures. -/
+
+/-- Everything the lookup returns is typed, given that the type's extension
+is a lower set closed under compatible joins.  Both closures are
+hypotheses, because at the level where this is used -- inside `mono_l`'s
+own induction -- lowering is the induction hypothesis. -/
+theorem Evaluates.hasType (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term} {x t : Shape n}
+    (hwf : ∀ e ∈ f, Shape.WF Δ e.out) (htt : Shape.HasType Δ t .type)
+    (hty : ∀ e ∈ f, Shape.HasType Δ e.out t)
+    (hlower : ∀ {m m' : Shape n}, Shape.LE Δ m' m →
+      Shape.HasType Δ m t → Shape.HasType Δ m' t)
+    (hjoin : ∀ {y z : Shape n}, Shape.WF Δ y → Shape.WF Δ z → Shape.Compat Δ y z →
+      Shape.HasType Δ y t → Shape.HasType Δ z t → Shape.HasType Δ (y.join z) t) :
+    ∀ {c : Shape n}, Evaluates Δ f A a x c → Shape.HasType Δ c t := by
+  intro c h
+  induction h with
+  | bot => exact Shape.HasType.bot htt
+  | entry e he _ _ => exact hty e he
+  | lower hle _ ih => exact hlower hle ih
+  | join hc hy hz ih₁ ih₂ =>
+    exact hjoin (Evaluates.wf hΔ hwf hy) (Evaluates.wf hΔ hwf hz) hc ih₁ ih₂
+
+/-- Everything the lookup returns is below something the lookup returns
+that is a type, in whatever sort the graph's outputs live.  A direct
+induction: `lower` keeps the witness it was handed, and `join` joins the
+two, which is compatible (`Evaluates.compat`), bounded (`le_join`, via
+`Evaluates.wf`) and typed (`HasType.join`). -/
+theorem Evaluates.bounded (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term} {x : Shape n}
+    {r : Bool} (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) (hx : Shape.Compat Δ x x)
+    (hty : ∀ e ∈ f, Shape.HasType Δ e.out (.sort r)) :
+    ∀ {c : Shape n}, Evaluates Δ f A a x c →
+      ∃ z, Evaluates Δ f A a x z ∧ Shape.LE Δ c z ∧ Shape.HasType Δ z (.sort r) := by
+  have hout : ∀ e ∈ f, Shape.WF Δ e.out := fun e he => (hwf.1 e he).2.2.2
+  intro c h
+  induction h with
+  | bot => exact ⟨.bot, .bot, Shape.LE.bot, Shape.HasType.bot_sort⟩
+  | entry e he hlab hin =>
+    exact ⟨e.out, .entry e he hlab hin, Shape.LE.refl (hout e he), hty e he⟩
+  | lower hle _ ih =>
+    have ⟨z, hz, hle', hzty⟩ := ih
+    exact ⟨z, hz, hle.trans hΔ hle', hzty⟩
+  | join _ _ _ ih₁ ih₂ =>
+    have ⟨y', hy', hley, htyy⟩ := ih₁
+    have ⟨z', hz', hlez, htyz⟩ := ih₂
+    have hc : Shape.Compat Δ y' z' := Evaluates.compat hΔ hwf.2 hx hy' hz'
+    have hwy := Evaluates.wf hΔ hout hy'
+    have hwz := Evaluates.wf hΔ hout hz'
+    have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hwy hwz hc
+    exact ⟨y'.join z', .join hc hy' hz',
+      Shape.join_le (hley.trans hΔ hu₁) (hlez.trans hΔ hu₂),
+      Shape.HasType.join hΔ hwy hwz hc htyy htyz⟩
+
+/-- The lookup is **monotone in the graph**, and what it returns is below
+something the covering graph returns that is a type.  Master gets
+monotonicity from `app_mono_l`, its lookup being a function; with lookup
+coverage the transport is exact (`Eval.trans`, as in `mono_graph'`) and the
+typing is `bounded`.  The order carries the covering graph's
+well-formedness and coherence, so this needs neither as a hypothesis. -/
+theorem Evaluates.mono_graph (hΔ : ⊢ Δ) {n} {f f' : ShapeFun n} {A a : Term}
+    {x : Shape n} {r : Bool} (hx : Shape.Compat Δ x x)
+    (hty : ∀ e ∈ f', Shape.HasType Δ e.out (.sort r))
+    (hff' : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) f f')
+    {c : Shape n} (h : Evaluates Δ f A a x c) :
+    ∃ c', Evaluates Δ f' A a x c' ∧ Shape.LE Δ c c' ∧
+      Shape.HasType Δ c' (.sort r) :=
+  Evaluates.bounded hΔ hff'.2.2 hx hty
+    (ShapeFun.Eval.trans (R := Shape.LE Δ) (fun _ _ _ h₁ h₂ => h₁.trans hΔ h₂) hff'.1 h)
+
+/-- A Π/Σ signature is inherited by anything it dominates: the whole point
+of stating it with a dominating pair. -/
+theorem ShapeFun.HasPi.lower (hΔ : ⊢ Δ) {n}
+    {d d' : Shape n} {f f' : ShapeFun n} {r : Bool}
+    (ih : ∀ {m m' : Shape n}, Shape.LE Δ m' m →
+      Shape.HasType Δ m (.sort r) → Shape.HasType Δ m' (.sort r))
+    (ihty : ∀ {m m' : Shape n}, Shape.LE Δ m' m →
+      Shape.HasType Δ m .type → Shape.HasType Δ m' .type)
+    (hd : Shape.LE Δ d' d) (hf : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) f' f)
+    (h : ShapeFun.HasPi (Shape.HasType Δ) d f (.sort r)) :
+    ShapeFun.HasPi (Shape.HasType Δ) d' f' (.sort r) :=
+  -- `hf.1 e he` is a lookup derivation, so this is `Evaluates.hasType`;
+  -- the outputs live in a sort, where both closures it wants are theorems
+  ⟨ihty hd h.1, fun e he =>
+    Evaluates.hasType hΔ (fun e' he' => (hf.2.2.1 e' he').2.2.2)
+      Shape.HasType.sort h.2 ih (Shape.HasType.join hΔ) (hf.1 e he)⟩
+
+/-- **Left monotonicity**: a type is a lower set.  Master has only the
+two-sided form (`WShape.HasType.mono_l`, a 70-line mutual induction whose
+graph cases run a cycle argument); here the clauses were arranged so that
+the genuine one-sided statement is an induction with no side conditions --
+the dominating existentials in `HasPi`, `lam` and `pair` absorb the
+approximation by transitivity, the componentwise clauses use the induction
+hypothesis, and every `m' = ⊥` branch is `.bot (isType h)`. -/
+theorem Shape.HasType.mono_l (hΔ : ⊢ Δ) {n} {m m' a : Shape n}
+    (hle : Shape.LE Δ m' m) (h : Shape.HasType Δ m a) : Shape.HasType Δ m' a := by
+  induction n with
+  | zero =>
+    cases m' with | bot => exact Shape.HasType0.bot | sort s
+    cases m <;> cases hle; exact h
+  | succ n ih
+  have hty := h.isType
+  cases h with
+  | bot hb => cases Shape.le_bot_iff.1 hle; exact .bot hb
+  | sort =>
+    cases m' with | bot => exact .bot hty | sort s' => cases hle; exact .sort | _ => cases hle
+  | unit hj =>
+    cases m' with | bot => exact .bot hty | unit r' => cases hle; exact .unit hj | _ => cases hle
+  | nat => cases m' with | bot => exact .bot hty | nat => exact .nat | _ => cases hle
+  | zero => cases m' with | bot => exact .bot hty | zero => exact .zero | _ => cases hle
+  | succ hN =>
+    cases m' with | bot => exact .bot hty | succ => exact .succ (hN.lower hle) | _ => cases hle
+  | id hj =>
+    cases m' with | bot => exact .bot hty | id => cases hle.1; exact .id hj | _ => cases hle
+  | forallE hpi =>
+    cases m' with | bot => exact .bot hty | forallE => ?_ | _ => cases hle
+    exact .forallE <| hpi.lower hΔ ih ih hle.2.1 hle.2.2
+  | sigma hpi =>
+    cases m' with | bot => exact .bot hty | sigma => ?_ | _ => cases hle
+    exact .sigma <| hpi.lower hΔ ih ih hle.2.1 hle.2.2
+  | lam hpi hcod =>
+    cases m' with | bot => exact .bot hty | lam => ?_ | _ => cases hle
+    refine .lam hpi fun e he => ?_
+    -- SET ASIDE (order change): `hle e he` is a lookup derivation.
+    exact sorry
+  | pair hpi hxle hwx hxd hwc hev hyc =>
+    cases m' with | bot => exact .bot hty | pair => ?_ | _ => cases hle
+    exact .pair hpi (hle.2.1.trans hΔ hxle) hwx hxd hwc (hev.label hle.1.symm) (ih hle.2.2.1 hyc)
+  | refl => cases m' with | bot => exact .bot hty | refl => exact .refl | _ => cases hle
+
 /-! ## Proof irrelevance
 
 `HasType Δ a .prop → HasType Δ x a → x = ⊥`: a proposition has no
@@ -757,19 +800,6 @@ entry output, and `HasType · (.sort r)` is not downward closed — master's
 it does not help either.  `Evaluates.bounded` is the way round: every
 witness is below a witness that is a type, and `mono_r` retypes at that
 one. -/
-
-/-- Everything the lookup returns is below something the lookup returns
-that is a type, in whatever sort the graph's outputs live.  Immediate from
-`mono_graph` at `f' = f`. -/
-theorem Evaluates.bounded (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term} {x : Shape n}
-    {r : Bool} (hwf : ShapeFun.WF Δ (Shape.WF Δ) f)
-    (hco : ShapeFun.Compat Shape.Compat Δ f f) (hx : Shape.Compat Δ x x)
-    (hty : ∀ e ∈ f, Shape.HasType Δ e.out (.sort r))
-    {c : Shape n} (h : Evaluates Δ f A a x c) :
-    ∃ z, Shape.WF Δ z ∧ Shape.LE Δ c z ∧ Shape.HasType Δ z (.sort r) :=
-  have hout : ∀ e ∈ f, Shape.WF Δ e.out := fun e he => (hwf.1 e he).2.2.2
-  have ⟨c', hc', hle, hc'ty⟩ := h.mono_graph hΔ hco hx hout hty (.join hΔ) (.refl hwf)
-  ⟨c', hc'.wf hΔ hout, hle, hc'ty⟩
 
 /-- Nothing but `⊥` is typed at `⊥`. -/
 theorem Shape.HasType.bot_r {n} {x : Shape n} (h : Shape.HasType Δ x .bot) : x = .bot := by
@@ -797,7 +827,8 @@ theorem Shape.HasType.proofIrrel (hΔ : ⊢ Δ) {n} {a x : Shape n}
     let e :: g' := g
     have ⟨c, hwc, hev, hcty⟩ := hcod e (.head _)
     have ⟨_, _, hi, ho⟩ := hwg'.1 e (.head _)
-    have ⟨z, hwz, hcz, hzty⟩ := hev.bounded hΔ hwf hco (Shape.WF.coherent hi) hpi.2
+    have ⟨z, hevz, hcz, hzty⟩ := hev.bounded hΔ hwf (Shape.WF.coherent hi) hpi.2
+    have hwz := hevz.wf hΔ fun e he => (hwf.1 e he).2.2.2
     have hbot := ih hwz ho hzty <| hcty.mono_r hΔ ho hwz hcz hzty
     cases hnb e (.head _) (hbot ▸ (by cases n <;> trivial))
 
@@ -958,8 +989,7 @@ theorem Shape.HasType.lift_iff {Δ : List Term} (hΔ : ⊢ Δ)
     have houts : ∀ e ∈ f, Shape.WF Δ e.out := fun e he => (hwf.1 e he).2.2.2
     have ⟨c₀, hle, hev₀⟩ := Evaluates.lift_of hΔ h' hwf hco hwx hev'
     have ⟨c₁, hev₁, hc₀c₁, hc₁ty⟩ :=
-      Evaluates.mono_graph hΔ hco hwx.coherent houts hty (Shape.HasType.join hΔ)
-        (ShapeFun.LE.refl hwf) hev₀
+      Evaluates.mono_graph hΔ hwx.coherent hty (ShapeFun.LE.refl hwf) hev₀
     have hwc₁ := Evaluates.wf hΔ houts hev₁
     refine ⟨c₁, hwc₁, hev₁, (ih h' hwy hwc₁).1 (Shape.HasType.mono_r (r := true) hΔ
       ((Shape.lift_wf h').2 hwy) ((Shape.lift_wf h').2 hwc₁) hty'
@@ -1050,8 +1080,7 @@ theorem Shape.HasType.lift_iff {Δ : List Term} (hΔ : ⊢ Δ)
           (fun e he => hlab _ (List.mem_map.2 ⟨e, he, rfl⟩))
           (fun e he => (hji₀.le hwji₀ _ (List.mem_map.2 ⟨e, he, rfl⟩)).trans hΔ hu₂)
       have ⟨J', hevJ', hJJ', hJ'ty⟩ :=
-        hevJ.mono_graph hΔ hcf hwx₀.coherent
-          (fun e he => (hwf.1 e he).2.2.2) hpi'.2 (.join hΔ) (.refl hwf)
+        hevJ.mono_graph hΔ hwx₀.coherent hpi'.2 (.refl hwf)
       have hwJ' := hevJ'.wf hΔ fun e he => (hwf.1 e he).2.2.2
       refine .pair hpi' hu₁ hwx₀ hx₀d hwJ' hevJ' ((ih h' hwy hwJ').1 ?_)
       refine hyc.mono_r (r := true) hΔ ((Shape.lift_wf h').2 hwy)
