@@ -504,9 +504,9 @@ def Shape.LE (Γ : List Term) : ∀ {n}, Shape n → Shape n → Prop
   | _+1, .sigma A B d f, .sigma A' B' d' f' =>
     PiLabelEq Γ A B A' B' ∧ LE Γ d d' ∧ ShapeFun.LE Γ (LE Γ) (WF Γ) f f'
   | _+1, .pair ty tm a b, .pair ty' tm' a' b' =>
-      LabelEq Γ ty tm ty' tm' ∧ LE Γ a a' ∧ LE Γ b b' ∧ ¬ (a.IsBot ∧ b.IsBot)
+    LabelEq Γ ty tm ty' tm' ∧ LE Γ a a' ∧ LE Γ b b' ∧ ¬ (a.IsBot ∧ b.IsBot)
   | _+1, .lam f, .lam f' =>
-      ShapeFun.LE Γ (LE Γ) (WF Γ) f f' ∧ f ≠ [] ∧ ∀ e ∈ f, ¬ e.out.IsBot
+    ShapeFun.LE Γ (LE Γ) (WF Γ) f f' ∧ f ≠ [] ∧ ∀ e ∈ f, ¬ e.out.IsBot
   | _+1, _, _ => False
 
 @[simp] theorem Shape.LE.bot {s : Shape n} : Shape.LE Γ .bot s := by
@@ -829,6 +829,22 @@ theorem Shape.lift_wf {n m} (h : n ≤ m) {s : Shape n} :
     | lam => exact and_congr hnil (and_congr hnb ihf)
     | forallE | sigma =>
       exact and_congr Iff.rfl (and_congr Iff.rfl (and_congr (ih h') ihf))
+
+/-- The same for a graph.  Extracted from `Shape.lift_wf`'s own `ihf`,
+which cannot be reused directly because it is local to that induction. -/
+theorem ShapeFun.lift_wf {n m} (h : n ≤ m) {Δ : List Term} {f : ShapeFun n} :
+    ShapeFun.WF Δ (Shape.WF Δ) (ShapeFun.lift (Shape.lift m) f) ↔
+    ShapeFun.WF Δ (Shape.WF Δ) f := by
+  refine and_congr ?_ (ShapeFun.lift_compat h)
+  constructor
+  · intro H e he
+    have ⟨hty, htm, hin, hout⟩ :=
+      H ⟨e.ty, e.tm, e.inp.lift m, e.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
+    exact ⟨hty, htm, (Shape.lift_wf h).1 hin, (Shape.lift_wf h).1 hout⟩
+  · intro H e'' he''
+    obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
+    have ⟨hty, htm, hin, hout⟩ := H e he
+    exact ⟨hty, htm, (Shape.lift_wf h).2 hin, (Shape.lift_wf h).2 hout⟩
 
 /-- Substitution composes on shapes, as it does on terms. -/
 theorem Shape.subst_subst {σ τ : Subst} {n} {x : Shape n} :
@@ -2279,6 +2295,14 @@ theorem join.T {n} {s t : Shape n} :
   rw [join.def (a := Shape.T s) (b := Shape.T t) (Nat.le_refl n) (Nat.le_refl n),
     Shape.lift_self, Shape.lift_self]
 
+/-- The same as an equation of `TShape`s.  The rewrite along `max n n = n`
+is dependent — it moves the level index — but the motive is type-correct
+because the payload is `(s.lift k).join (t.lift k) : Shape k`. -/
+theorem join_T {n} {s t : Shape n} :
+    TShape.join (Shape.T s) (Shape.T t) = Shape.T (s.join t) := by
+  show (⟨max n n, (s.lift (max n n)).join (t.lift (max n n))⟩ : TShape) = _
+  rw [Nat.max_self, Shape.lift_self, Shape.lift_self]
+
 end TShape
 
 /-- Anything below an information-free shape is information-free.  The
@@ -2639,15 +2663,6 @@ theorem Shape.exists_joins_of_pairwise {Δ : List Term} (hΔ : ⊢ Δ) : ∀ {n}
       Shape.Compat.symm hΔ (hjc x fun v hv => hpw v (.tail _ hv) x (.head _))
     exact ⟨x.join j, hj.cons hΔ hwx hwj hc, Shape.WF.join hΔ hc hwx hwj,
       fun w hw => .join hΔ (hw x (.head _)) (hjc w fun v hv => hw v (.tail _ hv))⟩
-
-/-- Lifting a graph preserves well-formedness of its entries. -/
-theorem ShapeFun.lift_wf {Δ : List Term} {n k} (h : n ≤ k) {f : ShapeFun n}
-    (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) :
-    ShapeFun.WF Δ (Shape.WF Δ) (ShapeFun.lift (Shape.lift k) f) := by
-  refine ⟨fun e' he' => ?_, (ShapeFun.lift_compat h).2 hwf.2⟩
-  obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'
-  exact ⟨(hwf.1 e he).1, (hwf.1 e he).2.1, (Shape.lift_wf h).2 (hwf.1 e he).2.2.1,
-    (Shape.lift_wf h).2 (hwf.1 e he).2.2.2⟩
 
 /-! The two projections of a lifted graph, in the unfolded form
 `List.sublist_map` leaves behind. -/
