@@ -1354,12 +1354,21 @@ generator the codomain witnesses live over (the other repo's pattern —
 dominator the code is read at.  Everything strictly below a shape and not
 of its head is `⊥`, and the `bot` clause takes that.
 
+`forallE` and `sigma` take the same shape as `lam`: pinned, with the
+domain and the graph free and a generator carrying the typing of the
+components.  Stating them *directly* on `d` and `f` instead would be
+tighter, and equivalent — being a type is downward closed — but `mono_l`
+would then have to push the premises into a smaller Π, which is
+`HasPi.lower` over the lookup, whose `join` case wants typed joins at a
+sort (`HasType y (sort r) → HasType z (sort r) → HasType (y ⊔ z)
+(sort r)`).  That is a separate induction; the generator avoids needing it,
+at no loss, since the direct form is recovered by `mono_l`.
+
 `id`, `refl` and `pair` pay for pinning with a `Shape.WF` premise, since
 their subject's well-formedness is not otherwise free; `succ` does not,
-because `IsNumeral` implies it.  `forallE` and `sigma` still bound their
-subject, because pushing their premises down into a smaller Π would be
-`HasPi.lower`, which wants typed joins.  The type index is pinned
-throughout except at `lam`, `pair` and `refl`, where it may grow.
+because `IsNumeral` implies it, and the clauses with a generator read it
+off the generator's bound.  The type index is pinned throughout except at
+`lam`, `pair` and `refl`, where it may grow.
 
 The codomain witness of `lam` is a **function** `cs`, not an `∃` inside
 the premise: `∃ c, … ∧ HasType …` would put the inductive under `Exists`,
@@ -1539,16 +1548,22 @@ inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
     HasType Δ (Shape.T (n := n+1) (.succ v)) (Shape.T (n := k+1) .nat)
   | id {n k r j} {A x y : Term} : r ≤ j → Shape.WF (n := n+1) Δ (.id r A x y) →
     HasType Δ (Shape.T (n := n+1) (.id r A x y)) (Shape.T (n := k) (Shape.sort j))
-  | forallE {m n k} {A B : Term} {d : Shape n} {f : ShapeFun n} {r j : Bool} :
-    HasType Δ d.T .type →
-    (∀ e ∈ f, HasType Δ e.out.T (.sort r)) → r ≤ j →
-    TShape.LE Δ m (Shape.T (n := n+1) (.forallE A B d f)) →
-    HasType Δ m (Shape.T (n := k) (Shape.sort j))
-  | sigma {m n k} {A B : Term} {d : Shape n} {f : ShapeFun n} :
-    HasType Δ d.T .type →
-    (∀ e ∈ f, HasType Δ e.out.T .type) →
-    TShape.LE Δ m (Shape.T (n := n+1) (.sigma A B d f)) →
-    HasType Δ m (Shape.T (n := k) (Shape.sort true))
+  -- same pattern as `lam`: the shape is pinned, the domain and the graph
+  -- are not, and the generator is where the typing of the components lives
+  | forallE {n n₀ k} {A B A₀ B₀ : Term} {d : Shape n} {d₀ : Shape n₀}
+      {f : ShapeFun n} {f₀ : ShapeFun n₀} {r j : Bool} :
+    HasType Δ d₀.T .type →
+    (∀ e ∈ f₀, HasType Δ e.out.T (.sort r)) → r ≤ j →
+    TShape.LE Δ (Shape.T (n := n+1) (.forallE A B d f))
+      (Shape.T (n := n₀+1) (.forallE A₀ B₀ d₀ f₀)) →
+    HasType Δ (Shape.T (n := n+1) (.forallE A B d f)) (Shape.T (n := k) (Shape.sort j))
+  | sigma {n n₀ k} {A B A₀ B₀ : Term} {d : Shape n} {d₀ : Shape n₀}
+      {f : ShapeFun n} {f₀ : ShapeFun n₀} :
+    HasType Δ d₀.T .type →
+    (∀ e ∈ f₀, HasType Δ e.out.T .type) →
+    TShape.LE Δ (Shape.T (n := n+1) (.sigma A B d f))
+      (Shape.T (n := n₀+1) (.sigma A₀ B₀ d₀ f₀)) →
+    HasType Δ (Shape.T (n := n+1) (.sigma A B d f)) (Shape.T (n := k) (Shape.sort true))
   -- the shape is pinned, the graph is not: `g` is any graph below the
   -- generator `g₀`, which is where the codomain witnesses live (§5.5)
   | lam {a n n₀ n'} {g : ShapeFun n} {g₀ : ShapeFun n₀} {f : ShapeFun n'}
@@ -1656,8 +1671,22 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
           obtain ⟨rfl, ⟨u, hA⟩, hx, hy⟩ := h2
           exact .id hj ⟨⟨u, hA.hasType.1⟩, hx.hasType.1, hy.hasType.1⟩
         | _ => exact absurd h2 (fun x => x)
-  | forallE hd hf hj hg _ _ => exact fun h => .forallE hd hf hj (h.trans hΔ hg)
-  | sigma hd hf hg _ _ => exact fun h => .sigma hd hf (h.trans hΔ hg)
+  | forallE hd hf hj hg _ _ =>
+    intro m' h
+    obtain ⟨jj, s⟩ := m'
+    obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
+    cases jj <;> cases s <;> first
+      | exact .bot .sort
+      | exact .forallE hd hf hj (h.trans hΔ hg)
+      | exact absurd h2 (fun x => x)
+  | sigma hd hf hg _ _ =>
+    intro m' h
+    obtain ⟨jj, s⟩ := m'
+    obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
+    cases jj <;> cases s <;> first
+      | exact .bot .sort
+      | exact .sigma hd hf (h.trans hΔ hg)
+      | exact absurd h2 (fun x => x)
   | lam cs hd hf hev hty hg hc hA _ _ _ _ =>
     intro m' h
     obtain ⟨j, s⟩ := m'
