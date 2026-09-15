@@ -232,12 +232,12 @@ right one: the lemma that replaces downward closure is `mono_r`, which
 carries the hypothesis that the *larger* type is itself a type, and so
 never needs `HasType · (sort r)` to be downward closed.) -/
 
-private theorem Bool.eq_true_of_le {r s : Bool} (h : r = true) (hrs : r ≤ s) : s = true := by
+theorem Bool.eq_true_of_le {r s : Bool} (h : r = true) (hrs : r ≤ s) : s = true := by
   subst h; revert hrs; cases s <;> decide
 
-private theorem Bool.le_true' (r : Bool) : r ≤ true := by cases r <;> decide
+theorem Bool.le_true' (r : Bool) : r ≤ true := by cases r <;> decide
 
-private theorem Bool.le_tr {t r s : Bool} (h₁ : t ≤ r) (h₂ : r ≤ s) : t ≤ s := by
+theorem Bool.le_tr {t r s : Bool} (h₁ : t ≤ r) (h₂ : r ≤ s) : t ≤ s := by
   revert h₁ h₂; cases t <;> cases r <;> cases s <;> decide
 
 /-- The universes are cumulative: a `prop` is also a `type`. -/
@@ -2071,9 +2071,10 @@ theorem TShape.HasType.lower_subject {Δ : List Term} (hΔ : ⊢ Δ) :
         hxd hev (ih hk' hy)
 
 /-- `⊥` is typed at `⊥`, since `⊥` is a type. -/
-theorem TShape.HasType.bot_bot {Δ : List Term} {n} :
-    TShape.HasType Δ (Shape.T (n := n) Shape.bot) TShape.bot :=
-  .bot (.bot .sort)
+theorem TShape.HasType.bot_bot {Δ : List Term} {m : TShape} (h : m.2 = Shape.bot) :
+    TShape.HasType Δ m TShape.bot := by
+  show TShape.HasType Δ ⟨m.1, m.2⟩ _
+  rw [h]; exact .bot (.bot .sort)
 
 /-- **Cumulativity**, which the sort-typed clauses build in: each carries
 the sort as a bound (`unit`, `id`) or inherits it from its outputs
@@ -2460,3 +2461,141 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
           exact .refl ((Shape.lift_wf (Nat.le_of_succ_le_succ hjM)).1 (Shape.LE.wf h2)) hc hA
         | _ => exact absurd h2 (fun x => x)
 
+
+/-! ## Proof irrelevance, over `TShape`
+
+`HasType Δ a .prop → HasType Δ x a → x = ⊥`.  Master's `HasType.proofIrrel`
+and the shape-level content of the syntactic `proofIrrel` rule.
+
+The old level-indexed proof inducted on the *level*, because everything in
+sight lived at one.  Here it is an induction on the **derivation**, and the
+`lam` clause's own induction hypothesis — the one for `hg₀ty`, at the
+codomain generator — is exactly the recursive call needed.  That is the
+generator earning its keep a second time: with a dominating codomain there
+is no such hypothesis to have. -/
+
+/-- The join of two types at one sort is a type at that sort, over
+`TShape`: both sides go up to the level the join is taken at. -/
+theorem TShape.HasType.join_sort' {Δ : List Term} (hΔ : ⊢ Δ) {y z c : TShape}
+    {j : Bool} (hc : c.2 = Shape.sort j) (hy : TShape.HasType Δ y c)
+    (hz : TShape.HasType Δ z c) (hyz : TShape.Compat Δ y z) :
+    TShape.HasType Δ (TShape.join y z) c :=
+  TShape.HasType.join_sort hΔ hc (hy.lift_subject hΔ (Nat.le_max_left ..))
+    (hz.lift_subject hΔ (Nat.le_max_right ..)) hyz
+
+/-- Everything the `TShape` lookup returns is typed at a sort, when the
+graph's outputs are.  `lower` is `mono_l_sort` and `join` is `join_sort'`;
+the level-indexed `ShapeFun.Eval.tHasType` had to take both as
+hypotheses. -/
+theorem TEvaluates.tHasType {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
+    {A a : Term} {x c : TShape} {j : Bool} (hc : c.2 = Shape.sort j)
+    (hty : ∀ e ∈ f, TShape.HasType Δ e.out.T c) :
+    ∀ {y : TShape}, TEvaluates Δ f A a x y → TShape.HasType Δ y c := by
+  intro y h
+  induction h with
+  | bot =>
+    refine .bot ?_
+    show TShape.HasType Δ ⟨c.1, c.2⟩ _
+    rw [hc]; exact .sort
+  | entry e he _ _ => exact hty e he
+  | lower hle _ ih => exact TShape.HasType.mono_l_sort hΔ hc ih hle
+  | join hcj _ _ ih₁ ih₂ => exact TShape.HasType.join_sort' hΔ hc ih₁ ih₂ hcj
+
+/-- A lookup in a graph whose outputs are all `⊥` is `⊥`. -/
+theorem TEvaluates.eq_bot {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
+    {A a : Term} {x : TShape} (hf : ∀ e ∈ f, e.out = Shape.bot) :
+    ∀ {c : TShape}, TEvaluates Δ f A a x c → c.2 = Shape.bot := by
+  intro c h
+  induction h with
+  | bot => rfl
+  | entry e he _ _ => exact hf e he
+  | lower hle _ ih => exact TShape.le_bot hΔ ih hle
+  | join _ _ _ ih₁ ih₂ => exact TShape.join_eq_bot ih₁ ih₂
+
+/-- Nothing but `⊥` is typed at `⊥`.  `refl` is the only clause whose type
+is not pinned, and its bound puts an `id` shape below `⊥`. -/
+theorem TShape.HasType.bot_r {Δ : List Term} (hΔ : ⊢ Δ) {x a : TShape}
+    (ha : a.2 = Shape.bot) (h : TShape.HasType Δ x a) : x.2 = Shape.bot := by
+  cases h with
+  | bot _ => rfl
+  | sort => exact absurd ha Shape.sort_ne_bot
+  | unit _ => exact absurd ha Shape.sort_ne_bot
+  | nat => exact absurd ha Shape.sort_ne_bot
+  | zero => exact absurd ha (fun h => by cases h)
+  | succ _ => exact absurd ha (fun h => by cases h)
+  | id _ _ => exact absurd ha Shape.sort_ne_bot
+  | forallE _ _ _ => exact absurd ha Shape.sort_ne_bot
+  | sigma _ _ _ => exact absurd ha Shape.sort_ne_bot
+  | lam _ _ _ _ _ _ _ => exact absurd ha (fun h => by cases h)
+  | pair _ _ _ _ _ _ _ _ => exact absurd ha (fun h => by cases h)
+  | refl _ hc _ => exact absurd (TShape.le_bot hΔ ha hc) (fun h => by cases h)
+
+/-- A sort is typed at `.type` and nothing else, so never at `.prop`.  The
+hypothesis form is forced: `Shape.sort` at a variable level is a stuck
+`match`, so the subject has to be a variable for `cases` to fire. -/
+theorem TShape.HasType.sort_not_prop {Δ : List Term} {a : TShape} {j : Bool}
+    (ha : a.2 = Shape.sort j) (h : TShape.HasType Δ a TShape.prop) : False := by
+  cases h with
+  | bot _ => exact Shape.bot_ne_sort ha
+  | unit _ => exact absurd ha (fun h => by cases h)
+  | id _ _ => exact absurd ha (fun h => by cases h)
+  | forallE _ _ _ => exact absurd ha (fun h => by cases h)
+  | refl _ _ _ => exact absurd ha (fun h => by cases h)
+
+/-- **A proposition is inhabited only by `⊥`.**
+
+Master's `HasType.proofIrrel`.  The old level-indexed proof inducted on the
+*level*, because everything in sight lived at one; here it is an induction
+on the **derivation**, and the `lam` clause's own induction hypothesis —
+the one at `hg₀ty`, the codomain generator — is exactly the recursive call
+needed.  That is the generator earning its keep a second time: with a
+dominating codomain witness there is no such hypothesis to have. -/
+theorem TShape.HasType.proofIrrel {Δ : List Term} (hΔ : ⊢ Δ) {x a : TShape}
+    (h : TShape.HasType Δ x a) : TShape.HasType Δ a TShape.prop → x.2 = Shape.bot := by
+  induction h with
+  | bot _ _ => intro _; rfl
+  | sort => intro ha; exact absurd ha (TShape.HasType.sort_not_prop rfl)
+  | unit _ => intro ha; exact absurd ha (TShape.HasType.sort_not_prop rfl)
+  | nat => intro ha; exact absurd ha (TShape.HasType.sort_not_prop rfl)
+  | id _ _ => intro ha; exact absurd ha (TShape.HasType.sort_not_prop rfl)
+  | forallE _ _ _ _ _ => intro ha; exact absurd ha (TShape.HasType.sort_not_prop rfl)
+  | sigma _ _ _ _ _ => intro ha; exact absurd ha (TShape.HasType.sort_not_prop rfl)
+  | zero => intro ha; exact absurd ha (fun h => by cases h)
+  | succ _ => intro ha; exact absurd ha (fun h => by cases h)
+  | pair _ _ _ _ _ _ _ _ _ _ _ _ => intro ha; exact absurd ha (fun h => by cases h)
+  | refl _ hc _ _ =>
+    intro ha
+    cases ha with
+    | bot _ => exact absurd (TShape.le_bot hΔ rfl hc) (fun h => by cases h)
+    | id hj _ =>
+      obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hc
+      cases h2.1
+      exact absurd (Bool.eq_true_of_le rfl hj) (fun h => by cases h)
+    | unit _ =>
+      obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hc
+      exact absurd h2 (fun x => x)
+    | forallE _ _ _ =>
+      obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hc
+      exact absurd h2 (fun x => x)
+    | refl _ _ _ =>
+      obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hc
+      exact absurd h2 (fun x => x)
+  | @lam n n₀ n' g f _ _ d g₀ _ _ hwg _ hg hg₀ev _ _ _ ihg₀ty =>
+    intro ha
+    obtain ⟨_, hf, _⟩ := ha.forallE_inv rfl
+    -- each generator output is `⊥`: its type is a lookup in a graph whose
+    -- own outputs are propositions, so the clause's induction hypothesis
+    -- applies to it
+    have hbot : ∀ e' ∈ g₀, e'.1.out = Shape.bot := fun e' he' =>
+      ihg₀ty e' he' (TEvaluates.tHasType hΔ rfl hf (hg₀ev e' he'))
+    have hbot' : ∀ e ∈ g₀.map (·.1), e.out = Shape.bot := by
+      intro e he
+      obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+      exact hbot p hp
+    -- so is every output of `g`, and a well-formed λ-shape has none
+    cases g with
+    | nil => exact absurd rfl hwg.1
+    | cons e g' =>
+      have hout : e.out = Shape.bot := TEvaluates.eq_bot hΔ hbot' (hg e (.head _))
+      exact absurd (show Shape.IsBot e.out by rw [hout]; cases n <;> trivial)
+        (hwg.2.1 e (.head _))

@@ -98,6 +98,15 @@ abbrev ShapeFun (n) := List (Entry (Shape n))
   | 0 => Shape0.sort rel
   | _+1 => ShapeS.sort rel
 
+/-- `⊥` and a sort are never equal, at any level.  Both are defined by
+recursion on the level, so this needs the `cases` that a `match` on a
+variable level cannot do. -/
+theorem Shape.bot_ne_sort {n} {r : Bool} : (Shape.bot : Shape n) ≠ Shape.sort r := by
+  cases n <;> exact fun h => by cases h
+
+theorem Shape.sort_ne_bot {n} {r : Bool} : (Shape.sort r : Shape n) ≠ Shape.bot :=
+  fun h => Shape.bot_ne_sort h.symm
+
 @[match_pattern] abbrev Shape.unit {n} (rel : Bool) : Shape (n+1) := ShapeS.unit rel
 @[match_pattern] abbrev Shape.lam {n} (f : List (Entry (Shape n))) : Shape (n+1) := ShapeS.lam f
 @[match_pattern] abbrev Shape.nat {n} : Shape (n+1) := ShapeS.nat
@@ -2356,6 +2365,14 @@ theorem TShape.WF.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (W : Ctx.SubstEq Θ τ τ Δ) {a : TShape} (h : TShape.WF Δ a) :
     TShape.WF Θ (a.subst τ) := Shape.WF.subst hΘ W h
 
+/-- The join of two information-free shapes is information-free. -/
+theorem TShape.join_eq_bot {a b : TShape} (ha : a.2 = Shape.bot) (hb : b.2 = Shape.bot) :
+    (a.join b).2 = Shape.bot := by
+  show (Shape.lift (max a.1 b.1) a.2).join (Shape.lift (max a.1 b.1) b.2) = Shape.bot
+  rw [ha, hb]
+  simp only [Shape.lift_bot]
+  cases max a.1 b.1 <;> rfl
+
 theorem TShape.Compat.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (W : Ctx.SubstEq Θ τ τ Δ) {a b : TShape} (h : TShape.Compat Δ a b) :
     TShape.Compat Θ (a.subst τ) (b.subst τ) := by
@@ -2510,6 +2527,16 @@ theorem Shape.le_prop_cases {Δ : List Term} : ∀ {n} {x : Shape n},
       | exact .inl rfl
       | exact absurd h id
       | exact .inr (by rename_i r; cases (h : r = false); rfl)
+
+/-- The same at the total level: below `Prop` there is only `⊥` and `Prop`
+itself. -/
+theorem TShape.le_prop_cases {Δ : List Term} {b : TShape}
+    (h : TShape.LE Δ b (TShape.sort false)) :
+    b.2 = Shape.bot ∨ b.2 = Shape.sort false := by
+  have h2 := TShape.LE.def_mp (k := b.1) (Nat.le_refl _) (Nat.zero_le _) h
+  rw [Shape.lift_self] at h2
+  exact Shape.le_prop_cases
+    (show Shape.LE Δ b.2 (Shape.sort false) from Shape.lift_sort ▸ h2)
 
 /-! ## Least upper bounds of finite lists
 
