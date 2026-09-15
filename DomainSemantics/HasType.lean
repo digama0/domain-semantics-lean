@@ -1580,6 +1580,18 @@ theorem TEvaluates.lift_cover {Δ : List Term} (hΔ : ⊢ Δ) {n n'} {g : ShapeF
     (TEvaluates.mono_inp hΔ (TShape.LE.le_lift hΔ (m := e₀.inp.T) hk hwe.2.2.1)
       (hg e₀ he₀))
 
+/-- And back: coverage of the lift is coverage of the graph. -/
+theorem TEvaluates.lower_cover {Δ : List Term} (hΔ : ⊢ Δ) {n n'} {g : ShapeFun n}
+    {f' : ShapeFun n'} {k} (hk : n ≤ k) (hw : ShapeFun.WF Δ (Shape.WF Δ) g)
+    (hg : ∀ e ∈ ShapeFun.lift (Shape.lift k) g,
+      TEvaluates Δ f' e.ty e.tm e.inp.T e.out.T) :
+    ∀ e ∈ g, TEvaluates Δ f' e.ty e.tm e.inp.T e.out.T := by
+  intro e he
+  have hwe := hw.1 e he
+  exact .lower (TShape.LE.le_lift hΔ (m := e.out.T) hk hwe.2.2.2)
+    (TEvaluates.mono_inp hΔ (TShape.LE.lift_le hΔ (m := e.inp.T) hk hwe.2.2.1)
+      (hg _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)))
+
 /-- The converse transport: a graph `g'` whose *lift* is covered by `g`,
 which is itself covered by `f'`, is covered by `f'` at its own level.  This
 is what a `Shape.LE` between two λ-shapes, read at a level above both,
@@ -1701,131 +1713,6 @@ theorem TShape.HasType.isType {Δ : List Term} {m a : TShape}
   | lam hd hf _ hwPi _ _ _ _ _ _ => exact .forallE hd hf hwPi
   | pair hd hf _ hwSg _ _ _ _ _ _ _ _ => exact .sigma hd hf hwSg
   | refl _ _ hA _ => exact hA
-
-/-- **Left monotonicity.**  Where the clause carries a bound the smaller
-shape slides down it by transitivity; where the subject is pinned, `⊥` is
-all that sits strictly below, and the `bot` clause takes it. -/
-theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
-    (H : TShape.HasType Δ m a) :
-    ∀ {m' : TShape}, TShape.LE Δ m' m → TShape.HasType Δ m' a := by
-  induction H with
-  | bot hA _ =>
-    exact fun {m'} h => by
-      show TShape.HasType Δ ⟨m'.1, m'.2⟩ _
-      rw [TShape.le_bot hΔ rfl h]; exact .bot hA
-  | sort =>
-    intro m' h
-    obtain ⟨j, s⟩ := m'
-    cases j with
-    | zero => cases s with | bot => exact .bot .sort | sort r' => exact .sort
-    | succ j =>
-      obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
-      rw [Shape.lift_sort] at h2
-      cases s <;> first | exact .bot .sort | exact .sort | exact absurd h2 (fun x => x)
-  | unit hj =>
-    exact fun {m'} h => by
-      obtain ⟨j, s⟩ := m'
-      obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
-      cases j <;> cases s <;> first
-        | exact .bot .sort | (cases h2; exact .unit hj) | exact absurd h2 (fun x => x)
-  | nat =>
-    exact fun {m'} h => by
-      obtain ⟨j, s⟩ := m'
-      obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
-      cases j <;> cases s <;> first
-        | exact .bot .sort | exact .nat | exact absurd h2 (fun x => x)
-  | zero =>
-    exact fun {m'} h => by
-      obtain ⟨j, s⟩ := m'
-      obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
-      cases j <;> cases s <;> first
-        | exact .bot .nat | exact .zero | exact absurd h2 (fun x => x)
-  | succ hN =>
-    exact fun {m'} h => by
-      obtain ⟨j, s⟩ := m'
-      obtain ⟨M, hnM, hjM, h2⟩ := TShape.LE.at_succ h
-      cases j with
-      | zero => cases s <;> first | exact .bot .nat | exact absurd h2 (fun x => x)
-      | succ j =>
-        cases s with
-        | bot => exact .bot .nat
-        | succ v' =>
-          exact .succ ((Shape.IsNumeral.lift_iff (Nat.le_of_succ_le_succ hjM)).1
-            (Shape.IsNumeral.lower h2 ((Shape.IsNumeral.lift_iff hnM).2 hN)))
-        | _ => exact absurd h2 (fun x => x)
-  | id hj hw =>
-    exact fun {m'} h => by
-      obtain ⟨j, s⟩ := m'
-      obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
-      cases j with
-      | zero => cases s <;> first | exact .bot .sort | exact absurd h2 (fun x => x)
-      | succ j =>
-        cases s with
-        | bot => exact .bot .sort
-        | id r' A' x' y' =>
-          obtain ⟨rfl, ⟨u, hA⟩, hx, hy⟩ := h2
-          exact .id hj ⟨⟨u, hA.hasType.1⟩, hx.hasType.1, hy.hasType.1⟩
-        | _ => exact absurd h2 (fun x => x)
-  -- SET ASIDE: these two are what the direct form of `forallE`/`sigma`
-  -- costs.  A smaller Π is `.forallE A' B' d' f'` with `d' ≤ d` and
-  -- `ShapeFun.LE f' f`, so the premises have to be pushed into the
-  -- components: `d'` by the induction hypothesis, and each `e ∈ f'` by
-  -- `ShapeFun.Eval.tHasType` over the lookup in `f`, whose `join` case is
-  -- `TShape.HasType.join_sort` (proved below).  What is still missing is
-  -- `tHasType`'s `hlow`: general lowering at the *entry outputs*, one level
-  -- down, which is `mono_l` itself and so is not among this induction's
-  -- hypotheses.  The fix is to re-run `mono_l` as a strong induction on the
-  -- subject's level with `cases H` inside, which every other clause
-  -- survives unchanged (only `pair` and `forallE`/`sigma` use an IH, all at
-  -- a strictly smaller level).  Plus a `forallE` component inversion, the
-  -- analogue of `TShape.LE.pair_inv`.
-  | forallE hd hf hw ihd ihf => exact sorry
-  | sigma hd hf hw ihd ihf => exact sorry
-  -- the λ-shape is pinned, so a smaller one is `⊥` or another λ, whose
-  -- graph the order covers by `g` at a level above both; `of_cover_lift`
-  -- brings that coverage back down and composes it with `g`'s own
-  | lam hd hf hwg hwPi hg hg₀ev hg₀ty _ _ _ =>
-    intro m' h
-    obtain ⟨j, s⟩ := m'
-    obtain ⟨M, hnM, hjM, h2⟩ := TShape.LE.at_succ h
-    cases j with
-    | zero =>
-      cases s <;> first
-        | exact .bot (.forallE hd hf hwPi)
-        | exact absurd h2 (fun x => x)
-    | succ j =>
-      cases s with
-      | bot => exact .bot (.forallE hd hf hwPi)
-      | lam g' =>
-        have hj : j ≤ M := Nat.le_of_succ_le_succ hjM
-        have hwg' : Shape.WF (n := j+1) Δ (.lam g') :=
-          (Shape.lift_wf hjM).1 (Shape.LE.wf h2)
-        exact .lam hd hf hwg' hwPi
-          (TEvaluates.of_cover_lift hΔ hj hwg'.2.2 h2.1.1
-            (TEvaluates.lift_cover hΔ hnM hwg.2.2 hg)) hg₀ev hg₀ty
-      | _ => exact absurd h2 (fun x => x)
-  | pair hd hf _ hwSg hxle hxd hev hy _ _ _ ihy =>
-    intro m' h
-    obtain ⟨j, s⟩ := m'
-    obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
-    cases j <;> cases s <;> first
-      | exact .bot (.sigma hd hf hwSg)
-      | (obtain ⟨hlab, hx2, hy2⟩ := TShape.LE.pair_inv hΔ h
-         exact .pair hd hf (TShape.LE.wf h) hwSg (hx2.trans hΔ hxle) hxd
-           (hev.label hlab.symm) (ihy hy2))
-      | exact absurd h2 (fun x => x)
-  | refl hw hc hA _ =>
-    exact fun {m'} h => by
-      obtain ⟨j, s⟩ := m'
-      obtain ⟨M, _, hjM, h2⟩ := TShape.LE.at_succ h
-      cases j with
-      | zero => cases s <;> first | exact .bot hA | exact absurd h2 (fun x => x)
-      | succ j =>
-        cases s with
-        | bot => exact .bot hA
-        | refl w' =>
-          exact .refl ((Shape.lift_wf (Nat.le_of_succ_le_succ hjM)).1 (Shape.LE.wf h2)) hc hA
-        | _ => exact absurd h2 (fun x => x)
 
 /-- Sorts are injective at every level. -/
 theorem Shape.sort_inj {n} {r r' : Bool} (h : (Shape.sort r : Shape n) = Shape.sort r') :
@@ -2033,6 +1920,83 @@ theorem TShape.HasType.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShap
     intro k hk; obtain ⟨k, rfl⟩ := succ_of hk
     exact .refl ((Shape.lift_wf (Nat.le_of_succ_le_succ hk)).2 hw) hc hA
 
+/-- **And the level of the subject can be lowered again.**  This is the
+reflection direction that §5.5 shows the level-indexed definition cannot
+have: it works here because every object a clause quantifies over — the
+codomain generator `g₀`, the pair's dominator `x` and its code `c` — is a
+`TShape`, so `lift` touches none of them.  What is left is entrywise, and
+`TEvaluates.lower_cover` does it.
+
+With `lift_subject` this makes typing blind to the subject's level, which
+is what lets `mono_l` at a sort be run at one fixed level. -/
+theorem TShape.HasType.lower_subject {Δ : List Term} (hΔ : ⊢ Δ) :
+    ∀ {N} {y : Shape N} {k}, N ≤ k → ∀ {a : TShape},
+      TShape.HasType Δ (y.lift k).T a → TShape.HasType Δ y.T a := by
+  intro N
+  induction N with
+  | zero =>
+    intro y k hk a H
+    cases k with
+    | zero => rwa [Shape.lift_self] at H
+    | succ k =>
+      cases y with
+      | bot =>
+        cases H with | bot hA
+        exact .bot hA
+      | sort r =>
+        cases H with | sort
+        exact .sort
+  | succ N ih =>
+    intro y k hk a H
+    obtain ⟨k, rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by omega⟩
+    have hk' : N ≤ k := Nat.le_of_succ_le_succ hk
+    cases y with
+    | bot =>
+      cases H with | bot hA
+      exact .bot hA
+    | sort r =>
+      cases H with | sort
+      exact .sort
+    | unit r =>
+      cases H with | unit hj
+      exact .unit hj
+    | nat =>
+      cases H with | nat
+      exact .nat
+    | zero =>
+      cases H with | zero
+      exact .zero
+    | succ v =>
+      cases H with | succ hN
+      exact .succ ((Shape.IsNumeral.lift_iff hk').1 hN)
+    | id r A x y =>
+      cases H with | id hj hw
+      exact .id hj hw
+    | refl w =>
+      cases H with | refl hw hc hA
+      exact .refl ((Shape.lift_wf hk').1 hw) hc hA
+    | forallE A B d f =>
+      cases H with | forallE hd hf hw
+      exact .forallE (ih hk' hd)
+        (fun e he => ih hk' (hf _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)))
+        ((Shape.lift_wf hk).1 hw)
+    | sigma A B d f =>
+      cases H with | sigma hd hf hw
+      exact .sigma (ih hk' hd)
+        (fun e he => ih hk' (hf _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)))
+        ((Shape.lift_wf hk).1 hw)
+    | lam g =>
+      cases H with | lam hd hf hwg hwPi hg hg₀ev hg₀ty
+      have hwg' := (Shape.lift_wf (s := Shape.lam g) hk).1 hwg
+      exact .lam hd hf hwg' hwPi
+        (TEvaluates.lower_cover hΔ hk' hwg'.2.2 hg) hg₀ev hg₀ty
+    | pair ty tm x' y =>
+      cases H with | pair hd hf hwp hwSg hxle hxd hev hy
+      have hwp' := (Shape.lift_wf (s := ShapeS.pair ty tm x' y) hk).1 hwp
+      exact .pair hd hf hwp' hwSg
+        ((TShape.LE.le_lift hΔ (m := x'.T) hk' hwp'.2.2.1).trans hΔ hxle)
+        hxd hev (ih hk' hy)
+
 /-- `⊥` is typed at `⊥`, since `⊥` is a type. -/
 theorem TShape.HasType.bot_bot {Δ : List Term} {n} :
     TShape.HasType Δ (Shape.T (n := n) Shape.bot) TShape.bot :=
@@ -2233,3 +2197,129 @@ theorem TShape.HasType.mono_l_sort_T {Δ : List Term} (hΔ : ⊢ Δ) :
         (Nat.le_succ_of_le (Nat.le_max_right ..)) hc
       rw [ha, Shape.lift_sort] at h2
       exact absurd h2 (fun x => x)
+
+/-- **Left monotonicity at a sort**, with the two shapes at any levels.
+`lift_subject` puts both at the level the order compares them at,
+`mono_l_sort_T` does the work there, and `lower_subject` brings the smaller
+one back down. -/
+theorem TShape.HasType.mono_l_sort {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
+    {j : Bool} (ha : a.2 = Shape.sort j) (H : TShape.HasType Δ m a)
+    {m' : TShape} (h : TShape.LE Δ m' m) : TShape.HasType Δ m' a :=
+  lower_subject hΔ (Nat.le_max_left ..)
+    (mono_l_sort_T hΔ ha (H.lift_subject hΔ (Nat.le_max_right ..)) h)
+
+/-- **Left monotonicity.**  Where the clause carries a bound the smaller
+shape slides down it by transitivity; where the subject is pinned, `⊥` is
+all that sits strictly below, and the `bot` clause takes it. -/
+theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
+    (H : TShape.HasType Δ m a) :
+    ∀ {m' : TShape}, TShape.LE Δ m' m → TShape.HasType Δ m' a := by
+  induction H with
+  | bot hA _ =>
+    exact fun {m'} h => by
+      show TShape.HasType Δ ⟨m'.1, m'.2⟩ _
+      rw [TShape.le_bot hΔ rfl h]; exact .bot hA
+  | sort =>
+    intro m' h
+    obtain ⟨j, s⟩ := m'
+    cases j with
+    | zero => cases s with | bot => exact .bot .sort | sort r' => exact .sort
+    | succ j =>
+      obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
+      rw [Shape.lift_sort] at h2
+      cases s <;> first | exact .bot .sort | exact .sort | exact absurd h2 (fun x => x)
+  | unit hj =>
+    exact fun {m'} h => by
+      obtain ⟨j, s⟩ := m'
+      obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
+      cases j <;> cases s <;> first
+        | exact .bot .sort | (cases h2; exact .unit hj) | exact absurd h2 (fun x => x)
+  | nat =>
+    exact fun {m'} h => by
+      obtain ⟨j, s⟩ := m'
+      obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
+      cases j <;> cases s <;> first
+        | exact .bot .sort | exact .nat | exact absurd h2 (fun x => x)
+  | zero =>
+    exact fun {m'} h => by
+      obtain ⟨j, s⟩ := m'
+      obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
+      cases j <;> cases s <;> first
+        | exact .bot .nat | exact .zero | exact absurd h2 (fun x => x)
+  | succ hN =>
+    exact fun {m'} h => by
+      obtain ⟨j, s⟩ := m'
+      obtain ⟨M, hnM, hjM, h2⟩ := TShape.LE.at_succ h
+      cases j with
+      | zero => cases s <;> first | exact .bot .nat | exact absurd h2 (fun x => x)
+      | succ j =>
+        cases s with
+        | bot => exact .bot .nat
+        | succ v' =>
+          exact .succ ((Shape.IsNumeral.lift_iff (Nat.le_of_succ_le_succ hjM)).1
+            (Shape.IsNumeral.lower h2 ((Shape.IsNumeral.lift_iff hnM).2 hN)))
+        | _ => exact absurd h2 (fun x => x)
+  | id hj hw =>
+    exact fun {m'} h => by
+      obtain ⟨j, s⟩ := m'
+      obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
+      cases j with
+      | zero => cases s <;> first | exact .bot .sort | exact absurd h2 (fun x => x)
+      | succ j =>
+        cases s with
+        | bot => exact .bot .sort
+        | id r' A' x' y' =>
+          obtain ⟨rfl, ⟨u, hA⟩, hx, hy⟩ := h2
+          exact .id hj ⟨⟨u, hA.hasType.1⟩, hx.hasType.1, hy.hasType.1⟩
+        | _ => exact absurd h2 (fun x => x)
+  -- a Π and a Σ are typed at a sort, so they are `mono_l_sort`'s business:
+  -- the components sit one level down, where the order compares them
+  -- levelwise and the induction on the level reaches them
+  | forallE hd hf hw _ _ => exact mono_l_sort hΔ rfl (.forallE hd hf hw)
+  | sigma hd hf hw _ _ => exact mono_l_sort hΔ rfl (.sigma hd hf hw)
+  -- the λ-shape is pinned, so a smaller one is `⊥` or another λ, whose
+  -- graph the order covers by `g` at a level above both; `of_cover_lift`
+  -- brings that coverage back down and composes it with `g`'s own
+  | lam hd hf hwg hwPi hg hg₀ev hg₀ty _ _ _ =>
+    intro m' h
+    obtain ⟨j, s⟩ := m'
+    obtain ⟨M, hnM, hjM, h2⟩ := TShape.LE.at_succ h
+    cases j with
+    | zero =>
+      cases s <;> first
+        | exact .bot (.forallE hd hf hwPi)
+        | exact absurd h2 (fun x => x)
+    | succ j =>
+      cases s with
+      | bot => exact .bot (.forallE hd hf hwPi)
+      | lam g' =>
+        have hj : j ≤ M := Nat.le_of_succ_le_succ hjM
+        have hwg' : Shape.WF (n := j+1) Δ (.lam g') :=
+          (Shape.lift_wf hjM).1 (Shape.LE.wf h2)
+        exact .lam hd hf hwg' hwPi
+          (TEvaluates.of_cover_lift hΔ hj hwg'.2.2 h2.1.1
+            (TEvaluates.lift_cover hΔ hnM hwg.2.2 hg)) hg₀ev hg₀ty
+      | _ => exact absurd h2 (fun x => x)
+  | pair hd hf _ hwSg hxle hxd hev hy _ _ _ ihy =>
+    intro m' h
+    obtain ⟨j, s⟩ := m'
+    obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
+    cases j <;> cases s <;> first
+      | exact .bot (.sigma hd hf hwSg)
+      | (obtain ⟨hlab, hx2, hy2⟩ := TShape.LE.pair_inv hΔ h
+         exact .pair hd hf (TShape.LE.wf h) hwSg (hx2.trans hΔ hxle) hxd
+           (hev.label hlab.symm) (ihy hy2))
+      | exact absurd h2 (fun x => x)
+  | refl hw hc hA _ =>
+    exact fun {m'} h => by
+      obtain ⟨j, s⟩ := m'
+      obtain ⟨M, _, hjM, h2⟩ := TShape.LE.at_succ h
+      cases j with
+      | zero => cases s <;> first | exact .bot hA | exact absurd h2 (fun x => x)
+      | succ j =>
+        cases s with
+        | bot => exact .bot hA
+        | refl w' =>
+          exact .refl ((Shape.lift_wf (Nat.le_of_succ_le_succ hjM)).1 (Shape.LE.wf h2)) hc hA
+        | _ => exact absurd h2 (fun x => x)
+
