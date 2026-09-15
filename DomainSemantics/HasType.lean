@@ -1626,6 +1626,23 @@ theorem TEvaluates.label {Δ : List Term} {n} {f : ShapeFun n} {A a A' a' : Term
   | lower hle _ ih => exact .lower hle ih
   | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
 
+/-- The lookup transports along a typed substitution, rule by rule.  The
+`join` case is the only one with content, and it is `TShape.join_subst`. -/
+theorem TEvaluates.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) {n} {f : ShapeFun n} {A a : Term} {x : TShape} :
+    ∀ {c : TShape}, TEvaluates Δ f A a x c →
+      TEvaluates Θ (ShapeFun.subst (Shape.subst · τ) τ f) (A.subst τ) (a.subst τ)
+        (x.subst τ) (c.subst τ) := by
+  intro c h
+  induction h with
+  | bot => exact .bot
+  | entry e he hl hin =>
+    exact .entry ⟨e.ty.subst τ, e.tm.subst τ, e.inp.subst τ, e.out.subst τ⟩
+      (ShapeFun.mem_subst.2 ⟨e, he, rfl⟩) (hl.subst hΘ W) (TShape.LE.subst hΘ W hin)
+  | lower hle _ ih => exact .lower (TShape.LE.subst hΘ W hle) ih
+  | join hc _ _ ih₁ ih₂ =>
+    exact TShape.join_subst ▸ TEvaluates.join (TShape.Compat.subst hΘ W hc) ih₁ ih₂
+
 /-- Inversion of a comparison of two pairs into its components, back at the
 canonical level. -/
 theorem TShape.LE.pair_inv {Δ : List Term} (hΔ : ⊢ Δ) {j n} {ty₂ tm₂ ty tm : Term}
@@ -2002,29 +2019,95 @@ theorem TShape.HasType.bot_bot {Δ : List Term} {n} :
     TShape.HasType Δ (Shape.T (n := n) Shape.bot) TShape.bot :=
   .bot (.bot .sort)
 
-/-- Cumulativity, which the sort-typed clauses build in. -/
-theorem TShape.HasType.cumul {Δ : List Term} {m : TShape} {r s : Bool} {k}
-    (H : TShape.HasType Δ m (Shape.T (n := k) (Shape.sort r))) (hrs : r ≤ s) :
-    TShape.HasType Δ m (Shape.T (n := k) (Shape.sort s)) := by
-  sorry
+/-- **Cumulativity**, which the sort-typed clauses build in: each carries
+the sort as a bound (`unit`, `id`) or inherits it from its outputs
+(`forallE`), and the rigid ones are already at `.type`.  Stated in
+`sort_level`'s form, with the sort read off `a.2`, because `Shape.sort` at
+a variable level is a stuck `match` and will not unify with itself. -/
+theorem TShape.HasType.cumul {Δ : List Term} {m a : TShape}
+    (H : TShape.HasType Δ m a) : ∀ {k' : Nat} {r s : Bool}, a.2 = Shape.sort r → r ≤ s →
+      TShape.HasType Δ m (Shape.T (n := k') (Shape.sort s)) := by
+  induction H with
+  | bot _ _ => intro _ _ _ _ _; exact .bot .sort
+  | sort => intro _ _ _ ha hrs; rw [Bool.eq_true_of_le (Shape.sort_inj ha).symm hrs]; exact .sort
+  | unit hj => intro _ _ _ ha hrs; exact .unit (Bool.le_tr hj (Shape.sort_inj ha ▸ hrs))
+  | nat => intro _ _ _ ha hrs; rw [Bool.eq_true_of_le (Shape.sort_inj ha).symm hrs]; exact .nat
+  | zero => intro _ _ _ ha _; exact absurd ha (fun h => by cases h)
+  | succ _ => intro _ _ _ ha _; exact absurd ha (fun h => by cases h)
+  | id hj hw => intro _ _ _ ha hrs; exact .id (Bool.le_tr hj (Shape.sort_inj ha ▸ hrs)) hw
+  | forallE hd _ hw _ ihf =>
+    intro _ _ _ ha hrs
+    exact .forallE hd (fun e he => ihf e he rfl (Shape.sort_inj ha ▸ hrs)) hw
+  | sigma hd hf hw _ _ =>
+    intro _ _ _ ha hrs
+    rw [Bool.eq_true_of_le (Shape.sort_inj ha).symm hrs]; exact .sigma hd hf hw
+  | lam _ _ _ _ _ _ _ _ _ _ => intro _ _ _ ha _; exact absurd ha (fun h => by cases h)
+  | pair _ _ _ _ _ _ _ _ _ _ _ _ => intro _ _ _ ha _; exact absurd ha (fun h => by cases h)
+  | refl _ hc _ _ =>
+    intro _ _ _ ha _
+    obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hc
+    rw [ha, Shape.lift_sort] at h2
+    exact absurd h2 (fun x => x)
 
-/-- Typed substitution.
+/-- **Typed substitution.**  Every clause transports componentwise: the
+labels by the term lemmas, the shapes by `Shape.WF.subst` and
+`Shape.LE.subst`, and the lookups by `TEvaluates.subst`.
 
-**Open**, and the obstruction is in the *definition*: the `lam` clause's
-codomain witness is a function `cs : Entry (Shape n₀) → TShape`, because an
-`∃` in that premise would nest the inductive inside `Exists` and the kernel
-refuses it.  A substitution reindexes the generator graph to `g₀.subst τ`,
-and `fun e' => (cs e').subst τ` is the wrong function: it gives
-`(cs (e.subst τ)).subst τ` where `(cs e).subst τ` is wanted.  Two ways out,
-and the choice belongs with the definition rather than here: index `cs` by
-position in `g₀` (`Nat → TShape`, with `g₀[i]? = some e` premises), which
-substitution preserves; or keep the entry indexing and build the
-substituted witness with `Classical.skolem`, at the price of
-`Classical.choice` in the axiom list. -/
+This is what the list-of-pairs generator buys.  With a *function*
+`cs : Entry (Shape n₀) → TShape` (which is what strict positivity forces if
+the witness is not to be quantified existentially inside the premise),
+`fun e' => (cs e').subst τ` is the wrong reindexing — it gives
+`cs (e.subst τ) |>.subst τ` where `(cs e).subst τ` is wanted.  A list is
+reindexed by `List.map`, which has no such mismatch. -/
 theorem TShape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (W : Ctx.SubstEq Θ τ τ Δ) {m a : TShape} (H : TShape.HasType Δ m a) :
     TShape.HasType Θ (m.subst τ) (a.subst τ) := by
-  sorry
+  induction H with
+  | bot _ ih => simp only [TShape.subst_T, Shape.subst_bot]; exact .bot ih
+  | sort => simp only [TShape.subst_T, Shape.subst_sort]; exact .sort
+  | unit hj => simp only [TShape.subst_T, Shape.subst_sort]; exact .unit hj
+  | nat => simp only [TShape.subst_T, Shape.subst_sort]; exact .nat
+  | zero => simp only [TShape.subst_T]; exact .zero
+  | succ hN => simp only [TShape.subst_T]; exact .succ hN.subst
+  | id hj hw =>
+    simp only [TShape.subst_T, Shape.subst_sort]
+    exact .id hj (Shape.WF.subst hΘ W hw)
+  | forallE hd _ hw ihd ihf =>
+    simp only [TShape.subst_T, Shape.subst_sort] at *
+    refine .forallE ihd (fun e he => ?_) (Shape.WF.subst hΘ W hw)
+    obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
+    exact ihf e₀ he₀
+  | sigma hd _ hw ihd ihf =>
+    simp only [TShape.subst_T, Shape.subst_sort] at *
+    refine .sigma ihd (fun e he => ?_) (Shape.WF.subst hΘ W hw)
+    obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
+    exact ihf e₀ he₀
+  | @lam _ _ _ _ _ _ _ _ g₀ _ _ hwg hwPi hg hg₀ev _ ihd ihf ihg₀ty =>
+    simp only [TShape.subst_T, Shape.subst_sort] at *
+    refine .lam (g₀ := g₀.map fun p =>
+        (⟨p.1.ty.subst τ, p.1.tm.subst τ, p.1.inp.subst τ, p.1.out.subst τ⟩, p.2.subst τ))
+      ihd (fun e he => ?_) (Shape.WF.subst hΘ W hwg) (Shape.WF.subst hΘ W hwPi)
+      (fun e he => ?_) (fun e he => ?_) (fun e he => ?_)
+    · obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
+      exact ihf e₀ he₀
+    · obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
+      have := TEvaluates.subst hΘ W (hg e₀ he₀)
+      simpa [ShapeFun.subst, List.map_map, Function.comp_def] using this
+    · obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+      exact TEvaluates.subst hΘ W (hg₀ev p hp)
+    · obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+      exact ihg₀ty p hp
+  | pair _ _ hwp hwSg hxle _ hev _ ihd ihf ihxd ihy =>
+    simp only [TShape.subst_T, Shape.subst_sort] at *
+    exact .pair ihd
+      (fun e he => by
+        obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
+        exact ihf e₀ he₀)
+      (Shape.WF.subst hΘ W hwp) (Shape.WF.subst hΘ W hwSg)
+      (TShape.LE.subst hΘ W hxle) ihxd (TEvaluates.subst hΘ W hev) ihy
+  | refl hw hc _ ih =>
+    simp only [TShape.subst_T] at *
+    exact .refl (Shape.WF.subst hΘ W hw) (TShape.LE.subst hΘ W hc) ih
 
 /-- **The join of two types is a type.**  Only `forallE` and `sigma` have
 content: the join is componentwise, the domains join by the induction

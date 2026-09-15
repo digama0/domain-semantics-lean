@@ -2356,6 +2356,22 @@ theorem TShape.WF.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (W : Ctx.SubstEq Θ τ τ Δ) {a : TShape} (h : TShape.WF Δ a) :
     TShape.WF Θ (a.subst τ) := Shape.WF.subst hΘ W h
 
+theorem TShape.Compat.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) {a b : TShape} (h : TShape.Compat Δ a b) :
+    TShape.Compat Θ (a.subst τ) (b.subst τ) := by
+  show Shape.Compat Θ (Shape.lift (max a.1 b.1) (a.2.subst τ))
+    (Shape.lift (max a.1 b.1) (b.2.subst τ))
+  rw [Shape.lift_subst, Shape.lift_subst]
+  exact Shape.Compat.subst hΘ W h
+
+/-- Substitution is levelwise, so it passes through the join's `lift`s. -/
+theorem TShape.join_subst {τ : Subst} {a b : TShape} :
+    (TShape.join a b).subst τ = TShape.join (a.subst τ) (b.subst τ) := by
+  show (⟨max a.1 b.1, ((a.2.lift (max a.1 b.1)).join (b.2.lift (max a.1 b.1))).subst τ⟩
+    : TShape) = ⟨max a.1 b.1, _⟩
+  rw [Shape.join_subst, ← Shape.lift_subst, ← Shape.lift_subst]
+  rfl
+
 /-- The **label-only Π shape**: the other repo's `piAtom`.  A Π-shape with
 no information in it but the syntactic pair.  It is the probe that reads a
 label back out of a Π type, and the reason is the order: a `piAtom` is
