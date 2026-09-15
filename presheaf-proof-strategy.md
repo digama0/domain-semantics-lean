@@ -1036,59 +1036,85 @@ arises there.  (a) remains the smaller change if (d) proves too large.
 The inductive is in `HasType.lean`; `TShape.HasTypeOld` is the old
 definition, renamed and left for reference.  Every clause **pins the shape
 of its subject and leaves the contents free**: `.succ v'` below `.succ v`
-is the `succ` clause again at `v'`, a λ below `.lam g₀` is the `lam` clause
+is the `succ` clause again at `v'`, a λ below `.lam g` is the `lam` clause
 again at its own graph, a pair below `.pair ty tm x y` is the `pair` clause
 again at its own first component `x'` with `x` kept as the dominator the
 code is read at.  Everything strictly below a shape and not of its head is
-`⊥`, and the `bot` clause takes that.  `id`, `refl` and `pair` pay for
-pinning with a `Shape.WF` premise; `succ` does not, since `IsNumeral`
-implies it.  Only `lam` and `pair` keep a generator, which is §5.5's point.
+`⊥`, and the `bot` clause takes that.  The **type** is pinned too, at
+`lam` and `pair`: the clause names the Π, resp. the Σ, outright, and
+`mono_r` moves to a bigger one rather than the clause carrying a bound.
+`id`, `refl`, `pair`, `lam`, `forallE` and `sigma` pay for pinning with a
+`Shape.WF` premise; `succ` does not, since `IsNumeral` implies it.  Only
+`lam` and `pair` keep a generator, which is §5.5's point.
 
-Proved: `isType`, `mono_r`, `wf` (subject *and* type), `bot_r`,
-`lift_subject`, `sort_level`, `join_sort`, `forallE_inv`/`sigma_inv`,
-`ShapeFun.Eval.tHasType`, and `mono_l` at every clause but `forallE` and
-`sigma`.
+**Sorry-free**: `isType`, `mono_l`, `mono_r`, `wf` (subject *and* type),
+`lift_subject` and `lower_subject`, `sort_level`, `cumul`, `subst`,
+`join_sort`, `forallE_inv`/`sigma_inv`, `Eval.tHasType`, `mono_l_sort_T`
+and `mono_l_sort`.
 
 Three things the kernel or the level index forced, worth not rediscovering:
 
-* the `lam` clause's codomain witness is a **function** `cs`, not an `∃` in
-  the premise — an `∃` nests the inductive inside `Exists`, whose
-  parameters may not mention locals.  This is also why `subst` is open: a
-  substitution reindexes the generator graph and the function does not
-  transport.  Index `cs` by position, or use `Classical.skolem`.
+* a premise may not existentially quantify the witness: an `∃` nests the
+  inductive inside `Exists`, whose parameters may not mention locals.  The
+  witness therefore has to be a **parameter of the clause**.  Taking it as
+  a *function* `cs : Entry (Shape n₀) → TShape` typechecks but does not
+  substitute — reindexing along `τ` gives `cs (e.subst τ) |>.subst τ`
+  where `(cs e).subst τ` is wanted.  Taking it as a **list of pairs**
+  `g₀ : List (Entry (Shape n₀) × TShape)` does, because a list is
+  reindexed by `List.map`.  That is the whole of `HasType.subst`.
 * the constructors spell `ShapeFun.THasPi` out: the kernel will not take
   the inductive being declared as an argument to a definition.
 * `Shape.sort` at a *variable* level is a stuck `match`, so it does not
   unify with itself.  Any `cases` on a derivation whose type index is a
   sort needs that index to be a variable — hence `forallE_inv`/`sigma_inv`
-  and the `a.2 = Shape.sort j` idiom throughout.
+  and the `a.2 = Shape.sort j` idiom throughout (`sort_level`, `cumul`).
 
-**The one step left.**  `mono_l` at `forallE`/`sigma` has to push the
-premises into a smaller Π, which is `Eval.tHasType` over the lookup, whose
-`lower` case wants general lowering at a sort.  Induction on the *level*
-does not give it — the `lam` clause's `n₀` is existential and can sit
-above the subject's level, which is why the definition is an inductive in
-the first place.  What does work is to put the measure on the **bigger**
-side only:
+**How `mono_l` closed.**  The hard cases were `forallE` and `sigma`: a
+smaller Π is `.forallE A' B' d' f'`, and typing its entry outputs is
+`Eval.tHasType` over the lookup in `f`, whose `lower` case wants general
+lowering at a sort — `mono_l` itself.  `mono_l_sort_T` already has it *at
+one fixed level*, by induction on the level, and that induction is sound
+precisely because at a sort the `lam` and `pair` clauses never arise, so
+the existential `n₀` that motivated the inductive never appears.  What was
+missing was only the bridge from one level to two:
 
 ```lean
-Q' : ∀ {N} {y : Shape N} {a j}, a.2 = Shape.sort j → HasType Δ y.T a →
-       ∀ {m' : TShape}, TShape.LE Δ m' y.T → HasType Δ m' a
+lower_subject : HasType Δ (y.lift k).T a → HasType Δ y.T a
 ```
 
-At a sort the `lam` and `pair` clauses never arise, so no existential
-level appears; and the induction hypothesis is wanted on `y`'s components,
-at `N`, with the smaller side arbitrary.  `mono_l_sort_T` as committed is
-this with the smaller side pinned to level `N`; generalising it changes
-only the statement and the `forallE`/`sigma` cases, since the atom cases
-go through the `Shape.le_X` family either way.  Each case destructures
-`m'` and reads the comparison at `max _ N + 1` with `TShape.LE.def_mp`,
-where the component relations come out as `TShape.LE` at their own
-canonical level on the nose.  The graph case routes through
-`Evaluates.lift_of`: the coverage arrives at `max j N`, so an entry output
-comes back as a *bound* below a lookup value of `f` at level `N`, which
-`tHasType` types and `Q' N` then brings down.  General `mono_l_sort` is
-`Q'` at `y := m.2`, and the two `mono_l` cases are instances.
+the reflection direction of `lift_subject`, and exactly what §5.5 shows
+the *level-indexed* definition cannot have.  It holds here because every
+object a clause quantifies over — `g₀`, the pair's `x` and `c` — is a
+`TShape`, so `lift` touches none of them; what is left is entrywise, and
+`TEvaluates.lower_cover` does it.  Then
+
+```lean
+mono_l_sort := lift_subject, then mono_l_sort_T, then lower_subject
+```
+
+and `mono_l` at `forallE`/`sigma` is one line each.  (The `Q'` plan in an
+earlier draft of this section — generalising `mono_l_sort_T` to take the
+smaller side as a `TShape` — is not needed: it is `mono_l_sort`, obtained
+by transport rather than by redoing the induction.)
+
+**The transport lemmas.**  Pinning the shapes moves work onto `TEvaluates`,
+which is level-free and therefore where the level bookkeeping can be done
+once:
+
+| lemma | what it does |
+|---|---|
+| `mono_inp` | grow the input alone |
+| `label` | move the query label along a defeq |
+| `refl` | a graph covers itself |
+| `trans` | a lookup in a covered graph is one in the coverer |
+| `lift_cover` / `lower_cover` | coverage survives lifting the graph, and comes back |
+| `of_cover_lift` | a graph whose *lift* is covered, covered at its own level |
+| `subst` | transport along a typed substitution |
+| `Eval.toT` | the level-indexed lookup is this one, at a fixed level |
+
+`mono_l` at `lam` reads the order at a level above both and brings the
+coverage down with `of_cover_lift`; `mono_r` at `lam`/`pair` moves the
+codomain witnesses into the bigger Π/Σ's graph with `trans`.
 
 ### 5.6 Summary of statement changes
 
