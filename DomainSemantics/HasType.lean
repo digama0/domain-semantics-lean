@@ -1985,3 +1985,89 @@ theorem ShapeFun.Eval.tHasType {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun
   | entry e he _ _ => exact hty e he
   | lower hle _ ih => exact hlow hle ih
   | join hcj _ _ ih₁ ih₂ => exact TShape.HasType.join_sort hΔ hc ih₁ ih₂ hcj
+
+/-- **Left monotonicity at a sort, at a fixed level.**
+
+This is the shape the old `Shape.HasType.mono_l_sort` had, and the reason
+it can be an induction on the level where the general `mono_l` cannot: at a
+sort the `lam` and `pair` clauses never arise — a λ is typed only below a
+Π, a pair only below a Σ, and neither is below a sort — so the
+existentially chosen `n₀`, which can sit *above* the subject's level, never
+appears.  Both shapes being at one level is what keeps the components at
+`N`, where the induction hypothesis lives; `TShape.LE` would put them at a
+`max` that the smaller shape can push arbitrarily high. -/
+theorem TShape.HasType.mono_l_sort_T {Δ : List Term} (hΔ : ⊢ Δ) :
+    ∀ {N} {y y' : Shape N} {a : TShape} {j : Bool}, a.2 = Shape.sort j →
+      TShape.HasType Δ y.T a → Shape.LE Δ y' y → TShape.HasType Δ y'.T a := by
+  intro N
+  induction N with
+  | zero =>
+    intro y y' a j ha hy hle
+    cases hy with
+    | bot hA => cases Shape.le_bot_iff.1 hle; exact .bot hA
+    | sort =>
+      match Shape.le_sort hle with
+      | .inl hb => cases hb; exact .bot .sort
+      | .inr hs => cases hs; exact .sort
+  | succ N ih =>
+    intro y y' a j ha hy hle
+    cases hy with
+    | bot hA => cases Shape.le_bot_iff.1 hle; exact .bot hA
+    | sort =>
+      match Shape.le_sort hle with
+      | .inl hb => cases hb; exact .bot .sort
+      | .inr hs => cases hs; exact .sort
+    | unit hj =>
+      match Shape.le_unit hle with
+      | .inl hb => cases hb; exact .bot .sort
+      | .inr hs => cases hs; exact .unit hj
+    | nat =>
+      match Shape.le_nat hle with
+      | .inl hb => cases hb; exact .bot .sort
+      | .inr hs => cases hs; exact .nat
+    | zero =>
+      match Shape.le_zero hle with
+      | .inl hb => cases hb; exact .bot .nat
+      | .inr hs => cases hs; exact .zero
+    | succ hN =>
+      match Shape.le_succ hle with
+      | .inl hb => cases hb; exact .bot .nat
+      | .inr ⟨v', hs, hv⟩ => cases hs; exact .succ (Shape.IsNumeral.lower hv hN)
+    | id hj hw =>
+      match Shape.le_id hle with
+      | .inl hb => cases hb; exact .bot .sort
+      | .inr ⟨A', a', b', hs, ⟨⟨u, hA⟩, hx, hy⟩⟩ =>
+        cases hs
+        exact .id hj ⟨⟨u, hA.hasType.1⟩, hx.hasType.1, hy.hasType.1⟩
+    | forallE hd hf hw =>
+      match Shape.le_forallE hle with
+      | .inl hb => cases hb; exact .bot .sort
+      | .inr ⟨A', B', d', f', hs, _, hdd, hff⟩ =>
+        cases hs
+        refine .forallE (ih rfl hd hdd) (fun e he => ?_) (Shape.LE.wf hle)
+        exact ShapeFun.Eval.tHasType hΔ ha hf (fun hle' hv => ih ha hv hle') (hff.1 e he)
+    | sigma hd hf hw =>
+      match Shape.le_sigma hle with
+      | .inl hb => cases hb; exact .bot .sort
+      | .inr ⟨A', B', d', f', hs, _, hdd, hff⟩ =>
+        cases hs
+        refine .sigma (ih rfl hd hdd) (fun e he => ?_) (Shape.LE.wf hle)
+        exact ShapeFun.Eval.tHasType hΔ rfl hf (fun hle' hv => ih rfl hv hle') (hff.1 e he)
+    | lam _ _ _ _ _ _ hc _ =>
+      have h2 := TShape.LE.def_mp (k := max _ a.1 + 1)
+        (Nat.succ_le_succ (Nat.le_max_left ..))
+        (Nat.le_succ_of_le (Nat.le_max_right ..)) hc
+      rw [ha, Shape.lift_sort] at h2
+      exact absurd h2 (fun x => x)
+    | pair _ _ _ _ _ _ _ hc _ =>
+      have h2 := TShape.LE.def_mp (k := max _ a.1 + 1)
+        (Nat.succ_le_succ (Nat.le_max_left ..))
+        (Nat.le_succ_of_le (Nat.le_max_right ..)) hc
+      rw [ha, Shape.lift_sort] at h2
+      exact absurd h2 (fun x => x)
+    | refl _ hc _ =>
+      have h2 := TShape.LE.def_mp (k := max _ a.1 + 1)
+        (Nat.succ_le_succ (Nat.le_max_left ..))
+        (Nat.le_succ_of_le (Nat.le_max_right ..)) hc
+      rw [ha, Shape.lift_sort] at h2
+      exact absurd h2 (fun x => x)

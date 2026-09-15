@@ -582,6 +582,107 @@ theorem Shape.le_bot_iff {n} {s : Shape n} : Shape.LE Δ s .bot ↔ s = .bot := 
     | bot => exact ⟨fun _ => rfl, fun _ => trivial⟩
     | _ => exact ⟨fun h => absurd h id, nofun⟩
 
+/-! ### What sits below a shape
+
+Master's `Shape.le_sort`, `le_unit`, `le_nat_iff`, `le_succ_iff`, … , one
+per head: below a shape is `⊥`, or a shape of the same head whose
+components are below its.  These are the one-directional halves — the
+converse is `bot_le` and the componentwise constructor — and they are what
+every inversion of the order against a known head goes through. -/
+
+theorem Shape.le_sort {Δ : List Term} {n} {r : Bool} {s : Shape n}
+    (h : Shape.LE Δ s (Shape.sort r)) : s = Shape.bot ∨ s = Shape.sort r := by
+  cases n with
+  | zero => cases s with | bot => exact .inl rfl | sort r' => cases h; exact .inr rfl
+  | succ n =>
+    cases s with
+    | bot => exact .inl rfl
+    | sort r' => cases h; exact .inr rfl
+    | _ => exact absurd h id
+
+theorem Shape.le_unit {Δ : List Term} {n} {r : Bool} {s : Shape (n+1)}
+    (h : Shape.LE Δ s (ShapeS.unit r)) : s = Shape.bot ∨ s = ShapeS.unit r := by
+  cases s with
+  | bot => exact .inl rfl
+  | unit r' => cases h; exact .inr rfl
+  | _ => exact absurd h id
+
+theorem Shape.le_nat {Δ : List Term} {n} {s : Shape (n+1)}
+    (h : Shape.LE Δ s ShapeS.nat) : s = Shape.bot ∨ s = ShapeS.nat := by
+  cases s with
+  | bot => exact .inl rfl
+  | nat => exact .inr rfl
+  | _ => exact absurd h id
+
+theorem Shape.le_zero {Δ : List Term} {n} {s : Shape (n+1)}
+    (h : Shape.LE Δ s ShapeS.zero) : s = Shape.bot ∨ s = ShapeS.zero := by
+  cases s with
+  | bot => exact .inl rfl
+  | zero => exact .inr rfl
+  | _ => exact absurd h id
+
+theorem Shape.le_succ {Δ : List Term} {n} {v : Shape n} {s : Shape (n+1)}
+    (h : Shape.LE Δ s (ShapeS.succ v)) :
+    s = Shape.bot ∨ ∃ v', s = ShapeS.succ v' ∧ Shape.LE Δ v' v := by
+  cases s with
+  | bot => exact .inl rfl
+  | succ v' => exact .inr ⟨v', rfl, h⟩
+  | _ => exact absurd h id
+
+theorem Shape.le_refl' {Δ : List Term} {n} {w : Shape n} {s : Shape (n+1)}
+    (h : Shape.LE Δ s (ShapeS.refl w)) :
+    s = Shape.bot ∨ ∃ w', s = ShapeS.refl w' ∧ Shape.LE Δ w' w := by
+  cases s with
+  | bot => exact .inl rfl
+  | refl w' => exact .inr ⟨w', rfl, h⟩
+  | _ => exact absurd h id
+
+theorem Shape.le_id {Δ : List Term} {n} {r : Bool} {A a b : Term} {s : Shape (n+1)}
+    (h : Shape.LE Δ s (ShapeS.id r A a b)) :
+    s = Shape.bot ∨ ∃ A' a' b', s = ShapeS.id r A' a' b' ∧ IdLabelEq Δ A' a' b' A a b := by
+  cases s with
+  | bot => exact .inl rfl
+  | id r' A' a' b' => obtain ⟨rfl, hl⟩ := h; exact .inr ⟨A', a', b', rfl, hl⟩
+  | _ => exact absurd h id
+
+theorem Shape.le_forallE {Δ : List Term} {n} {A B : Term} {d : Shape n} {f : ShapeFun n}
+    {s : Shape (n+1)} (h : Shape.LE Δ s (ShapeS.forallE A B d f)) :
+    s = Shape.bot ∨ ∃ A' B' d' f', s = ShapeS.forallE A' B' d' f' ∧
+      PiLabelEq Δ A' B' A B ∧ Shape.LE Δ d' d ∧
+      ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) f' f := by
+  cases s with
+  | bot => exact .inl rfl
+  | forallE A' B' d' f' => exact .inr ⟨A', B', d', f', rfl, h.1, h.2.1, h.2.2⟩
+  | _ => exact absurd h id
+
+theorem Shape.le_sigma {Δ : List Term} {n} {A B : Term} {d : Shape n} {f : ShapeFun n}
+    {s : Shape (n+1)} (h : Shape.LE Δ s (ShapeS.sigma A B d f)) :
+    s = Shape.bot ∨ ∃ A' B' d' f', s = ShapeS.sigma A' B' d' f' ∧
+      PiLabelEq Δ A' B' A B ∧ Shape.LE Δ d' d ∧
+      ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) f' f := by
+  cases s with
+  | bot => exact .inl rfl
+  | sigma A' B' d' f' => exact .inr ⟨A', B', d', f', rfl, h.1, h.2.1, h.2.2⟩
+  | _ => exact absurd h id
+
+theorem Shape.le_lam {Δ : List Term} {n} {g : ShapeFun n} {s : Shape (n+1)}
+    (h : Shape.LE Δ s (ShapeS.lam g)) :
+    s = Shape.bot ∨ ∃ g', s = ShapeS.lam g' ∧
+      ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) g' g := by
+  cases s with
+  | bot => exact .inl rfl
+  | lam g' => exact .inr ⟨g', rfl, h.1⟩
+  | _ => exact absurd h id
+
+theorem Shape.le_pair {Δ : List Term} {n} {ty tm : Term} {x y : Shape n} {s : Shape (n+1)}
+    (h : Shape.LE Δ s (ShapeS.pair ty tm x y)) :
+    s = Shape.bot ∨ ∃ ty' tm' x' y', s = ShapeS.pair ty' tm' x' y' ∧
+      LabelEq Δ ty' tm' ty tm ∧ Shape.LE Δ x' x ∧ Shape.LE Δ y' y := by
+  cases s with
+  | bot => exact .inl rfl
+  | pair ty' tm' x' y' => exact .inr ⟨ty', tm', x', y', rfl, h.1, h.2.1, h.2.2.1⟩
+  | _ => exact absurd h id
+
 /-- Lifting is purely structural, so it commutes with substitution at
 every pair of levels. -/
 theorem Shape.lift_subst {n} (m : Nat) {s : Shape n} {τ : Subst} :
