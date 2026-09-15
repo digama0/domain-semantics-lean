@@ -1031,6 +1031,65 @@ Note `mono_r_join`'s induction on the level survives unchanged, because a
 *type* is never a λ, so the clause whose premises escape the level never
 arises there.  (a) remains the smaller change if (d) proves too large.
 
+### 5.5a `TShape.HasType`, as built
+
+The inductive is in `HasType.lean`; `TShape.HasTypeOld` is the old
+definition, renamed and left for reference.  Every clause **pins the shape
+of its subject and leaves the contents free**: `.succ v'` below `.succ v`
+is the `succ` clause again at `v'`, a λ below `.lam g₀` is the `lam` clause
+again at its own graph, a pair below `.pair ty tm x y` is the `pair` clause
+again at its own first component `x'` with `x` kept as the dominator the
+code is read at.  Everything strictly below a shape and not of its head is
+`⊥`, and the `bot` clause takes that.  `id`, `refl` and `pair` pay for
+pinning with a `Shape.WF` premise; `succ` does not, since `IsNumeral`
+implies it.  Only `lam` and `pair` keep a generator, which is §5.5's point.
+
+Proved: `isType`, `mono_r`, `wf` (subject *and* type), `bot_r`,
+`lift_subject`, `sort_level`, `join_sort`, `forallE_inv`/`sigma_inv`,
+`ShapeFun.Eval.tHasType`, and `mono_l` at every clause but `forallE` and
+`sigma`.
+
+Three things the kernel or the level index forced, worth not rediscovering:
+
+* the `lam` clause's codomain witness is a **function** `cs`, not an `∃` in
+  the premise — an `∃` nests the inductive inside `Exists`, whose
+  parameters may not mention locals.  This is also why `subst` is open: a
+  substitution reindexes the generator graph and the function does not
+  transport.  Index `cs` by position, or use `Classical.skolem`.
+* the constructors spell `ShapeFun.THasPi` out: the kernel will not take
+  the inductive being declared as an argument to a definition.
+* `Shape.sort` at a *variable* level is a stuck `match`, so it does not
+  unify with itself.  Any `cases` on a derivation whose type index is a
+  sort needs that index to be a variable — hence `forallE_inv`/`sigma_inv`
+  and the `a.2 = Shape.sort j` idiom throughout.
+
+**The one step left.**  `mono_l` at `forallE`/`sigma` has to push the
+premises into a smaller Π, which is `Eval.tHasType` over the lookup, whose
+`lower` case wants general lowering at a sort.  Induction on the *level*
+does not give it — the `lam` clause's `n₀` is existential and can sit
+above the subject's level, which is why the definition is an inductive in
+the first place.  What does work is to put the measure on the **bigger**
+side only:
+
+```lean
+Q' : ∀ {N} {y : Shape N} {a j}, a.2 = Shape.sort j → HasType Δ y.T a →
+       ∀ {m' : TShape}, TShape.LE Δ m' y.T → HasType Δ m' a
+```
+
+At a sort the `lam` and `pair` clauses never arise, so no existential
+level appears; and the induction hypothesis is wanted on `y`'s components,
+at `N`, with the smaller side arbitrary.  `mono_l_sort_T` as committed is
+this with the smaller side pinned to level `N`; generalising it changes
+only the statement and the `forallE`/`sigma` cases, since the atom cases
+go through the `Shape.le_X` family either way.  Each case destructures
+`m'` and reads the comparison at `max _ N + 1` with `TShape.LE.def_mp`,
+where the component relations come out as `TShape.LE` at their own
+canonical level on the nose.  The graph case routes through
+`Evaluates.lift_of`: the coverage arrives at `max j N`, so an entry output
+comes back as a *bound* below a lookup value of `f` at level `N`, which
+`tHasType` types and `Q' N` then brings down.  General `mono_l_sort` is
+`Q'` at `y := m.2`, and the two `mono_l` cases are instances.
+
 ### 5.6 Summary of statement changes
 
 | where | change | why | |
@@ -1046,7 +1105,8 @@ arises there.  (a) remains the smaller change if (d) proves too large.
 | `ShapeFun.Eval.lower` | drop the `WF` side condition (`Shape.LE.wf`) | §5.2 | **done** |
 | `Shape.LE` | `WF` of the lower bound at `pair`/`lam`; `Shape.LE.wf` | §5.2 | **done** |
 | `Shape.HasType.mono_l` | false at `lam` | §5.5 | open |
-| `TShape.HasType` | one inductive over `TShape`, generator/co-generator clauses | §5.5(d) | **done** (old kept as `HasTypeOld`) |
+| `TShape.HasType` | one inductive over `TShape`, every clause pinning its subject's shape | §5.5a | **done** (old kept as `HasTypeOld`) |
+| `TShape.HasType.mono_l` | all clauses but `forallE`/`sigma`; those need `Q'` | §5.5a | open, one step |
 | `Shape.HasType.lift` | preservation split off `lift_iff` | §5.5 | **done** |
 | `InterpTyped` at Π (and Σ) types | witness carries lookup-form `HasDom` | §4.5(a), §5.1(a) | open |
 | `SoundJoin` | keep, upper-bound form; prove per former alongside `sound` | §5.1 | **done** (kept) |
