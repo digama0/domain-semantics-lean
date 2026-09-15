@@ -1610,6 +1610,65 @@ theorem TEvaluates.of_cover_lift {Δ : List Term} (hΔ : ⊢ Δ) {j k n'} (hjk :
   exact .lower (TShape.LE.le_lift hΔ (m := e.out.T) hjk hwe.2.2.2)
     (TEvaluates.mono_inp hΔ (TShape.LE.lift_le hΔ (m := e.inp.T) hjk hwe.2.2.1) h2)
 
+/-! ### The `_decomp` family
+
+Master's component inversions for the order, in the form these clauses
+consume them: the sub-shape relations come back as `TShape.LE` **at their
+own canonical levels** rather than at `max n n'`, and a graph relation
+comes back as *coverage over `TShape`* — each entry of the smaller graph
+is a lookup in whatever the bigger one's entries are lookups in.  The
+level arithmetic is `TShape.LE.at_succ` once, here, instead of at every
+use site. -/
+
+/-- Π-decomposition.  The codomain half composes the coverage the order
+gives with a coverage of the bigger graph, which is what both `mono_l` and
+`mono_r` have to hand. -/
+theorem TShape.LE.forallE_decomp {Δ : List Term} (hΔ : ⊢ Δ) {n n' k}
+    {A B A' B' : Term} {d : Shape n} {f : ShapeFun n} {d' : Shape n'}
+    {f' : ShapeFun n'} {f'' : ShapeFun k}
+    (h : TShape.LE Δ (Shape.T (n := n+1) (.forallE A B d f))
+      (Shape.T (n := n'+1) (.forallE A' B' d' f')))
+    (hw : Shape.WF (n := n+1) Δ (.forallE A B d f))
+    (hw' : Shape.WF (n := n'+1) Δ (.forallE A' B' d' f'))
+    (hf' : ∀ e ∈ f', TEvaluates Δ f'' e.ty e.tm e.inp.T e.out.T) :
+    PiLabelEq Δ A B A' B' ∧ TShape.LE Δ d.T d'.T ∧
+      ∀ e ∈ f, TEvaluates Δ f'' e.ty e.tm e.inp.T e.out.T := by
+  obtain ⟨M, hn'M, hnM, h2⟩ := TShape.LE.at_succ h
+  have hn : n ≤ M := Nat.le_of_succ_le_succ hnM
+  exact ⟨h2.1, (TShape.LE.def hΔ hn hn'M).2 h2.2.1,
+    TEvaluates.of_cover_lift hΔ hn hw.2.2.2 h2.2.2.1
+      (TEvaluates.lift_cover hΔ hn'M hw'.2.2.2 hf')⟩
+
+/-- Σ-decomposition; the clause is the same as Π's. -/
+theorem TShape.LE.sigma_decomp {Δ : List Term} (hΔ : ⊢ Δ) {n n' k}
+    {A B A' B' : Term} {d : Shape n} {f : ShapeFun n} {d' : Shape n'}
+    {f' : ShapeFun n'} {f'' : ShapeFun k}
+    (h : TShape.LE Δ (Shape.T (n := n+1) (.sigma A B d f))
+      (Shape.T (n := n'+1) (.sigma A' B' d' f')))
+    (hw : Shape.WF (n := n+1) Δ (.sigma A B d f))
+    (hw' : Shape.WF (n := n'+1) Δ (.sigma A' B' d' f'))
+    (hf' : ∀ e ∈ f', TEvaluates Δ f'' e.ty e.tm e.inp.T e.out.T) :
+    PiLabelEq Δ A B A' B' ∧ TShape.LE Δ d.T d'.T ∧
+      ∀ e ∈ f, TEvaluates Δ f'' e.ty e.tm e.inp.T e.out.T := by
+  obtain ⟨M, hn'M, hnM, h2⟩ := TShape.LE.at_succ h
+  have hn : n ≤ M := Nat.le_of_succ_le_succ hnM
+  exact ⟨h2.1, (TShape.LE.def hΔ hn hn'M).2 h2.2.1,
+    TEvaluates.of_cover_lift hΔ hn hw.2.2.2 h2.2.2.1
+      (TEvaluates.lift_cover hΔ hn'M hw'.2.2.2 hf')⟩
+
+/-- λ-decomposition: a λ-shape's graph is covered by any bigger one's, and
+the non-degeneracy conjuncts are about the smaller graph alone, so they
+carry no information downwards. -/
+theorem TShape.LE.lam_decomp {Δ : List Term} (hΔ : ⊢ Δ) {n n' k} {g : ShapeFun n}
+    {g' : ShapeFun n'} {f'' : ShapeFun k}
+    (h : TShape.LE Δ (Shape.T (n := n+1) (.lam g)) (Shape.T (n := n'+1) (.lam g')))
+    (hw : Shape.WF (n := n+1) Δ (.lam g)) (hw' : Shape.WF (n := n'+1) Δ (.lam g'))
+    (hg' : ∀ e ∈ g', TEvaluates Δ f'' e.ty e.tm e.inp.T e.out.T) :
+    ∀ e ∈ g, TEvaluates Δ f'' e.ty e.tm e.inp.T e.out.T := by
+  obtain ⟨M, hn'M, hnM, h2⟩ := TShape.LE.at_succ h
+  exact TEvaluates.of_cover_lift hΔ (Nat.le_of_succ_le_succ hnM) hw.2.2 h2.1.1
+    (TEvaluates.lift_cover hΔ hn'M hw'.2.2 hg')
+
 /-- `ShapeFun.HasPi`, over `TShape`.  Only for stating lemmas; the
 constructors spell it out. -/
 def ShapeFun.THasPi (T : TShape → TShape → Prop) {n}
@@ -1643,9 +1702,9 @@ theorem TEvaluates.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
   | join hc _ _ ih₁ ih₂ =>
     exact TShape.join_subst ▸ TEvaluates.join (TShape.Compat.subst hΘ W hc) ih₁ ih₂
 
-/-- Inversion of a comparison of two pairs into its components, back at the
-canonical level. -/
-theorem TShape.LE.pair_inv {Δ : List Term} (hΔ : ⊢ Δ) {j n} {ty₂ tm₂ ty tm : Term}
+/-- Pair-decomposition: the components back at their own canonical
+levels, with the labels' definitional equality. -/
+theorem TShape.LE.pair_decomp {Δ : List Term} (hΔ : ⊢ Δ) {j n} {ty₂ tm₂ ty tm : Term}
     {x₂ y₂ : Shape j} {x' y : Shape n}
     (h : TShape.LE Δ (Shape.T (n := j+1) (ShapeS.pair ty₂ tm₂ x₂ y₂))
       (Shape.T (n := n+1) (ShapeS.pair ty tm x' y))) :
@@ -1840,9 +1899,8 @@ theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
       cases s with
       | forallE A' B' d' f' =>
         obtain ⟨hd', hf', hw'⟩ := hA'.forallE_inv rfl
-        have hk : k ≤ M := Nat.le_of_succ_le_succ hkM
-        have hcov := TEvaluates.of_cover_lift hΔ hnM hwPi.2.2.2 h2.2.2.1
-          (TEvaluates.lift_cover hΔ hk hw'.2.2.2 (TEvaluates.refl hw'.2.2.2))
+        obtain ⟨_, _, hcov⟩ :=
+          TShape.LE.forallE_decomp hΔ h hwPi hw' (TEvaluates.refl hw'.2.2.2)
         exact .lam hd' hf' hwg hw' hg
           (fun e he => TEvaluates.trans hΔ hcov (hg₀ev e he)) hg₀ty
       | _ => exact absurd h2 (fun x => x)
@@ -1856,11 +1914,9 @@ theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
       cases s with
       | sigma A' B' d' f' =>
         obtain ⟨hd', hf', hw'⟩ := hA'.sigma_inv rfl
-        have hk : k ≤ M := Nat.le_of_succ_le_succ hkM
-        have hcov := TEvaluates.of_cover_lift hΔ hnM hwSg.2.2.2 h2.2.2.1
-          (TEvaluates.lift_cover hΔ hk hw'.2.2.2 (TEvaluates.refl hw'.2.2.2))
-        exact .pair hd' hf' hwp hw' hxle
-          (ihxd d'.T ((TShape.LE.def hΔ hnM hk).2 h2.2.1) hd')
+        obtain ⟨_, hdd, hcov⟩ :=
+          TShape.LE.sigma_decomp hΔ h hwSg hw' (TEvaluates.refl hw'.2.2.2)
+        exact .pair hd' hf' hwp hw' hxle (ihxd d'.T hdd hd')
           (TEvaluates.trans hΔ hcov hev) hy
       | _ => exact absurd h2 (fun x => x)
   | refl hw hc _ _ => exact fun _ h hA' => .refl hw (hc.trans hΔ h) hA'
@@ -2376,12 +2432,10 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
       cases s with
       | bot => exact .bot (.forallE hd hf hwPi)
       | lam g' =>
-        have hj : j ≤ M := Nat.le_of_succ_le_succ hjM
         have hwg' : Shape.WF (n := j+1) Δ (.lam g') :=
           (Shape.lift_wf hjM).1 (Shape.LE.wf h2)
         exact .lam hd hf hwg' hwPi
-          (TEvaluates.of_cover_lift hΔ hj hwg'.2.2 h2.1.1
-            (TEvaluates.lift_cover hΔ hnM hwg.2.2 hg)) hg₀ev hg₀ty
+          (TShape.LE.lam_decomp hΔ h hwg' hwg hg) hg₀ev hg₀ty
       | _ => exact absurd h2 (fun x => x)
   | pair hd hf _ hwSg hxle hxd hev hy _ _ _ ihy =>
     intro m' h
@@ -2389,7 +2443,7 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
     obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
     cases j <;> cases s <;> first
       | exact .bot (.sigma hd hf hwSg)
-      | (obtain ⟨hlab, hx2, hy2⟩ := TShape.LE.pair_inv hΔ h
+      | (obtain ⟨hlab, hx2, hy2⟩ := TShape.LE.pair_decomp hΔ h
          exact .pair hd hf (TShape.LE.wf h) hwSg (hx2.trans hΔ hxle) hxd
            (hev.label hlab.symm) (ihy hy2))
       | exact absurd h2 (fun x => x)
