@@ -1116,6 +1116,36 @@ once:
 coverage down with `of_cover_lift`; `mono_r` at `lam`/`pair` moves the
 codomain witnesses into the bigger Π/Σ's graph with `trans`.
 
+**Migrated.**  `Interp`'s clauses, `Adm`, `InterpTyped`, `SoundTy` and
+everything `IsDefEq.sound` runs through now use the inductive.  The old
+`Shape.HasType` / `TShape.HasTypeOld` family stays in `HasType.lean` for
+reference and is used by nothing else, so the false `mono_l` at `lam` is
+out of the soundness chain; what `sorry`s remain there are the genuinely
+open lemmas (`IsDefEq.stage`, `Interp.unweak`/`substTerm`/`inst`, the
+open cases of `IsDefEq.dir`/`sound`, `Inversion.lean`).
+
+Two proofs collapsed on the way.  `Interp.eq_bot_of_prop` read every
+hypothesis at a common level, applied `Shape.HasType.proofIrrel` there and
+transported the conclusion back down with `Shape.lift_eq_bot`; it is now
+`le_prop_cases` and then `proofIrrel`, because both `mono_r` and the order
+are level-free.  `sound_forallE_ub`'s joined domain needed two
+lift-and-read steps and `Shape.HasType.join`; it is now `join_sort` on the
+two premises.
+
+`TShape.HasType.proofIrrel` itself is worth noting: the old proof inducted
+on the *level*, since everything lived at one.  Over `TShape` it is an
+induction on the **derivation**, and the `lam` clause's own hypothesis at
+the codomain generator is the recursive call.  A dominating codomain
+witness gives no such hypothesis, so this is the generator earning its
+keep a second time (`subst` was the first).
+
+One consequence to act on eventually: `InterpTyped`'s saturating witness
+was forced by typing *not* being a lower set.  It is one now, so
+`InterpTyped Δ Γ t A σ ρ m` is equivalent to
+`∃ a, Interp Δ Γ A σ ρ a ∧ HasType Δ m a` whenever `Interp Δ Γ t σ ρ m`.
+Collapsing it is a separate change, since the witness is also how
+`SoundTy`'s consumers get an interpretation of `A` at the right stage.
+
 ### 5.6 Summary of statement changes
 
 | where | change | why | |

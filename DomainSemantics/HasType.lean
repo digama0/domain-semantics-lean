@@ -750,7 +750,11 @@ theorem ShapeFun.HasPi.lower (hΔ : ⊢ Δ) {n}
     Evaluates.hasType hΔ (fun e' he' => (hf.2.2.1 e' he').2.2.2)
       Shape.HasType.sort h.2 ih (Shape.HasType.join hΔ) (hf.1 e he)⟩
 
-/-- **Left monotonicity**: a type is a lower set.  Master has only the
+/-- **Left monotonicity**: a type is a lower set.  **Superseded and false**
+— `TShape.HasType.mono_l` is the theorem; this one's `lam` case cannot be
+proved and is a `sorry` (§5.5).  Nothing outside this file uses it.
+
+Master has only the
 two-sided form (`WShape.HasType.mono_l`, a 70-line mutual induction whose
 graph cases run a cycle argument); here the clauses were arranged so that
 the genuine one-sided statement is an induction with no side conditions --
@@ -1213,7 +1217,9 @@ theorem Shape.HasType.lift_iff {Δ : List Term} (hΔ : ⊢ Δ)
     | refl => exact .refl
 
 /-- Typing at the total level: at the canonical level, and (by
-`lift_mono`) at every level above it. -/
+`lift_mono`) at every level above it.  **Superseded** by the inductive
+`TShape.HasType`; kept for reference, and used by nothing outside this
+file.  Its `mono_l` inherits `Shape.HasType.mono_l`'s `sorry`. -/
 def TShape.HasTypeOld (Δ : List Term) (m a : TShape) : Prop :=
   Shape.HasType Δ (m.2.lift (max m.1 a.1)) (a.2.lift (max m.1 a.1))
 
