@@ -1548,21 +1548,19 @@ inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
     HasType Δ (Shape.T (n := n+1) (.succ v)) (Shape.T (n := k+1) .nat)
   | id {n k r j} {A x y : Term} : r ≤ j → Shape.WF (n := n+1) Δ (.id r A x y) →
     HasType Δ (Shape.T (n := n+1) (.id r A x y)) (Shape.T (n := k) (Shape.sort j))
-  -- same pattern as `lam`: the shape is pinned, the domain and the graph
-  -- are not, and the generator is where the typing of the components lives
-  | forallE {n n₀ k} {A B A₀ B₀ : Term} {d : Shape n} {d₀ : Shape n₀}
-      {f : ShapeFun n} {f₀ : ShapeFun n₀} {r j : Bool} :
-    HasType Δ d₀.T .type →
-    (∀ e ∈ f₀, HasType Δ e.out.T (.sort r)) → r ≤ j →
-    TShape.LE Δ (Shape.T (n := n+1) (.forallE A B d f))
-      (Shape.T (n := n₀+1) (.forallE A₀ B₀ d₀ f₀)) →
+  -- stated directly on `d` and `f`: `mono_l` pushes the premises into a
+  -- smaller Π through `Eval.tHasType`, whose `join` case is `join_sort`.
+  -- The outputs are typed at the *same* sort as the Π, so that `join_sort`
+  -- can merge two of them without cumulativity
+  | forallE {n k} {A B : Term} {d : Shape n} {f : ShapeFun n} {j : Bool} :
+    HasType Δ d.T .type →
+    (∀ e ∈ f, HasType Δ e.out.T (Shape.T (n := k) (Shape.sort j))) →
+    Shape.WF (n := n+1) Δ (.forallE A B d f) →
     HasType Δ (Shape.T (n := n+1) (.forallE A B d f)) (Shape.T (n := k) (Shape.sort j))
-  | sigma {n n₀ k} {A B A₀ B₀ : Term} {d : Shape n} {d₀ : Shape n₀}
-      {f : ShapeFun n} {f₀ : ShapeFun n₀} :
-    HasType Δ d₀.T .type →
-    (∀ e ∈ f₀, HasType Δ e.out.T .type) →
-    TShape.LE Δ (Shape.T (n := n+1) (.sigma A B d f))
-      (Shape.T (n := n₀+1) (.sigma A₀ B₀ d₀ f₀)) →
+  | sigma {n k} {A B : Term} {d : Shape n} {f : ShapeFun n} :
+    HasType Δ d.T .type →
+    (∀ e ∈ f, HasType Δ e.out.T .type) →
+    Shape.WF (n := n+1) Δ (.sigma A B d f) →
     HasType Δ (Shape.T (n := n+1) (.sigma A B d f)) (Shape.T (n := k) (Shape.sort true))
   -- the shape is pinned, the graph is not: `g` is any graph below the
   -- generator `g₀`, which is where the codomain witnesses live (§5.5)
@@ -1601,7 +1599,7 @@ theorem TShape.HasType.isType {Δ : List Term} {m a : TShape}
   | zero => exact .nat
   | succ _ => exact .nat
   | id _ _ => exact .sort
-  | forallE _ _ _ _ _ _ => exact .sort
+  | forallE _ _ _ _ _ => exact .sort
   | sigma _ _ _ _ _ => exact .sort
   | lam _ _ _ _ _ _ _ hA _ _ _ _ => exact hA
   | pair _ _ _ _ _ _ _ _ hA _ _ _ _ _ => exact hA
@@ -1671,22 +1669,21 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
           obtain ⟨rfl, ⟨u, hA⟩, hx, hy⟩ := h2
           exact .id hj ⟨⟨u, hA.hasType.1⟩, hx.hasType.1, hy.hasType.1⟩
         | _ => exact absurd h2 (fun x => x)
-  | forallE hd hf hj hg _ _ =>
-    intro m' h
-    obtain ⟨jj, s⟩ := m'
-    obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
-    cases jj <;> cases s <;> first
-      | exact .bot .sort
-      | exact .forallE hd hf hj (h.trans hΔ hg)
-      | exact absurd h2 (fun x => x)
-  | sigma hd hf hg _ _ =>
-    intro m' h
-    obtain ⟨jj, s⟩ := m'
-    obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
-    cases jj <;> cases s <;> first
-      | exact .bot .sort
-      | exact .sigma hd hf (h.trans hΔ hg)
-      | exact absurd h2 (fun x => x)
+  -- SET ASIDE: these two are what the direct form of `forallE`/`sigma`
+  -- costs.  A smaller Π is `.forallE A' B' d' f'` with `d' ≤ d` and
+  -- `ShapeFun.LE f' f`, so the premises have to be pushed into the
+  -- components: `d'` by the induction hypothesis, and each `e ∈ f'` by
+  -- `ShapeFun.Eval.tHasType` over the lookup in `f`, whose `join` case is
+  -- `TShape.HasType.join_sort` (proved below).  What is still missing is
+  -- `tHasType`'s `hlow`: general lowering at the *entry outputs*, one level
+  -- down, which is `mono_l` itself and so is not among this induction's
+  -- hypotheses.  The fix is to re-run `mono_l` as a strong induction on the
+  -- subject's level with `cases H` inside, which every other clause
+  -- survives unchanged (only `pair` and `forallE`/`sigma` use an IH, all at
+  -- a strictly smaller level).  Plus a `forallE` component inversion, the
+  -- analogue of `TShape.LE.pair_inv`.
+  | forallE hd hf hw ihd ihf => exact sorry
+  | sigma hd hf hw ihd ihf => exact sorry
   | lam cs hd hf hev hty hg hc hA _ _ _ _ =>
     intro m' h
     obtain ⟨j, s⟩ := m'
@@ -1718,6 +1715,44 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
           exact .refl ((Shape.lift_wf (Nat.le_of_succ_le_succ hjM)).1 (Shape.LE.wf h2)) hc hA
         | _ => exact absurd h2 (fun x => x)
 
+/-- Sorts are injective at every level. -/
+theorem Shape.sort_inj {n} {r r' : Bool} (h : (Shape.sort r : Shape n) = Shape.sort r') :
+    r = r' := by cases n <;> cases h <;> rfl
+
+/-- The level at which a sort is written as the type is immaterial.  Needed
+because the `forallE` clause types its outputs at the same sort as the Π
+itself, so moving the Π's sort to another level has to move theirs. -/
+theorem TShape.HasType.sort_level {Δ : List Term} {m a : TShape}
+    (H : TShape.HasType Δ m a) : ∀ {k' : Nat} {j : Bool}, a.2 = Shape.sort j →
+      TShape.HasType Δ m (Shape.T (n := k') (Shape.sort j)) := by
+  induction H with
+  | bot _ _ => intro _ _ _; exact .bot .sort
+  | sort => intro _ _ ha; exact Shape.sort_inj ha ▸ .sort
+  | unit hj => intro _ _ ha; exact Shape.sort_inj ha ▸ .unit hj
+  | nat => intro _ _ ha; exact Shape.sort_inj ha ▸ .nat
+  | zero => intro _ _ ha; exact absurd ha (by cases ha)
+  | succ _ => intro _ _ ha; exact absurd ha (by cases ha)
+  | id hj hw => intro _ _ ha; exact Shape.sort_inj ha ▸ .id hj hw
+  | forallE hd hf hw _ ihf =>
+    intro _ _ ha
+    exact Shape.sort_inj ha ▸ .forallE hd (fun e he => ihf e he rfl) hw
+  | sigma hd hf hw _ _ => intro _ _ ha; exact Shape.sort_inj ha ▸ .sigma hd hf hw
+  | lam _ _ _ _ _ _ hc _ _ _ _ _ =>
+    intro _ _ ha
+    obtain ⟨M, h2⟩ := TShape.LE.src_succ hc
+    rw [ha, Shape.lift_sort] at h2
+    exact absurd h2 (fun x => x)
+  | pair _ _ _ _ _ _ _ hc _ _ _ _ _ _ =>
+    intro _ _ ha
+    obtain ⟨M, h2⟩ := TShape.LE.src_succ hc
+    rw [ha, Shape.lift_sort] at h2
+    exact absurd h2 (fun x => x)
+  | refl _ hc _ _ =>
+    intro _ _ ha
+    obtain ⟨M, h2⟩ := TShape.LE.src_succ hc
+    rw [ha, Shape.lift_sort] at h2
+    exact absurd h2 (fun x => x)
+
 /-- **Right monotonicity.**  At `lam`, `pair` and `refl` the type may grow
 and the clause takes it by transitivity; at the rigid types — the sorts
 and `nat` — it can only change level, and the clause is re-applied at the
@@ -1747,14 +1782,15 @@ theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
     exact fun a' h _ => by
       show TShape.HasType Δ _ ⟨a'.1, a'.2⟩
       rw [TShape.LE.sort_eq hΔ h]; exact .id hj hw
-  | forallE hd hf hj hg _ _ =>
+  | forallE hd hf hw _ _ =>
     exact fun a' h _ => by
       show TShape.HasType Δ _ ⟨a'.1, a'.2⟩
-      rw [TShape.LE.sort_eq hΔ h]; exact .forallE hd hf hj hg
-  | sigma hd hf hg _ _ =>
+      rw [TShape.LE.sort_eq hΔ h]
+      exact .forallE hd (fun e he => (hf e he).sort_level rfl) hw
+  | sigma hd hf hw _ _ =>
     exact fun a' h _ => by
       show TShape.HasType Δ _ ⟨a'.1, a'.2⟩
-      rw [TShape.LE.sort_eq hΔ h]; exact .sigma hd hf hg
+      rw [TShape.LE.sort_eq hΔ h]; exact .sigma hd hf hw
   | lam cs hd hf hev hty hg hc _ _ _ _ _ =>
     exact fun _ h hA' => .lam cs hd hf hev hty hg (hc.trans hΔ h) hA'
   | pair hd hf hw hxle hxd hev hyc hc _ _ _ _ _ _ =>
@@ -1778,8 +1814,8 @@ theorem TShape.HasType.wf {Δ : List Term} {m a : TShape}
   | zero => exact ⟨trivial, trivial⟩
   | succ hN => exact ⟨hN.wf, trivial⟩
   | id _ hw => exact ⟨hw, Shape.WF.sort⟩
-  | forallE _ _ _ hg _ _ => exact ⟨hg.wf, Shape.WF.sort⟩
-  | sigma _ _ hg _ _ => exact ⟨hg.wf, Shape.WF.sort⟩
+  | forallE _ _ hw _ _ => exact ⟨hw, Shape.WF.sort⟩
+  | sigma _ _ hw _ _ => exact ⟨hw, Shape.WF.sort⟩
   | lam _ _ _ _ _ hg _ _ _ _ _ ih => exact ⟨hg.wf, ih.1⟩
   | pair _ _ hw _ _ _ _ _ _ _ _ _ _ ih => exact ⟨hw, ih.1⟩
   | refl hw _ _ ih => exact ⟨hw, ih.1⟩
@@ -1827,3 +1863,125 @@ theorem TShape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (W : Ctx.SubstEq Θ τ τ Δ) {m a : TShape} (H : TShape.HasType Δ m a) :
     TShape.HasType Θ (m.subst τ) (a.subst τ) := by
   sorry
+
+/-- Inversion at a Π, when the type is a sort.  `cases` needs the type to
+be a variable — `Shape.sort` at a variable level is a stuck `match`, so it
+does not unify with itself — which is why this is a lemma rather than a
+`cases` at the use site. -/
+theorem TShape.HasType.forallE_inv {Δ : List Term} {n} {A B : Term} {d : Shape n}
+    {f : ShapeFun n} {a : TShape} {j : Bool}
+    (H : TShape.HasType Δ (Shape.T (n := n+1) (.forallE A B d f)) a)
+    (ha : a.2 = Shape.sort j) :
+    TShape.HasType Δ d.T .type ∧
+      (∀ e ∈ f, TShape.HasType Δ e.out.T (Shape.T (n := a.1) (Shape.sort j))) ∧
+      Shape.WF (n := n+1) Δ (.forallE A B d f) := by
+  cases H with
+  | forallE hd hf hw =>
+    exact ⟨hd, fun e he => (hf e he).sort_level ha, hw⟩
+
+theorem TShape.HasType.sigma_inv {Δ : List Term} {n} {A B : Term} {d : Shape n}
+    {f : ShapeFun n} {a : TShape} {j : Bool}
+    (H : TShape.HasType Δ (Shape.T (n := n+1) (.sigma A B d f)) a)
+    (ha : a.2 = Shape.sort j) :
+    TShape.HasType Δ d.T .type ∧
+      (∀ e ∈ f, TShape.HasType Δ e.out.T .type) ∧
+      Shape.WF (n := n+1) Δ (.sigma A B d f) := by
+  cases H with
+  | sigma hd hf hw => exact ⟨hd, hf, hw⟩
+
+/-- **The join of two types is a type.**  Only `forallE` and `sigma` have
+content: the join is componentwise, the domains join by the induction
+hypothesis one level down, and the graphs append.  Everywhere else the join
+is one of the two arguments, or the head mismatch makes `Compat` false, or
+the shape cannot be typed at a sort at all — a λ, a pair and a `refl` are
+typed only below a Π, a Σ and an `id`, none of which is below a sort. -/
+theorem TShape.HasType.join_sort {Δ : List Term} (hΔ : ⊢ Δ) :
+    ∀ {n} {y z : Shape n} {a : TShape} {j : Bool}, a.2 = Shape.sort j →
+      TShape.HasType Δ y.T a → TShape.HasType Δ z.T a → Shape.Compat Δ y z →
+      TShape.HasType Δ (y.join z).T a := by
+  intro n
+  induction n with
+  | zero =>
+    intro y z a j ha hy hz _
+    cases y with
+    | bot => exact hz
+    | sort r => cases z <;> exact hy
+  | succ n ih =>
+    intro y z a j ha hy hz hc
+    cases y with
+    | bot => exact hz
+    | sort r | unit r | nat | zero | id r A x y =>
+      cases z <;> first | exact hy | exact absurd hc (fun x => x)
+    | succ v =>
+      cases z with
+      | bot => exact hy
+      | succ v' => cases hy; cases ha
+      | _ => exact absurd hc (fun x => x)
+    | forallE A B d f =>
+      cases z with
+      | forallE A' B' d' f' =>
+        have ⟨hd, hf, hw⟩ := hy.forallE_inv ha
+        have ⟨hd', hf', hw'⟩ := hz.forallE_inv ha
+        show TShape.HasType Δ _ ⟨a.1, a.2⟩
+        rw [ha]
+        exact .forallE (ih rfl hd hd' hc.2.1)
+          (fun e he => match List.mem_append.1 he with
+            | .inl h => hf e h
+            | .inr h => hf' e h)
+          (Shape.WF.join hΔ hc hw hw')
+      | _ => first | exact hy | exact absurd hc (fun x => x)
+    | sigma A B d f =>
+      cases z with
+      | sigma A' B' d' f' =>
+        cases hy with | sigma hd hf hw
+        have ⟨hd', hf', hw'⟩ := hz.sigma_inv rfl
+        exact .sigma (ih rfl hd hd' hc.2.1)
+          (fun e he => match List.mem_append.1 he with
+            | .inl h => hf e h
+            | .inr h => hf' e h)
+          (Shape.WF.join hΔ hc hw hw')
+      | _ => first | exact hy | exact absurd hc (fun x => x)
+    | lam g =>
+      cases z with
+      | lam g' =>
+        cases hy with | lam _ _ _ _ _ _ hcg _
+        obtain ⟨M, h2⟩ := TShape.LE.src_succ hcg
+        rw [ha, Shape.lift_sort] at h2
+        exact absurd h2 (fun x => x)
+      | _ => first | exact hy | exact absurd hc (fun x => x)
+    | pair ty tm a b =>
+      cases z with
+      | pair ty' tm' a' b' =>
+        cases hy with | pair _ _ _ _ _ _ _ hcg _
+        obtain ⟨M, h2⟩ := TShape.LE.src_succ hcg
+        rw [ha, Shape.lift_sort] at h2
+        exact absurd h2 (fun x => x)
+      | _ => first | exact hy | exact absurd hc (fun x => x)
+    | refl w =>
+      cases z with
+      | refl w' =>
+        cases hy with | refl _ hcg _
+        obtain ⟨M, h2⟩ := TShape.LE.src_succ hcg
+        rw [ha, Shape.lift_sort] at h2
+        exact absurd h2 (fun x => x)
+      | _ => first | exact hy | exact absurd hc (fun x => x)
+
+/-- Everything the lookup returns is typed at a sort, when the graph's
+outputs are.  `bot` is `⊥`, `entry` is the hypothesis, `lower` is the
+lowering it is handed, and `join` is `join_sort`. -/
+theorem ShapeFun.Eval.tHasType {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
+    {A a : Term} {x : Shape n} {c : TShape} {j : Bool} (hc : c.2 = Shape.sort j)
+    (hty : ∀ e ∈ f, TShape.HasType Δ e.out.T c)
+    (hlow : ∀ {u v : Shape n}, Shape.LE Δ u v → TShape.HasType Δ v.T c →
+      TShape.HasType Δ u.T c) :
+    ∀ {y : Shape n}, ShapeFun.Eval Δ (Shape.LE Δ) f A a x y →
+      TShape.HasType Δ y.T c := by
+  intro y h
+  induction h with
+  | bot =>
+    refine .bot ?_
+    show TShape.HasType Δ ⟨c.1, c.2⟩ _
+    rw [hc]; exact .sort
+  | entry e he _ _ => exact hty e he
+  | lower hle _ ih => exact hlow hle ih
+  | join hcj _ _ ih₁ ih₂ => exact TShape.HasType.join_sort hΔ hc ih₁ ih₂ hcj
