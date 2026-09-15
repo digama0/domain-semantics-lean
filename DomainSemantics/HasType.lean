@@ -1825,15 +1825,48 @@ theorem TShape.HasType.wf {Δ : List Term} {m a : TShape}
 only through the order or a pin.  Contrast `Shape.HasType.lift_iff`, 160
 lines, whose reflection direction is what §5.5 shows a dominating graph
 cannot survive. -/
-theorem TShape.HasType.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {k}
-    {m a : TShape} (hk : m.1 ≤ k) (H : TShape.HasType Δ m a) :
-    TShape.HasType Δ (m.lift k) a :=
-  H.mono_l hΔ (TShape.LE.lift_le hΔ hk H.wf.1)
-
-theorem TShape.HasType.unlift_subject {Δ : List Term} (hΔ : ⊢ Δ) {k}
-    {m a : TShape} (hk : m.1 ≤ k) (H : TShape.HasType Δ (m.lift k) a) :
-    TShape.HasType Δ m a :=
-  H.mono_l hΔ (TShape.LE.le_lift hΔ hk ((Shape.lift_wf hk).1 H.wf.1))
+theorem TShape.HasType.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
+    (H : TShape.HasType Δ m a) : ∀ {k}, m.1 ≤ k → TShape.HasType Δ (m.lift k) a := by
+  have succ_of {n k} (hk : n + 1 ≤ k) : ∃ k', k = k' + 1 := ⟨k - 1, by omega⟩
+  induction H with
+  | bot hA _ => intro k _; show TShape.HasType Δ ⟨k, _⟩ _; rw [Shape.lift_bot]; exact .bot hA
+  | sort => intro k _; show TShape.HasType Δ ⟨k, _⟩ _; rw [Shape.lift_sort]; exact .sort
+  | unit hj => intro k hk; obtain ⟨k, rfl⟩ := succ_of hk; exact .unit hj
+  | nat => intro k hk; obtain ⟨k, rfl⟩ := succ_of hk; exact .nat
+  | zero => intro k hk; obtain ⟨k, rfl⟩ := succ_of hk; exact .zero
+  | succ hN =>
+    intro k hk; obtain ⟨k, rfl⟩ := succ_of hk
+    exact .succ ((Shape.IsNumeral.lift_iff (Nat.le_of_succ_le_succ hk)).2 hN)
+  | id hj hw => intro k hk; obtain ⟨k, rfl⟩ := succ_of hk; exact .id hj hw
+  | forallE hd hf hw ihd ihf =>
+    intro k hk; obtain ⟨k, rfl⟩ := succ_of hk
+    have hn := Nat.le_of_succ_le_succ hk
+    exact .forallE (ihd hn)
+      (fun e he => by
+        obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_lift.1 he
+        exact ihf e₀ he₀ hn)
+      ((Shape.lift_wf (Nat.succ_le_succ hn)).2 hw)
+  | sigma hd hf hw ihd ihf =>
+    intro k hk; obtain ⟨k, rfl⟩ := succ_of hk
+    have hn := Nat.le_of_succ_le_succ hk
+    exact .sigma (ihd hn)
+      (fun e he => by
+        obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_lift.1 he
+        exact ihf e₀ he₀ hn)
+      ((Shape.lift_wf (Nat.succ_le_succ hn)).2 hw)
+  | lam cs hd hf hev hty hg hc hA _ _ _ _ =>
+    intro k hk; obtain ⟨k, rfl⟩ := succ_of hk
+    exact .lam cs hd hf hev hty
+      ((TShape.LE.lift_le hΔ hk (TShape.LE.wf hg)).trans hΔ hg) hc hA
+  | pair hd hf hw hxle hxd hev hyc hc hA _ _ _ ihy _ =>
+    intro k hk; obtain ⟨k, rfl⟩ := succ_of hk
+    have hn := Nat.le_of_succ_le_succ hk
+    exact .pair hd hf ((Shape.lift_wf (Nat.succ_le_succ hn)).2 hw)
+      ((TShape.LE.lift_le hΔ hn (TShape.LE.wf hxle)).trans hΔ hxle) hxd hev
+      (ihy hn) hc hA
+  | refl hw hc hA _ =>
+    intro k hk; obtain ⟨k, rfl⟩ := succ_of hk
+    exact .refl ((Shape.lift_wf (Nat.le_of_succ_le_succ hk)).2 hw) hc hA
 
 /-- `⊥` is typed at `⊥`, since `⊥` is a type. -/
 theorem TShape.HasType.bot_bot {Δ : List Term} {n} :
