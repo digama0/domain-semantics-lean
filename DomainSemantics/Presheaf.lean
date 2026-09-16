@@ -22,7 +22,7 @@ and `SoundTy` — are stated here.
 | `HasRenaming` + `HasSubstitution` | a lemma: `Interp.subst` |
 | reindexing along `σ` (functoriality, free) | a lemma: `Interp.subst` |
 | `HasEquality Γ t t'` | `SoundEq` |
-| `HasFixedness Γ t A` | `SoundTy`, via `InterpTyped` |
+| `HasFixedness Γ t A` | `SoundTy` |
 | `PiReady Γ A B` | absent; it collapses into directedness |
 | `RawJudgment` (6 fields) | `SoundEq` and `SoundTy`, proved together |
 
@@ -54,18 +54,16 @@ the type's approximants, and the slot is a fixed point of the decoder of
 that type — here, `TShape.HasType`.  The `WF` premise is what master gets
 for free from its shapes being a `WF` subtype.
 
-The `b'` premise used to stand in for a downward closure typing did not
-have.  It now has one (`TShape.HasType.mono_l`), so the premise says only
-that `A`'s interpretation is directed enough to reach a *type*; whether
-that can be weakened further is a question for `SoundDir`. -/
+The second premise used to be `∃ b', b ≤ b' ∧ Interp b' ∧ HasType b' type`,
+standing in for a downward closure typing did not have.  It has one now
+(`TShape.HasType.mono_l`), so it says directly that every approximant of
+`A` is a type. -/
 
 inductive Adm (Δ : List Term) : List Term → List Term → Subst → Valuation → Prop where
   | nil {Γ σ} : Adm Δ Γ Γ σ Valuation.nil
   | cons {Γ₀ Γ A σ ρ x a} :
       Adm Δ Γ₀ Γ σ.tail ρ →
-      (∀ b, Interp Δ Γ A σ.tail ρ b →
-        ∃ b', TShape.LE Δ b b' ∧ Interp Δ Γ A σ.tail ρ b' ∧
-          TShape.HasType Δ b' TShape.type) →
+      (∀ b, Interp Δ Γ A σ.tail ρ b → TShape.HasType Δ b TShape.type) →
       Interp Δ Γ A σ.tail ρ a →
       TShape.WF Δ x →
       TShape.HasType Δ x a →
@@ -81,24 +79,6 @@ theorem Adm.wf {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) : V
   induction h with
   | nil => intro i; exact trivial
   | cons _ _ _ hx _ ih => exact Valuation.WF.push ih hx
-
-/-! ## The saturated form of typing
-
-`InterpTyped` says that every approximant is *below* one that is typed.
-This is master's `InterpTyped` and the other repo's
-`rawExtend ⟦A⟧ ⟦t⟧ = ⟦t⟧`, and the shape was forced when typing was not a
-lower set.
-
-It is a lower set now, so the `m'` is redundant up to `mono_l`:
-`InterpTyped` is equivalent to `∃ a, Interp Δ Γ A σ ρ a ∧ HasType Δ m a`
-whenever `Interp Δ Γ t σ ρ m` holds.  Collapsing it is a separate change:
-the saturating witness is also what `SoundTy`'s consumers use to get an
-*interpretation* of `A` at the right stage. -/
-
-def InterpTyped (Δ Γ : List Term) (t A : Term) (σ : Subst)
-    (ρ : Valuation) (m : TShape) : Prop :=
-  ∃ m' a, TShape.LE Δ m m' ∧ Interp Δ Γ t σ ρ m' ∧ Interp Δ Γ A σ ρ a ∧
-    TShape.HasType Δ m' a
 
 /-! ## What soundness says
 
@@ -116,11 +96,19 @@ def SoundEq (Γ : List Term) (t t' : Term) : Prop :=
   ∀ {{Δ Γ₀ σ ρ}}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
     ∀ {m}, Interp Δ Γ t σ ρ m ↔ Interp Δ Γ t' σ ρ m
 
-/-- Every approximant of `t` is below a typed one: master's `SoundTy`, his
-`HasFixedness`. -/
+/-- Every approximant of `t` is typed at an approximant of `A`: master's
+`SoundTy`, his `HasFixedness`, and the other repo's
+`rawExtend ⟦A⟧ ⟦t⟧ = ⟦t⟧`.
+
+Master and the first version here said something weaker — every
+approximant is *below* one that is typed, master's `InterpTyped` — because
+typing was not a lower set and this statement was not provable.  It is one
+now (`TShape.HasType.mono_l`), so the saturating witness is gone: the two
+are equivalent, and the consumers that used to end in a `mono_l` no longer
+need one. -/
 def SoundTy (Γ : List Term) (t A : Term) : Prop :=
   ∀ {{Δ Γ₀ σ ρ}}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
-    ∀ {m}, Interp Δ Γ t σ ρ m → InterpTyped Δ Γ t A σ ρ m
+    ∀ {m}, Interp Δ Γ t σ ρ m → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.HasType Δ m a
 
 theorem SoundEq.refl {Γ : List Term} {t : Term} : SoundEq Γ t t :=
   fun _ _ _ _ _ _ _ => Iff.rfl
@@ -137,8 +125,7 @@ soundness induction state `SoundTy` for the left-hand term only. -/
 theorem SoundTy.of_eq {Γ : List Term} {t t' A : Term}
     (he : SoundEq Γ t t') (h : SoundTy Γ t A) : SoundTy Γ t' A := by
   intro Δ Γ₀ σ ρ hΔ W hA m hm
-  have ⟨m', a, hle, hm', ha, hty⟩ := h hΔ W hA ((he hΔ W hA).2 hm)
-  exact ⟨m', a, hle, (he hΔ W hA).1 hm', ha, hty⟩
+  exact h hΔ W hA ((he hΔ W hA).2 hm)
 
 /-- Directedness of the approximant set: his `HasIdeality`.
 
@@ -204,8 +191,8 @@ theorem sound_of_bot {Γ : List Term} {t t' A : Term}
     SoundEq Γ t t' ∧ SoundTy Γ t A :=
   ⟨fun _ _ _ _ _ _ _ _ =>
       ⟨fun hm => Interp.of_bot (h hm), fun hm => Interp.of_bot (h' hm)⟩,
-    fun _ _ _ _ _ _ _ _ hm => ⟨_, TShape.bot, TShape.LE.refl hm.wf, hm, Interp.of_bot rfl,
-      TShape.HasType.bot_bot (h hm)⟩⟩
+    fun _ _ _ _ _ _ _ _ hm =>
+      ⟨TShape.bot, Interp.of_bot rfl, TShape.HasType.bot_bot (h hm)⟩⟩
 
 /-- Directedness for such a term: `⊥` is its own upper bound. -/
 theorem dir_of_bot {Γ : List Term} {t : Term}
@@ -230,17 +217,13 @@ theorem Interp.eq_bot_of_prop {Γ : List Term} {p t : Term}
     (hp : SoundTy Γ p .prop) (ht : SoundTy Γ t p)
     {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ)
     (hAdm : Adm Δ Γ₀ Γ σ ρ) {m} (H : Interp Δ Γ t σ ρ m) : m.2 = Shape.bot := by
-  obtain ⟨m', a, hle, hm', ha, hty⟩ := ht hΔ W hAdm H
-  obtain ⟨a', b, hlea, ha', hb, htya⟩ := hp hΔ W hAdm ha
-  refine TShape.le_bot hΔ ?_ hle
+  obtain ⟨a, ha, hty⟩ := ht hΔ W hAdm H
+  obtain ⟨b, hb, htya⟩ := hp hΔ W hAdm ha
   rcases TShape.le_prop_cases (Interp.le_sort hb) with hbb | hbb
   · -- the type's type is `⊥`, so everything below it collapses outright
-    exact TShape.HasType.bot_r hΔ
-      (TShape.le_bot hΔ (TShape.HasType.bot_r hΔ hbb htya) hlea) hty
+    exact TShape.HasType.bot_r hΔ (TShape.HasType.bot_r hΔ hbb htya) hty
   · -- the type is a proposition, so its inhabitants are `⊥`
-    have hpr := htya.sort_level hbb (k' := 0)
-    exact TShape.HasType.proofIrrel hΔ
-      (hty.mono_r hΔ a' hlea (hpr.cumul rfl (Bool.le_true' false))) hpr
+    exact TShape.HasType.proofIrrel hΔ hty (htya.sort_level hbb (k' := 0))
 
 /-- Soundness for a congruence whose two sides both collapse to `⊥` at
 every stage.  `sound_of_bot`, with the collapse allowed to depend on the
@@ -272,7 +255,7 @@ theorem sound_atom {Γ : List Term} {t A : Term} {s a : TShape}
     (hsa : ∀ {Δ : List Term}, TShape.HasType Δ s a) :
     SoundEq Γ t t ∧ SoundTy Γ t A :=
   ⟨fun _ _ _ _ _ _ _ _ => Iff.rfl,
-    fun _ _ _ _ _ _ _ _ hm => ⟨s, a, hle hm, hmk hws (TShape.LE.refl hws), ha, hsa⟩⟩
+    fun _ _ _ _ hΔ _ _ _ hm => ⟨a, ha, TShape.HasType.mono_l hΔ hsa (hle hm)⟩⟩
 
 /-- Directedness for such a term: the canonical shape bounds everything. -/
 theorem dir_atom {Γ : List Term} {t : Term} {s : TShape}
@@ -293,28 +276,22 @@ itself, along `Interp.le_sort`. -/
 theorem SoundTy.hasType {Γ : List Term} {A : Term} {u : Bool} (h : SoundTy Γ A (.sort u))
     {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
     {b : TShape} (hb : Interp Δ Γ A σ ρ b) : TShape.HasType Δ b (TShape.sort u) := by
-  have ⟨b', a, hle, hb', ha, hty⟩ := h hΔ W hAdm hb
-  exact TShape.HasType.mono_l hΔ
-    (TShape.HasType.mono_r hΔ hty _ (Interp.le_sort ha) .sort) hle
+  have ⟨a, ha, hty⟩ := h hΔ W hAdm hb
+  exact TShape.HasType.mono_r hΔ hty _ (Interp.le_sort ha) .sort
 
-/-- `SoundTy` at a sort, repackaged as the `Adm.cons` field wants it: every
-approximant of `A` is below one that is a *type*.  `cumul` moves the sort
-up to `.type`. -/
+/-- `SoundTy` at a sort, as the `Adm.cons` field wants it: every
+approximant of `A` is a *type*.  `cumul` moves the sort up to `.type`. -/
 theorem SoundTy.isType {Γ : List Term} {A : Term} {u : Bool} (h : SoundTy Γ A (.sort u))
     {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
-    {b : TShape} (hb : Interp Δ Γ A σ ρ b) :
-    ∃ b', TShape.LE Δ b b' ∧ Interp Δ Γ A σ ρ b' ∧ TShape.HasType Δ b' TShape.type := by
-  have ⟨b', a, hle, hb', ha, hty⟩ := h hΔ W hAdm hb
-  exact ⟨b', hle, hb', (h.hasType hΔ W hAdm hb').cumul rfl (Bool.le_true' u)⟩
+    {b : TShape} (hb : Interp Δ Γ A σ ρ b) : TShape.HasType Δ b TShape.type :=
+  (h.hasType hΔ W hAdm hb).cumul rfl (Bool.le_true' u)
 
 /-- The `SoundTy` half of `forallEDF`, in isolation: a Π-type's
 interpretation is typed at its sort.
 
 This is the obligation that was out of reach before `HasType` became a
-lower set.  Both halves of the Π clause come out of the induction
-hypotheses as typings of something *larger* -- `SoundTy` produces an
-`InterpTyped`, whose witness dominates the shape at hand -- and the step
-that brings them back down is `mono_l`. -/
+lower set: the Π's approximant is below the canonical Π-shape, and the
+step that brings the typing back down to it is `mono_l`. -/
 theorem sound_forallE_ty {Γ : List Term} {A B : Term} {u v : Bool}
     (ihA : SoundTy Γ A (.sort u))
     (ihB : SoundTy (A :: Γ) B (.sort v))
@@ -323,10 +300,9 @@ theorem sound_forallE_ty {Γ : List Term} {A B : Term} {u v : Bool}
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
   cases hm with
   | bot =>
-    exact ⟨_, TShape.sort v, TShape.LE.refl TShape.WF.bot, .bot, Interp.sort', .bot .sort⟩
+    exact ⟨TShape.sort v, Interp.sort', .bot .sort⟩
   | forallE hA hd hwf hlab hdom hbody hw hle =>
-    refine ⟨_, TShape.sort v, hle,
-      .forallE hA hd hwf hlab hdom hbody hwf (TShape.LE.refl hwf), Interp.sort', ?_⟩
+    refine ⟨TShape.sort v, Interp.sort', TShape.HasType.mono_l hΔ ?_ hle⟩
     -- the domain half is now the constructor's own premise; only the
     -- codomain runs an induction hypothesis
     refine .forallE hd (fun e he => ?_) hwf
@@ -779,17 +755,17 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
     have ⟨he, hty⟩ := ih hΓ
     refine ⟨he, ?_⟩
     intro Δ Γ₀ σ ρ hΔ W hA m hm
-    have ⟨m', a, hle, hm', ha, hht⟩ := hty hΔ W hA hm
-    exact ⟨m', a, hle, hm', (heAB hΔ W hA).1 ha, hht⟩
+    have ⟨a, ha, hht⟩ := hty hΔ W hA hm
+    exact ⟨a, (heAB hΔ W hA).1 ha, hht⟩
   -- everything below is one rule of the induction, each an independent
   -- obligation; see §4 of `presheaf-proof-strategy.md` for what each needs
   | bvar => sorry
   | sort =>
     refine sound_atom Interp.le_sort (fun hw h => .sort hw h) Interp.sort' trivial fun {_} => ?_
-    simpa [TShape.HasType, TShape.sort] using .sort
+    exact .sort
   | @unit _ r =>
     refine sound_atom Interp.le_unit (fun hw h => .unit hw h) Interp.sort' trivial fun {_} => ?_
-    simpa [TShape.HasType] using .unit id
+    exact .unit (fun x => x)
   | star => exact sound_of_bot (fun .bot => rfl) (fun .bot => rfl)
   | appDF => sorry
   | lamDF => sorry

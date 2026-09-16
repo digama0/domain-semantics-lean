@@ -1246,7 +1246,7 @@ theorem TShape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
     exact ihf e₀ he₀
   | @lam _ _ _ _ _ _ _ _ g₀ _ _ hwg hwPi hg hg₀ev _ ihd ihf ihg₀ty =>
-    simp only [TShape.subst_T, Shape.subst_sort] at *
+    simp only [TShape.subst_T] at *
     refine .lam (g₀ := g₀.map fun p =>
         (⟨p.1.ty.subst τ, p.1.tm.subst τ, p.1.inp.subst τ, p.1.out.subst τ⟩, p.2.subst τ))
       ihd (fun e he => ?_) (Shape.WF.subst hΘ W hwg) (Shape.WF.subst hΘ W hwPi)
@@ -1261,7 +1261,7 @@ theorem TShape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     · obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
       exact ihg₀ty p hp
   | pair _ _ hwp hwSg hxle _ hev _ ihd ihf ihxd ihy =>
-    simp only [TShape.subst_T, Shape.subst_sort] at *
+    simp only [TShape.subst_T] at *
     exact .pair ihd
       (fun e he => by
         obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
