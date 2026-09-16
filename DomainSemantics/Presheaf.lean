@@ -80,6 +80,30 @@ theorem Adm.wf {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) : V
   | nil => intro i; exact trivial
   | cons _ _ _ hx _ ih => exact Valuation.WF.push ih hx
 
+/-- Weakening the stage by one slot: `A` at `σ.tail` under `ρ` is
+`A.lift` at `σ` under `ρ.push x`.  `Interp.weak'` at `Lift.refl.skip`. -/
+theorem Interp.weak_one {Δ Γ Γ' : List Term} {A : Term} {σ ρ x m}
+    (H : Interp Δ Γ A σ.tail ρ m) : Interp Δ Γ' A.lift σ (ρ.push x) m :=
+  Interp.weak' (l := Lift.refl.skip) (Subst.tail_eq_lift_l ▸ H) (fun _ => rfl)
+
+/-- The slot a variable reads is typed at an approximant of its type.
+This is the content of `Adm` that `SoundTy`'s `bvar` case needs, and the
+reason `Adm` is an inductive rather than a predicate on slots: the type of
+slot `i` lives in the context *below* it, so the statement has to be
+weakened back up one binder at a time. -/
+theorem Adm.lookup {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) :
+    ∀ {i A}, Lookup Γ i A → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.HasType Δ (ρ i) a := by
+  induction h with
+  -- below the base context every slot is `⊥`, which is typed at `⊥`
+  | nil => exact fun _ => ⟨TShape.bot, .bot, TShape.HasType.bot_bot rfl⟩
+  | cons _ _ ha _ hxa ih =>
+    intro i A' hl
+    cases hl with
+    | zero => exact ⟨_, Interp.weak_one ha, hxa⟩
+    | succ hl =>
+      obtain ⟨b, hb, hty⟩ := ih hl
+      exact ⟨b, Interp.weak_one hb, hty⟩
+
 /-! ## What soundness says
 
 Each is quantified over a **stage**: a context to live in, a typed
@@ -243,7 +267,7 @@ theorem Interp.eq_bot_of_unit {Γ : List Term} {e : Term} {r : Bool}
     (ht : SoundTy Γ e (.unit r))
     {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ)
     (hAdm : Adm Δ Γ₀ Γ σ ρ) {m} (H : Interp Δ Γ e σ ρ m) : m.2 = Shape.bot :=
-  have ⟨a, ha, hty⟩ := ht hΔ W hAdm H
+  have ⟨_, ha, hty⟩ := ht hΔ W hAdm H
   TShape.HasType.unit_r hΔ (Interp.le_unit ha) hty
 
 /-- Soundness for a congruence whose two sides both collapse to `⊥` at
@@ -263,20 +287,29 @@ theorem sound_of_bot_at {Γ : List Term} {t t' A : Term}
 /-! ## Atoms
 
 `sort`, `unit`, `nat` and `zero` are interpreted by the shapes below one
-fixed shape, so all four conclusions come from four facts about that shape
-and its type.  In particular `SoundTy` can pick the canonical shape itself
-as the saturating witness, which is why no case analysis on the
-approximant is needed. -/
+fixed shape, so both conclusions come from three facts about that shape
+and its type: everything is below it, the type has a canonical
+interpretation, and the shape is typed at it.  No case analysis on the
+approximant is needed — `mono_l` brings the canonical typing down to it. -/
 
 theorem sound_atom {Γ : List Term} {t A : Term} {s a : TShape}
     (hle : ∀ {Δ Γ' σ ρ m}, Interp Δ Γ' t σ ρ m → TShape.LE Δ m s)
-    (hmk : ∀ {Δ Γ' σ ρ m}, TShape.WF Δ m → TShape.LE Δ m s → Interp Δ Γ' t σ ρ m)
     (ha : ∀ {Δ Γ' σ ρ}, Interp Δ Γ' A σ ρ a)
-    (hws : ∀ {Δ : List Term}, TShape.WF Δ s)
     (hsa : ∀ {Δ : List Term}, TShape.HasType Δ s a) :
     SoundEq Γ t t ∧ SoundTy Γ t A :=
   ⟨fun _ _ _ _ _ _ _ _ => Iff.rfl,
     fun _ _ _ _ hΔ _ _ _ hm => ⟨a, ha, TShape.HasType.mono_l hΔ hsa (hle hm)⟩⟩
+
+/-- Directedness for a variable: its slot bounds everything. -/
+theorem dir_bvar {Γ : List Term} {i : Nat} : SoundDir Γ (.bvar i) := by
+  intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
+  refine ⟨ρ i, hwρ i, .bvar (hwρ i) (TShape.LE.refl (hwρ i)), ?_, ?_⟩
+  · cases h₁ with
+    | bot => exact TShape.bot_le' rfl
+    | bvar _ hle => exact hle
+  · cases h₂ with
+    | bot => exact TShape.bot_le' rfl
+    | bvar _ hle => exact hle
 
 /-- Directedness for such a term: the canonical shape bounds everything. -/
 theorem dir_atom {Γ : List Term} {t : Term} {s : TShape}
@@ -1050,7 +1083,7 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
         (ihB' ⟨hΓ, _, hAA'.hasType.2⟩).2⟩
   -- `bvar` reads the slot's well-formedness off `Valuation.WF`; the rest
   -- are one per term former, each the other repo's `*_isDirected`
-  | bvar => sorry
+  | bvar => exact ⟨dir_bvar, dir_bvar⟩
   | appDF => sorry
   | lamDF => sorry
   | sigmaDF hAA' hB hB' ihA ihB ihB' =>
@@ -1121,13 +1154,19 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
     exact ⟨a, (heAB hΔ W hA).1 ha, hht⟩
   -- everything below is one rule of the induction, each an independent
   -- obligation; see §4 of `presheaf-proof-strategy.md` for what each needs
-  | bvar => sorry
+  -- the slot's typing is `Adm`'s own, read off at the index by `Adm.lookup`
+  | bvar hl _ _ =>
+    refine ⟨SoundEq.refl, ?_⟩
+    intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+    obtain ⟨a, ha, hty⟩ := hAdm.lookup hl
+    refine ⟨a, ha, TShape.HasType.mono_l hΔ hty ?_⟩
+    cases hm with
+    | bot => exact TShape.bot_le' rfl
+    | bvar _ hle => exact hle
   | sort =>
-    refine sound_atom Interp.le_sort (fun hw h => .sort hw h) Interp.sort' trivial fun {_} => ?_
-    exact .sort
+    exact sound_atom Interp.le_sort Interp.sort' .sort
   | @unit _ r =>
-    refine sound_atom Interp.le_unit (fun hw h => .unit hw h) Interp.sort' trivial fun {_} => ?_
-    exact .unit (fun x => x)
+    exact sound_atom Interp.le_unit Interp.sort' (.unit (fun x => x))
   | star => exact sound_of_bot (fun .bot => rfl) (fun .bot => rfl)
   | appDF => sorry
   | lamDF => sorry
@@ -1162,11 +1201,9 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   | pair_snd => sorry
   | fst_snd => sorry
   | nat =>
-    exact sound_atom Interp.le_nat (fun hw h => .nat hw h) Interp.sort' trivial
-      (fun {_} => .nat)
+    exact sound_atom Interp.le_nat Interp.sort' .nat
   | zero =>
-    exact sound_atom Interp.le_zero (fun hw h => .zero hw h) Interp.nat' trivial
-      (fun {_} => .zero)
+    exact sound_atom Interp.le_zero Interp.nat' .zero
   | succDF => sorry
   | natCaseDF => sorry
   | natCase_zero => sorry
