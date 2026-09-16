@@ -973,6 +973,50 @@ theorem sound_sigma_dir {Γ : List Term} {A B : Term} {u v : Bool}
         hΔ W hwρ hA₁ hd₁ hwf₁ hlab₁ hdom₁ hbody₁ hA₂ hd₂ hwf₂ hlab₂ hdom₂ hbody₂
       exact ⟨s, hws, hs, TShape.LE.trans hΔ hle₁ hs₁, TShape.LE.trans hΔ hle₂ hs₂⟩
 
+/-! ## The two unary formers
+
+`.succ N` and `.refl a` wrap their argument's shape, so directedness is
+their argument's: the bound is the wrapper applied to the argument's
+bound, and `TShape.LE.succ_of` / `refl_of` carry the order through. -/
+
+/-- Directedness for `.succ`: the other repo's `succ_isDirected`. -/
+theorem dir_succ {Γ : List Term} {N : Term} (h : SoundDir Γ N) : SoundDir Γ (.succ N) := by
+  intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
+  cases h₁ with
+  | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
+  | succ hv₁ _ hle₁ =>
+    cases h₂ with
+    | bot =>
+      refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
+      · exact hv₁.wf
+      · exact .succ hv₁ hv₁.wf (TShape.LE.refl hv₁.wf)
+    | succ hv₂ _ hle₂ =>
+      obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := h hΔ W hwρ hv₁ hv₂
+      refine ⟨_, ?_, ?_, hle₁.trans hΔ (TShape.LE.succ_of hΔ hz₁),
+        hle₂.trans hΔ (TShape.LE.succ_of hΔ hz₂)⟩
+      · exact hwz
+      · exact .succ hz hwz (TShape.LE.refl hwz)
+
+/-- Directedness for `.refl`.  At `r = false` there is no `refl` rule and
+`cases` leaves only `bot`, so the statement needs no side condition. -/
+theorem dir_refl {Γ : List Term} {a : Term} {r : Bool} (h : SoundDir Γ a) :
+    SoundDir Γ (.refl r a) := by
+  intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
+  cases h₁ with
+  | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
+  | refl hv₁ _ hle₁ =>
+    cases h₂ with
+    | bot =>
+      refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
+      · exact hv₁.wf
+      · exact .refl hv₁ hv₁.wf (TShape.LE.refl hv₁.wf)
+    | refl hv₂ _ hle₂ =>
+      obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := h hΔ W hwρ hv₁ hv₂
+      refine ⟨_, ?_, ?_, hle₁.trans hΔ (TShape.LE.refl_of hΔ hz₁),
+        hle₂.trans hΔ (TShape.LE.refl_of hΔ hz₂)⟩
+      · exact hwz
+      · exact .refl hz hwz (TShape.LE.refl hwz)
+
 /-! ## The identity type
 
 `Interp.id` is **label-only**: the interpretation of `.id r A a b` is the
@@ -1094,12 +1138,12 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
   | pairDF => sorry
   | fstDF => sorry
   | sndDF => sorry
-  | succDF => sorry
+  | succDF _ ih => exact ⟨dir_succ (ih hΓ).1, dir_succ (ih hΓ).2⟩
   | natCaseDF => sorry
   | idDF hAA' haa' hbb' ihA iha ihb =>
     exact ⟨dir_id hAA'.hasType.1 haa'.hasType.1 hbb'.hasType.1,
       dir_id hAA'.hasType.2 (hAA'.defeqDF haa'.hasType.2) (hAA'.defeqDF hbb'.hasType.2)⟩
-  | reflDF => sorry
+  | reflDF _ _ _ _ iha _ => exact ⟨dir_refl (iha hΓ).1, dir_refl (iha hΓ).2⟩
   | trDF => sorry
   -- the computation rules are padded with typings of both sides, so each
   -- of these is its two premises' conclusions

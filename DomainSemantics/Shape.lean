@@ -2373,6 +2373,23 @@ theorem TShape.join_eq_bot {a b : TShape} (ha : a.2 = Shape.bot) (hb : b.2 = Sha
   simp only [Shape.lift_bot]
   cases max a.1 b.1 <;> rfl
 
+/-! The two unary shape formers are monotone.  Master's
+`TShape.succ_le_succ`, one direction; the level bookkeeping is one use of
+`LE.def` on each side, since `max (a.1+1) (b.1+1)` is only propositionally
+`max a.1 b.1 + 1`. -/
+
+theorem TShape.LE.succ_of {Δ : List Term} (hΔ : ⊢ Δ) {a b : TShape} (h : TShape.LE Δ a b) :
+    TShape.LE Δ (Shape.T (n := a.1+1) (ShapeS.succ a.2))
+      (Shape.T (n := b.1+1) (ShapeS.succ b.2)) :=
+  (TShape.LE.def hΔ (k := max a.1 b.1 + 1) (Nat.succ_le_succ (Nat.le_max_left ..))
+    (Nat.succ_le_succ (Nat.le_max_right ..))).2 h
+
+theorem TShape.LE.refl_of {Δ : List Term} (hΔ : ⊢ Δ) {a b : TShape} (h : TShape.LE Δ a b) :
+    TShape.LE Δ (Shape.T (n := a.1+1) (ShapeS.refl a.2))
+      (Shape.T (n := b.1+1) (ShapeS.refl b.2)) :=
+  (TShape.LE.def hΔ (k := max a.1 b.1 + 1) (Nat.succ_le_succ (Nat.le_max_left ..))
+    (Nat.succ_le_succ (Nat.le_max_right ..))).2 h
+
 theorem TShape.Compat.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (W : Ctx.SubstEq Θ τ τ Δ) {a b : TShape} (h : TShape.Compat Δ a b) :
     TShape.Compat Θ (a.subst τ) (b.subst τ) := by
