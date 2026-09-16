@@ -1158,6 +1158,55 @@ well, since the type's typing lands on the approximant itself.  `Adm.cons`'s
 saturation field went the same way and now reads "every approximant of `A`
 is a type".
 
+### 5.5b The `app` clause's label type is existential, and `dir` needs it not to be
+
+`Interp.app` names the argument's type as a free term of `Δ`:
+
+```lean
+| app {n} {g} {x y} {A : Term} :
+  Interp Δ Γ F σ ρ (Shape.T (.lam g)) → Interp Δ Γ a σ ρ (Shape.T x) →
+  Evaluates Δ g A (a.subst σ) x y → … → Interp Δ Γ (.app F a) σ ρ m
+```
+
+`A` has to be named, since `Term.app` does not record it; but nothing in
+the clause pins it, so it is **existentially quantified per derivation**.
+That is fine for §3 and for `sound`, where the lookup's value only has to
+grow.  It is not fine for two lemmas:
+
+*`IsDefEq.dir` at `app`.*  Two approximants come from lookups at
+`(A₁, a[σ])` and `(A₂, a[σ])` in two λ-shapes of `F`.  The upper bound has
+to be *one* lookup, so one of the two queries has to be re-read at the
+other's type, which needs `Δ ⊢ A₁ ≡ A₂ : sort u`.  Each `A` is related
+only to the types of the entries its own lookup matched
+(`LabelEq Δ e.ty e.tm Aᵢ (a[σ])` gives `Δ ⊢ e.ty ≡ Aᵢ : sort u`), so
+`A₁ ≡ A₂` would follow from `e.ty ≡ e'.ty` — uniqueness of the type of
+`a[σ]`, which is the theorem the model exists to prove.  Circular.
+
+*`IsDefEq.stage` at `app`.*  Moving `σ` to `σ'` turns the query into
+`(A, a[σ'])`, and `Evaluates.label` wants `Δ ⊢ a[σ] ≡ a[σ'] : A`.  What
+`IsDefEq.subst'` gives is that equation at `A₀[σ]`, the rule's own type
+for `a`; the clause's `A` is unrelated to it.  §3.1 assumed this case was
+as routine as `forallE`/`sigma`/`pair`/`id`, where the label *is* the
+rule's own syntax.  It is not.
+
+Three ways out, in increasing order of cost:
+
+1. **Pin `A` in the clause**: add `Δ ⊢ a.subst σ : A` as a premise.  Does
+   not help by itself — two derivations then have `Δ ⊢ a[σ] : A₁` and
+   `Δ ⊢ a[σ] : A₂`, and relating them is again uniqueness of types.
+2. **Take the label type from the graph**: require the query type to be
+   some `e.ty` of `g`, or drop it and compare labels by `TmEq`
+   (`∃ A, Δ ⊢ a ≡ a' : A`).  `Label.lean` already records why that fails:
+   transitivity of `TmEq` needs uniqueness of the type of the middle term.
+3. **Carry the domain in the λ-shape.**  A λ-shape is a bare graph; if it
+   also carried the Π's label `(A, B)` — as `forallE` and `sigma` do —
+   then `F`'s own interpretation would force the two queries' types to be
+   definitionally equal, since both would be `≡ A[σ]`.  This is the only
+   route that breaks the circle, and it is a change to `Shape`.
+
+Until one of these lands, `appDF` is open in both `dir` and `sound`, and
+so is `lamDF` in `dir` (whose cross pairs go through `IsDefEq.stage`).
+
 ### 5.6 Summary of statement changes
 
 | where | change | why | |
