@@ -940,6 +940,74 @@ theorem sound_sigma_dir {Γ : List Term} {A B : Term} {u v : Bool}
         hΔ W hwρ hA₁ hd₁ hwf₁ hlab₁ hdom₁ hbody₁ hA₂ hd₂ hwf₂ hlab₂ hdom₂ hbody₂
       exact ⟨s, hws, hs, TShape.LE.trans hΔ hle₁ hs₁, TShape.LE.trans hΔ hle₂ hs₂⟩
 
+/-! ## The identity type
+
+`Interp.id` is **label-only**: the interpretation of `.id r A a b` is the
+set of shapes below one fixed `id`-shape, whose label is the stage's
+substitution instance of `(A, a, b)`.  So all three conclusions come from
+that one shape, as for the atoms — the difference is only that the shape
+depends on the stage, which `sound_atom`/`dir_atom` do not allow. -/
+
+/-- The canonical `id`-shape at a stage, and its well-formedness. -/
+theorem Shape.WF.id_of {Γ Δ : List Term} {σ} {A a b : Term} {u : Bool} {r : Bool}
+    (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ)
+    (hA : Γ ⊢ A : .sort u) (ha : Γ ⊢ a : A) (hb : Γ ⊢ b : A) :
+    Shape.WF (n := 1) Δ (ShapeS.id r (A.subst σ) (a.subst σ) (b.subst σ)) :=
+  ⟨⟨u, hA.subst hΔ W⟩, ha.subst hΔ W, hb.subst hΔ W⟩
+
+/-- The two `id`-shapes of a congruence are order-equivalent: the clause
+compares their labels up to definitional equality, which is exactly what
+the premises give. -/
+theorem TShape.LE.id_of {Γ Δ : List Term} {σ} {A A' a a' b b' : Term} {u r : Bool}
+    (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ)
+    (hAA' : Γ ⊢ A ≡ A' : .sort u) (haa' : Γ ⊢ a ≡ a' : A) (hbb' : Γ ⊢ b ≡ b' : A) :
+    TShape.LE Δ (Shape.T (n := 1) (ShapeS.id r (A.subst σ) (a.subst σ) (b.subst σ)))
+      (Shape.T (n := 1) (ShapeS.id r (A'.subst σ) (a'.subst σ) (b'.subst σ))) :=
+  TShape.LE.T.2 ⟨rfl, ⟨u, hAA'.subst hΔ W⟩, haa'.subst hΔ W, hbb'.subst hΔ W⟩
+
+/-- Soundness for `idDF`.  Both directions of `SoundEq` are the same
+`LE.trans`, run on the mirrored premises. -/
+theorem sound_id {Γ : List Term} {A A' a a' b b' : Term} {u r : Bool}
+    (hAA' : Γ ⊢ A ≡ A' : .sort u) (haa' : Γ ⊢ a ≡ a' : A) (hbb' : Γ ⊢ b ≡ b' : A) :
+    SoundEq Γ (.id r A a b) (.id r A' a' b') ∧ SoundTy Γ (.id r A a b) (.sort r) := by
+  have hAA'' : Γ ⊢ A' ≡ A : .sort u := hAA'.symm
+  have haa'' : Γ ⊢ a' ≡ a : A' := hAA'.defeqDF haa'.symm
+  have hbb'' : Γ ⊢ b' ≡ b : A' := hAA'.defeqDF hbb'.symm
+  constructor
+  · intro Δ Γ₀ σ ρ hΔ W _ m
+    constructor
+    · intro h
+      cases h with
+      | bot => exact .bot
+      | id hw hle => exact .id hw (hle.trans hΔ (TShape.LE.id_of hΔ W hAA' haa' hbb'))
+    · intro h
+      cases h with
+      | bot => exact .bot
+      | id hw hle => exact .id hw (hle.trans hΔ (TShape.LE.id_of hΔ W hAA'' haa'' hbb''))
+  · intro Δ Γ₀ σ ρ hΔ W _ m h
+    refine ⟨TShape.sort r, Interp.sort', ?_⟩
+    cases h with
+    | bot => exact .bot .sort
+    | id hw hle =>
+      exact TShape.HasType.mono_l hΔ
+        (.id (by cases r <;> decide)
+          (Shape.WF.id_of hΔ W hAA'.hasType.1 haa'.hasType.1 hbb'.hasType.1)) hle
+
+/-- Directedness for `.id`: the canonical shape bounds everything. -/
+theorem dir_id {Γ : List Term} {A a b : Term} {u r : Bool}
+    (hA : Γ ⊢ A : .sort u) (ha : Γ ⊢ a : A) (hb : Γ ⊢ b : A) :
+    SoundDir Γ (.id r A a b) := by
+  intro Δ σ ρ hΔ W _ m₁ m₂ h₁ h₂
+  have hw : TShape.WF Δ (Shape.T (n := 1) (ShapeS.id r (A.subst σ) (a.subst σ) (b.subst σ))) :=
+    Shape.WF.id_of hΔ W hA ha hb
+  refine ⟨_, hw, .id hw (TShape.LE.refl hw), ?_, ?_⟩
+  · cases h₁ with
+    | bot => exact TShape.bot_le' rfl
+    | id _ hle => exact hle
+  · cases h₂ with
+    | bot => exact TShape.bot_le' rfl
+    | id _ hle => exact hle
+
 /-! ## The target
 
 The one theorem this branch is for.  Master needs `LogRel.lean` and
@@ -995,7 +1063,9 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
   | sndDF => sorry
   | succDF => sorry
   | natCaseDF => sorry
-  | idDF => sorry
+  | idDF hAA' haa' hbb' ihA iha ihb =>
+    exact ⟨dir_id hAA'.hasType.1 haa'.hasType.1 hbb'.hasType.1,
+      dir_id hAA'.hasType.2 (hAA'.defeqDF haa'.hasType.2) (hAA'.defeqDF hbb'.hasType.2)⟩
   | reflDF => sorry
   | trDF => sorry
   -- the computation rules are padded with typings of both sides, so each
@@ -1103,7 +1173,7 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   | natCase_succ => sorry
   | YDF => sorry
   | Y_unfold => sorry
-  | idDF => sorry
+  | idDF hAA' haa' hbb' _ _ _ => exact sound_id hAA' haa' hbb'
   | reflDF => sorry
   | trDF => sorry
   | tr_refl => sorry
