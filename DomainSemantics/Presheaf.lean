@@ -225,6 +225,27 @@ theorem Interp.eq_bot_of_prop {Γ : List Term} {p t : Term}
   · -- the type is a proposition, so its inhabitants are `⊥`
     exact TShape.HasType.proofIrrel hΔ hty (htya.sort_level hbb (k' := 0))
 
+/-- **A unit type is inhabited only by `⊥`.**  The `bot` clause is the only
+one whose type can be a `unit` shape; `mono_r` first moves the type up to
+the canonical one, which is where `cases` can see that. -/
+theorem TShape.HasType.unit_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape} {r : Bool}
+    (ha : TShape.LE Δ a (TShape.unit r)) (h : TShape.HasType Δ m a) :
+    m.2 = Shape.bot := by
+  cases TShape.HasType.mono_r hΔ h (TShape.unit r) ha (.unit (Bool.le_true' r)) with
+  | bot _ => rfl
+  | refl _ hc _ =>
+    obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ hc
+    exact absurd h2 (fun x => x)
+
+/-- Everything typed at the unit type collapses, which is what makes
+`unit_eta` sound: both sides have only `⊥`. -/
+theorem Interp.eq_bot_of_unit {Γ : List Term} {e : Term} {r : Bool}
+    (ht : SoundTy Γ e (.unit r))
+    {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ)
+    (hAdm : Adm Δ Γ₀ Γ σ ρ) {m} (H : Interp Δ Γ e σ ρ m) : m.2 = Shape.bot :=
+  have ⟨a, ha, hty⟩ := ht hΔ W hAdm H
+  TShape.HasType.unit_r hΔ (Interp.le_unit ha) hty
+
 /-- Soundness for a congruence whose two sides both collapse to `⊥` at
 every stage.  `sound_of_bot`, with the collapse allowed to depend on the
 stage — which is what proof irrelevance needs, since the collapse is a
@@ -711,15 +732,15 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
   | beta _ _ _ _ _ _ _ _ ih₃ ih₄ => exact ⟨(ih₃ hΓ).1, (ih₄ hΓ).1⟩
   | eta _ _ ih₁ ih₂ => exact ⟨(ih₂ hΓ).1, (ih₁ hΓ).1⟩
   | unit_eta _ ih => exact ⟨dir_of_bot (fun .bot => rfl), (ih hΓ).1⟩
-  | pair_fst _ _ _ _ _ _ _ _ _ ih₅ => exact ⟨(ih₅ hΓ).1, sorry⟩
-  | pair_snd _ _ _ _ _ _ _ _ _ ih₅ => exact ⟨(ih₅ hΓ).1, sorry⟩
-  | fst_snd _ _ _ ih₂ => exact ⟨(ih₂ hΓ).1, sorry⟩
-  | natCase_zero => sorry
-  | natCase_succ => sorry
+  | pair_fst _ _ _ _ _ _ _ ih₃ _ ih₅ => exact ⟨(ih₅ hΓ).1, (ih₃ hΓ).1⟩
+  | pair_snd _ _ _ _ _ _ _ _ ih₄ ih₅ => exact ⟨(ih₅ hΓ).1, (ih₄ hΓ).1⟩
+  | fst_snd _ _ ih₁ ih₂ => exact ⟨(ih₂ hΓ).1, (ih₁ hΓ).1⟩
+  | natCase_zero _ _ _ _ _ ih₂ _ ih₄ => exact ⟨(ih₄ hΓ).1, (ih₂ hΓ).1⟩
+  | natCase_succ _ _ _ _ _ _ _ _ _ _ ih₅ ih₆ => exact ⟨(ih₅ hΓ).1, (ih₆ hΓ).1⟩
+  | Y_unfold _ _ _ _ _ _ ih₃ ih₄ => exact ⟨(ih₃ hΓ).1, (ih₄ hΓ).1⟩
+  | tr_refl _ _ _ _ _ _ _ _ ih₄ ih₅ => exact ⟨(ih₅ hΓ).1, (ih₄ hΓ).1⟩
+  | proofIrrel _ _ _ _ ih₂ ih₃ => exact ⟨(ih₂ hΓ).1, (ih₃ hΓ).1⟩
   | YDF => sorry
-  | Y_unfold => sorry
-  | tr_refl => sorry
-  | proofIrrel => sorry
 
 /-! ## The soundness theorem
 
@@ -783,7 +804,12 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   | sndDF => sorry
   | beta => sorry
   | eta => sorry
-  | unit_eta => sorry
+  | @unit_eta _ _ r _ ih =>
+    exact sound_of_bot_at
+      (sound_of_bot (t := .star r) (t' := .star r) (A := .unit r)
+        (fun .bot => rfl) (fun .bot => rfl)).2
+      (by intro _ _ _ _ _ _ _ _ h; cases h; rfl)
+      (by intro _ _ _ _ hΔ W hAdm _ h; exact Interp.eq_bot_of_unit (ih hΓ).2 hΔ W hAdm h)
   -- unblocked by the Σ rules: `fst` now reads the first component off a
   -- pair shape, so the two sides really can have the same approximants
   | pair_fst => sorry
@@ -805,4 +831,10 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   | reflDF => sorry
   | trDF => sorry
   | tr_refl => sorry
-  | proofIrrel => sorry
+  -- both sides are typed at a proposition, so both collapse to `⊥`
+  | proofIrrel _ _ _ ih₁ ih₂ ih₃ =>
+    exact sound_of_bot_at (ih₂ hΓ).2
+      (by intro _ _ _ _ hΔ W hAdm _ h
+          exact Interp.eq_bot_of_prop (ih₁ hΓ).2 (ih₂ hΓ).2 hΔ W hAdm h)
+      (by intro _ _ _ _ hΔ W hAdm _ h
+          exact Interp.eq_bot_of_prop (ih₁ hΓ).2 (ih₃ hΓ).2 hΔ W hAdm h)
