@@ -705,13 +705,92 @@ and relating a substitution in the **term** to one in the stage. -/
 to be read back at the outer stage — master uses it for `eta` and for both
 `Y` lemmas.  Master proves it by `generalize`-ing the renamed term and
 casing on the original at each step. -/
-theorem Interp.unweak (hρ : ∀ i, ρ i = ρ' (Lift.liftVar l i))
-    (H : Interp Δ Γ' (t.lift' l) σ' ρ' m) : Interp Δ Γ t (σ'.lift_l l) ρ m := by
-  sorry
+theorem Interp.unweak {Δ Γ' : List Term} {u σ' ρ' m}
+    (H : Interp Δ Γ' u σ' ρ' m) :
+    ∀ {Γ t l ρ}, (∀ i, ρ i = ρ' (Lift.liftVar l i)) → t.lift' l = u →
+      Interp Δ Γ t (σ'.lift_l l) ρ m := by
+  induction H with
+  | bot => intro _ _ _ _ _ _; exact .bot
+  | bvar hw h1 =>
+    intro _ t l ρ hρ ht; cases t <;> cases ht
+    exact .bvar hw (hρ _ ▸ h1)
+  | sort hw h1 => intro _ t l ρ hρ ht; cases t <;> cases ht; exact .sort hw h1
+  | unit hw h1 => intro _ t l ρ hρ ht; cases t <;> cases ht; exact .unit hw h1
+  | nat hw h1 => intro _ t l ρ hρ ht; cases t <;> cases ht; exact .nat hw h1
+  | zero hw h1 => intro _ t l ρ hρ ht; cases t <;> cases ht; exact .zero hw h1
+  | succ _ hw h1 ihv =>
+    intro _ t l ρ hρ ht; cases t <;> cases ht
+    exact .succ (ihv hρ rfl) hw h1
+  | app _ _ hev hw h1 ihF iha =>
+    intro _ t l ρ hρ ht; cases t <;> cases ht
+    rw [subst_lift'] at hev
+    exact .app (ihF hρ rfl) (iha hρ rfl) hev hw h1
+  | lam _ hd hwf hlab hdom _ hw h1 ihA ihbody =>
+    intro _ t l ρ hρ ht; cases t <;> cases ht
+    rw [subst_lift'] at hlab
+    refine .lam (ihA hρ rfl) hd hwf hlab hdom ?_ hw h1
+    intro e he
+    refine Subst.lift_l_cons ▸ ihbody e he (l := l.cons) (fun i => ?_) rfl
+    cases i <;> simp_all [Valuation.push]
+  | forallE _ hd hwf hlab hdom _ hw h1 ihA ihbody =>
+    intro _ t l ρ hρ ht; cases t <;> cases ht
+    rw [subst_lift'] at hlab
+    rw [subst_lift', subst_lift', ← Subst.lift_l_lift] at hwf h1
+    refine .forallE (ihA hρ rfl) hd hwf hlab hdom ?_ hw h1
+    intro e he
+    refine Subst.lift_l_cons ▸ ihbody e he (l := l.cons) (fun i => ?_) rfl
+    cases i <;> simp_all [Valuation.push]
+  | sigma _ hd hwf hlab hdom _ hw h1 ihA ihbody =>
+    intro _ t l ρ hρ ht; cases t <;> cases ht
+    rw [subst_lift'] at hlab
+    rw [subst_lift', subst_lift', ← Subst.lift_l_lift] at hwf h1
+    refine .sigma (ihA hρ rfl) hd hwf hlab hdom ?_ hw h1
+    intro e he
+    refine Subst.lift_l_cons ▸ ihbody e he (l := l.cons) (fun i => ?_) rfl
+    cases i <;> simp_all [Valuation.push]
+  | pair _ _ hwf hw h1 iha ihb =>
+    intro _ t l ρ hρ ht; cases t <;> cases ht
+    rw [subst_lift', subst_lift'] at hwf h1
+    exact .pair (iha hρ rfl) (ihb hρ rfl) hwf hw h1
+  | fst _ hw h1 ihp =>
+    intro _ t l ρ hρ ht; cases t <;> cases ht
+    exact .fst (ihp hρ rfl) hw h1
+  | snd _ hw h1 ihp =>
+    intro _ t l ρ hρ ht; cases t <;> cases ht
+    exact .snd (ihp hρ rfl) hw h1
+  | natCase_zero _ _ ihM iha =>
+    intro _ t l ρ hρ ht; cases t <;> cases ht
+    exact .natCase_zero (ihM hρ rfl) (iha hρ rfl)
+  | natCase_succ _ hwv heq _ ihM ihb =>
+    intro _ t l ρ hρ ht; cases t <;> cases ht
+    rw [subst_lift'] at heq
+    refine .natCase_succ (ihM hρ rfl) hwv heq ?_
+    refine Subst.lift_l_cons ▸ ihb (l := l.cons) (fun i => ?_) rfl
+    cases i <;> simp_all [Valuation.push]
+  | Y _ hwx _ ihself ihb =>
+    intro _ t l ρ hρ ht; cases t <;> cases ht
+    refine .Y (ihself hρ rfl) hwx ?_
+    rw [← subst_lift' (e := Term.Y _ _)]
+    refine Subst.lift_l_cons ▸ ihb (l := l.cons) (fun i => ?_) rfl
+    cases i <;> simp_all [Valuation.push]
+  | id hw h1 =>
+    intro _ t l ρ hρ ht; cases t <;> cases ht
+    simp only [subst_lift'] at h1
+    exact .id hw h1
+  | refl _ hw h1 ihv =>
+    intro _ t l ρ hρ ht; cases t <;> cases ht
+    exact .refl (ihv hρ rfl) hw h1
+  | tr hw hle _ _ _ _ hwv hvA _ hcb hm' _ ihX iha ihb ihA ihC ihH =>
+    intro _ t l ρ hρ ht; cases t <;> cases ht
+    refine .tr hw hle (ihX hρ rfl) (iha hρ rfl) (ihb hρ rfl) (ihA hρ rfl) hwv hvA ?_ hcb hm'
+      (fun hr => ihH hr hρ rfl)
+    rw [← subst_lift']
+    refine Subst.lift_l_cons ▸ ihC (l := l.cons) (fun i => ?_) rfl
+    cases i <;> simp_all [Valuation.push]
 
 theorem Interp.weak_iff (hρ : ∀ i, ρ i = ρ' (Lift.liftVar l i)) :
     Interp Δ Γ' (t.lift' l) σ' ρ' m ↔ Interp Δ Γ t (Subst.lift_l l σ') ρ m :=
-  ⟨Interp.unweak hρ, fun H => H.weak' hρ⟩
+  ⟨fun H => H.unweak hρ rfl, fun H => H.weak' hρ⟩
 
 /-- Directedness of a term's approximants **at one stage**: any two have a
 well-formed upper bound that is again an approximant.
