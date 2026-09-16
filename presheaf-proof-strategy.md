@@ -1139,12 +1139,24 @@ the codomain generator is the recursive call.  A dominating codomain
 witness gives no such hypothesis, so this is the generator earning its
 keep a second time (`subst` was the first).
 
-One consequence to act on eventually: `InterpTyped`'s saturating witness
-was forced by typing *not* being a lower set.  It is one now, so
-`InterpTyped Δ Γ t A σ ρ m` is equivalent to
-`∃ a, Interp Δ Γ A σ ρ a ∧ HasType Δ m a` whenever `Interp Δ Γ t σ ρ m`.
-Collapsing it is a separate change, since the witness is also how
-`SoundTy`'s consumers get an interpretation of `A` at the right stage.
+**Deleted.**  The level-indexed relation is gone — `Shape.HasType0`,
+`HasTypeS`, `HasType`, `TShape.HasTypeOld`, `ShapeFun.HasDom`/`HasPi` and
+their 37 lemmas, 900 lines — and with it the only theorem in the file that
+could not be proved.  §5.5's analysis stays as a short note in
+`HasType.lean`, since the shape of the difficulty recurs: a level-indexed
+relation must reflect along `lift`; reflection forces the `lam` clause to
+be per entry; per entry it is not closed under the order.
+
+**`InterpTyped` is gone too.**  `SoundTy` now says what it means — every
+approximant of `t` is typed at an approximant of `A` — rather than "is
+below one that is typed".  The saturating witness was forced by typing not
+being a lower set; the two are equivalent once it is, so §2.3's
+`InterpTyped` collapses into `SoundTy`'s body.  Every consumer got shorter
+and two got stronger conclusions for free: `SoundTy.hasType` no longer
+ends in a `mono_l`, and `Interp.eq_bot_of_prop` loses its `mono_r` as
+well, since the type's typing lands on the approximant itself.  `Adm.cons`'s
+saturation field went the same way and now reads "every approximant of `A`
+is a type".
 
 ### 5.6 Summary of statement changes
 
