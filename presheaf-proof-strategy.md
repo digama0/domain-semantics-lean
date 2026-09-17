@@ -1158,7 +1158,7 @@ well, since the type's typing lands on the approximant itself.  `Adm.cons`'s
 saturation field went the same way and now reads "every approximant of `A`
 is a type".
 
-### 5.5b The `app` clause's label type, and where the inversion comes from
+### 5.5b The `app` clause's label type, and what `StrongSound` was for
 
 `Interp.app` names the argument's type as a free term of `Δ`:
 
@@ -1170,67 +1170,75 @@ is a type".
 
 `A` has to be named, since `Term.app` does not record it, and nothing in
 the clause pins it — it is existentially quantified per derivation.  Two
-lemmas need it pinned:
+lemmas need it pinned: `IsDefEq.dir` at `app`, where two approximants come
+from lookups at `(A₁, a[σ])` and `(A₂, a[σ])` and the upper bound has to be
+*one* lookup; and `IsDefEq.stage` at `app`, where moving `σ` to `σ'` wants
+`Δ ⊢ a[σ] ≡ a[σ'] : A` and `IsDefEq.subst'` supplies that equation at the
+rule's own type for `a`, not at the clause's `A`.
 
-* `IsDefEq.dir` at `app`: two approximants come from lookups at
-  `(A₁, a[σ])` and `(A₂, a[σ])`, and the upper bound has to be *one*
-  lookup, so one query must be re-read at the other's type.
-* `IsDefEq.stage` at `app`: moving `σ` to `σ'` turns the query into
-  `(A, a[σ'])`, and `Evaluates.label` wants `Δ ⊢ a[σ] ≡ a[σ'] : A`, where
-  `IsDefEq.subst'` gives that equation at the rule's own type for `a`.
-
-Reading only the `Interp` derivations this looks circular — each `Aᵢ` is
-related only to the types of the entries its own lookup matched, so
-`A₁ ≡ A₂` would follow from uniqueness of the type of `a[σ]`, the theorem
-the model exists to prove.  **It is not circular**, because both lemmas
-are inductions over `IsDefEq`, and the rule records the type:
+**Master's answer is `StrongSoundCore`.**  Its own `LE_Interp.app` carries
+no label — `f.app a` is a *function* of the graph and the input, master's
+shapes carrying no syntax — so this exact problem is ours alone.  But the
+judgment it needs is the same one: `StrongSoundCore` is a syntax-directed
+typing relation recording every subterm's type
+(`app : … → StrongSound Γ f (.forallE A B) → StrongSound Γ a A → …`), and
+its purpose is `StrongSound.uniq`:
 
 ```lean
-| appDF : Γ ⊢ A : .sort u → A::Γ ⊢ B : .sort v →
-  Γ ⊢ f ≡ f' : .forallE A B → Γ ⊢ a ≡ a' : A → …
+StrongSound Γ M A → StrongSound Γ M B → SoundEq Γ A B
 ```
 
-This is master's `StrongSoundCore.app`, which carries
-`StrongSound Γ f (.forallE A B)` and `StrongSound Γ a A` for exactly this
-reason — its own `LE_Interp.app` has no label at all (`f.app a` is a
-*function* of the graph and the input, since master's shapes carry no
-syntax), so the inversion it needs from the judgment is a different one,
-but the principle is the same: **the argument's type is in the judgment,
-not in the interpretation.**
+**semantic uniqueness of types**, by induction on the *term*.  That is what
+makes two independently-derived types for one subterm agree.
 
-**The chain.**  `SoundTy Γ f (.forallE A B)` — the induction hypothesis of
-the third premise — types the λ-shape at an approximant of `⟦∀ A B⟧`, and
-that is what relates `A₁` to `A[σ]`:
+**Half of that we do not need.**  Our `IsDefEq` rules already carry their
+subterms' typing premises, so inside an induction over `IsDefEq` the types
+are handed to us and there is nothing to recover by inversion.  That is
+why our `trans'` case is three lines where master's needs `uniq`: our
+`SoundTy Γ t A` takes `A` from the rule, and master's `StrongSound` has to
+reconcile two independent derivations.  Concretely, inside `IsDefEq.sound`
+the `appDF` case *does* have `SoundTy Γ f (.forallE A B)` as the induction
+hypothesis of its third premise, and that pins `A₁` to `A[σ]` by this
+chain:
 
 1. the lookup matched some `e ∈ g`, so `Δ ⊢ e.ty ≡ A₁ : sort u`;
-2. `HasType Δ (.lam g).T s` is the `lam` clause, whose `hg` covers `e` in
-   the generator `g₀`.  `e.out` is not `⊥` (`Shape.WF` of a λ-shape), so
-   that coverage is not all-`bot` and matched some `p ∈ g₀`:
-   `Δ ⊢ p.1.ty ≡ e.ty`;
+2. `e.out` is not `⊥` (`Shape.WF` of a λ-shape), so the `lam` clause's
+   coverage of `e` in the generator matched some `p`: `Δ ⊢ p.1.ty ≡ e.ty`;
 3. `hg₀ty p` types `p.1.out` at `p.2`, so `p.2` is not `⊥` either
-   (`bot_r`), so `hg₀ev p` matched some `q` of `s`'s Π-graph:
-   `Δ ⊢ q.ty ≡ p.1.ty`;
-4. `s ≤ ⟦∀ A B⟧` covers `q` by an entry `r` of the canonical Π's graph,
-   whose `hlab` — an `Interp.forallE` premise — gives
-   `Δ ⊢ r.ty ≡ A[σ] : sort u'`.
+   (`bot_r`), so `hg₀ev p` matched some `q` of that Π-shape's graph;
+4. the Π-shape is below `⟦∀ A B⟧`, whose graph's `hlab` — an
+   `Interp.forallE` premise — gives `Δ ⊢ r.ty ≡ A[σ] : sort u'`.
 
-Each "not all-`bot`, so it matched an entry" step is
-`TEvaluates.eq_bot_or_entry` (in `HasType.lean`):
+Each "not `⊥`, so it matched an entry" step is `TEvaluates.eq_bot_or_entry`
+(in `HasType.lean`), and a lookup that *is* `⊥` can be rebuilt at any label
+by `Evaluates.bot`, so the degenerate branches are free.
 
-```lean
-TEvaluates Δ f A a x c → c.2 = Shape.bot ∨ ∃ e ∈ f, LabelEq Δ e.ty e.tm A a
-```
+**The other half we do need, and §2.1's layering does not allow it.**
+`IsDefEq.dir` is a separate induction *below* `IsDefEq.sound`, so at `app`
+it has only `SoundDir` for its premises — the chain above is not available
+to it.  And the dependency cannot simply be reversed: `sound`'s `beta`
+case goes through `Interp.inst`, which takes `SoundDir Γ a` (§3.3).  The
+two are mutually dependent at `app`, and bundling them is exactly what
+master's single `StrongSoundEq` fixed point does.
 
-and the degenerate case is not lost work: a lookup whose value is `⊥`
-can be rebuilt at any label by `Evaluates.bot`, which is what the
-`dir` and `stage` arguments need for the branches where no entry matched.
+Three ways out:
 
-So `appDF` and `lamDF` are open for the ordinary reason — the chain above
-plus a λ-shape upper bound — not for a structural one, and `Shape` does
-not need to change.  (An earlier draft of this section concluded that a
-λ-shape would have to carry the Π's label, as `forallE` and `sigma` do.
-That is not necessary; it would shorten the chain from four steps to one,
-which may still be worth it.)
+1. **Make `dir` and `sound` mutual**, as master does.  Honest, and the
+   least surprising; it costs the layering of §2.1 and a well-founded
+   measure.
+2. **Give `SoundDir` a typing hypothesis** — state directedness only for
+   terms with a `SoundTy`, threading it from `sound`.  Keeps two
+   inductions but makes `SoundDir` no longer a statement about `Interp`
+   alone.
+3. **Carry the Π's label in the λ-shape**, as `forallE` and `sigma`
+   already do: `.lam A B g` instead of `.lam g`.  Then `Interp.app`'s
+   query type is read off `F`'s own shape rather than guessed, two
+   λ-shapes of the same `F` have a common upper bound whose `LE` clause
+   forces their labels definitionally equal (the `PiLabelEq` conjunct
+   `forallE` already has), and `dir` at `app` needs no typing input at
+   all.  This is the only option that keeps §2.1 intact, and it also
+   collapses the four-step chain above to one step.  It is a change to
+   `Shape`, and it is probably the right one.
 
 ### 5.6 Summary of statement changes
 
