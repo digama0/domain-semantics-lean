@@ -52,7 +52,7 @@ or state, and it is the whole difference between the two developments.
 | `HasEquality` | `SoundEq` | as master |
 | `HasSubstitution` / `HasRenaming` | `Interp.substTerm` (∃ρ' form), `Interp.weak'`/`unweak` | `weak'` done; `substTerm`, `unweak` sorried (§3.3, §3.4) |
 | `SingleSubstitution.variable_eq` | `Interp.bvar_iff` | done |
-| `sourceQuery a` (sup over all typings of the argument) | the `app` rule names the type `A` in `Δ`, one lookup | done; removes his `app` obstruction to standalone directedness |
+| `sourceQuery a` (sup over all typings of the argument) | the `app` rule names the type `A` in `Δ`, one lookup | **wrong as stated** (§5.5b): naming `A` does not remove the obstruction, it relocates it |
 | `rawExtend ⟦C[b/]⟧ ⟦x⟧` as the value of `tr` | master's `tr` constructor with two `HasType` premises | as master; §4.7 |
 | `regular` field of `RawJudgment` | — | he never uses it; drop |
 | `IsCode r` separate from inhabitation | `HasType · (sort r)` | done, cumulative |
@@ -66,14 +66,15 @@ document is organised around them:
 
 1. **Directedness is a separate lemma**, `IsDefEq.dir`, proved *before*
    `IsDefEq.sound` by its own induction on typing, with `Valuation.WF` in
-   place of `Adm` (§2.3).  His `HasIdeality` is bundled into
-   `RawTermProperties` only because his `app` is a sup over `sourceQuery`
-   and needs `PiReady`+`HasFixedness` to collapse; our `app` is one lookup,
-   so the obstruction is gone.  What remains typing-dependent is only the
-   *stage*: under a binder the label term extends the stage, and the
+   place of `Adm` (§2.3).  **This is the one row that does not survive
+   contact with `app`** — see §5.5b.  His `HasIdeality` is bundled into
+   `RawTermProperties` because `HasIdeality.app` takes
+   `HasFixedness Γ f (.forallE A B)`, and ours needs the same thing for the
+   same reason; naming the type in the clause does not avoid it.  What is
+   *also* typing-dependent, and genuinely is the residue of his quotient,
+   is the *stage*: under a binder the label term extends the stage, and the
    extended stage is typed only if the binder annotation is.  That is why
-   the induction is on typing and not on the raw term, and it is the entire
-   residue of his quotient.
+   `IsDefEq.stage` is an induction on typing and not on the raw term.
 2. **The graph order cannot be lookup coverage** (§5.2), though η wants
    it to be.  An order defined through the lookup does not reflect along
    `lift`, and `lift_le_lift` is what makes the level index invisible.
@@ -274,11 +275,12 @@ a[σ] x₁ y₁`, `m₁ ≤ y₁`; same with 2.  IH on `F` gives an approximant
 `(g, x)`: `y₁ ≤ y₁'`, `Evaluates g A a[σ] x y₁'`, likewise `y₂'`.  The two
 results of one lookup are compatible (`Evaluates.compat`, from `g`'s
 coherence, which `WF (lam g)` carries) and `Evaluates.join` gives
-`Evaluates g … x (y₁' ⊔ y₂')`.  Upper bound: `.app` at that.  Note the
-labels agree on the nose — both sides are the same term at the same stage
-— so no stage move.  This is the case his design cannot do standalone
-(`sourceQuery` is a sup over labels, and the collapse needs `PiReady` and
-`HasFixedness`); ours can because the label is named.
+`Evaluates g … x (y₁' ⊔ y₂')`.  Upper bound: `.app` at that.
+
+**This sketch is wrong** (§5.5b).  Only the *term* halves of the two
+labels agree on the nose; the clause's type `A` is existential, so the two
+lookups are at `(A₁, a[σ])` and `(A₂, a[σ])`, and neither `Evaluates.join`
+nor `Evaluates.compat` — both stated at one query — applies across them.
 
 *`pair`, `fst`, `snd`.* as `app`/`succ`: components from the IHs, pair
 shapes joined componentwise; a projection's approximants are below a
@@ -1158,7 +1160,7 @@ well, since the type's typing lands on the approximant itself.  `Adm.cons`'s
 saturation field went the same way and now reads "every approximant of `A`
 is a type".
 
-### 5.5b The `app` clause's label type, and what `StrongSound` was for
+### 5.5b The `app` clause's label type: what the two other repos do
 
 `Interp.app` names the argument's type as a free term of `Δ`:
 
@@ -1169,76 +1171,80 @@ is a type".
 ```
 
 `A` has to be named, since `Term.app` does not record it, and nothing in
-the clause pins it — it is existentially quantified per derivation.  Two
-lemmas need it pinned: `IsDefEq.dir` at `app`, where two approximants come
-from lookups at `(A₁, a[σ])` and `(A₂, a[σ])` and the upper bound has to be
-*one* lookup; and `IsDefEq.stage` at `app`, where moving `σ` to `σ'` wants
-`Δ ⊢ a[σ] ≡ a[σ'] : A` and `IsDefEq.subst'` supplies that equation at the
-rule's own type for `a`, not at the clause's `A`.
+the clause pins it — it is existentially quantified per derivation.  So two
+approximants of `.app F a` come from lookups at `(A₁, a[σ])` and
+`(A₂, a[σ])`, and `IsDefEq.dir` has to produce *one* lookup above both.
+`Evaluates.join` and `Evaluates.compat` are both stated at a single query,
+so neither applies; relating `A₁` to `A₂` through the entries they matched
+is uniqueness of the type of `a[σ]`.  §3.2's sketch overlooked this (it
+says "the labels agree on the nose", which is true only of the term
+halves), and §1's `sourceQuery` row drew the opposite conclusion.
 
-**Master's answer is `StrongSoundCore`.**  Its own `LE_Interp.app` carries
-no label — `f.app a` is a *function* of the graph and the input, master's
-shapes carrying no syntax — so this exact problem is ours alone.  But the
-judgment it needs is the same one: `StrongSoundCore` is a syntax-directed
-typing relation recording every subterm's type
-(`app : … → StrongSound Γ f (.forallE A B) → StrongSound Γ a A → …`), and
-its purpose is `StrongSound.uniq`:
+**intgrah** (`/project/presheaf-semantics-lean`).  His query is not a
+label but a *set* of them:
 
 ```lean
-StrongSound Γ M A → StrongSound Γ M B → SoundEq Γ A B
+def sourceQuery (Γ : Ctx) (a : Term) : Set (Σ A : Ty Γ, Tm Γ A) :=
+  {label | ∃ A u (hA : Γ ⊢ A : .sort u) (ha : Γ ⊢ a : A),
+     Tm.pairOfTyping Γ.wf hA ha = label}
+
+noncomputable def rawApplication (F : RawValue Γ) (Q : Set _) (X : RawValue Γ) :=
+  ⨆ label ∈ Q, ΩLower.bind₂ F X (stepApplicationRaw label)
 ```
 
-**semantic uniqueness of types**, by induction on the *term*.  That is what
-makes two independently-derived types for one subterm agree.
+— all typings of `a`, supped over.  So the *definition* makes no choice.
+But the sup is not directed on its own: `HasIdeality.app`
+(`Soundness/EliminationRules.lean`) reads
 
-**Half of that we do not need.**  Our `IsDefEq` rules already carry their
-subterms' typing premises, so inside an induction over `IsDefEq` the types
-are handed to us and there is nothing to recover by inversion.  That is
-why our `trans'` case is three lines where master's needs `uniq`: our
-`SoundTy Γ t A` takes `A` from the rule, and master's `StrongSound` has to
-reconcile two independent derivations.  Concretely, inside `IsDefEq.sound`
-the `appDF` case *does* have `SoundTy Γ f (.forallE A B)` as the induction
-hypothesis of its third premise, and that pins `A₁` to `A[σ]` by this
-chain:
+```lean
+theorem HasIdeality.app (hready : PiReady Γ A B) (ha : Γ ⊢ a : A)
+    (hFI : HasIdeality Γ f) (hXI : HasIdeality Γ a)
+    (hFF : HasFixedness Γ f (.forallE A B)) : HasIdeality Γ (.app f a)
+```
 
-1. the lookup matched some `e ∈ g`, so `Δ ⊢ e.ty ≡ A₁ : sort u`;
-2. `e.out` is not `⊥` (`Shape.WF` of a λ-shape), so the `lam` clause's
-   coverage of `e` in the generator matched some `p`: `Δ ⊢ p.1.ty ≡ e.ty`;
-3. `hg₀ty p` types `p.1.out` at `p.2`, so `p.2` is not `⊥` either
-   (`bot_r`), so `hg₀ev p` matched some `q` of that Π-shape's graph;
-4. the Π-shape is below `⟦∀ A B⟧`, whose graph's `hlab` — an
-   `Interp.forallE` premise — gives `Δ ⊢ r.ty ≡ A[σ] : sort u'`.
+and its proof first **collapses** the sup to the canonical label
+(`PiReady.application_value`, via `rawApplication_eq_of_support`: every
+other label's output atoms in `F` are `⊥`), and only then is ideality free.
+`hFF` — the function's *typing* — is what supplies that.  `HasEquality.app`
+does the same collapse on both sides and then observes the two labels are
+the same element of the quotient `Tm Γ A`, by `Tm.pairOfTyping_eq` from
+`Γ ⊢ a ≡ a' : A`.  This is why `HasIdeality` lives in `RawTermProperties`
+next to `HasFixedness` and is proved in one induction: **his directedness
+at `app` is not standalone either.**
 
-Each "not `⊥`, so it matched an entry" step is `TEvaluates.eq_bot_or_entry`
-(in `HasType.lean`), and a lookup that *is* `⊥` can be rebuilt at any label
-by `Evaluates.bot`, so the degenerate branches are free.
+**master** (`Sound.lean`).  `LE_Interp.app` carries no label at all —
+`f.app a` is a *function* of the graph and the input, master's shapes
+carrying no syntax — so this particular problem does not arise there, and
+`StrongSoundCore` earns its keep elsewhere (`StrongSound.uniq`, semantic
+uniqueness of types, used at `trans'`).
 
-**The other half we do need, and §2.1's layering does not allow it.**
-`IsDefEq.dir` is a separate induction *below* `IsDefEq.sound`, so at `app`
-it has only `SoundDir` for its premises — the chain above is not available
-to it.  And the dependency cannot simply be reversed: `sound`'s `beta`
-case goes through `Interp.inst`, which takes `SoundDir Γ a` (§3.3).  The
-two are mutually dependent at `app`, and bundling them is exactly what
-master's single `StrongSoundEq` fixed point does.
+So the score is: the only development in which `app`-directedness is free
+is the one whose values carry no syntax, and it pays for that by having no
+inversion principles (which is the whole reason for this branch).  Four
+options, of which the last is ours alone:
 
-Three ways out:
-
-1. **Make `dir` and `sound` mutual**, as master does.  Honest, and the
-   least surprising; it costs the layering of §2.1 and a well-founded
-   measure.
-2. **Give `SoundDir` a typing hypothesis** — state directedness only for
-   terms with a `SoundTy`, threading it from `sound`.  Keeps two
-   inductions but makes `SoundDir` no longer a statement about `Interp`
-   alone.
-3. **Carry the Π's label in the λ-shape**, as `forallE` and `sigma`
-   already do: `.lam A B g` instead of `.lam g`.  Then `Interp.app`'s
-   query type is read off `F`'s own shape rather than guessed, two
-   λ-shapes of the same `F` have a common upper bound whose `LE` clause
-   forces their labels definitionally equal (the `PiLabelEq` conjunct
-   `forallE` already has), and `dir` at `app` needs no typing input at
-   all.  This is the only option that keeps §2.1 intact, and it also
-   collapses the four-step chain above to one step.  It is a change to
-   `Shape`, and it is probably the right one.
+1. **Make `dir` and `sound` mutual.**  What both other repos do, under
+   different names (`RawTermProperties`+`RawJudgment`, `StrongSoundEq`).
+   Costs §2.1's layering and a well-founded measure.
+2. **Give `SoundDir` a typing hypothesis**, threading it from `sound`.
+   Two inductions, but `SoundDir` stops being about `Interp` alone.
+3. **Make the query a set**, as intgrah does: quantify `A` *inside* the
+   `entry` rule (`Δ ⊢ e.tm ≡ a : e.ty`, the type supplied by the entry),
+   so joins across entries with different types are fine.  This does not
+   remove the typing obligation — intgrah's own `HasIdeality.app` shows it
+   does not — but it *changes* it, from "reconcile two arbitrary choices"
+   (uniqueness of types, unavailable) to "the other labels contribute `⊥`"
+   (the Π's domain pins the graph, available from `SoundTy`).  Keep the
+   labelled `Eval` for the *order*, where the type is needed for
+   transitivity (`Label.lean`).
+4. **Carry the Π's label in the λ-shape**: `.lam A B g`, as `forallE` and
+   `sigma` already do.  Then the query type is read off `F`'s own shape
+   rather than guessed, and two λ-shapes of the same `F` have a common
+   upper bound whose `LE` clause forces their labels definitionally equal —
+   the `PiLabelEq` conjunct `forallE` already has.  `dir` at `app` then
+   needs no typing input at all.  This option exists only because our
+   values carry syntax, which is also what makes the inversion theorems of
+   §6 corollaries of soundness; it is the only one that keeps §2.1 intact.
 
 ### 5.6 Summary of statement changes
 
