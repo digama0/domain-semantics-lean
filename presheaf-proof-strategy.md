@@ -1158,7 +1158,7 @@ well, since the type's typing lands on the approximant itself.  `Adm.cons`'s
 saturation field went the same way and now reads "every approximant of `A`
 is a type".
 
-### 5.5b The `app` clause's label type is existential, and `dir` needs it not to be
+### 5.5b The `app` clause's label type, and where the inversion comes from
 
 `Interp.app` names the argument's type as a free term of `Δ`:
 
@@ -1168,44 +1168,69 @@ is a type".
   Evaluates Δ g A (a.subst σ) x y → … → Interp Δ Γ (.app F a) σ ρ m
 ```
 
-`A` has to be named, since `Term.app` does not record it; but nothing in
-the clause pins it, so it is **existentially quantified per derivation**.
-That is fine for §3 and for `sound`, where the lookup's value only has to
-grow.  It is not fine for two lemmas:
+`A` has to be named, since `Term.app` does not record it, and nothing in
+the clause pins it — it is existentially quantified per derivation.  Two
+lemmas need it pinned:
 
-*`IsDefEq.dir` at `app`.*  Two approximants come from lookups at
-`(A₁, a[σ])` and `(A₂, a[σ])` in two λ-shapes of `F`.  The upper bound has
-to be *one* lookup, so one of the two queries has to be re-read at the
-other's type, which needs `Δ ⊢ A₁ ≡ A₂ : sort u`.  Each `A` is related
-only to the types of the entries its own lookup matched
-(`LabelEq Δ e.ty e.tm Aᵢ (a[σ])` gives `Δ ⊢ e.ty ≡ Aᵢ : sort u`), so
-`A₁ ≡ A₂` would follow from `e.ty ≡ e'.ty` — uniqueness of the type of
-`a[σ]`, which is the theorem the model exists to prove.  Circular.
+* `IsDefEq.dir` at `app`: two approximants come from lookups at
+  `(A₁, a[σ])` and `(A₂, a[σ])`, and the upper bound has to be *one*
+  lookup, so one query must be re-read at the other's type.
+* `IsDefEq.stage` at `app`: moving `σ` to `σ'` turns the query into
+  `(A, a[σ'])`, and `Evaluates.label` wants `Δ ⊢ a[σ] ≡ a[σ'] : A`, where
+  `IsDefEq.subst'` gives that equation at the rule's own type for `a`.
 
-*`IsDefEq.stage` at `app`.*  Moving `σ` to `σ'` turns the query into
-`(A, a[σ'])`, and `Evaluates.label` wants `Δ ⊢ a[σ] ≡ a[σ'] : A`.  What
-`IsDefEq.subst'` gives is that equation at `A₀[σ]`, the rule's own type
-for `a`; the clause's `A` is unrelated to it.  §3.1 assumed this case was
-as routine as `forallE`/`sigma`/`pair`/`id`, where the label *is* the
-rule's own syntax.  It is not.
+Reading only the `Interp` derivations this looks circular — each `Aᵢ` is
+related only to the types of the entries its own lookup matched, so
+`A₁ ≡ A₂` would follow from uniqueness of the type of `a[σ]`, the theorem
+the model exists to prove.  **It is not circular**, because both lemmas
+are inductions over `IsDefEq`, and the rule records the type:
 
-Three ways out, in increasing order of cost:
+```lean
+| appDF : Γ ⊢ A : .sort u → A::Γ ⊢ B : .sort v →
+  Γ ⊢ f ≡ f' : .forallE A B → Γ ⊢ a ≡ a' : A → …
+```
 
-1. **Pin `A` in the clause**: add `Δ ⊢ a.subst σ : A` as a premise.  Does
-   not help by itself — two derivations then have `Δ ⊢ a[σ] : A₁` and
-   `Δ ⊢ a[σ] : A₂`, and relating them is again uniqueness of types.
-2. **Take the label type from the graph**: require the query type to be
-   some `e.ty` of `g`, or drop it and compare labels by `TmEq`
-   (`∃ A, Δ ⊢ a ≡ a' : A`).  `Label.lean` already records why that fails:
-   transitivity of `TmEq` needs uniqueness of the type of the middle term.
-3. **Carry the domain in the λ-shape.**  A λ-shape is a bare graph; if it
-   also carried the Π's label `(A, B)` — as `forallE` and `sigma` do —
-   then `F`'s own interpretation would force the two queries' types to be
-   definitionally equal, since both would be `≡ A[σ]`.  This is the only
-   route that breaks the circle, and it is a change to `Shape`.
+This is master's `StrongSoundCore.app`, which carries
+`StrongSound Γ f (.forallE A B)` and `StrongSound Γ a A` for exactly this
+reason — its own `LE_Interp.app` has no label at all (`f.app a` is a
+*function* of the graph and the input, since master's shapes carry no
+syntax), so the inversion it needs from the judgment is a different one,
+but the principle is the same: **the argument's type is in the judgment,
+not in the interpretation.**
 
-Until one of these lands, `appDF` is open in both `dir` and `sound`, and
-so is `lamDF` in `dir` (whose cross pairs go through `IsDefEq.stage`).
+**The chain.**  `SoundTy Γ f (.forallE A B)` — the induction hypothesis of
+the third premise — types the λ-shape at an approximant of `⟦∀ A B⟧`, and
+that is what relates `A₁` to `A[σ]`:
+
+1. the lookup matched some `e ∈ g`, so `Δ ⊢ e.ty ≡ A₁ : sort u`;
+2. `HasType Δ (.lam g).T s` is the `lam` clause, whose `hg` covers `e` in
+   the generator `g₀`.  `e.out` is not `⊥` (`Shape.WF` of a λ-shape), so
+   that coverage is not all-`bot` and matched some `p ∈ g₀`:
+   `Δ ⊢ p.1.ty ≡ e.ty`;
+3. `hg₀ty p` types `p.1.out` at `p.2`, so `p.2` is not `⊥` either
+   (`bot_r`), so `hg₀ev p` matched some `q` of `s`'s Π-graph:
+   `Δ ⊢ q.ty ≡ p.1.ty`;
+4. `s ≤ ⟦∀ A B⟧` covers `q` by an entry `r` of the canonical Π's graph,
+   whose `hlab` — an `Interp.forallE` premise — gives
+   `Δ ⊢ r.ty ≡ A[σ] : sort u'`.
+
+Each "not all-`bot`, so it matched an entry" step is
+`TEvaluates.eq_bot_or_entry` (in `HasType.lean`):
+
+```lean
+TEvaluates Δ f A a x c → c.2 = Shape.bot ∨ ∃ e ∈ f, LabelEq Δ e.ty e.tm A a
+```
+
+and the degenerate case is not lost work: a lookup whose value is `⊥`
+can be rebuilt at any label by `Evaluates.bot`, which is what the
+`dir` and `stage` arguments need for the branches where no entry matched.
+
+So `appDF` and `lamDF` are open for the ordinary reason — the chain above
+plus a λ-shape upper bound — not for a structural one, and `Shape` does
+not need to change.  (An earlier draft of this section concluded that a
+λ-shape would have to carry the Π's label, as `forallE` and `sigma` do.
+That is not necessary; it would shorten the chain from four steps to one,
+which may still be worth it.)
 
 ### 5.6 Summary of statement changes
 

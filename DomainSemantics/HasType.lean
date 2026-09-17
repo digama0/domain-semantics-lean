@@ -1617,6 +1617,27 @@ theorem TEvaluates.eq_bot {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
   | lower hle _ ih => exact TShape.le_bot hΔ ih hle
   | join _ _ _ ih₁ ih₂ => exact TShape.join_eq_bot ih₁ ih₂
 
+/-- **A lookup is `⊥` or it matched an entry.**  The non-degenerate half of
+`eq_bot`, and what pins the query's *label*: a lookup with a non-`⊥` value
+has an entry of the graph definitionally equal to its query.  Chained
+through the `lam` clause's generator it is how the λ-shape's entry types
+are related to the Π's domain label (§5.5b). -/
+theorem TEvaluates.eq_bot_or_entry {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
+    {A a : Term} {x : TShape} :
+    ∀ {c : TShape}, TEvaluates Δ f A a x c →
+      c.2 = Shape.bot ∨ ∃ e ∈ f, LabelEq Δ e.ty e.tm A a := by
+  intro c h
+  induction h with
+  | bot => exact .inl rfl
+  | entry e he hl _ => exact .inr ⟨e, he, hl⟩
+  | lower hle _ ih =>
+    exact ih.imp (fun hb => TShape.le_bot hΔ hb hle) (fun h => h)
+  | join _ _ _ ih₁ ih₂ =>
+    match ih₁, ih₂ with
+    | .inl h₁, .inl h₂ => exact .inl (TShape.join_eq_bot h₁ h₂)
+    | .inr h, _ => exact .inr h
+    | _, .inr h => exact .inr h
+
 /-- Nothing but `⊥` is typed at `⊥`.  `refl` is the only clause whose type
 is not pinned, and its bound puts an `id` shape below `⊥`. -/
 theorem TShape.HasType.bot_r {Δ : List Term} (hΔ : ⊢ Δ) {x a : TShape}
