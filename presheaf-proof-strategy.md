@@ -1218,6 +1218,29 @@ carrying no syntax — so this particular problem does not arise there, and
 `StrongSoundCore` earns its keep elsewhere (`StrongSound.uniq`, semantic
 uniqueness of types, used at `trans'`).
 
+**Verified.**  `Interp.lam_entry_ty` (`Presheaf.lean`) is the pinning
+lemma, proved:
+
+```lean
+theorem Interp.lam_entry_ty (hΔ : ⊢ Δ) (W) (hAdm) (hty : SoundTy Γ f (.forallE A B))
+    {g : ShapeFun n} (hf : Interp Δ Γ f σ ρ (Shape.T (.lam g)))
+    {e} (he : e ∈ g) : ∃ u, Δ ⊢ e.ty ≡ A.subst σ : .sort u
+```
+
+Every entry of a λ-shape approximating a term of type `Π A B` carries a
+label type definitionally equal to `A[σ]`.  So any `app` derivation can be
+re-annotated at the canonical `A[σ]`, two of them are then at one query,
+and `Evaluates.join` applies.  Twenty-five lines, four `TEvaluates.bot_or`
+links, the `⊥` branch threaded through all four and discharged once by the
+λ-shape's non-degeneracy.
+
+Its only non-structural input is `SoundTy Γ f (.forallE A B)`.  Note what
+does *not* do the job: `StrongSound.uniq` yields `SoundEq Γ A B`, a
+*semantic* equation, where `LabelEq` compares label types by `Δ ⊢ · ≡ · :
+sort u`, a *syntactic* one in the stage.  The re-annotation is this chain,
+not uniqueness of types; what a bundle has to deliver is `SoundTy` of the
+function, nothing more.
+
 So the score is: the only development in which `app`-directedness is free
 is the one whose values carry no syntax, and it pays for that by having no
 inversion principles (which is the whole reason for this branch).  Four

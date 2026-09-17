@@ -1109,6 +1109,58 @@ theorem sound_fst {Γ : List Term} {A B p p' : Term}
           exact ⟨_, hA, TShape.HasType.mono_r hΔ
             (TShape.HasType.mono_l hΔ (TShape.HasType.mono_l hΔ hxd hxle) hle) _ hdd hd₀⟩
 
+/-! ## The `app` label
+
+`Interp.app`'s query type is existential (§5.5b), and both `IsDefEq.dir`
+and `IsDefEq.stage` need it pinned.  This is the lemma that pins it:
+**every entry of a λ-shape approximating a term of type `Π A B` carries a
+label type definitionally equal to `A[σ]`.**  With it, any `app`
+derivation can be re-annotated at the canonical `A[σ]`, so two of them are
+at one query and `Evaluates.join` applies.
+
+Its input is `SoundTy Γ f (.forallE A B)` — the function's typing — which
+is why directedness and soundness have to be proved together.  Both other
+developments arrange that: intgrah's `HasIdeality.app` takes
+`HasFixedness Γ f (.forallE A B)` outright, and master bundles into
+`StrongSoundEq`.
+
+The chain has four links, and each is `TEvaluates.bot_or`: the λ's entries
+are covered by the generator, the generator's codomains are lookups in the
+Π-shape's graph, that graph is covered by the canonical Π's, and the
+canonical Π's `hlab` is the answer.  The `⊥` branch survives all four and
+is discharged once, by `Shape.WF` of the λ-shape. -/
+theorem Interp.lam_entry_ty {Γ Γ₀ Δ : List Term} {f A B : Term} {σ ρ}
+    (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
+    (hty : SoundTy Γ f (.forallE A B))
+    {n} {g : ShapeFun n} (hf : Interp Δ Γ f σ ρ (Shape.T (n := n+1) (ShapeS.lam g)))
+    {e : Entry (Shape n)} (he : e ∈ g) : ∃ u, Δ ⊢ e.ty ≡ A.subst σ : .sort u := by
+  have hwg : Shape.WF (n := n+1) Δ (ShapeS.lam g) := hf.wf
+  obtain ⟨s, hs, hsty⟩ := hty hΔ W hAdm hf
+  cases hsty with
+  | lam _ _ _ hwPi hg hg₀ev hg₀ty =>
+    cases hs with
+    | forallE _ _ hwf hlab _ _ _ hle =>
+      obtain ⟨_, _, hcov⟩ :=
+        TShape.LE.forallE_decomp hΔ hle hwPi hwf (TEvaluates.refl hwf.2.2.2)
+      -- the goal is threaded through all four links as `bot_or`'s `Q`, so
+      -- the `⊥` branch is discharged only once, at the outermost one
+      refine (TEvaluates.bot_or hΔ (fun p' hp' hl => ?_) (hg e he)).resolve_left
+        (fun hb => hwg.2.1 e he
+          (by rw [show e.out = Shape.bot from hb]; exact Shape.isBot_bot))
+      obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hp'
+      -- link 2: the generator slot's codomain is a lookup in the Π-shape's
+      -- graph, and its being `⊥` forces the slot's output to be `⊥`
+      refine (TEvaluates.bot_or hΔ (fun q hq hl' => ?_) (hg₀ev p hp)).imp
+        (fun hb => TShape.HasType.bot_r hΔ hb (hg₀ty p hp)) (fun h => h)
+      -- link 3: that graph is covered by the canonical Π's
+      refine TEvaluates.bot_or hΔ (fun t ht hl'' => ?_) (hcov q hq)
+      -- link 4: and the canonical Π's labels are the answer
+      obtain ⟨_, h₁⟩ := hl.1
+      obtain ⟨_, h₂⟩ := hl'.1
+      obtain ⟨_, h₃⟩ := hl''.1
+      obtain ⟨_, h₄⟩ := hlab t ht
+      exact .inr ⟨_, h₁.symm.trans' (h₂.symm.trans' (h₃.symm.trans' h₄))⟩
+
 /-! ## The identity type
 
 `Interp.id` is **label-only**: the interpretation of `.id r A a b` is the
