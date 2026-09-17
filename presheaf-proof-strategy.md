@@ -1234,12 +1234,27 @@ and `Evaluates.join` applies.  Twenty-five lines, four `TEvaluates.bot_or`
 links, the `⊥` branch threaded through all four and discharged once by the
 λ-shape's non-degeneracy.
 
-Its only non-structural input is `SoundTy Γ f (.forallE A B)`.  Note what
-does *not* do the job: `StrongSound.uniq` yields `SoundEq Γ A B`, a
-*semantic* equation, where `LabelEq` compares label types by `Δ ⊢ · ≡ · :
-sort u`, a *syntactic* one in the stage.  The re-annotation is this chain,
-not uniqueness of types; what a bundle has to deliver is `SoundTy` of the
-function, nothing more.
+Its only non-structural input is `SoundTy Γ f (.forallE A B)`; what a
+bundle has to deliver here is that, nothing more.
+
+**Why `uniq` does not do this job, and it is not the semantic/syntactic
+gap.**  `StrongSound.uniq` yields `SoundEq Γ A B`.  In *this* design that
+is not a weaker statement than the syntactic equation: `Inversion.lean`
+extracts `Γ ⊢ A₀ ≡ A₁ : sort u` from `SoundEq` by probing with the type's
+own label-only approximant and reading the label back off the order, which
+is the point of carrying syntax in the shapes — so a `SoundEq`-level
+inversion family is a restatement of what is already proved, and porting
+master's `uniq` is *easier* here than on master, whose version needs
+`SoundEq.forallE_inv`/`sigma_inv`/`id_inv` as separate semantic lemmas.
+
+The obstruction is elsewhere: the clause's `A₁`, `A₂` are free terms of
+`Δ`, not types of anything in a judgment the induction knows about.
+Making them so — adding `Δ ⊢ a.subst σ : A` to the clause — needs
+uniqueness of types for `a[σ]` *in `Δ`*, and that typing derivation is not
+a sub-derivation of the one being inducted on.  Circular, for the third
+time and by a third route.  `lam_entry_ty` does not reconcile `A₁` with
+`A₂` at all; it re-annotates each to the canonical `A[σ]`, which is what
+makes it non-circular.
 
 So the score is: the only development in which `app`-directedness is free
 is the one whose values carry no syntax, and it pays for that by having no
