@@ -200,8 +200,10 @@ theorem sigma_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term} :
 
 theorem sigma_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {s : Bool}
     (hΓ : ⊢ Γ) (H : Γ ⊢ Term.sigma A₀ B₀ ≡ Term.sigma A₁ B₁ : .sort s) :
-    ∃ u v, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ A₀ :: Γ ⊢ B₀ ≡ B₁ : .sort v := by
-  sorry
+    ∃ u v, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ A₀ :: Γ ⊢ B₀ ≡ B₁ : .sort v :=
+  have ⟨_, hA₀⟩ := H.sigma_dom
+  have ⟨_, hB₀⟩ := H.sigma_cod
+  SoundEq.sigma_inv hΓ hA₀ hB₀ (IsDefEq.sound hΓ H).1
 
 theorem id_inv {Γ : List Term} {r : Bool} {A₀ a₀ b₀ A₁ a₁ b₁ : Term}
     (hΓ : ⊢ Γ) (H : Γ ⊢ Term.id r A₀ a₀ b₀ ≡ Term.id r A₁ a₁ b₁ : .sort r) :

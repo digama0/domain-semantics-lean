@@ -504,6 +504,22 @@ theorem Interp.le_piAtom (H : Interp Δ Γ (.forallE A B) σ ρ (Shape.T (n := 1
   rw [Shape.lift_piAtom, Shape.lift_self] at h'
   exact Shape.piAtom_le_forallE h'
 
+/-- The Σ probe, as `piAtom`. -/
+theorem Interp.sigmaAtom (hA : Δ ⊢ A.subst σ : .sort u)
+    (hB : A.subst σ :: Δ ⊢ B.subst σ.lift : .sort v) :
+    Interp Δ Γ (.sigma A B) σ ρ (Shape.T (n := 1) (.sigmaAtom (A.subst σ) (B.subst σ.lift))) :=
+  .sigma (d := (Shape.bot : Shape 0)) .bot (.bot .sort)
+    (Shape.WF.sigmaAtom hA hB) nofun nofun nofun
+    (.sigmaAtom hA hB) (TShape.LE.T.2 (.refl (.sigmaAtom hA hB)))
+
+theorem Interp.le_sigmaAtom
+    (H : Interp Δ Γ (.sigma A B) σ ρ (Shape.T (n := 1) (.sigmaAtom A' B'))) :
+    PiLabelEq Δ A' B' (A.subst σ) (B.subst σ.lift) := by
+  cases H with | sigma _ _ _ _ _ _ _ h
+  have h' := (TShape.LE.def_mp (Nat.succ_le_succ (Nat.zero_le _)) (Nat.le_refl _)) h
+  rw [Shape.lift_sigmaAtom, Shape.lift_self] at h'
+  exact Shape.sigmaAtom_le_sigma h'
+
 /-! ## Naturality in the stage
 
 The presheaf property, and the reason every shape-level notion had to be

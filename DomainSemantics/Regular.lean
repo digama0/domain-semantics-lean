@@ -90,3 +90,34 @@ theorem IsDefEq.id_dom {Γ : List Term} {r} {A a b e X : Term}
     (H : Γ ⊢ .id r A a b ≡ e : X) :
     (∃ u, Γ ⊢ A : .sort u) ∧ Γ ⊢ a : A ∧ Γ ⊢ b : A :=
   H.id_regular (.inl rfl)
+
+/-- The same for Σ; `sigmaDF` is the only case with content. -/
+theorem IsDefEq.sigma_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡ e' : X) :
+    ∀ {A B : Term}, e = .sigma A B ∨ e' = .sigma A B →
+      (∃ u, Γ ⊢ A : .sort u) ∧ ∃ v, A :: Γ ⊢ B : .sort v := by
+  induction H with
+  | sigmaDF hA hb hb' _ _ _ =>
+    intro A B h
+    match h with
+    | .inl h =>
+      injection h with h1 h2
+      subst h1; subst h2
+      exact ⟨⟨_, hA.hasType.1⟩, _, hb.hasType.1⟩
+    | .inr h =>
+      injection h with h1 h2
+      subst h1; subst h2
+      exact ⟨⟨_, hA.hasType.2⟩, _, hb'.hasType.2⟩
+  | _ =>
+    intro A B h
+    rcases h with h | h <;>
+      first
+        | exact Term.noConfusion h
+        | solve_by_elim [Or.inl, Or.inr]
+
+theorem IsDefEq.sigma_dom {Γ : List Term} {A B e X : Term}
+    (H : Γ ⊢ .sigma A B ≡ e : X) : ∃ u, Γ ⊢ A : .sort u :=
+  (H.sigma_regular (.inl rfl)).1
+
+theorem IsDefEq.sigma_cod {Γ : List Term} {A B e X : Term}
+    (H : Γ ⊢ .sigma A B ≡ e : X) : ∃ v, A :: Γ ⊢ B : .sort v :=
+  (H.sigma_regular (.inl rfl)).2

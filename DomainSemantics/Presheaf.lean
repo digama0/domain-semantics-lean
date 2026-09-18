@@ -1401,6 +1401,24 @@ theorem SoundEq.forallE_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {u v :
   obtain ⟨v', hv⟩ := hlab.2
   exact ⟨u', v', hu, hv⟩
 
+/-- The same at Σ, with `sigmaAtom` as the probe. -/
+theorem SoundEq.sigma_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {u v : Bool}
+    (hΓ : ⊢ Γ) (hA₀ : Γ ⊢ A₀ : .sort u) (hB₀ : A₀ :: Γ ⊢ B₀ : .sort v)
+    (H : SoundEq Γ (Term.sigma A₀ B₀) (Term.sigma A₁ B₁)) :
+    ∃ u v, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ A₀ :: Γ ⊢ B₀ ≡ B₁ : .sort v := by
+  have hprobe : Interp Γ Γ (.sigma A₀ B₀) Subst.id Valuation.nil
+      (Shape.T (n := 1) (Shape.sigmaAtom (A₀.subst Subst.id) (B₀.subst Subst.id.lift))) := by
+    refine Interp.sigmaAtom (u := u) (v := v) ?_ ?_
+    · simpa using hA₀
+    · simpa using hB₀
+  have hmove := (H hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 hprobe
+  simp only [subst_id, Subst.lift_id] at hmove
+  have hlab := Interp.le_sigmaAtom hmove
+  simp only [subst_id, Subst.lift_id] at hlab
+  obtain ⟨u', hu⟩ := hlab.1
+  obtain ⟨v', hv⟩ := hlab.2
+  exact ⟨u', v', hu, hv⟩
+
 /-- Inversion at `id`.  The `id` former is label-only, so it needs no
 atom: its own interpretation at the identity stage *is* the probe, and the
 order between two `id`-shapes is the triple of equations. -/

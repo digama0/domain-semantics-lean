@@ -2438,6 +2438,26 @@ theorem Shape.WF.piAtom {Δ : List Term} {n} {A B : Term} {u v}
     fun _ he => absurd he (List.not_mem_nil),
     fun _ he => absurd he (List.not_mem_nil)⟩
 
+/-- The label-only Σ shape, the same probe for Σ types. -/
+abbrev Shape.sigmaAtom {n} (A B : Term) : Shape (n+1) := ShapeS.sigma A B .bot []
+
+theorem Shape.sigmaAtom_le_sigma {Δ : List Term} {n} {A B A' B' : Term}
+    {d : Shape n} {f : ShapeFun n}
+    (h : Shape.LE Δ (Shape.sigmaAtom A B) (ShapeS.sigma A' B' d f : Shape (n+1))) :
+    PiLabelEq Δ A B A' B' := h.1
+
+@[simp] theorem Shape.lift_sigmaAtom {n m} {A B : Term} :
+    (Shape.sigmaAtom (n := n) A B).lift (m+1) = Shape.sigmaAtom A B := by
+  show ShapeS.sigma _ _ _ _ = _
+  rw [Shape.lift_bot]; rfl
+
+theorem Shape.WF.sigmaAtom {Δ : List Term} {n} {A B : Term} {u v}
+    (hA : Δ ⊢ A : .sort u) (hB : A :: Δ ⊢ B : .sort v) :
+    Shape.WF Δ (Shape.sigmaAtom (n := n) A B) :=
+  ⟨⟨u, hA⟩, ⟨v, hB⟩, by cases n <;> trivial,
+    fun _ he => absurd he (List.not_mem_nil),
+    fun _ he => absurd he (List.not_mem_nil)⟩
+
 /-- `⊥` is well formed at every level. -/
 @[simp] theorem TShape.WF.bot {Δ : List Term} {n} :
     TShape.WF Δ (Shape.T (n := n) Shape.bot) := by cases n <;> trivial
