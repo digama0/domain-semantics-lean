@@ -60,4 +60,35 @@ theorem IsDefEq.forallE_cod {Γ : List Term} {A B e X : Term}
     (H : Γ ⊢ .forallE A B ≡ e : X) : ∃ v, A :: Γ ⊢ B : .sort v :=
   (H.forallE_regular (.inl rfl)).2
 
+/-- The same for `id`: its three components are typed wherever it occurs
+in a definitional equality.  Same induction as `forallE_regular`, and the
+`idDF` case is the only one with content. -/
+theorem IsDefEq.id_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡ e' : X) :
+    ∀ {r} {A a b : Term}, e = .id r A a b ∨ e' = .id r A a b →
+      (∃ u, Γ ⊢ A : .sort u) ∧ Γ ⊢ a : A ∧ Γ ⊢ b : A := by
+  induction H with
+  | idDF hA ha hb _ _ _ =>
+    intro r A a b h
+    match h with
+    | .inl h =>
+      injection h with _ h1 h2 h3
+      subst h1; subst h2; subst h3
+      exact ⟨⟨_, hA.hasType.1⟩, ha.hasType.1, hb.hasType.1⟩
+    | .inr h =>
+      injection h with _ h1 h2 h3
+      subst h1; subst h2; subst h3
+      exact ⟨⟨_, hA.hasType.2⟩, hA.defeqDF ha.hasType.2, hA.defeqDF hb.hasType.2⟩
+  | _ =>
+    intro r A a b h
+    rcases h with h | h <;>
+      first
+        | exact Term.noConfusion h
+        | solve_by_elim [Or.inl, Or.inr]
+
+/-- The components of an `id` that is definitionally equal to anything. -/
+theorem IsDefEq.id_dom {Γ : List Term} {r} {A a b e X : Term}
+    (H : Γ ⊢ .id r A a b ≡ e : X) :
+    (∃ u, Γ ⊢ A : .sort u) ∧ Γ ⊢ a : A ∧ Γ ⊢ b : A :=
+  H.id_regular (.inl rfl)
+
 end DomainSemantics

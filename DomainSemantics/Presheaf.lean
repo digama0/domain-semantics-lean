@@ -1386,6 +1386,24 @@ theorem SoundEq.forallE_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {u v :
   obtain ⟨v', hv⟩ := hlab.2
   exact ⟨u', v', hu, hv⟩
 
+/-- Inversion at `id`.  The `id` former is label-only, so it needs no
+atom: its own interpretation at the identity stage *is* the probe, and the
+order between two `id`-shapes is the triple of equations. -/
+theorem SoundEq.id_inv {Γ : List Term} {r : Bool} {A₀ a₀ b₀ A₁ a₁ b₁ : Term} {u : Bool}
+    (hΓ : ⊢ Γ) (hA₀ : Γ ⊢ A₀ : .sort u) (ha₀ : Γ ⊢ a₀ : A₀) (hb₀ : Γ ⊢ b₀ : A₀)
+    (H : SoundEq Γ (.id r A₀ a₀ b₀) (.id r A₁ a₁ b₁)) :
+    ∃ u, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ Γ ⊢ a₀ ≡ a₁ : A₀ ∧ Γ ⊢ b₀ ≡ b₁ : A₀ := by
+  have hw : TShape.WF Γ (Shape.T (n := 1)
+      (ShapeS.id r (A₀.subst Subst.id) (a₀.subst Subst.id) (b₀.subst Subst.id))) :=
+    Shape.WF.id_of hΓ (Ctx.SubstEq.id hΓ) hA₀ ha₀ hb₀
+  have hmove := (H hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 (.id hw (TShape.LE.refl hw))
+  cases hmove with
+  | id _ hle =>
+    obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ hle
+    obtain ⟨_, ⟨u', hA⟩, ha, hb⟩ := h2
+    simp only [subst_id] at hA ha hb
+    exact ⟨u', hA, ha, hb⟩
+
 /-! ## The target
 
 The one theorem this branch is for.  Master needs `LogRel.lean` and

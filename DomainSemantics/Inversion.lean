@@ -205,7 +205,8 @@ theorem sigma_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term}
 
 theorem id_inv {Γ : List Term} {r : Bool} {A₀ a₀ b₀ A₁ a₁ b₁ : Term}
     (hΓ : ⊢ Γ) (H : Γ ⊢ Term.id r A₀ a₀ b₀ ≡ Term.id r A₁ a₁ b₁ : .sort r) :
-    ∃ u, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ Γ ⊢ a₀ ≡ a₁ : A₀ ∧ Γ ⊢ b₀ ≡ b₁ : A₀ := by
-  sorry
+    ∃ u, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ Γ ⊢ a₀ ≡ a₁ : A₀ ∧ Γ ⊢ b₀ ≡ b₁ : A₀ :=
+  have ⟨⟨_, hA₀⟩, ha₀, hb₀⟩ := H.id_dom
+  SoundEq.id_inv hΓ hA₀ ha₀ hb₀ (IsDefEq.sound hΓ H).1
 
 end DomainSemantics
