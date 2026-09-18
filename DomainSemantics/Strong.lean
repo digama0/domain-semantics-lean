@@ -34,7 +34,8 @@ intermediate `A'` lets each clause use whatever Π/Σ/sort form is natural
 while still concluding at the type the judgment wants. -/
 inductive StrongSound : List Term → Term → Term → Prop where
   | mk : SoundTy Γ t A →
-    StrongSoundCore Γ t A' → SoundEq Γ A' A → StrongSound Γ t A
+    StrongSoundCore Γ t A' → SoundEq Γ A' A → (∃ u, Γ ⊢ A' ≡ A : .sort u) →
+    StrongSound Γ t A
 
 /-- The structural typing relation, one constructor per term former.
 Mutually recursive with `StrongSound`, which is what each subderivation
@@ -95,7 +96,12 @@ All of it is bookkeeping; `SoundEq`'s own `rfl`/`symm`/`trans` are in
 `Presheaf.lean`. -/
 
 theorem StrongSound.sound : StrongSound Γ t A → SoundTy Γ t A
-  | ⟨h, _, _⟩ => h
+  | ⟨h, _, _, _⟩ => h
+
+/-- The judgment's type is a type, syntactically: the link to the core's
+type is a definitional equality, so its right-hand typing is the answer. -/
+theorem StrongSound.isType : StrongSound Γ t A → ∃ u, Γ ⊢ A : .sort u
+  | ⟨_, _, _, ⟨u, h⟩⟩ => ⟨u, h.hasType.2⟩
 
 theorem StrongSoundEq.symm : StrongSoundEq Γ t t' A → StrongSoundEq Γ t' t A
   | ⟨h1, h2, h3⟩ => ⟨h1.symm, h3, h2⟩
@@ -113,22 +119,35 @@ theorem SoundTy.defeq_r (H1 : SoundEq Γ A B) (H : SoundTy Γ t A) : SoundTy Γ 
   have ⟨a, ha, hty⟩ := H hΔ W hAdm h
   exact ⟨a, (H1 hΔ W hAdm).1 ha, hty⟩
 
-theorem StrongSound.defeq_r (H1 : SoundEq Γ A B) : StrongSound Γ t A → StrongSound Γ t B
-  | ⟨sound, core, eq⟩ => ⟨sound.defeq_r H1, core, eq.trans H1⟩
+theorem StrongSound.defeq_r {u} (H1 : SoundEq Γ A B) (H1' : Γ ⊢ A ≡ B : .sort u) :
+    StrongSound Γ t A → StrongSound Γ t B
+  | ⟨sound, core, eq, ⟨_, eq'⟩⟩ =>
+    ⟨sound.defeq_r H1, core, eq.trans H1, ⟨_, eq'.trans' H1'⟩⟩
 
 /-- The way each soundness case will build its `StrongSoundEq`: the two
 structural derivations, and the pair of semantic facts `IsDefEq.sound`
 already produces. -/
-theorem StrongSoundEq.mk'
-    (h2 : StrongSoundCore Γ t A₁) (h2' : SoundEq Γ A₁ A)
-    (h3 : StrongSoundCore Γ t' A₂) (h3' : SoundEq Γ A₂ A)
+theorem StrongSoundEq.mk' {u₁ u₂}
+    (h2 : StrongSoundCore Γ t A₁) (h2' : SoundEq Γ A₁ A) (h2'' : Γ ⊢ A₁ ≡ A : .sort u₁)
+    (h3 : StrongSoundCore Γ t' A₂) (h3' : SoundEq Γ A₂ A) (h3'' : Γ ⊢ A₂ ≡ A : .sort u₂)
     (h4 : SoundEq Γ t t' ∧ SoundTy Γ t A) :
     StrongSoundEq Γ t t' A :=
-  ⟨h4.1, ⟨h4.2, h2, h2'⟩, ⟨SoundTy.of_eq h4.1 h4.2, h3, h3'⟩⟩
+  ⟨h4.1, ⟨h4.2, h2, h2', ⟨_, h2''⟩⟩, ⟨SoundTy.of_eq h4.1 h4.2, h3, h3', ⟨_, h3''⟩⟩⟩
 
 /-- **Semantic uniqueness of types**, given it for the structural
 relation.  Master's `uniq_of_core`. -/
 theorem StrongSound.uniq_of_core
     (H : ∀ {A B}, StrongSoundCore Γ t A → StrongSoundCore Γ t B → SoundEq Γ A B) :
     StrongSound Γ t A → StrongSound Γ t B → SoundEq Γ A B
-  | ⟨_, a2, a3⟩, ⟨_, b2, b3⟩ => a3.symm.trans ((H a2 b2).trans b3)
+  | ⟨_, a2, a3, _⟩, ⟨_, b2, b3, _⟩ => a3.symm.trans ((H a2 b2).trans b3)
+
+/-- And syntactically.  `H` is handed the two core types' own typings,
+which the `StrongSound`s carry: the clauses whose two cores agree on the
+nose still have to produce a *reflexivity*, and that needs a typing. -/
+theorem StrongSound.uniq_of_core'
+    (H : ∀ {A B}, (∃ u, Γ ⊢ A : .sort u) → (∃ u, Γ ⊢ B : .sort u) →
+      StrongSoundCore Γ t A → StrongSoundCore Γ t B → ∃ u, Γ ⊢ A ≡ B : .sort u) :
+    StrongSound Γ t A → StrongSound Γ t B → ∃ u, Γ ⊢ A ≡ B : .sort u
+  | ⟨_, a2, _, ⟨_, a4⟩⟩, ⟨_, b2, _, ⟨_, b4⟩⟩ =>
+    have ⟨_, h⟩ := H ⟨_, a4.hasType.1⟩ ⟨_, b4.hasType.1⟩ a2 b2
+    ⟨_, a4.symm.trans' (h.trans' b4)⟩
