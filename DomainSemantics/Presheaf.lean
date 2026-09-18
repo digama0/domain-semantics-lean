@@ -1344,6 +1344,48 @@ theorem dir_refl {Γ : List Term} {a : Term} {r : Bool} (h : SoundDir Γ a) :
       · exact hwz
       · exact .refl hz hwz (TShape.LE.refl hwz)
 
+@[simp] theorem Subst.lift_id : Subst.id.lift = Subst.id := by
+  funext i; cases i <;> rfl
+
+/-! ## Inversion at the level of `SoundEq`
+
+The labels are in the shapes, so a semantic equality of two types yields
+the *syntactic* equalities of their labels: probe with the type's own
+label-only approximant, move it across with the equality at the identity
+stage and the `⊥` valuation (admissible for free, `Adm.bot`), and read the
+label back off the order.
+
+These are stated over `SoundEq` rather than over `Γ ⊢ · ≡ · : _` so that
+they are available *before* soundness — `StrongSound.uniq` needs them, and
+`IsDefEq.strongSound` needs `uniq`.  `Inversion.lean` derives the
+syntactic corollaries by feeding them `IsDefEq.sound`. -/
+
+theorem SoundEq.sort_inv {Γ : List Term} {u v : Bool}
+    (hΓ : ⊢ Γ) (H : SoundEq Γ (Term.sort u) (Term.sort v)) : u = v := by
+  have h := (H hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 Interp.sort'
+  have hle := Interp.le_sort h
+  exact (TShape.LE.def_mp (Nat.le_refl 0) (Nat.le_refl 0)) hle
+
+theorem SoundEq.forallE_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {u v : Bool}
+    (hΓ : ⊢ Γ) (hA₀ : Γ ⊢ A₀ : .sort u) (hB₀ : A₀ :: Γ ⊢ B₀ : .sort v)
+    (H : SoundEq Γ (Term.forallE A₀ B₀) (Term.forallE A₁ B₁)) :
+    ∃ u v, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ A₀ :: Γ ⊢ B₀ ≡ B₁ : .sort v := by
+  -- the probe: the Π's own label, with nothing else in it
+  have hprobe : Interp Γ Γ (.forallE A₀ B₀) Subst.id Valuation.nil
+      (Shape.T (n := 1) (Shape.piAtom (A₀.subst Subst.id) (B₀.subst Subst.id.lift))) := by
+    refine Interp.piAtom (u := u) (v := v) ?_ ?_
+    · simpa using hA₀
+    · simpa using hB₀
+  -- the equality moves it across, at the identity stage and the `⊥` valuation
+  have hmove := (H hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 hprobe
+  simp only [subst_id, Subst.lift_id] at hmove
+  -- and the label reads back off it
+  have hlab := Interp.le_piAtom hmove
+  simp only [subst_id, Subst.lift_id] at hlab
+  obtain ⟨u', hu⟩ := hlab.1
+  obtain ⟨v', hv⟩ := hlab.2
+  exact ⟨u', v', hu, hv⟩
+
 /-! ## The target
 
 The one theorem this branch is for.  Master needs `LogRel.lean` and

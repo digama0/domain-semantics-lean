@@ -22,31 +22,14 @@ The only input beyond the syntax is `IsDefEq.sound`. -/
 
 namespace DomainSemantics
 
-@[simp] theorem Subst.lift_id : Subst.id.lift = Subst.id := by
-  funext i; cases i <;> rfl
-
 /-- **Π-injectivity.**  Master's `forallE_inv`, with the same statement,
 proved from soundness instead of adequacy. -/
 theorem forallE_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {s : Bool}
     (hΓ : ⊢ Γ) (H : Γ ⊢ Term.forallE A₀ B₀ ≡ Term.forallE A₁ B₁ : .sort s) :
-    ∃ u v, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ A₀ :: Γ ⊢ B₀ ≡ B₁ : .sort v := by
-  have ⟨u, hA₀⟩ := H.forallE_dom
-  have ⟨v, hB₀⟩ := H.forallE_cod
-  -- the probe: the Π's own label, with nothing else in it
-  have hprobe : Interp Γ Γ (.forallE A₀ B₀) Subst.id Valuation.nil
-      (Shape.T (n := 1) (Shape.piAtom (A₀.subst Subst.id) (B₀.subst Subst.id.lift))) := by
-    refine Interp.piAtom (u := u) (v := v) ?_ ?_
-    · simpa using hA₀
-    · simpa using hB₀
-  -- soundness moves it across, at the identity stage and the `⊥` valuation
-  have hmove := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 hprobe
-  simp only [subst_id, Subst.lift_id] at hmove
-  -- and the label reads back off it
-  have hlab := Interp.le_piAtom hmove
-  simp only [subst_id, Subst.lift_id] at hlab
-  obtain ⟨u', hu⟩ := hlab.1
-  obtain ⟨v', hv⟩ := hlab.2
-  exact ⟨u', v', hu, hv⟩
+    ∃ u v, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ A₀ :: Γ ⊢ B₀ ≡ B₁ : .sort v :=
+  have ⟨_, hA₀⟩ := H.forallE_dom
+  have ⟨_, hB₀⟩ := H.forallE_cod
+  SoundEq.forallE_inv hΓ hA₀ hB₀ (IsDefEq.sound hΓ H).1
 
 /-! ## The rest of the inversion principles
 
@@ -66,10 +49,8 @@ are proved, `Consequences.lean` can be re-pointed at this file and
 is the sort shape itself, and the order between two sort shapes *is* the
 equation. -/
 theorem sort_inv {Γ : List Term} {u v : Bool} {V : Term}
-    (hΓ : ⊢ Γ) (H : Γ ⊢ Term.sort u ≡ Term.sort v : V) : u = v := by
-  have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 Interp.sort'
-  have hle := Interp.le_sort h
-  exact (TShape.LE.def_mp (Nat.le_refl 0) (Nat.le_refl 0)) hle
+    (hΓ : ⊢ Γ) (H : Γ ⊢ Term.sort u ≡ Term.sort v : V) : u = v :=
+  SoundEq.sort_inv hΓ (IsDefEq.sound hΓ H).1
 
 /-! ### No confusion
 
