@@ -198,8 +198,8 @@ theorem sigma_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term} :
 
 /-! ### The remaining label inversions -/
 
-theorem sigma_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term}
-    (hΓ : ⊢ Γ) (H : Γ ⊢ Term.sigma A₀ B₀ ≡ Term.sigma A₁ B₁ : .type) :
+theorem sigma_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {s : Bool}
+    (hΓ : ⊢ Γ) (H : Γ ⊢ Term.sigma A₀ B₀ ≡ Term.sigma A₁ B₁ : .sort s) :
     ∃ u v, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ A₀ :: Γ ⊢ B₀ ≡ B₁ : .sort v := by
   sorry
 
