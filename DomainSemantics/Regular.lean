@@ -90,5 +90,3 @@ theorem IsDefEq.id_dom {Γ : List Term} {r} {A a b e X : Term}
     (H : Γ ⊢ .id r A a b ≡ e : X) :
     (∃ u, Γ ⊢ A : .sort u) ∧ Γ ⊢ a : A ∧ Γ ⊢ b : A :=
   H.id_regular (.inl rfl)
-
-end DomainSemantics

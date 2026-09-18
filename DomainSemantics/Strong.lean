@@ -132,5 +132,3 @@ theorem StrongSound.uniq_of_core
     (H : ∀ {A B}, StrongSoundCore Γ t A → StrongSoundCore Γ t B → SoundEq Γ A B) :
     StrongSound Γ t A → StrongSound Γ t B → SoundEq Γ A B
   | ⟨_, a2, a3⟩, ⟨_, b2, b3⟩ => a3.symm.trans ((H a2 b2).trans b3)
-
-end DomainSemantics
