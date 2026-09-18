@@ -1419,6 +1419,36 @@ theorem SoundEq.sigma_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {u v : B
   obtain ⟨v', hv⟩ := hlab.2
   exact ⟨u', v', hu, hv⟩
 
+/-- The *semantic* half of Σ domain inversion, at every stage: an
+approximant of the domain moves across by being wrapped as the domain of
+an otherwise empty Σ-shape.  Master's `SoundEq.sigma_inv`, first
+component.  The syntactic `sigma_inv` above does not give this — a
+definitional equality of domains becomes a `SoundEq` only through
+soundness. -/
+theorem SoundEq.sigma_dom {Γ : List Term} {A B A' B' : Term} {u u' v v' : Bool}
+    (hA : SoundTy Γ A (.sort u)) (hB : A :: Γ ⊢ B : .sort v)
+    (hA' : SoundTy Γ A' (.sort u')) (hB' : A' :: Γ ⊢ B' : .sort v')
+    (H : SoundEq Γ (.sigma A B) (.sigma A' B')) : SoundEq Γ A A' := by
+  suffices key : ∀ {A B A' B' : Term} {u v : Bool}, SoundTy Γ A (.sort u) →
+      A :: Γ ⊢ B : .sort v → SoundEq Γ (.sigma A B) (.sigma A' B') →
+      ∀ {Δ Γ₀ σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
+      ∀ {m}, Interp Δ Γ A σ ρ m → Interp Δ Γ A' σ ρ m by
+    intro Δ Γ₀ σ ρ hΔ W hAdm m
+    exact ⟨key hA hB H hΔ W hAdm, key hA' hB' H.symm hΔ W hAdm⟩
+  intro A B A' B' u v hA hB H Δ Γ₀ σ ρ hΔ W hAdm m hm
+  have ⟨⟨_, hAσ⟩, _, hBσ⟩ := PiLabelEq.subst hΔ W ⟨⟨u, hA.typed⟩, v, hB⟩
+  have hw : Shape.WF (n := m.1+1) Δ (ShapeS.sigma (A.subst σ) (B.subst σ.lift) m.2 []) :=
+    ⟨⟨_, hAσ.hasType.1⟩, ⟨_, hBσ.hasType.1⟩, hm.wf,
+      fun _ he => absurd he List.not_mem_nil, fun _ he => absurd he List.not_mem_nil⟩
+  have hprobe : Interp Δ Γ (.sigma A B) σ ρ
+      (Shape.T (n := m.1+1) (ShapeS.sigma (A.subst σ) (B.subst σ.lift) m.2 [])) :=
+    .sigma hm (hA.isType hΔ W hAdm hm) hw nofun nofun nofun hw (TShape.LE.refl hw)
+  have hmove := (H hΔ W hAdm).1 hprobe
+  cases hmove with
+  | sigma hA'' _ hwf _ _ _ _ hle =>
+    obtain ⟨_, hdd, _⟩ := TShape.LE.sigma_decomp hΔ hle hw hwf (TEvaluates.refl hwf.2.2.2)
+    exact Interp.mono hΔ hm.wf hdd hA''
+
 /-- Inversion at `id`.  The `id` former is label-only, so it needs no
 atom: its own interpretation at the identity stage *is* the probe, and the
 order between two `id`-shapes is the triple of equations. -/

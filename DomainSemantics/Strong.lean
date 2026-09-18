@@ -1,4 +1,5 @@
-import DomainSemantics.Inversion
+import DomainSemantics.Presheaf
+import DomainSemantics.Regular
 
 /-! # Strong soundness
 
@@ -149,11 +150,12 @@ which the `StrongSound`s carry: the clauses whose two cores agree on the
 nose still have to produce a *reflexivity*, and that needs a typing. -/
 theorem StrongSound.uniq_of_core'
     (H : ∀ {A B}, (∃ u, Γ ⊢ A : .sort u) → (∃ u, Γ ⊢ B : .sort u) →
-      StrongSoundCore Γ t A → StrongSoundCore Γ t B → ∃ u, Γ ⊢ A ≡ B : .sort u) :
-    StrongSound Γ t A → StrongSound Γ t B → ∃ u, Γ ⊢ A ≡ B : .sort u
-  | ⟨_, a2, _, ⟨_, a4⟩⟩, ⟨_, b2, _, ⟨_, b4⟩⟩ =>
-    have ⟨_, h⟩ := H ⟨_, a4.hasType.1⟩ ⟨_, b4.hasType.1⟩ a2 b2
-    ⟨_, a4.symm.trans' (h.trans' b4)⟩
+      StrongSoundCore Γ t A → StrongSoundCore Γ t B →
+      SoundEq Γ A B ∧ ∃ u, Γ ⊢ A ≡ B : .sort u) :
+    StrongSound Γ t A → StrongSound Γ t B → SoundEq Γ A B ∧ ∃ u, Γ ⊢ A ≡ B : .sort u
+  | ⟨_, a2, a3, ⟨_, a4⟩⟩, ⟨_, b2, b3, ⟨_, b4⟩⟩ =>
+    have ⟨hs, _, h⟩ := H ⟨_, a4.hasType.1⟩ ⟨_, b4.hasType.1⟩ a2 b2
+    ⟨a3.symm.trans (hs.trans b3), _, a4.symm.trans' (h.trans' b4)⟩
 
 /-- Instantiating a definitional equality of codomains at an argument.
 `IsDefEq.subst` at `Subst.one a`, which is what `Term.inst` unfolds to. -/
@@ -166,19 +168,25 @@ theorem IsDefEq.inst_cod {Γ : List Term} {A B B' a : Term} {u v : Bool} (hΓ : 
 
 /-! ## Uniqueness of types
 
-Both forms.  The syntactic one is the one `lam` forces: its induction
-hypothesis is about arbitrary codomains, which have no head to probe, so a
-semantic `SoundEq` there could not be turned into the label equation a
-Π-congruence needs.  The semantic one is master's, and is what anything
-phrased over `SoundEq` will want.
+`StrongSound` assumptions give both equalities at once, and each half needs
+the other's induction hypothesis: the syntactic half at `app`/`fst`/`snd`
+inverts a Π/Σ, which the `SoundEq`-level inversions do given the *semantic*
+equality of the two Π/Σ types; the semantic half at `lam` builds a Π
+congruence, which (the labels being in the shapes) needs the *syntactic*
+equality of the codomains.  So one induction, two conclusions.
+
+Nothing here goes through `IsDefEq.sound`.  Regularity — the typings the
+label probes are built from — is purely syntactic (`Regular.lean`), and the
+inversions take `SoundEq` directly.  That is what lets `uniq` be used
+*inside* the soundness induction, whose hypotheses are `StrongSound`; the
+plain-typing inversions of `Inversion.lean` are corollaries at the end.
 
 Where the two cores agree on the type on the nose — most clauses — the
-syntactic answer is the type's own typing, which is why `uniq_of_core'`
-hands those in.  Where they do not, the difference is inverted out of the
-subterm's type by the `Inversion` family. -/
+answer is reflexivity: `SoundEq.refl`, and the type's own typing, which
+`uniq_of_core'` hands in. -/
 
 theorem StrongSound.uniq : ∀ {t : Term} {Γ : List Term} {A B : Term}, ⊢ Γ →
-    StrongSound Γ t A → StrongSound Γ t B → ∃ u, Γ ⊢ A ≡ B : .sort u := by
+    StrongSound Γ t A → StrongSound Γ t B → SoundEq Γ A B ∧ ∃ u, Γ ⊢ A ≡ B : .sort u := by
   intro t
   induction t with
   | bvar i =>
@@ -186,93 +194,99 @@ theorem StrongSound.uniq : ∀ {t : Term} {Γ : List Term} {A B : Term}, ⊢ Γ 
     refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
     cases H1 with | bvar a1 => cases H2 with | bvar b1 =>
     cases a1.uniq b1
-    exact hTA
+    exact ⟨SoundEq.refl, hTA⟩
   | sort r =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
-    cases H1; cases H2; exact hTA
+    cases H1; cases H2; exact ⟨SoundEq.refl, hTA⟩
   | unit r =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
-    cases H1; cases H2; exact hTA
+    cases H1; cases H2; exact ⟨SoundEq.refl, hTA⟩
   | star r =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
-    cases H1; cases H2; exact hTA
+    cases H1; cases H2; exact ⟨SoundEq.refl, hTA⟩
   | nat =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
-    cases H1; cases H2; exact hTA
+    cases H1; cases H2; exact ⟨SoundEq.refl, hTA⟩
   | zero =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
-    cases H1; cases H2; exact hTA
+    cases H1; cases H2; exact ⟨SoundEq.refl, hTA⟩
   | succ n _ =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
-    cases H1; cases H2; exact hTA
+    cases H1; cases H2; exact ⟨SoundEq.refl, hTA⟩
   | sigma A₀ B₀ _ _ =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
-    cases H1; cases H2; exact hTA
+    cases H1; cases H2; exact ⟨SoundEq.refl, hTA⟩
   | pair A₀ B₀ a₀ b₀ _ _ _ _ =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
-    cases H1; cases H2; exact hTA
+    cases H1; cases H2; exact ⟨SoundEq.refl, hTA⟩
   | natCase C M a b _ _ _ _ =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
-    cases H1; cases H2; exact hTA
+    cases H1; cases H2; exact ⟨SoundEq.refl, hTA⟩
   | Y A₀ b₀ _ _ =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
-    cases H1; cases H2; exact hTA
+    cases H1; cases H2; exact ⟨SoundEq.refl, hTA⟩
   | id r A₀ a₀ b₀ _ _ _ =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
-    cases H1; cases H2; exact hTA
-  | forallE A₀ B₀ _ ihB =>
-    intro Γ A B hΓ
-    refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
-    cases H1 with | forallE a1 a2 => cases H2 with | forallE b1 b2 =>
-    have ⟨_, h⟩ := ihB (show ⊢ (A₀ :: Γ) from ⟨hΓ, _, a1.sound.typed⟩) a2 b2
-    cases sort_inv (show ⊢ (A₀ :: Γ) from ⟨hΓ, _, a1.sound.typed⟩) h
-    exact hTA
-  | lam A₀ e _ ihe =>
-    intro Γ A B hΓ
-    refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
-    cases H1 with | lam a1 a2 => cases H2 with | lam b1 b2 =>
-    have ⟨_, h⟩ := ihe (show ⊢ (A₀ :: Γ) from ⟨hΓ, _, a1.typed⟩) a2 b2
-    exact ⟨_, .forallEDF a1.typed h h⟩
-  | app f a ihf _ =>
-    intro Γ A B hΓ
-    refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
-    cases H1 with | app a1 a2 a3 => cases H2 with | app b1 b2 b3 =>
-    have ⟨_, hpi⟩ := ihf hΓ a2 b2
-    have ⟨_, _, _, hcod⟩ := forallE_inv hΓ hpi
-    exact ⟨_, IsDefEq.inst_cod hΓ a1.typed a3.sound.typed hcod⟩
-  | fst p ihp =>
-    intro Γ A B hΓ
-    refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
-    cases H1 with | fst a1 a2 a3 => cases H2 with | fst b1 b2 b3 =>
-    have ⟨_, hsg⟩ := ihp hΓ a3 b3
-    have ⟨_, _, hdom, _⟩ := sigma_inv hΓ hsg
-    exact ⟨_, hdom⟩
-  | snd p ihp =>
-    intro Γ A B hΓ
-    refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
-    cases H1 with | snd a1 a2 a3 => cases H2 with | snd b1 b2 b3 =>
-    have ⟨_, hsg⟩ := ihp hΓ a3 b3
-    have ⟨_, _, _, hcod⟩ := sigma_inv hΓ hsg
-    exact ⟨_, IsDefEq.inst_cod hΓ a1.typed (.fstDF a1.typed a2.typed a3.sound.typed) hcod⟩
-  | refl r a iha =>
-    intro Γ A B hΓ
-    refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
-    cases H1 with | refl a1 a2 => cases H2 with | refl b1 b2 =>
-    have ⟨_, h⟩ := iha hΓ a2 b2
-    exact ⟨_, .idDF h (a2.sound.typed) (a2.sound.typed)⟩
+    cases H1; cases H2; exact ⟨SoundEq.refl, hTA⟩
   -- every component is in the term, so the two cores' types agree
   | tr r A₀ a₀ b₀ C x h _ _ _ _ _ _ =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
-    cases H1; cases H2; exact hTA
+    cases H1; cases H2; exact ⟨SoundEq.refl, hTA⟩
+  | forallE A₀ B₀ _ ihB =>
+    intro Γ A B hΓ
+    refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
+    cases H1 with | forallE a1 a2 => cases H2 with | forallE b1 b2 =>
+    have hΓA : ⊢ (A₀ :: Γ) := ⟨hΓ, _, a1.sound.typed⟩
+    have ⟨hs, _⟩ := ihB hΓA a2 b2
+    cases SoundEq.sort_inv hΓA hs
+    exact ⟨SoundEq.refl, hTA⟩
+  | lam A₀ e _ ihe =>
+    intro Γ A B hΓ
+    refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
+    cases H1 with | lam a1 a2 => cases H2 with | lam b1 b2 =>
+    have ⟨hs, _, h⟩ := ihe (show ⊢ (A₀ :: Γ) from ⟨hΓ, _, a1.typed⟩) a2 b2
+    exact ⟨sound_forallE_eq a1.typed h h SoundEq.refl a1 hs hs, _, .forallEDF a1.typed h h⟩
+  | app f a ihf _ =>
+    intro Γ A B hΓ
+    refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
+    cases H1 with | app a1 a2 a3 => cases H2 with | app b1 b2 b3 =>
+    have ⟨hs, _, hpi⟩ := ihf hΓ a2 b2
+    have ⟨_, hB₀⟩ := hpi.forallE_cod
+    have ⟨_, _, _, hcod⟩ := SoundEq.forallE_inv hΓ a1.typed hB₀ hs
+    -- the semantic half is `SoundEq.inst`, which needs `Interp.inst`, which
+    -- needs directedness of the argument: see the note at the end of the file
+    exact ⟨sorry, _, IsDefEq.inst_cod hΓ a1.typed a3.sound.typed hcod⟩
+  | fst p ihp =>
+    intro Γ A B hΓ
+    refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
+    cases H1 with | fst a1 a2 a3 => cases H2 with | fst b1 b2 b3 =>
+    have ⟨hs, _, _⟩ := ihp hΓ a3 b3
+    have ⟨_, _, hdom, _⟩ := SoundEq.sigma_inv hΓ a1.typed a2.typed hs
+    exact ⟨SoundEq.sigma_dom a1 a2.typed b1 b2.typed hs, _, hdom⟩
+  | snd p ihp =>
+    intro Γ A B hΓ
+    refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
+    cases H1 with | snd a1 a2 a3 => cases H2 with | snd b1 b2 b3 =>
+    have ⟨hs, _, _⟩ := ihp hΓ a3 b3
+    have ⟨_, _, _, hcod⟩ := SoundEq.sigma_inv hΓ a1.typed a2.typed hs
+    -- as at `app`
+    exact ⟨sorry, _, IsDefEq.inst_cod hΓ a1.typed (.fstDF a1.typed a2.typed a3.sound.typed) hcod⟩
+  | refl r a iha =>
+    intro Γ A B hΓ
+    refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
+    cases H1 with | refl a1 a2 => cases H2 with | refl b1 b2 =>
+    have ⟨_, _, h⟩ := iha hΓ a2 b2
+    exact ⟨(sound_id h a2.sound.typed a2.sound.typed).1, _,
+      .idDF h a2.sound.typed a2.sound.typed⟩
