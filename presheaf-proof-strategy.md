@@ -1218,24 +1218,34 @@ carrying no syntax — so this particular problem does not arise there, and
 `StrongSoundCore` earns its keep elsewhere (`StrongSound.uniq`, semantic
 uniqueness of types, used at `trans'`).
 
-**Verified.**  `Interp.lam_entry_ty` (`Presheaf.lean`) is the pinning
-lemma, proved:
+**Superseded (option 4 below, domain-only variant, is now built).**  The
+first fix was a pinning lemma, `Interp.lam_entry_ty`: every entry of a
+λ-shape approximating a term of type `Π A B` carries a label type
+definitionally equal to `A[σ]`, so any `app` derivation could be
+re-annotated at the canonical `A[σ]`.  It was proved (four
+`TEvaluates.bot_or` links), but it needs `SoundTy` and `Adm`, and
+directedness has to hold at the **non-admissible** valuations
+`(ρ.subst τ).push (a.inp ⊔ b.inp)` of the λ/Π/Σ cross pairs, where typing
+says nothing.  So pinning by typing cannot serve `dir`.
 
-```lean
-theorem Interp.lam_entry_ty (hΔ : ⊢ Δ) (W) (hAdm) (hty : SoundTy Γ f (.forallE A B))
-    {g : ShapeFun n} (hf : Interp Δ Γ f σ ρ (Shape.T (.lam g)))
-    {e} (he : e ∈ g) : ∃ u, Δ ⊢ e.ty ≡ A.subst σ : .sort u
-```
+The fix is to store it: `Shape.lam A g` carries its **domain label** `A`,
+`Shape.WF` requires `∀ e ∈ g, TyEq Γ e.ty A`, `LE`/`Compat` require the two
+labels `TyEq`, `join` keeps the left one, `Interp.lam` emits `A[σ]` (and
+lost its separate entry-type premise, now part of `WF`), and `Interp.app`
+looks up at the λ-shape's own label instead of an existential `A`.  The
+pinning then holds at every well-formed valuation.  `HasType.lam` gained
+`TyEq Δ A₀ A` (label = Π's domain), which is intgrah's `Section`
+condition stored rather than derived, and `Interp.lam_label_ty` is what is
+left of the old lemma: at an admissible stage the label is the syntactic
+domain `A[σ]` — a one-line projection.
 
-Every entry of a λ-shape approximating a term of type `Π A B` carries a
-label type definitionally equal to `A[σ]`.  So any `app` derivation can be
-re-annotated at the canonical `A[σ]`, two of them are then at one query,
-and `Evaluates.join` applies.  Twenty-five lines, four `TEvaluates.bot_or`
-links, the `⊥` branch threaded through all four and discharged once by the
-λ-shape's non-degeneracy.
-
-Its only non-structural input is `SoundTy Γ f (.forallE A B)`; what a
-bundle has to deliver here is that, nothing more.
+Why a label and not master's domain *shape*: η.  Master proves η by
+cutting `F`'s λ-shape into single-entry λs and rebuilding it; a domain
+shape is an *approximant*, graded by stage, so the rebuilt λ would carry
+`⟦A⟧σρ` where the slot `ρ(F)` carries an arbitrary smaller one.  A label
+is not approximated — it is exact syntax up to defeq — so every piece
+gets `A[σ]`, and typing the slot at `Π A B` forces its label to agree.
+`pair` already works this way (it carries its first component's label).
 
 **Why `uniq` does not do this job, and it is not the semantic/syntactic
 gap.**  `StrongSound.uniq` yields `SoundEq Γ A B`.  In *this* design that
@@ -1275,7 +1285,8 @@ options, of which the last is ours alone:
    (the Π's domain pins the graph, available from `SoundTy`).  Keep the
    labelled `Eval` for the *order*, where the type is needed for
    transitivity (`Label.lean`).
-4. **Carry the Π's label in the λ-shape**: `.lam A B g`, as `forallE` and
+4. **[built, domain only: `.lam A g`]**
+   **Carry the Π's label in the λ-shape**: `.lam A B g`, as `forallE` and
    `sigma` already do.  Then the query type is read off `F`'s own shape
    rather than guessed, and two λ-shapes of the same `F` have a common
    upper bound whose `LE` clause forces their labels definitionally equal —

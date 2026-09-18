@@ -21,6 +21,9 @@ same type. -/
 def LabelEq (Δ : List Term) (A a A' a' : Term) : Prop :=
   (∃ u, Δ ⊢ A ≡ A' : .sort u) ∧ Δ ⊢ a ≡ a' : A
 
+/-- Equality of type labels: the domain `A` a λ-shape is about. -/
+def TyEq (Δ : List Term) (A A' : Term) : Prop := ∃ u, Δ ⊢ A ≡ A' : .sort u
+
 /-- Equality of Π/Σ labels `(A, B)`. Componentwise, which is a priori finer
 than `Δ ⊢ Π A B ≡ Π A' B'`; that the two agree is the inversion theorem. -/
 def PiLabelEq (Δ : List Term) (A B A' B' : Term) : Prop :=
@@ -46,6 +49,31 @@ theorem subst (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
   | ⟨⟨u, h1⟩, h2⟩ => ⟨⟨u, h1.subst hΘ W⟩, h2.subst hΘ W⟩
 
 end LabelEq
+
+namespace TyEq
+
+theorem refl (hA : Δ ⊢ A : .sort u) : TyEq Δ A A := ⟨u, hA⟩
+
+theorem symm : TyEq Δ A A' → TyEq Δ A' A
+  | ⟨u, h⟩ => ⟨u, h.symm⟩
+
+theorem trans : TyEq Δ A A' → TyEq Δ A' A'' → TyEq Δ A A''
+  | ⟨u, h1⟩, ⟨_, h2⟩ => ⟨u, h1.trans' h2⟩
+
+theorem refl_l : TyEq Δ A A' → TyEq Δ A A
+  | ⟨u, h⟩ => ⟨u, h.hasType.1⟩
+
+theorem refl_r : TyEq Δ A A' → TyEq Δ A' A'
+  | ⟨u, h⟩ => ⟨u, h.hasType.2⟩
+
+theorem subst (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
+    TyEq Δ A A' → TyEq Θ (A.subst τ) (A'.subst τ)
+  | ⟨u, h⟩ => ⟨u, h.subst hΘ W⟩
+
+/-- The type label of an entry agrees with the type of its argument. -/
+theorem of_labelEq : LabelEq Δ A a A' a' → TyEq Δ A A' := (·.1)
+
+end TyEq
 
 namespace PiLabelEq
 
