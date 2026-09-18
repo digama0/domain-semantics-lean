@@ -258,11 +258,21 @@ theorem StrongSound.uniq : ∀ {t : Term} {Γ : List Term} {A B : Term}, ⊢ Γ 
     have ⟨_, hsg⟩ := ihp hΓ a3 b3
     have ⟨_, _, hdom, _⟩ := sigma_inv hΓ hsg
     exact ⟨_, hdom⟩
-  | snd p ihp => intro Γ A B hΓ; exact sorry
+  | snd p ihp =>
+    intro Γ A B hΓ
+    refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
+    cases H1 with | snd a1 a2 a3 => cases H2 with | snd b1 b2 b3 =>
+    have ⟨_, hsg⟩ := ihp hΓ a3 b3
+    have ⟨_, _, _, hcod⟩ := sigma_inv hΓ hsg
+    exact ⟨_, IsDefEq.inst_cod hΓ a1.typed (.fstDF a1.typed a2.typed a3.sound.typed) hcod⟩
   | refl r a iha =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
     cases H1 with | refl a1 a2 => cases H2 with | refl b1 b2 =>
     have ⟨_, h⟩ := iha hΓ a2 b2
     exact ⟨_, .idDF h (a2.sound.typed) (a2.sound.typed)⟩
-  | tr r A₀ a₀ b₀ C x h _ _ _ _ _ _ => intro Γ A B hΓ; exact sorry
+  -- every component is in the term, so the two cores' types agree
+  | tr r A₀ a₀ b₀ C x h _ _ _ _ _ _ =>
+    intro Γ A B hΓ
+    refine uniq_of_core' fun {A B} hTA _ H1 H2 => ?_
+    cases H1; cases H2; exact hTA
