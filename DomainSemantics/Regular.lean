@@ -114,6 +114,54 @@ theorem IsDefEq.sigma_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡
         | exact Term.noConfusion h
         | solve_by_elim [Or.inl, Or.inr]
 
+/-- The same for `succ`: its argument is a numeral wherever it occurs in a
+definitional equality.  `succDF` is the only case with content; the
+computation rules are covered by the reflexive premise typing their own
+right-hand side, as in `forallE_regular`. -/
+theorem IsDefEq.succ_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡ e' : X) :
+    ∀ {t : Term}, e = .succ t ∨ e' = .succ t → Γ ⊢ t : .nat := by
+  induction H with
+  | succDF h _ =>
+    intro t hh
+    match hh with
+    | .inl hh => injection hh with hh; subst hh; exact h.hasType.1
+    | .inr hh => injection hh with hh; subst hh; exact h.hasType.2
+  | _ =>
+    intro t h
+    rcases h with h | h <;>
+      first
+        | exact Term.noConfusion h
+        | solve_by_elim [Or.inl, Or.inr]
+
+/-- The argument of a `succ` that is definitionally equal to anything. -/
+theorem IsDefEq.succ_arg {Γ : List Term} {t e X : Term}
+    (H : Γ ⊢ .succ t ≡ e : X) : Γ ⊢ t : .nat := H.succ_regular (.inl rfl)
+
+/-- **`succ` is injective**, syntactically.
+
+The eliminator computes: with the constant motive `nat`, `zero` at the
+`zero` branch and `bvar 0` at the `succ` branch, `natCase` is the
+predecessor, and `natCase_succ` says so on both sides of the given
+equation.  The two arguments are typed by `succ_regular`, which is what
+makes the eliminator applicable at all.
+
+Directedness at `natCase` needs this: two `natCase_succ` derivations for
+one term carry two label terms for the body's binder, each definitionally
+`M[σ]`'s predecessor, and the bodies can only be compared at one stage. -/
+theorem IsDefEq.succ_inj {Γ : List Term} {t t' : Term} (hΓ : ⊢ Γ)
+    (H : Γ ⊢ .succ t ≡ .succ t' : .nat) : Γ ⊢ t ≡ t' : .nat := by
+  have ht : Γ ⊢ t : .nat := H.succ_regular (.inl rfl)
+  have ht' : Γ ⊢ t' : .nat := H.succ_regular (.inr rfl)
+  have hΓN : ⊢ (Term.nat :: Γ) := ⟨hΓ, _, .nat⟩
+  have hC : Term.nat :: Γ ⊢ Term.nat : .sort true := .nat
+  have hz : Γ ⊢ Term.zero : Term.nat := .zero
+  have hb : Term.nat :: Γ ⊢ Term.bvar 0 : Term.nat := .bvar .zero .nat
+  -- the predecessor of a numeral, computed
+  have hpred {s : Term} (hs : Γ ⊢ s : Term.nat) :
+      Γ ⊢ .natCase .nat (.succ s) .zero (.bvar 0) ≡ s : Term.nat :=
+    .natCase_succ hC hs hz hb (.natCaseDF hC (.succDF hs) hz hb .nat) hs
+  exact ((hpred ht).symm.trans (.natCaseDF hC H hz hb .nat)).trans (hpred ht')
+
 theorem IsDefEq.sigma_dom {Γ : List Term} {A B e X : Term}
     (H : Γ ⊢ .sigma A B ≡ e : X) : ∃ u, Γ ⊢ A : .sort u :=
   (H.sigma_regular (.inl rfl)).1
