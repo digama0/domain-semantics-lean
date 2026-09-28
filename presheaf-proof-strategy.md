@@ -240,6 +240,9 @@ equation from a graph entry has to be turned into an equation of stages.
 
 ### 3.2 `IsDefEq.dir`, per former
 
+**Status: every case is proved except `tr`.**  What follows is the
+original sketch, annotated where the proof went differently.
+
 The proof is `sound_dir_of_ub` in every case; what varies is the upper
 bound.  Throughout, `hρ : Valuation.WF Δ ρ`.
 
@@ -277,10 +280,21 @@ results of one lookup are compatible (`Evaluates.compat`, from `g`'s
 coherence, which `WF (lam g)` carries) and `Evaluates.join` gives
 `Evaluates g … x (y₁' ⊔ y₂')`.  Upper bound: `.app` at that.
 
-**This sketch is wrong** (§5.5b).  Only the *term* halves of the two
-labels agree on the nose; the clause's type `A` is existential, so the two
-lookups are at `(A₁, a[σ])` and `(A₂, a[σ])`, and neither `Evaluates.join`
-nor `Evaluates.compat` — both stated at one query — applies across them.
+**This sketch was wrong** (§5.5b).  Only the *term* halves of the two
+labels agree on the nose; the clause's type `A` was existential, so the
+two lookups were at `(A₁, a[σ])` and `(A₂, a[σ])`, and neither
+`Evaluates.join` nor `Evaluates.compat` — both stated at one query —
+applied across them.
+
+**Fixed, and `dir_app` is proved.**  The λ-shape now carries its domain
+label, so `A₁` and `A₂` are the two shapes' labels, and the upper bound's
+own label is definitionally equal to both (`TShape.LE.lam_dom`).
+`TEvaluates.retype` moves each lookup to that one query — free, because
+`entry`'s label equation is stated at the *entry's* type, so the query's
+type is not what the argument is typed at — and `TEvaluates.compat` then
+joins the two outputs.  `Interp.app`'s lookup is `TEvaluates` over
+`TShape`s rather than the level-indexed `Evaluates`, since a lookup in the
+bigger graph lands at that graph's level and does not reflect back down.
 
 *`pair`, `fst`, `snd`.* as `app`/`succ`: components from the IHs, pair
 shapes joined componentwise; a projection's approximants are below a
@@ -296,6 +310,16 @@ by the other's by `Interp.mono`.  (Check: `Interp M (succ ⊥)` and `Interp
 M zero` — `succ ⊥` is not `⊥`, so this really is a contradiction from
 the IH, as in master.)
 
+As built, the mixed case is outright absurd (`TShape.LE.zero_succ_absurd`:
+nothing is above both), and the two-`succ` case needs one thing the sketch
+missed: the two derivations carry two *label terms* `t₁`, `t₂` for the
+body's binder, each definitionally `M[σ]`'s predecessor, and the bodies
+compare only at one stage.  `IsDefEq.succ_inj` (`Regular.lean`) supplies
+`t₁ ≡ t₂`: with the constant motive `nat`, `natCase` is the predecessor,
+and `natCase_succ` computes it on both sides of `succ t₁ ≡ succ t₂`.  It
+is a syntactic theorem, not a consequence of soundness — `succ_regular`,
+the `succ` row of `Regular.lean`, is what types its two arguments.
+
 *`Y`.* both are `Interp b` at `ρ.push sᵢ` with `Interp (Y A b) sᵢ`;
 the IH on the *inner* `Y` — this case is an inner induction on the
 `Interp` derivation, since `Y` refers to itself; master's `compat_join`
@@ -305,7 +329,12 @@ does the same — gives `s ≥ s₁, s₂`, then `mono_val` and the IH on `b`.
 
 *`refl`.* as `succ`.
 
-*`tr`.* §4.7.  This is the one case with content beyond the IHs.
+*`tr`.* §4.7.  This is the one case with content beyond the IHs, and the
+one still open: it is the only consumer of `SoundJoin` (§5.1), since two
+transports are typed at two approximants of the motive and the witness
+above both has to be typed at the motive above both.  Every other case is
+an upper bound with no typing to preserve, which is what lets them run
+under `Valuation.WF` with no admissibility anywhere.
 
 ### 3.3 `Interp.substTerm`, `Interp.inst`
 
