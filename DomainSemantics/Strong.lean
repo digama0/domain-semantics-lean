@@ -1,5 +1,4 @@
 import DomainSemantics.Presheaf
-import DomainSemantics.Regular
 
 /-! # Strong soundness
 

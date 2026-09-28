@@ -1,4 +1,5 @@
 import DomainSemantics.Interp
+import DomainSemantics.Regular
 
 /-! # Admissibility and the soundness statement
 
@@ -1573,6 +1574,96 @@ theorem dir_succ {Γ : List Term} {N : Term} (h : SoundDir Γ N) : SoundDir Γ (
       · exact hwz
       · exact .succ hz hwz (TShape.LE.refl hwz)
 
+/-- Above a `succ`-shape there is only a `succ`-shape. -/
+theorem TShape.LE.succ_ub {Δ : List Term} {n} {v : Shape n} {z : TShape}
+    (h : TShape.LE Δ (Shape.T (n := n+1) (ShapeS.succ v)) z) :
+    ∃ (k : Nat) (w : Shape k), z = Shape.T (n := k+1) (ShapeS.succ w) := by
+  obtain ⟨j, t⟩ := z
+  obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
+  cases j with
+  | zero => cases t <;> exact absurd h2 (fun x => x)
+  | succ j =>
+    cases t with
+    | succ w => exact ⟨j, w, rfl⟩
+    | _ => exact absurd h2 (fun x => x)
+
+/-- And the order between two of them is the order between their
+predecessors: the converse of `TShape.LE.succ_of`. -/
+theorem TShape.LE.succ_decomp {Δ : List Term} (hΔ : ⊢ Δ) {n k} {v : Shape n} {w : Shape k}
+    (h : TShape.LE Δ (Shape.T (n := n+1) (ShapeS.succ v))
+      (Shape.T (n := k+1) (ShapeS.succ w))) : TShape.LE Δ v.T w.T := by
+  obtain ⟨M, hkM, hnM, h2⟩ := TShape.LE.at_succ h
+  exact (TShape.LE.def hΔ (Nat.le_of_succ_le_succ hnM) hkM).2 h2
+
+/-- No shape is above both `zero` and a `succ`. -/
+theorem TShape.LE.zero_succ_absurd {Δ : List Term} {n} {v : Shape n} {z : TShape}
+    (h₁ : TShape.LE Δ TShape.zero z)
+    (h₂ : TShape.LE Δ (Shape.T (n := n+1) (ShapeS.succ v)) z) : False := by
+  obtain ⟨j, t⟩ := z
+  obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h₁
+  obtain ⟨M', _, _, h2'⟩ := TShape.LE.src_succ h₂
+  cases j with
+  | zero => cases t <;> exact absurd h2 (fun x => x)
+  | succ j => cases t <;> first | exact absurd h2 (fun x => x) | exact absurd h2' (fun x => x)
+
+/-- Directedness for `.natCase`.
+
+Three cases have content.  Two `zero` branches join by `a`'s
+directedness; a `zero` branch against a `succ` branch is impossible,
+since `M` would have two incompatible interpretations (`zero_succ_absurd`)
+and its own directedness says it does not; and two `succ` branches carry
+two label terms for the body's binder, each `M[σ]`'s predecessor, which
+`IsDefEq.succ_inj` identifies — that is the one place this needs a
+syntactic inversion, and it is a syntactic theorem, not a consequence of
+soundness. -/
+theorem dir_natCase {Γ : List Term} {C M a b B : Term} (hΓ : ⊢ Γ)
+    (hb : Term.nat :: Γ ⊢ b : B)
+    (ihM : SoundDir Γ M) (iha : SoundDir Γ a) (ihb : SoundDir (Term.nat :: Γ) b) :
+    SoundDir Γ (.natCase C M a b) := by
+  have hΓN : ⊢ (Term.nat :: Γ) := ⟨hΓ, _, .nat⟩
+  intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
+  cases h₁ with
+  | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
+  | natCase_zero hM₁ ha₁ =>
+    cases h₂ with
+    | bot => exact ⟨_, ha₁.wf, .natCase_zero hM₁ ha₁, TShape.LE.refl ha₁.wf,
+        TShape.bot_le' rfl⟩
+    | natCase_zero _ ha₂ =>
+      obtain ⟨s, hws, hs, hs₁, hs₂⟩ := iha hΔ W hwρ ha₁ ha₂
+      exact ⟨s, hws, .natCase_zero hM₁ hs, hs₁, hs₂⟩
+    | natCase_succ hM₂ _ _ _ =>
+      obtain ⟨_, hwz, _, hz₁, hz₂⟩ := ihM hΔ W hwρ hM₁ hM₂
+      exact absurd (TShape.LE.zero_succ_absurd hz₁ hz₂) not_false
+  | @natCase_succ _ _ _ _ _ _ _ _ n₁ v₁ t₁ hM₁ hwv₁ heq₁ hbody₁ =>
+    cases h₂ with
+    | bot => exact ⟨_, hbody₁.wf, .natCase_succ hM₁ hwv₁ heq₁ hbody₁,
+        TShape.LE.refl hbody₁.wf, TShape.bot_le' rfl⟩
+    | natCase_zero hM₂ _ =>
+      obtain ⟨_, hwz, _, hz₁, hz₂⟩ := ihM hΔ W hwρ hM₁ hM₂
+      exact absurd (TShape.LE.zero_succ_absurd hz₂ hz₁) not_false
+    | @natCase_succ _ _ _ _ _ _ _ _ n₂ v₂ t₂ hM₂ hwv₂ heq₂ hbody₂ =>
+      -- one `succ`-shape above both, so one slot above both predecessors
+      obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := ihM hΔ W hwρ hM₁ hM₂
+      obtain ⟨k, w, rfl⟩ := TShape.LE.succ_ub hz₁
+      have hv₁ := TShape.LE.succ_decomp hΔ hz₁
+      have hv₂ := TShape.LE.succ_decomp hΔ hz₂
+      -- the two label terms are one, by `succ` injectivity
+      have ht : Δ ⊢ t₂ ≡ t₁ : Term.nat := IsDefEq.succ_inj hΔ (heq₁.symm.trans heq₂).symm
+      have Wcons : Ctx.SubstEq Δ (σ.cons t₂) (σ.cons t₁) (Term.nat :: Γ) :=
+        .cons W .nat ht
+      have Wdiag : Ctx.SubstEq Δ (σ.cons t₁) (σ.cons t₁) (Term.nat :: Γ) :=
+        .cons W .nat ht.hasType.2
+      have hbody₂' := IsDefEq.stage hΓN hb hΔ Wcons hbody₂
+      -- both bodies at that one slot, and joined there
+      have hB₁ := Interp.mono_val hΔ (Valuation.LE.push.2
+        ⟨Valuation.LE.refl hwρ, hv₁⟩) hbody₁
+      have hB₂ := Interp.mono_val hΔ (Valuation.LE.push.2
+        ⟨Valuation.LE.refl hwρ, hv₂⟩) hbody₂'
+      have hww : TShape.WF Δ w.T := hwz
+      obtain ⟨s, hws, hs, hs₁, hs₂⟩ :=
+        ihb hΔ Wdiag (Valuation.WF.push hwρ hww) hB₁ hB₂
+      exact ⟨s, hws, .natCase_succ hz hww heq₁ hs, hs₁, hs₂⟩
+
 /-- Directedness for `.refl`.  At `r = false` there is no `refl` rule and
 `cases` leaves only `bot`, so the statement needs no side condition. -/
 theorem dir_refl {Γ : List Term} {a : Term} {r : Bool} (h : SoundDir Γ a) :
@@ -1763,7 +1854,9 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
   | fstDF _ _ _ _ _ ih => exact ⟨dir_fst (ih hΓ).1, dir_fst (ih hΓ).2⟩
   | sndDF _ _ _ _ _ _ ih _ => exact ⟨dir_snd (ih hΓ).1, dir_snd (ih hΓ).2⟩
   | succDF _ ih => exact ⟨dir_succ (ih hΓ).1, dir_succ (ih hΓ).2⟩
-  | natCaseDF => sorry
+  | natCaseDF _ _ _ hbb' _ _ ihM iha ihb _ =>
+    exact ⟨dir_natCase hΓ hbb'.hasType.1 (ihM hΓ).1 (iha hΓ).1 (ihb ⟨hΓ, _, .nat⟩).1,
+      dir_natCase hΓ hbb'.hasType.2 (ihM hΓ).2 (iha hΓ).2 (ihb ⟨hΓ, _, .nat⟩).2⟩
   | idDF hAA' haa' hbb' ihA iha ihb =>
     exact ⟨dir_id hAA'.hasType.1 haa'.hasType.1 hbb'.hasType.1,
       dir_id hAA'.hasType.2 (hAA'.defeqDF haa'.hasType.2) (hAA'.defeqDF hbb'.hasType.2)⟩
