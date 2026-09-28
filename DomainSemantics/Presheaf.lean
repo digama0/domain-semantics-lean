@@ -1318,6 +1318,28 @@ theorem dir_fst {Γ : List Term} {p : Term} (h : SoundDir Γ p) : SoundDir Γ (.
       · exact hle₁.trans hΔ hx₁
       · exact hle₂.trans hΔ hx₂
 
+/-- Directedness for `.snd`, which is `dir_fst` at the other component.
+Only directedness: `SoundTy` at `snd` needs `Interp.inst`, since the type
+is `B[fst p]`. -/
+theorem dir_snd {Γ : List Term} {p : Term} (h : SoundDir Γ p) : SoundDir Γ (.snd p) := by
+  intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
+  cases h₁ with
+  | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
+  | snd hp₁ _ hle₁ =>
+    cases h₂ with
+    | bot =>
+      refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
+      · exact hp₁.wf.2.2.2.1
+      · exact .snd hp₁ hp₁.wf.2.2.2.1 (TShape.LE.refl hp₁.wf.2.2.2.1)
+    | snd hp₂ _ hle₂ =>
+      obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := h hΔ W hwρ hp₁ hp₂
+      obtain ⟨k, ty', tm', x', y', rfl⟩ := TShape.LE.pair_ub hz₁
+      obtain ⟨_, _, hy₁⟩ := TShape.LE.pair_decomp hΔ hz₁
+      obtain ⟨_, _, hy₂⟩ := TShape.LE.pair_decomp hΔ hz₂
+      refine ⟨Shape.T y', hwz.2.2.2.1, .snd hz hwz.2.2.2.1 (TShape.LE.refl hwz.2.2.2.1), ?_, ?_⟩
+      · exact hle₁.trans hΔ hy₁
+      · exact hle₂.trans hΔ hy₂
+
 /-- Soundness for `fstDF`. -/
 theorem sound_fst {Γ : List Term} {A B p p' : Term} {u v : Bool}
     (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v)
@@ -1739,7 +1761,7 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
   | pairDF _ _ _ _ _ _ _ _ _ _ iha ihb _ _ =>
     exact ⟨dir_pair (iha hΓ).1 (ihb hΓ).1, dir_pair (iha hΓ).2 (ihb hΓ).2⟩
   | fstDF _ _ _ _ _ ih => exact ⟨dir_fst (ih hΓ).1, dir_fst (ih hΓ).2⟩
-  | sndDF => sorry
+  | sndDF _ _ _ _ _ _ ih _ => exact ⟨dir_snd (ih hΓ).1, dir_snd (ih hΓ).2⟩
   | succDF _ ih => exact ⟨dir_succ (ih hΓ).1, dir_succ (ih hΓ).2⟩
   | natCaseDF => sorry
   | idDF hAA' haa' hbb' ihA iha ihb =>
