@@ -1664,6 +1664,49 @@ theorem dir_natCase {Γ : List Term} {C M a b B : Term} (hΓ : ⊢ Γ)
         ihb hΔ Wdiag (Valuation.WF.push hwρ hww) hB₁ hB₂
       exact ⟨s, hws, .natCase_succ hz hww heq₁ hs, hs₁, hs₂⟩
 
+/-- Directedness for `.Y`.
+
+The fixed point's rule refers to the relation it is defining, so the two
+derivations are two towers of unfoldings and the argument is an induction
+on the first one: its own sub-derivation's induction hypothesis, applied
+to the second derivation's sub-derivation, gives a slot above both, and
+the two bodies — which sit at those two slots and at *one* stage, since
+the label term `(Y A b)[σ]` is the term itself and not a probe — join
+there by the body's directedness.
+
+No typing of the tower is used: `Interp.Y` carries none.  The two typing
+hypotheses here are only to name the stage `σ.cons ((Y A b)[σ])` as a
+substitution into `A :: Γ`, which is what lets the body's `SoundDir` be
+applied at all. -/
+theorem dir_Y_aux {Δ : List Term} (hΔ : ⊢ Δ) {Γ : List Term} {t : Term} {σ ρ} {m₁ : TShape}
+    (h₁ : Interp Δ Γ t σ ρ m₁) :
+    ∀ {A b : Term}, t = .Y A b → Valuation.WF Δ ρ →
+      Ctx.SubstEq Δ (σ.cons ((A.Y b).subst σ)) (σ.cons ((A.Y b).subst σ)) (A :: Γ) →
+      SoundDir (A :: Γ) b → ∀ {m₂}, Interp Δ Γ t σ ρ m₂ →
+        ∃ s, TShape.WF Δ s ∧ Interp Δ Γ t σ ρ s ∧ TShape.LE Δ m₁ s ∧ TShape.LE Δ m₂ s := by
+  induction h₁ with
+  | @Y _ _ _ _ _ _ _ hx₁ hwx₁ hbody₁ ihx₁ _ =>
+    rintro A b ⟨⟩ hwρ WY ihb m₂ h₂
+    cases h₂ with
+    | bot =>
+      exact ⟨_, hbody₁.wf, .Y hx₁ hwx₁ hbody₁, TShape.LE.refl hbody₁.wf, TShape.bot_le' rfl⟩
+    | Y hx₂ hwx₂ hbody₂ =>
+      -- one tower above both, by the first derivation's own induction
+      obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := ihx₁ rfl hwρ WY ihb hx₂
+      -- and the two bodies at that one slot
+      obtain ⟨s, hws, hs, hs₁, hs₂⟩ := ihb hΔ WY (Valuation.WF.push hwρ hwz)
+        (Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hz₁⟩) hbody₁)
+        (Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hz₂⟩) hbody₂)
+      exact ⟨s, hws, .Y hz hwz hs, hs₁, hs₂⟩
+  | bot =>
+    exact fun _ _ _ _ _ h₂ => ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
+  | _ => intro A b hne; cases hne
+
+theorem dir_Y {Γ : List Term} {A b : Term} {u : Bool} (hA : Γ ⊢ A : .sort u)
+    (hY : Γ ⊢ .Y A b : A) (ihb : SoundDir (A :: Γ) b) : SoundDir Γ (.Y A b) := by
+  intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
+  exact dir_Y_aux hΔ h₁ rfl hwρ (.cons W hA (hY.subst hΔ W)) ihb h₂
+
 /-- Directedness for `.refl`.  At `r = false` there is no `refl` rule and
 `cases` leaves only `bot`, so the statement needs no side condition. -/
 theorem dir_refl {Γ : List Term} {a : Term} {r : Bool} (h : SoundDir Γ a) :
@@ -1861,6 +1904,11 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
     exact ⟨dir_id hAA'.hasType.1 haa'.hasType.1 hbb'.hasType.1,
       dir_id hAA'.hasType.2 (hAA'.defeqDF haa'.hasType.2) (hAA'.defeqDF hbb'.hasType.2)⟩
   | reflDF _ _ _ _ iha _ => exact ⟨dir_refl (iha hΓ).1, dir_refl (iha hΓ).2⟩
+  -- **the one open case**, and the only consumer of `SoundJoin`: two
+  -- transports are typed at two approximants of the motive, and the
+  -- witness above both has to be typed at the motive above both.  Every
+  -- other case is an upper bound with no typing to preserve, which is why
+  -- they run under `Valuation.WF` with no admissibility in sight
   | trDF => sorry
   -- the computation rules are padded with typings of both sides, so each
   -- of these is its two premises' conclusions
@@ -1875,7 +1923,11 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
   | Y_unfold _ _ _ _ _ _ ih₃ ih₄ => exact ⟨(ih₃ hΓ).1, (ih₄ hΓ).1⟩
   | tr_refl _ _ _ _ _ _ _ _ ih₄ ih₅ => exact ⟨(ih₅ hΓ).1, (ih₄ hΓ).1⟩
   | proofIrrel _ _ _ _ ih₂ ih₃ => exact ⟨(ih₂ hΓ).1, (ih₃ hΓ).1⟩
-  | YDF => sorry
+  -- the fixed point: an induction on the tower of unfoldings, inside
+  | YDF h1 h2 h3 ihA ihb ihb' =>
+    have hY := IsDefEq.YDF h1 h2 h3
+    exact ⟨dir_Y h1.hasType.1 hY.hasType.1 (ihb ⟨hΓ, _, h1.hasType.1⟩).1,
+      dir_Y h1.hasType.2 (h1.defeqDF hY.hasType.2) (ihb' ⟨hΓ, _, h1.hasType.2⟩).2⟩
 
 /-! ## The soundness theorem
 
