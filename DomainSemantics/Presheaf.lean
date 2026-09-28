@@ -1045,6 +1045,79 @@ theorem dir_pair {Γ : List Term} {A B a b : Term}
         dir_pair_ub iha ihb hΔ W hwρ hx₁ hy₁ hwf₁ hx₂ hy₂ hwf₂
       exact ⟨s, hws, hs, hle₁.trans hΔ hs₁, hle₂.trans hΔ hs₂⟩
 
+/-! ## Application
+
+Directedness at `app` is where the λ-shape's domain label pays for itself
+(§5.5b).  Two `app` derivations for the same term look their arguments up
+in two λ-shapes of `F`, at those shapes' own labels `A₁`, `A₂`.  A common
+upper bound of the two λ-shapes is a λ-shape, its graph covers both, and
+the order on λ-shapes makes its label definitionally equal to both — so
+the two lookups become lookups in *one* graph at *one* query, whose
+outputs the graph's coherence makes joinable.  No typing of `F` or of the
+argument is used, which is what lets `SoundDir` stay over `Valuation.WF`
+and be proved before soundness. -/
+
+/-- Above a λ-shape there is only a λ-shape. -/
+theorem TShape.LE.lam_ub {Δ : List Term} {n} {A : Term} {g : ShapeFun n} {z : TShape}
+    (h : TShape.LE Δ (Shape.T (n := n+1) (ShapeS.lam A g)) z) :
+    ∃ (k : Nat) (A' : Term) (g' : ShapeFun k), z = Shape.T (n := k+1) (ShapeS.lam A' g') := by
+  obtain ⟨j, t⟩ := z
+  obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
+  cases j with
+  | zero => cases t <;> exact absurd h2 (fun x => x)
+  | succ j =>
+    cases t with
+    | lam A' g' => exact ⟨j, A', g', rfl⟩
+    | _ => exact absurd h2 (fun x => x)
+
+/-- And its domain label is the same one. -/
+theorem TShape.LE.lam_dom {Δ : List Term} {n k} {A A' : Term}
+    {g : ShapeFun n} {g' : ShapeFun k}
+    (h : TShape.LE Δ (Shape.T (n := n+1) (ShapeS.lam A g))
+      (Shape.T (n := k+1) (ShapeS.lam A' g'))) : TyEq Δ A A' := by
+  obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
+  exact h2.2.2.2.1
+
+/-- Directedness for `.app`: the `appDF` case of `IsDefEq.dir`. -/
+theorem dir_app {Γ : List Term} {F a : Term}
+    (ihF : SoundDir Γ F) (iha : SoundDir Γ a) : SoundDir Γ (.app F a) := by
+  intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
+  cases h₁ with
+  | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
+  | app hF₁ ha₁ hev₁ hw₁ hle₁ =>
+    cases h₂ with
+    | bot =>
+      exact ⟨_, hw₁, .app hF₁ ha₁ hev₁ hw₁ hle₁, TShape.LE.refl hw₁, TShape.bot_le' rfl⟩
+    | app hF₂ ha₂ hev₂ hw₂ hle₂ =>
+      -- one λ-shape above both, and one shape above both arguments
+      obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := ihF hΔ W hwρ hF₁ hF₂
+      obtain ⟨k, A, g, rfl⟩ := TShape.LE.lam_ub hz₁
+      obtain ⟨x, hwx, hx, hx₁, hx₂⟩ := iha hΔ W hwρ ha₁ ha₂
+      have hwg : ShapeFun.WF Δ (Shape.WF Δ) g := hwz.2.2.1
+      have hout : ∀ e ∈ g, TShape.WF Δ e.out.T := fun e he => (hwg.1 e he).2.2.2
+      -- both lookups move into the big graph, at its label and its input
+      have hmove {n'} {A' : Term} {g' : ShapeFun n'} {x' y' : TShape}
+          (hF' : Interp Δ Γ F σ ρ (Shape.T (n := n'+1) (ShapeS.lam A' g')))
+          (hz' : TShape.LE Δ (Shape.T (n := n'+1) (ShapeS.lam A' g'))
+            (Shape.T (n := k+1) (ShapeS.lam A g)))
+          (hx' : TShape.LE Δ x' x)
+          (hev : TEvaluates Δ g' A' (a.subst σ) x' y') :
+          TEvaluates Δ g A (a.subst σ) x y' :=
+        TEvaluates.mono_inp hΔ hx' <| TEvaluates.trans hΔ
+          (TShape.LE.lam_decomp hΔ hz' hF'.wf hwz (TEvaluates.refl hwg))
+          (TEvaluates.retype (TShape.LE.lam_dom hz') hev)
+      have hev₁' := hmove hF₁ hz₁ hx₁ hev₁
+      have hev₂' := hmove hF₂ hz₂ hx₂ hev₂
+      have hc := TEvaluates.compat hΔ hwg.2 hwx hev₁' hev₂'
+      have hwy := TShape.WF.join hΔ hc (TEvaluates.wf hΔ hout hev₁')
+        (TEvaluates.wf hΔ hout hev₂')
+      refine ⟨_, hwy, .app hz hx (.join hc hev₁' hev₂') hwy (TShape.LE.refl hwy),
+        hle₁.trans hΔ ?_, hle₂.trans hΔ ?_⟩
+      · exact (TShape.le_join hΔ (TEvaluates.wf hΔ hout hev₁')
+          (TEvaluates.wf hΔ hout hev₂') hc).1
+      · exact (TShape.le_join hΔ (TEvaluates.wf hΔ hout hev₁')
+          (TEvaluates.wf hΔ hout hev₂') hc).2
+
 /-! ## The first projection
 
 `Interp.fst` reads the first component off a pair shape, so both halves
@@ -1493,7 +1566,9 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
   -- `bvar` reads the slot's well-formedness off `Valuation.WF`; the rest
   -- are one per term former, each the other repo's `*_isDirected`
   | bvar => exact ⟨dir_bvar, dir_bvar⟩
-  | appDF => sorry
+  -- the λ-shape's domain label is what makes this one standalone (§5.5b)
+  | appDF _ _ _ _ _ _ _ ihf iha _ =>
+    exact ⟨dir_app (ihf hΓ).1 (iha hΓ).1, dir_app (ihf hΓ).2 (iha hΓ).2⟩
   | lamDF => sorry
   | sigmaDF hAA' hB hB' ihA ihB ihB' =>
     exact ⟨sound_sigma_dir hΓ hAA'.hasType.1 hB.hasType.1 (ihA hΓ).1

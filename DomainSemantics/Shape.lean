@@ -2539,6 +2539,48 @@ theorem Compat.of_common_upper {Δ : List Term} (hΔ : ⊢ Δ) {a b c : TShape}
     (Shape.WF.coherent ((TShape.WF.def hcc).1 hc))
     ((TShape.LE.def_mp ha hcc) h₁) ((TShape.LE.def_mp hb hcc) h₂)
 
+@[simp] theorem Compat.bot_left {Δ : List Term} {n} {b : TShape} :
+    TShape.Compat Δ (Shape.T (n := n) Shape.bot) b := by
+  refine (Compat.def (Nat.le_max_left ..) (Nat.le_max_right ..)).2 ?_
+  rw [show (Shape.T (n := n) Shape.bot).2.lift _ = Shape.bot from Shape.lift_bot]
+  exact Shape.Compat.bot_left
+
+@[simp] theorem Compat.bot_right {Δ : List Term} {n} {a : TShape} :
+    TShape.Compat Δ a (Shape.T (n := n) Shape.bot) := by
+  refine (Compat.def (Nat.le_max_left ..) (Nat.le_max_right ..)).2 ?_
+  rw [show (Shape.T (n := n) Shape.bot).2.lift _ = Shape.bot from Shape.lift_bot]
+  exact Shape.Compat.bot_right
+
+theorem Compat.symm {Δ : List Term} (hΔ : ⊢ Δ) {a b : TShape}
+    (h : TShape.Compat Δ a b) : TShape.Compat Δ b a :=
+  (Compat.def (k := max a.1 b.1) (Nat.le_max_right ..) (Nat.le_max_left ..)).2 <|
+    Shape.Compat.symm hΔ ((Compat.def (Nat.le_max_left ..) (Nat.le_max_right ..)).1 h)
+
+/-- Compatibility is anti-monotone on the right: `TShape.Compat.anti_right`
+is `Shape.Compat.anti_right` at a level above all three. -/
+theorem Compat.anti_right {Δ : List Term} (hΔ : ⊢ Δ) {a b b' : TShape}
+    (h : TShape.Compat Δ a b) (hb : TShape.LE Δ b' b) : TShape.Compat Δ a b' := by
+  have ha : a.1 ≤ max (max a.1 b.1) b'.1 :=
+    Nat.le_trans (Nat.le_max_left ..) (Nat.le_max_left ..)
+  have hbk : b.1 ≤ max (max a.1 b.1) b'.1 :=
+    Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_left ..)
+  have hb'k : b'.1 ≤ max (max a.1 b.1) b'.1 := Nat.le_max_right ..
+  exact (Compat.def ha hb'k).2 <| Shape.Compat.anti_right hΔ
+    ((Compat.def ha hbk).1 h) ((LE.def_mp hb'k hbk) hb)
+
+/-- The join of two shapes compatible with `d` is compatible with `d`. -/
+theorem Compat.join {Δ : List Term} (hΔ : ⊢ Δ) {y z d : TShape}
+    (hy : TShape.Compat Δ y d) (hz : TShape.Compat Δ z d) :
+    TShape.Compat Δ (y.join z) d := by
+  have h₁ : y.1 ≤ max (max y.1 z.1) d.1 :=
+    Nat.le_trans (Nat.le_max_left ..) (Nat.le_max_left ..)
+  have h₂ : z.1 ≤ max (max y.1 z.1) d.1 :=
+    Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_left ..)
+  have hd : d.1 ≤ max (max y.1 z.1) d.1 := Nat.le_max_right ..
+  refine (Compat.def (Nat.max_le.2 ⟨h₁, h₂⟩) hd).2 ?_
+  rw [TShape.join.def h₁ h₂]
+  exact Shape.Compat.join hΔ ((Compat.def h₁ hd).1 hy) ((Compat.def h₂ hd).1 hz)
+
 theorem WF.join {Δ : List Term} (hΔ : ⊢ Δ) {y z : TShape}
     (hc : TShape.Compat Δ y z) (hy : TShape.WF Δ y) (hz : TShape.WF Δ z) :
     TShape.WF Δ (y.join z) := by

@@ -121,13 +121,19 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
   Taking the type from the shape rather than as a free parameter is what
   pins the lookup at every well-formed valuation, admissible or not.
   Naming it in `Δ` rather than in `Γ` is also what makes `Interp.subst` an
-  equivalence: a substitution in the term leaves the label's type alone. -/
-  | app {n} {g : ShapeFun n} {x y : Shape n} {A : Term} :
+  equivalence: a substitution in the term leaves the label's type alone.
+
+  The lookup is `TEvaluates`, over `TShape`s, not the level-indexed
+  `Evaluates`: the input and output of a lookup in a *bigger* graph land at
+  that graph's level, and the reflection back down does not exist
+  (`Evaluates.lift` is one-directional).  Directedness needs exactly that
+  move, so the rule is stated where it is available. -/
+  | app {n} {g : ShapeFun n} {x y : TShape} {A : Term} :
     Interp Δ Γ F σ ρ (Shape.T (n := n+1) (ShapeS.lam A g)) →
-    Interp Δ Γ a σ ρ (Shape.T x) →
-    Evaluates Δ g A (a.subst σ) x y →
+    Interp Δ Γ a σ ρ x →
+    TEvaluates Δ g A (a.subst σ) x y →
     TShape.WF Δ m →
-    TShape.LE Δ m (Shape.T y) →
+    TShape.LE Δ m y →
     Interp Δ Γ (.app F a) σ ρ m
   /-- The binder rule.  The shape is labelled by the domain `A[σ]`, and
   each entry of the graph is a *probe*: a label term `e.tm` at a type
@@ -542,7 +548,7 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
   | zero hw h1 => exact .zero (hw.subst hΘ W) (h1.subst hΘ W)
   | succ _ hw h1 ihv => exact .succ (ihv hΘ W) (hw.subst hΘ W) (h1.subst hΘ W)
   | app _ _ hev hw h1 ihF iha =>
-    have hev' := Evaluates.subst hΘ W hev
+    have hev' := TEvaluates.subst hΘ W hev
     rw [subst_subst] at hev'
     exact .app (ihF hΘ W) (iha hΘ W) hev' (hw.subst hΘ W) (h1.subst hΘ W)
   | lam _ hd hwf hdom _ hw h1 ihA ihbody =>

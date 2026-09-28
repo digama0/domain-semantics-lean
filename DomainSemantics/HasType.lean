@@ -639,6 +639,48 @@ theorem TEvaluates.mono {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A 
   | lower hle _ ih => exact .lower hle ih
   | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
 
+/-- **The query's type moves freely along a definitional equality.**
+
+Only the type: the label equation that `entry` carries is stated at the
+*entry's* type, not at the query's, so retyping the query touches nothing
+but the `TyEq` conjunct.  This is what lets two `app` derivations at the
+same argument but different domain labels be read at one query, without
+the argument having to be typed — which at a non-admissible valuation it
+is not. -/
+theorem TEvaluates.retype {Δ : List Term} {n} {f : ShapeFun n} {A A' a : Term}
+    {x : TShape} (hA : TyEq Δ A A') :
+    ∀ {c : TShape}, TEvaluates Δ f A a x c → TEvaluates Δ f A' a x c := by
+  intro c h
+  induction h with
+  | bot => exact .bot
+  | entry e he hl hin => exact .entry e he ⟨TyEq.trans hl.1 hA, hl.2⟩ hin
+  | lower hle _ ih => exact .lower hle ih
+  | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
+
+/-- Two lookups at one query in one coherent graph are compatible, so
+their join exists.  `Evaluates.compat` at the total level, with the same
+double induction. -/
+theorem TEvaluates.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term}
+    {x : TShape} (hf : ShapeFun.Compat Shape.Compat Δ f f) (hwx : TShape.WF Δ x)
+    {y z : TShape} (hy : TEvaluates Δ f A a x y) (hz : TEvaluates Δ f A a x z) :
+    TShape.Compat Δ y z := by
+  induction hy with
+  | bot => exact TShape.Compat.bot_left
+  | lower hle _ ih => exact (ih.symm hΔ).anti_right hΔ hle |>.symm hΔ
+  | join _ _ _ ih₁ ih₂ => exact ih₁.join hΔ ih₂
+  | entry e he hlab hin
+  induction hz with
+  | bot => exact TShape.Compat.bot_right
+  | entry e' he' hlab' hin' =>
+    refine (TShape.Compat.T (n := n)).2 ?_
+    simpa using hf e he e' he' Δ .id hΔ (.id hΔ)
+      (by simpa using hlab.trans hlab'.symm)
+      (by
+        have := TShape.Compat.of_common_upper hΔ hwx hin hin'
+        simpa using (TShape.Compat.T (n := n)).1 this)
+  | lower hle _ ih => exact ih.anti_right hΔ hle
+  | join _ _ _ ih₁ ih₂ => exact ((ih₁.symm hΔ).join hΔ (ih₂.symm hΔ)).symm hΔ
+
 /-- A lookup in a covered graph is a lookup in the covering one. -/
 theorem TEvaluates.trans {Δ : List Term} (hΔ : ⊢ Δ) {n n'} {f : ShapeFun n} {f' : ShapeFun n'}
     {A a : Term} {x : TShape}
