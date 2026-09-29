@@ -1662,6 +1662,18 @@ theorem TShape.LE.zero_succ_absurd {Δ : List Term} {n} {v : Shape n} {z : TShap
   | zero => cases t <;> exact absurd h2 (fun x => x)
   | succ j => cases t <;> first | exact absurd h2 (fun x => x) | exact absurd h2' (fun x => x)
 
+/-- A `succ`-shape is not below `zero`. -/
+theorem TShape.LE.succ_zero_absurd {Δ : List Term} {n} {v : Shape n}
+    (h : TShape.LE Δ (Shape.T (n := n+1) (ShapeS.succ v)) TShape.zero) : False := by
+  obtain ⟨_, _, _, h2⟩ := TShape.LE.src_succ h
+  exact absurd h2 (fun x => x)
+
+/-- Nor is `zero` below a `succ`-shape. -/
+theorem TShape.LE.zero_succ_absurd' {Δ : List Term} {n} {v : Shape n}
+    (h : TShape.LE Δ TShape.zero (Shape.T (n := n+1) (ShapeS.succ v))) : False := by
+  obtain ⟨_, _, _, h2⟩ := TShape.LE.src_succ h
+  exact absurd h2 (fun x => x)
+
 /-- Directedness for `.natCase`.
 
 Three cases have content.  Two `zero` branches join by `a`'s
@@ -1939,6 +1951,81 @@ theorem sound_beta {Γ : List Term} {A B e e' : Term} {u : Bool}
         (.entry ⟨A.subst σ, e'.subst σ, x.2.lift k, s.lift k⟩ (.head _)
           (LabelEq.refl hAσ he'σ) (TShape.LE.refl hwx)) h.wf
         (TShape.LE.le_lift (m := ⟨n, s⟩) hΔ hkn h.wf)
+
+/-! ## The remaining computation rules
+
+`natCase` on a numeral, and the fixed point's unfolding.  Each is padded
+with typings of both sides, so only `SoundEq` has content, and in each the
+two `Interp` rules line up on the nose: the mismatched pairs are ruled out
+because `zero` and a `succ`-shape have no order between them, and the
+matching pair is the rule's own premise, modulo the stage move that the
+label term forces. -/
+
+/-- `natCase C zero a b` and `a`. -/
+theorem sound_natCase_zero {Γ : List Term} {C a b : Term} :
+    SoundEq Γ (.natCase C .zero a b) a := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm m
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · cases h with
+    | bot => exact .bot
+    | natCase_zero _ ha => exact ha
+    | natCase_succ hM _ _ _ =>
+      cases hM with
+      | zero _ hle => exact absurd (TShape.LE.succ_zero_absurd hle) not_false
+  · have hz : TShape.WF Δ TShape.zero := trivial
+    exact .natCase_zero (.zero hz (TShape.LE.refl hz)) h
+
+/-- `natCase C (succ n) a b` and `b[n]`. -/
+theorem sound_natCase_succ {Γ : List Term} {C a b n : Term}
+    (hΓ : ⊢ Γ) (hn : Γ ⊢ n : .nat) (hb : Term.nat :: Γ ⊢ b : B)
+    (ihndir : SoundDir Γ n) : SoundEq Γ (.natCase C (.succ n) a b) (b.inst n) := by
+  have hΓN : ⊢ (Term.nat :: Γ) := ⟨hΓ, _, .nat⟩
+  intro Δ Γ₀ σ ρ hΔ W hAdm m
+  have hwρ : Valuation.WF Δ ρ := hAdm.wf
+  have hnσ : Δ ⊢ n.subst σ : Term.nat := hn.subst hΔ W
+  have hinst : ∀ {m : TShape}, Interp Δ Γ (b.inst n) σ ρ m ↔
+      ∃ x, Interp Δ (Term.nat :: Γ) b ((Subst.one n).comp σ) (ρ.push x) m ∧
+        Interp Δ Γ n σ ρ x := fun {_} => Interp.inst hΔ (ihndir hΔ W hwρ) hwρ
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · cases h with
+    | bot => exact .bot
+    | natCase_zero hM _ =>
+      cases hM with
+      | succ _ _ hle => exact absurd (TShape.LE.zero_succ_absurd' hle) not_false
+    | natCase_succ hM hwv heq hbody =>
+      -- the two labels for the binder are one, by `succ` injectivity
+      have ht : Δ ⊢ n.subst σ ≡ _ : Term.nat := IsDefEq.succ_inj hΔ heq
+      cases hM with
+      | succ hv hw hle =>
+        refine hinst.2 ⟨_, ?_, hv.mono hΔ (TShape.WF.T.2 hwv) (TShape.LE.succ_decomp hΔ hle)⟩
+        rw [Subst.one_comp]
+        refine IsDefEq.stage hΓN hb hΔ ?_ hbody
+        exact .cons W .nat ht.symm
+  · obtain ⟨x, hbody, hx⟩ := hinst.1 h
+    obtain ⟨k, v⟩ := x
+    refine .natCase_succ (.succ hx (TShape.WF.T.2 hx.wf) (TShape.LE.refl hx.wf))
+      hx.wf (.succDF hnσ) ?_
+    rw [← Subst.one_comp]; exact hbody
+
+/-- `Y A b` and its unfolding `b[Y A b]`: the fixed point's rule *is* the
+instantiation, so both directions are `Interp.inst` at the tower below. -/
+theorem sound_Y_unfold {Γ : List Term} {A b : Term} {u : Bool}
+    (hA : Γ ⊢ A : .sort u) (hY : Γ ⊢ .Y A b : A) (ihYdir : SoundDir Γ (.Y A b)) :
+    SoundEq Γ (.Y A b) (b.inst (.Y A b)) := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm m
+  have hwρ : Valuation.WF Δ ρ := hAdm.wf
+  have hinst : ∀ {m : TShape}, Interp Δ Γ (b.inst (.Y A b)) σ ρ m ↔
+      ∃ x, Interp Δ (A :: Γ) b ((Subst.one (.Y A b)).comp σ) (ρ.push x) m ∧
+        Interp Δ Γ (.Y A b) σ ρ x := fun {_} => Interp.inst hΔ (ihYdir hΔ W hwρ) hwρ
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · cases h with
+    | bot => exact .bot
+    | Y hx hwx hbody =>
+      refine hinst.2 ⟨_, ?_, hx⟩
+      rw [Subst.one_comp]; exact hbody
+  · obtain ⟨x, hbody, hx⟩ := hinst.1 h
+    refine .Y hx hx.wf ?_
+    rw [← Subst.one_comp]; exact hbody
 
 /-! ## Inversion at the level of `SoundEq`
 
@@ -2241,10 +2328,14 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
     exact sound_atom .zero Interp.le_zero Interp.nat' .zero
   | succDF _ ih => exact sound_succ (ih hΓ).1 (ih hΓ).2
   | natCaseDF => sorry
-  | natCase_zero => sorry
-  | natCase_succ => sorry
+  -- the computation rules again: padded, so `SoundTy` is an IH
+  | natCase_zero _ _ _ _ _ _ _ ihredex => exact ⟨sound_natCase_zero, (ihredex hΓ).2⟩
+  | @natCase_succ _ C v n a b _ hn _ hb _ _ _ _ _ _ ihredex _ =>
+    exact ⟨sound_natCase_succ hΓ hn.hasType.1 hb.hasType.1 (IsDefEq.dir hΓ hn).1,
+      (ihredex hΓ).2⟩
   | YDF => sorry
-  | Y_unfold => sorry
+  | @Y_unfold _ A u b hA hb hY hunf _ _ ihY _ =>
+    exact ⟨sound_Y_unfold hA.hasType.1 hY.hasType.1 (IsDefEq.dir hΓ hY).1, (ihY hΓ).2⟩
   | idDF hAA' haa' hbb' _ _ _ => exact sound_id hAA' haa' hbb'
   | reflDF hA haa' hid _ iha _ => exact sound_refl hA haa' hid (iha hΓ).1
   | trDF => sorry
