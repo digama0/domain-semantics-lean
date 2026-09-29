@@ -1632,29 +1632,6 @@ theorem TShape.HasType.join_sort' {Δ : List Term} (hΔ : ⊢ Δ) {y z c : TShap
   TShape.HasType.join_sort hΔ hc (hy.lift_subject hΔ (Nat.le_max_left ..))
     (hz.lift_subject hΔ (Nat.le_max_right ..)) hyz
 
-/-- **The join of two compatible subjects at one type.**
-
-Master's `WShape.HasType.join`, and the content of `SoundJoin` (§5.1 of
-`presheaf-proof-strategy.md`).  It is *stated* here because everything
-that reads a relational lookup needs it: a lookup's `join` rule produces
-`y₁ ⊔ y₂`, and typing it is the only way to type what the lookup returned.
-`appDF`'s `SoundTy` is the first consumer.
-
-It is **not proved**, and the obstruction is the `pair` clause.  Master
-types a pair's second component at `b.app x` — the codomain read at the
-first component *itself* — so joining two pairs reads the codomain at the
-joined component, which dominates both codes, and the induction goes
-through.  Master can do that because its typing is not lower-closed; ours
-is, which is why the clause reads the code at a *dominator* `x ≥ x'`
-instead, and two compatible pairs can carry incompatible dominators.
-Restoring master's clause while keeping lower-closure — by making
-lower-closure a constructor rather than a theorem — is the change that
-would let master's induction be ported.  See §4.7b. -/
-theorem TShape.HasType.join {Δ : List Term} (hΔ : ⊢ Δ) {y z c : TShape}
-    (hyz : TShape.Compat Δ y z) (hy : TShape.HasType Δ y c)
-    (hz : TShape.HasType Δ z c) : TShape.HasType Δ (TShape.join y z) c := by
-  sorry
-
 /-- Everything the `TShape` lookup returns is typed at a sort, when the
 graph's outputs are.  `lower` is `mono_l_sort` and `join` is `join_sort'`;
 the level-indexed `ShapeFun.Eval.tHasType` had to take both as

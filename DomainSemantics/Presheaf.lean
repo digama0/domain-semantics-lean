@@ -603,6 +603,19 @@ def SoundJoin (Γ : List Term) (A : Term) : Prop :=
       TShape.HasType Δ x a → TShape.HasType Δ y a → TShape.Compat Δ x y →
       ∃ z, TShape.WF Δ z ∧ TShape.LE Δ x z ∧ TShape.LE Δ y z ∧ TShape.HasType Δ z a
 
+/-- What `SoundJoin` is for: with typing lower-closed, a typed *upper
+bound* types the join itself.  Every consumer of a relational lookup needs
+this, since the lookup's `join` rule returns `y₁ ⊔ y₂` and the two sides
+come typed separately. -/
+theorem SoundJoin.hasType_join {Γ : List Term} {A : Term} (h : SoundJoin Γ A)
+    {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ)
+    (hAdm : Adm Δ Γ₀ Γ σ ρ) {a x y : TShape} (ha : Interp Δ Γ A σ ρ a)
+    (hxa : TShape.HasType Δ x a) (hya : TShape.HasType Δ y a)
+    (hc : TShape.Compat Δ x y) : TShape.HasType Δ (x.join y) a :=
+  have ⟨z, _, hxz, hyz, hza⟩ :=
+    h hΔ W hAdm ha hxa.wf.1 hya.wf.1 hxa hya hc
+  TShape.HasType.mono_l hΔ hza (TShape.join_le hΔ hxz hyz)
+
 /-- The common upper bound of two Π-shapes: same labels (both come from
 the same term at the same stage), domains joined by `A`'s directedness,
 graphs appended.
@@ -1528,12 +1541,15 @@ slot the code is read at approximates `a`.  The `pair` clause's dominator
 sits above, which is why the same argument does not run at `snd`.
 
 The `join` rule of the lookup is the only real cost: it lands on two typed
-shapes and there is no way to type their join but `HasType.join`. -/
+shapes, and typing their join is exactly `SoundJoin` (§5.1) — which is
+therefore not only `tr`'s business, as the plan had it, but every
+consumer's of a relational lookup. -/
 theorem sound_app_ty {Γ : List Term} {A B f a : Term} {u v : Bool}
     (hΓ : ⊢ Γ) (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v) (ha : Γ ⊢ a : A)
     (happ : Γ ⊢ .app f a : B.inst a)
     (hfty : SoundTy Γ f (.forallE A B)) (hBaty : SoundTy Γ (B.inst a) (.sort v))
-    (hadir : SoundDir Γ a) (hBdir : SoundDir (A :: Γ) B) :
+    (hadir : SoundDir Γ a) (hBdir : SoundDir (A :: Γ) B)
+    (hjoin : SoundJoin Γ (B.inst a)) :
     SoundTy Γ (.app f a) (B.inst a) := by
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
   refine ⟨happ, ?_⟩
@@ -1585,9 +1601,9 @@ theorem sound_app_ty {Γ : List Term} {A B f a : Term} {u v : Bool}
             obtain ⟨c, hwc, hIc, hlc₁, hlc₂⟩ :=
               dir_inst (b := B) hA ha hadir hBdir hΔ W hwρ hI₁ hI₂
             have hcty := hBaty.isType hΔ W hAdm hIc
-            exact ⟨c, hIc, TShape.HasType.join hΔ hcj
+            exact ⟨c, hIc, hjoin.hasType_join hΔ W hAdm hIc
               (TShape.HasType.mono_r hΔ ht₁ _ hlc₁ hcty)
-              (TShape.HasType.mono_r hΔ ht₂ _ hlc₂ hcty)⟩
+              (TShape.HasType.mono_r hΔ ht₂ _ hlc₂ hcty) hcj⟩
         -- and the λ-shape's own lookup, entry by entry
         have key : ∀ {w : TShape}, TEvaluates Δ g A₁ (a.subst σ) x w →
             ∃ c, Interp Δ Γ (B.inst a) σ ρ c ∧ TShape.HasType Δ w c := by
@@ -1604,9 +1620,9 @@ theorem sound_app_ty {Γ : List Term} {A B f a : Term} {u v : Bool}
             obtain ⟨c, hwc, hIc, hlc₁, hlc₂⟩ :=
               dir_inst (b := B) hA ha hadir hBdir hΔ W hwρ hI₁ hI₂
             have hcty := hBaty.isType hΔ W hAdm hIc
-            exact ⟨c, hIc, TShape.HasType.join hΔ hcj
+            exact ⟨c, hIc, hjoin.hasType_join hΔ W hAdm hIc
               (TShape.HasType.mono_r hΔ ht₁ _ hlc₁ hcty)
-              (TShape.HasType.mono_r hΔ ht₂ _ hlc₂ hcty)⟩
+              (TShape.HasType.mono_r hΔ ht₂ _ hlc₂ hcty) hcj⟩
         obtain ⟨c, hIc, hct⟩ := key hev
         exact ⟨c, hIc, TShape.HasType.mono_l hΔ hct hle⟩
 
@@ -2523,7 +2539,10 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
     refine ⟨sound_app_eq hff' haa' (ihf hΓ).2 (ihf hΓ).1 (iha hΓ).1,
       sound_app_ty hΓ hA.hasType.1 hB.hasType.1 haa'.hasType.1
         (.appDF hA hB hff'.hasType.1 haa'.hasType.1 hBinst.hasType.1)
-        (ihf hΓ).2 (ihBinst hΓ).2 (IsDefEq.dir hΓ haa').1 (IsDefEq.dir hΓA hB).1⟩
+        (ihf hΓ).2 (ihBinst hΓ).2 (IsDefEq.dir hΓ haa').1 (IsDefEq.dir hΓA hB).1 ?_⟩
+    -- the lookup's `join` rule, i.e. `SoundJoin Γ (B.inst a)` (§5.1): the
+    -- only step of this case that is not proved
+    sorry
   | lamDF => sorry
   -- the two halves proved above
   | forallEDF hAA' hB hB' ihA ihB ihB' =>
