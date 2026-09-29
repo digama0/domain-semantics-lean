@@ -901,6 +901,97 @@ exactly master's shape-level `HasType.join`, which is also what the Σ case
 needs.  So `SoundJoin` is a stand-in: the real lemma is the shape-level
 one, and the pair clause is the only place it fails.
 
+#### 5.1b Which option works on paper
+
+§5.5 already has the decisive example, and it is worth reading as a
+*test* rather than as an obituary:
+
+> `f` a Σ codomain graph with entries `.zero ↦ c₁` and `.succ ⊥ ↦ c₂`;
+> `y = .pair ty tm ⊥ b₁` and `z = .pair ty tm ⊥ b₂` with `bᵢ : cᵢ`
+> non-`⊥` and compatible.  Each is typed, with dominators `.zero` and
+> `.succ ⊥`; the two are compatible; their join is typed only if one input
+> serves both, and no numeral is above `.zero` and `.succ ⊥`.
+
+What the example actually shows is **not** that dependent pairs cannot be
+joined.  It shows that a pair shape can record only *one* conditional
+fact — "at *this* much of the first component, the second is at least
+that" — because it has one second component and therefore one input.  The
+join needs two such facts at once.  Everything else follows from that.
+
+Against that test:
+
+* **(α) restrict the order.**  Dead.  The order cannot see types, and
+  "the second component lies in the fibre over the first" is not a
+  property of a shape.  Any attempt to write it collapses into (β).
+
+* **(γ) strengthen `SoundTy`.**  Survives the test only by leaving the
+  shape level: two pairs *of one term* have dominators that are
+  approximants of `fst p`, hence compatible by `dir`, hence joinable.  So
+  the join becomes conditional on provenance, and every consumer of a
+  lookup has to carry "these two shapes come from one term" — which is
+  true at `appDF` and `trDF`, but has to be re-established at each use,
+  and the shape-level `HasType.join` stays false.  Minimal diff, maximal
+  ongoing tax.
+
+* **(β) second component as a graph.**  Passes the test outright, and
+  this is the reason to prefer it.  Write a pair as `pair ty tm x g` with
+  `g` a graph from first-component approximants to second-component
+  approximants.  Then `y` and `z` above are
+  `pair ty tm ⊥ [(zero, b₁)]` and `pair ty tm ⊥ [(succ ⊥, b₂)]`, their
+  join is `pair ty tm ⊥ [(zero, b₁), (succ ⊥, b₂)]`, and it is typed —
+  each entry keeps *its own* code.  No input has to serve both, because
+  the shape now records both conditional facts.  Downward closure is free
+  for the same reason: shrinking `x` cannot invalidate a fact that was
+  always conditional on the input it names.
+
+**(β) in its precise form: make a Σ-value mirror a λ-value.**  A pair is a
+first component and a graph; `Shape.LE` at `pair` is label equality, `≤`
+on the first component and *lookup coverage* on the graph; `join` appends;
+and `HasType.pair` is `HasType.lam` verbatim, with the Σ's codomain graph
+in place of the Π's — a generator `g₀` covering `g`, each generator entry's
+code a lookup in `f` at that entry's own input, each generator output typed
+at its code.  The consequences are exactly the ones the λ clause was
+engineered for in §5.2 and §5.5:
+
+* **`HasType.join` becomes provable**, for Π and Σ alike: two λ-shapes (or
+  pair shapes) typed at one type join by appending graphs and
+  concatenating generators, since both generators' codes are lookups in
+  the *same* codomain graph.  That unblocks `SoundJoin`, hence `appDF`,
+  `trDF` and every other lookup consumer.
+* **`mono_l` stays provable**, by the generator argument that already
+  works at `lam`; the dominator disappears.
+* **Reflection along `lift` is preserved** — this is why the clause must
+  use a generator *list* and not a dominating graph, as §5.5 records.
+* **Σ's η becomes Π's η**: lookup coverage, the thing §5.2 bought and has
+  already paid for.
+* **`snd`'s type works**: the code sits at the entry's own input, which is
+  an approximant of `fst p`, which is what `Interp.inst` wants.
+
+What (β) does *not* remove is the label invariant of §4.7a — a Σ-typed
+value's label has to name its own first projection — needed for `snd`'s
+type and for η.  That is the Σ twin of §5.3's `HasDom` and is unavoidable
+in any design (no type-level condition can pin a term-level name; §4.7a
+checks this against intgrah).  The gain is that it is no longer entangled
+with the join.
+
+**Fallback, if (β) is too much surgery: (δ) master's typing.**  Master has
+product pairs, reads the code at the component (`b.app x`), and proves
+`HasType.join` — because its typing is *not* lower-closed, which is
+exactly the hypothesis that forces our dominator.  Reverting to master's
+`InterpTyped` (`∃ m' ≥ m`, typed) would restore the join at the price of
+restating `SoundTy` and `Adm` and touching every consumer.  It is
+known-good, since master is a complete proof, but it gives up what
+lower-closure bought here (`Eval.lower` free, `LE.wf`, `SoundTy` typing
+the approximant itself).
+
+**Recommendation: (β).**  It is the only option that passes §5.5's test at
+the shape level, it deletes machinery rather than adding it, and it makes
+the Σ half of the development a second instance of the Π half instead of a
+parallel one.  Estimated surgery: `ShapeS.pair`'s signature and the
+order/`WF`/`Compat`/`join`/`subst`/`lift` clauses, `HasType.pair`,
+`Interp.pair`/`fst`/`snd`, and the Σ proofs (`sound_fst`, the β-rules,
+`dir_pair`/`fst`/`snd`, `pair_ub`/`pair_decomp`).
+
 Three ways out, and the third is the one §5.3 was already heading for:
 
   (α) **restrict the pair order** so the second component lives in the
