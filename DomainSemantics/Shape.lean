@@ -527,6 +527,25 @@ def Shape.LE (Γ : List Term) : ∀ {n}, Shape n → Shape n → Prop
 @[simp] theorem Shape.LE.bot {s : Shape n} : Shape.LE Γ .bot s := by
   cases n <;> trivial
 
+/-- **A well-formed shape carries no information only if it is `⊥`.**
+The two non-degeneracy conjuncts of `WF` are exactly what this needs: a
+`λ` has an entry with a non-`⊥` output, and a pair has a component that is
+not information-free. -/
+theorem Shape.WF.eq_bot_of_isBot {Γ : List Term} :
+    ∀ {n} {s : Shape n}, Shape.WF Γ s → s.IsBot → s = .bot := by
+  intro n s
+  cases n with
+  | zero => cases s <;> intro _ h <;> first | rfl | exact absurd h id
+  | succ n =>
+    cases s with
+    | bot => intro _ _; rfl
+    | lam A f =>
+      intro hw hb
+      match f, hw with
+      | e :: _, hw => exact absurd (hb e (.head _)) (hw.2.1 e (.head _))
+    | pair ty tm a b => intro hw hb; exact absurd hb hw.2.2.2.2
+    | _ => intro _ h; exact absurd h id
+
 /-- The domain label of a well-formed λ-shape is a type: the graph is
 nonempty, and its entries' argument types are the label. -/
 theorem Shape.WF.dom {A : Term} {f : ShapeFun n}

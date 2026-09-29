@@ -1341,6 +1341,62 @@ theorem dir_snd {Γ : List Term} {p : Term} (h : SoundDir Γ p) : SoundDir Γ (.
       · exact hle₁.trans hΔ hy₁
       · exact hle₂.trans hΔ hy₂
 
+/-! ## The β-rules of Σ
+
+A projection of a pair has the same approximants as the component: `→` is
+two inversions (the pair shape below a pair shape is compared
+componentwise), and `←` builds the one-component pair shape, with `⊥` in
+the other slot.  That shape is well formed exactly because the component
+is not information-free, which for a well-formed shape means it is not
+`⊥` (`Shape.WF.eq_bot_of_isBot`) — and when it *is* `⊥` there is nothing
+to prove, since `bot` approximates everything. -/
+
+/-- The first projection of a pair: the `pair_fst` case. -/
+theorem sound_pair_fst {Γ : List Term} {A B a b : Term} {u : Bool}
+    (hA : Γ ⊢ A : .sort u) (ha : Γ ⊢ a : A) :
+    SoundEq Γ (.fst (.pair A B a b)) a := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm m
+  obtain ⟨n, s⟩ := m
+  constructor
+  · intro h
+    cases h with
+    | bot => exact .bot
+    | fst hp hw hle =>
+      cases hp with
+      | pair hx _ _ _ hle' =>
+        obtain ⟨_, hxx, _⟩ := TShape.LE.pair_decomp hΔ hle'
+        exact hx.mono hΔ hw (hle.trans hΔ hxx)
+  · intro h
+    by_cases hb : s.IsBot
+    · rw [Shape.WF.eq_bot_of_isBot (s := s) h.wf hb]; exact .bot
+    · have hwf : Shape.WF (n := n+1) Δ
+          (ShapeS.pair (A.subst σ) (a.subst σ) s Shape.bot) :=
+        ⟨⟨u, hA.subst hΔ W⟩, ha.subst hΔ W, h.wf, Shape.WF.bot, fun hbb => hb hbb.1⟩
+      exact .fst (.pair h .bot hwf hwf (TShape.LE.refl hwf)) h.wf (TShape.LE.refl h.wf)
+
+/-- The second projection of a pair: the `pair_snd` case. -/
+theorem sound_pair_snd {Γ : List Term} {A B a b : Term} {u : Bool}
+    (hA : Γ ⊢ A : .sort u) (ha : Γ ⊢ a : A) :
+    SoundEq Γ (.snd (.pair A B a b)) b := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm m
+  obtain ⟨n, s⟩ := m
+  constructor
+  · intro h
+    cases h with
+    | bot => exact .bot
+    | snd hp hw hle =>
+      cases hp with
+      | pair _ hy _ _ hle' =>
+        obtain ⟨_, _, hyy⟩ := TShape.LE.pair_decomp hΔ hle'
+        exact hy.mono hΔ hw (hle.trans hΔ hyy)
+  · intro h
+    by_cases hb : s.IsBot
+    · rw [Shape.WF.eq_bot_of_isBot (s := s) h.wf hb]; exact .bot
+    · have hwf : Shape.WF (n := n+1) Δ
+          (ShapeS.pair (A.subst σ) (a.subst σ) Shape.bot s) :=
+        ⟨⟨u, hA.subst hΔ W⟩, ha.subst hΔ W, Shape.WF.bot, h.wf, fun hbb => hb hbb.2⟩
+      exact .snd (.pair .bot h hwf hwf (TShape.LE.refl hwf)) h.wf (TShape.LE.refl h.wf)
+
 /-- Soundness for `fstDF`. -/
 theorem sound_fst {Γ : List Term} {A B p p' : Term} {u v : Bool}
     (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v)
@@ -2010,8 +2066,14 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
       (by intro _ _ _ _ hΔ W hAdm _ h; exact Interp.eq_bot_of_unit (ih hΓ).2 hΔ W hAdm h)
   -- unblocked by the Σ rules: `fst` now reads the first component off a
   -- pair shape, so the two sides really can have the same approximants
-  | pair_fst => sorry
-  | pair_snd => sorry
+  -- the β-rules of Σ: the projection's approximants are the component's,
+  -- and the typing then comes from the component's by `SoundTy.of_eq`
+  | @pair_fst _ A u B v a b hA hB ha hb hfst ihA _ iha _ _ =>
+    have he := sound_pair_fst (B := B) (b := b) hA.hasType.1 ha.hasType.1
+    exact ⟨he, SoundTy.of_eq (.symm (.pair_fst hA hB ha hb hfst)) he.symm (iha hΓ).2⟩
+  | @pair_snd _ A u B v a b hA hB ha hb hsnd _ _ _ ihb _ =>
+    have he := sound_pair_snd (B := B) (b := b) hA.hasType.1 ha.hasType.1
+    exact ⟨he, SoundTy.of_eq (.symm (.pair_snd hA hB ha hb hsnd)) he.symm (ihb hΓ).2⟩
   | fst_snd => sorry
   | nat =>
     exact sound_atom .nat Interp.le_nat Interp.sort' .nat
