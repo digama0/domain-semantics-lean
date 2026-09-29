@@ -699,6 +699,46 @@ This is the only consumer of join-closure of a type's extension once the
 obstruction (`HasType.lean`, removal note; `SoundJoin`'s doc comment).
 Options in §5.1.  Everything else about `tr` is master's proof.
 
+### 4.7a `sndDF` and `fst_snd`: the Σ analogue of §5.3
+
+**Found while proving the Σ β-rules.**  A pair shape carries its *first
+component's* label `(ty, tm)`, and `HasType.pair` types the second
+component at `TEvaluates f ty tm x c` — the codomain family looked up **at
+that label**.  So for
+
+```lean
+SoundTy Γ (.snd p) (B.inst (.fst p))
+```
+
+the value `y` of a pair approximant of `p` is typed at `B[tm]`, and what
+is wanted is an approximant of `B[fst p]`.  The two agree only given
+
+```lean
+Δ ⊢ tm ≡ (Term.fst p).subst σ : ty
+```
+
+and nothing in the model forces it: for a *literal* pair the label is
+`a[σ]` and `pair_fst` gives it, but for a slot — `p` a variable, the shape
+handed over by `Adm` — the label is an arbitrary well-typed term.  The
+same equation is what `fst_snd` (Σ's η) needs, in the same place and for
+the same reason: to compare the rebuilt `pair A B (fst p) (snd p)` with
+`p`'s own pair approximant, whose label is that arbitrary term.
+
+This is exactly §5.3 with Π replaced by Σ: *a typed approximant of a
+Σ-typed term must remember where its label came from*, as a typed
+approximant of a Π-typed term must remember `HasDom`.  The Π resolution
+recommended there — strengthen what `SoundTy` promises at a Π type — has
+a Σ twin: **at a Σ type, the typed witness is a pair shape whose label is
+the first projection**.  The two should be decided together, since both
+are the same change to `InterpTyped`/`SoundTy`, and `app` is the model for
+both: there the query *is* the argument, by construction of the rule, and
+that is why `appDF` needs no such invariant.
+
+Note this is not the λ-label problem of §5.5b in disguise.  That one was
+about a *type* label and was fixed by storing it in the shape, because the
+order and `WF` can compare it.  This one is about a *term* label that has
+to match a term built from the subject, which the shape does not know.
+
 ### 4.8 The remaining cases, in one line each
 
 `sigmaDF`, `pairDF`, `fstDF`, `sndDF`: mirror Π/λ/app with the pair's
