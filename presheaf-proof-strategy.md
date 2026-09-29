@@ -739,6 +739,56 @@ about a *type* label and was fixed by storing it in the shape, because the
 order and `WF` can compare it.  This one is about a *term* label that has
 to match a term built from the subject, which the shape does not know.
 
+**What intgrah does (checked).**  *He has no Σ-types at all* — his term
+grammar (`Syntax/Extrinsic.lean`) is `sort, app, lam, forallE, nat, zero,
+succ, natRec, id, refl, tr`, and the `pair` in his files is CwF context
+comprehension, not a pair former.  So there is no precedent to copy, and
+the Π machinery has to be read as the pattern.  Read that way it says
+something sharp, and it is not what we do at `snd`:
+
+* A label is an element of `Tm.presheaf = typedTerms Tm.typing`, i.e. a
+  pair `⟨A, a⟩` of a type and a term of it, **both quotiented by
+  definitional equality** (`Tm.pairOfTyping_eq_iff`).  Our `LabelEq` is
+  this quotient, spelled as a relation.
+* The eliminator's query is not one label but the **set of all typings of
+  the subterm**: `sourceQuery Γ a = {pairOfTyping hA ha}` over all `A`,
+  and `rawApplication F Q X = ⨆ label ∈ Q, …`.  The term component of a
+  responding label is pinned *from the syntax of the eliminator*, never
+  from the value.
+* A value responds only at labels that are a `Section` of the display of
+  the domain — and `Section` is a `Subsingleton`, equivalent to the bare
+  **type** equation `label.1 = A[σ]`.  So a value's own structure
+  constrains only the label's *type*.  It is our λ domain label exactly.
+* The two are married by *theorems*, not definitions:
+  `sourceQuery_eq_of_section` (in the query ⇒ the term is `a`; a section ⇒
+  the type is `A`; hence the label is the canonical one) and
+  `rawApplication_eq_of_support` (then the sup collapses to that label).
+  The support hypothesis comes from Π-fixedness, through
+  `application_piOperator_fixed`: a Π-fixed `F`'s lookup at any `X` equals
+  its lookup at the decoder-normalised `X`.
+* There is **no `HasDom`** anywhere, and no typing condition on a graph
+  entry's label or input.  Fixedness plus "off-section is `⊥`" does that
+  work.
+
+Two conclusions for us.
+
+1. `Interp.app` already follows his pattern: the query *is* `a[σ]`, from
+   the syntax.  **`Interp.snd` does not** — it reads the second component
+   at whatever label the pair shape happens to carry.  The faithful fix is
+   to make `snd` query-driven like `app`: require
+   `Δ ⊢ tm ≡ (fst p)[σ] : ty` in the rule, which is his "the label is in
+   `sourceQuery (fst p)`" (we can demand a single label rather than a sup,
+   because our labels are compared up to defeq in the order, so the sup
+   over a defeq class is already collapsed).
+2. That shifts the burden to where his `application_piOperator_fixed`
+   sits, and there we have nothing: his decoder *normalises* a value to
+   its Π-fixed part, which is what makes "the responding label is a
+   section" hold for every typed value.  A shape is not an ideal and has
+   no retraction, so for us the same fact has to be carried, not derived —
+   i.e. §5.3(a) for Π and its Σ twin, by `SoundTy`.  This is the same
+   missing retraction as `SoundJoin` (§5.1); it is worth deciding all
+   three together.
+
 ### 4.8 The remaining cases, in one line each
 
 `sigmaDF`, `pairDF`, `fstDF`, `sndDF`: mirror Π/λ/app with the pair's
