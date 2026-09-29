@@ -156,15 +156,6 @@ theorem StrongSound.uniq_of_core'
     have ⟨hs, _, h⟩ := H ⟨_, a4.hasType.1⟩ ⟨_, b4.hasType.1⟩ a2 b2
     ⟨a3.symm.trans (hs.trans b3), _, a4.symm.trans' (h.trans' b4)⟩
 
-/-- Instantiating a definitional equality of codomains at an argument.
-`IsDefEq.subst` at `Subst.one a`, which is what `Term.inst` unfolds to. -/
-theorem IsDefEq.inst_cod {Γ : List Term} {A B B' a : Term} {u v : Bool} (hΓ : ⊢ Γ)
-    (hA : Γ ⊢ A : .sort u) (ha : Γ ⊢ a : A) (h : A :: Γ ⊢ B ≡ B' : .sort v) :
-    Γ ⊢ B.inst a ≡ B'.inst a : .sort v :=
-  IsDefEq.subst hΓ
-    (show Ctx.SubstEq Γ (Subst.one a) (Subst.one a) (A :: Γ) from
-      .cons (Ctx.SubstEq.id hΓ) hA (by simpa using ha)) h
-
 /-! ## Uniqueness of types
 
 `StrongSound` assumptions give both equalities at once, and each half needs

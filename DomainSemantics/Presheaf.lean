@@ -1326,18 +1326,22 @@ theorem dir_snd {Γ : List Term} {p : Term} (h : SoundDir Γ p) : SoundDir Γ (.
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | snd hp₁ _ hle₁ =>
+  | snd hp₁ hq₁ _ hle₁ =>
     cases h₂ with
     | bot =>
       refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
       · exact hp₁.wf.2.2.2.1
-      · exact .snd hp₁ hp₁.wf.2.2.2.1 (TShape.LE.refl hp₁.wf.2.2.2.1)
-    | snd hp₂ _ hle₂ =>
+      · exact .snd hp₁ hq₁ hp₁.wf.2.2.2.1 (TShape.LE.refl hp₁.wf.2.2.2.1)
+    | snd hp₂ _ _ hle₂ =>
       obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := h hΔ W hwρ hp₁ hp₂
       obtain ⟨k, ty', tm', x', y', rfl⟩ := TShape.LE.pair_ub hz₁
-      obtain ⟨_, _, hy₁⟩ := TShape.LE.pair_decomp hΔ hz₁
+      obtain ⟨hlab₁, _, hy₁⟩ := TShape.LE.pair_decomp hΔ hz₁
       obtain ⟨_, _, hy₂⟩ := TShape.LE.pair_decomp hΔ hz₂
-      refine ⟨Shape.T y', hwz.2.2.2.1, .snd hz hwz.2.2.2.1 (TShape.LE.refl hwz.2.2.2.1), ?_, ?_⟩
+      -- the upper bound's label is the same one, up to definitional equality
+      have hq : Δ ⊢ tm' ≡ (Term.fst p).subst σ : ty' :=
+        hlab₁.1.choose_spec.defeqDF (hlab₁.2.symm.trans hq₁)
+      refine ⟨Shape.T y', hwz.2.2.2.1,
+        .snd hz hq hwz.2.2.2.1 (TShape.LE.refl hwz.2.2.2.1), ?_, ?_⟩
       · exact hle₁.trans hΔ hy₁
       · exact hle₂.trans hΔ hy₂
 
@@ -1376,7 +1380,8 @@ theorem sound_pair_fst {Γ : List Term} {A B a b : Term} {u : Bool}
 
 /-- The second projection of a pair: the `pair_snd` case. -/
 theorem sound_pair_snd {Γ : List Term} {A B a b : Term} {u : Bool}
-    (hA : Γ ⊢ A : .sort u) (ha : Γ ⊢ a : A) :
+    (hA : Γ ⊢ A : .sort u) (ha : Γ ⊢ a : A)
+    (hfst : Γ ⊢ .fst (.pair A B a b) ≡ a : A) :
     SoundEq Γ (.snd (.pair A B a b)) b := by
   intro Δ Γ₀ σ ρ hΔ W hAdm m
   obtain ⟨n, s⟩ := m
@@ -1384,7 +1389,7 @@ theorem sound_pair_snd {Γ : List Term} {A B a b : Term} {u : Bool}
   · intro h
     cases h with
     | bot => exact .bot
-    | snd hp hw hle =>
+    | snd hp _ hw hle =>
       cases hp with
       | pair _ hy _ _ hle' =>
         obtain ⟨_, _, hyy⟩ := TShape.LE.pair_decomp hΔ hle'
@@ -1395,7 +1400,8 @@ theorem sound_pair_snd {Γ : List Term} {A B a b : Term} {u : Bool}
     · have hwf : Shape.WF (n := n+1) Δ
           (ShapeS.pair (A.subst σ) (a.subst σ) Shape.bot s) :=
         ⟨⟨u, hA.subst hΔ W⟩, ha.subst hΔ W, Shape.WF.bot, h.wf, fun hbb => hb hbb.2⟩
-      exact .snd (.pair .bot h hwf hwf (TShape.LE.refl hwf)) h.wf (TShape.LE.refl h.wf)
+      exact .snd (.pair .bot h hwf hwf (TShape.LE.refl hwf)) (hfst.symm.subst hΔ W) h.wf
+        (TShape.LE.refl h.wf)
 
 /-- Soundness for `fstDF`. -/
 theorem sound_fst {Γ : List Term} {A B p p' : Term} {u v : Bool}
@@ -1427,6 +1433,47 @@ theorem sound_fst {Γ : List Term} {A B p p' : Term} {u v : Bool}
             TShape.LE.sigma_decomp hΔ hleS hwSg hwf (TEvaluates.refl hwf.2.2.2)
           exact ⟨_, hA, TShape.HasType.mono_r hΔ
             (TShape.HasType.mono_l hΔ (TShape.HasType.mono_l hΔ hxd hxle) hle) _ hdd hd₀⟩
+
+/-! ## The second projection
+
+`Interp.snd` is a query at `fst p` (§4.7a), so the codomain family's
+lookup that types the second component is at that label, and the value
+read off is an approximant of `B[fst p]` — provided the query's *type* is
+the Σ's domain.  That is what the typed approximant gives: the Σ-shape's
+graph labels are all `≡ A[σ]`, and a lookup that reaches a non-`⊥` output
+went through one of them.
+
+`sound_sigma_lookup` is `sound_beta_lookup` for Σ: every lookup in the
+Σ-shape's graph at the pair's label is an approximant of the codomain at
+that label, each entry moved there by `IsDefEq.stage` along its own label
+equation and the joins by the codomain's directedness. -/
+theorem sound_sigma_lookup {Γ Δ : List Term} {A B : Term} {σ ρ} {u : Bool}
+    (hΓA : ⊢ (A :: Γ)) (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v)
+    (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ)
+    {n} {g : ShapeFun n} {d : Shape n}
+    (hlab : ∀ e ∈ g, ∃ w, Δ ⊢ e.ty ≡ A.subst σ : .sort w)
+    (hwf : Shape.WF (n := n+1) Δ (.sigma (A.subst σ) (B.subst σ.lift) d g))
+    (hbody : ∀ e ∈ g, Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push e.inp.T) e.out.T)
+    {ty tm : Term} {x : TShape} (hx : TShape.WF Δ x)
+    (hdir : SoundDir (A :: Γ) B) (hwρ : Valuation.WF Δ ρ)
+    (hq : Δ ⊢ tm : ty) (hty : TyEq Δ ty (A.subst σ)) :
+    ∀ {c : TShape}, TEvaluates Δ g ty tm x c →
+      Interp Δ (A :: Γ) B (σ.cons tm) (ρ.push x) c := by
+  have Wtm : Ctx.SubstEq Δ (σ.cons tm) (σ.cons tm) (A :: Γ) :=
+    .cons W hA (hty.choose_spec.defeqDF hq)
+  intro c hc
+  induction hc with
+  | bot => exact .bot
+  | @entry ej hej hlabj hin =>
+    have hwe := hwf.2.2.2.1 ej hej
+    obtain ⟨⟨_, htyj⟩, htmj⟩ := hlabj
+    have Wcons : Ctx.SubstEq Δ (σ.cons ej.tm) (σ.cons tm) (A :: Γ) :=
+      .cons W hA (hty.choose_spec.defeqDF (htyj.defeqDF htmj))
+    exact Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hin⟩)
+      (IsDefEq.stage hΓA hB hΔ Wcons (hbody ej hej))
+  | lower hle' _ ih => exact ih.mono hΔ hle'.wf hle'
+  | join _ _ _ ih₁ ih₂ =>
+    exact ((hdir hΔ Wtm (Valuation.WF.push hwρ hx)).join hΔ ih₁ ih₂).2
 
 /-! ## The `app` label
 
@@ -2382,7 +2429,13 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
     have he := sound_pair_fst (B := B) (b := b) hA.hasType.1 ha.hasType.1
     exact ⟨he, SoundTy.of_eq (.symm (.pair_fst hA hB ha hb hfst)) he.symm (iha hΓ).2⟩
   | @pair_snd _ A u B v a b hA hB ha hb hsnd _ _ _ ihb _ =>
-    have he := sound_pair_snd (B := B) (b := b) hA.hasType.1 ha.hasType.1
+    -- `snd`'s rule is a query at `fst`, so this case needs the β-rule for
+    -- `fst` as well, which its own premises give
+    have hpair := IsDefEq.pairDF hA hB hB ha hb
+      (IsDefEq.inst_cod hΓ hA.hasType.1 ha.hasType.1 hB) (IsDefEq.sigmaDF hA hB hB)
+    have hfst := IsDefEq.pair_fst hA.hasType.1 hB.hasType.1 ha.hasType.1 hb.hasType.1
+      (IsDefEq.fstDF hA.hasType.1 hB.hasType.1 hpair)
+    have he := sound_pair_snd (B := B) (b := b) hA.hasType.1 ha.hasType.1 hfst
     exact ⟨he, SoundTy.of_eq (.symm (.pair_snd hA hB ha hb hsnd)) he.symm (ihb hΓ).2⟩
   | fst_snd => sorry
   | nat =>

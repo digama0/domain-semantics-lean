@@ -114,6 +114,15 @@ theorem IsDefEq.sigma_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡
         | exact Term.noConfusion h
         | solve_by_elim [Or.inl, Or.inr]
 
+/-- Instantiating a definitional equality of codomains at an argument.
+`IsDefEq.subst` at `Subst.one a`, which is what `Term.inst` unfolds to. -/
+theorem IsDefEq.inst_cod {Γ : List Term} {A B B' a : Term} {u v : Bool} (hΓ : ⊢ Γ)
+    (hA : Γ ⊢ A : .sort u) (ha : Γ ⊢ a : A) (h : A :: Γ ⊢ B ≡ B' : .sort v) :
+    Γ ⊢ B.inst a ≡ B'.inst a : .sort v :=
+  IsDefEq.subst hΓ
+    (show Ctx.SubstEq Γ (Subst.one a) (Subst.one a) (A :: Γ) from
+      .cons (Ctx.SubstEq.id hΓ) hA (by simpa using ha)) h
+
 /-- The same for `succ`: its argument is a numeral wherever it occurs in a
 definitional equality.  `succDF` is the only case with content; the
 computation rules are covered by the reflexive premise typing their own

@@ -789,6 +789,52 @@ Two conclusions for us.
    missing retraction as `SoundJoin` (§5.1); it is worth deciding all
    three together.
 
+**Done: `snd` is a query (1).**  `Interp.snd` now carries
+`Δ ⊢ tm ≡ (fst p)[σ] : ty`, and `sound_sigma_lookup` (the Σ twin of
+`sound_beta_lookup`) turns a lookup in the Σ-shape's graph at that label
+into an approximant of the codomain there.  The `SoundEq` half of `sndDF`
+and the `pair_snd` β-rule go through with it.
+
+### 4.7b The dominator: where `sndDF`'s `SoundTy` now stops
+
+With the label pinned, `SoundTy Γ (.snd p) (B.inst (.fst p))` needs one
+more thing, and it is **not** about labels.  `HasType.pair` reads the
+second component's code at a *dominator*:
+
+```lean
+| pair … {x' y : Shape n} {x c : TShape} … :
+    TShape.LE Δ x'.T x → HasType Δ x d.T →
+    TEvaluates Δ f ty tm x c → HasType Δ y.T c → …
+```
+
+`x'` is the pair's actual first component and `x ≥ x'` is where the code
+is read.  The dominator is there for **lower-closure** of typing: shrink
+`x'` and the lookup at `x'` would shrink with it, so `y`'s code has to be
+read somewhere that does not move.  But `Interp.inst` demands the opposite:
+an approximant of `B[fst p]` is a body at a slot that **approximates**
+`fst p`, and the dominator need not.  So `y` is typed at the codomain
+evaluated at a slot we cannot use.
+
+This is the same wart §5.1 records for `SoundJoin` ("two compatible pairs
+can carry incompatible dominators"), and the *same tension appears at Π*:
+`HasType.lam`'s generator `g₀` plays the dominator's role there, so
+`appDF`'s `SoundTy` will meet it too — the code that types an application's
+result is a lookup at a generator entry's input, and `Interp.inst` wants a
+slot approximating the argument.
+
+So the Σ half is not a Σ problem.  The statement to decide is:
+
+> **typing reads codes at dominators (for lower-closure), while `inst`
+> reads types at approximating slots.**
+
+Options: (i) read codes at the component/argument itself and recover
+lower-closure another way; (ii) weaken `Interp.inst` so that a type may be
+read at a slot *above* the argument's (this is false for a general
+family, but may hold for *typed* slots, which is exactly what a decoder
+would give); (iii) carry, in `SoundTy` at Σ (resp. Π), a code read at the
+component (resp. argument) itself — the §5.3(a) shape again.  All three
+are the same decision as §5.1 and §5.3.
+
 ### 4.8 The remaining cases, in one line each
 
 `sigmaDF`, `pairDF`, `fstDF`, `sndDF`: mirror Π/λ/app with the pair's
