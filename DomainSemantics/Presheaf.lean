@@ -2541,7 +2541,12 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
         (.appDF hA hB hff'.hasType.1 haa'.hasType.1 hBinst.hasType.1)
         (ihf hΓ).2 (ihBinst hΓ).2 (IsDefEq.dir hΓ haa').1 (IsDefEq.dir hΓA hB).1 ?_⟩
     -- the lookup's `join` rule, i.e. `SoundJoin Γ (B.inst a)` (§5.1): the
-    -- only step of this case that is not proved
+    -- only step of this case that is not proved.  The padded premise
+    -- `Γ ⊢ B.inst a ≡ B.inst a' : sort v` is what would supply it, as an
+    -- induction hypothesis, once `SoundJoin` is a third conclusion here —
+    -- but that conclusion is not provable by *this* induction: at a
+    -- neutral type it is master's shape-level `HasType.join`, and there
+    -- the `pair` clause blocks
     sorry
   | lamDF => sorry
   -- the two halves proved above

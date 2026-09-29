@@ -880,6 +880,27 @@ input*, so shrinking an entry shrinks what it must be typed at, and the
 generator `g₀` composes downward (`TEvaluates.trans`).  In other words the
 λ-order already has the fibrewise character the pair order lacks.
 
+**Is `SoundJoin` dischargeable where it is used?**  Half of it, yes, and
+that half is structural: the computation and congruence rules are *padded*
+with a typing of their own result type — `appDF` carries
+`Γ ⊢ B.inst a ≡ B.inst a' : sort v`, `trDF` carries
+`Γ ⊢ C.inst b ≡ C'.inst b' : sort v` — so if `SoundJoin Γ t` were a third
+conclusion of `IsDefEq.sound` for judgments at a sort, every consumer
+would get it from a premise's induction hypothesis.  That is what the
+padding is for, and it is why `sound_app_ty` taking it as a hypothesis is
+the right *shape*.
+
+The other half fails, and this is the reason the hypothesis cannot be
+discharged today: **that third conclusion cannot be proved by induction on
+the type's syntax.**  At the formers it goes through (`sort` is
+`join_sort'`, `nat` is numerals, `unit` is `⊥`, `id` is `refl` of a join,
+Π is graph append), but at a *neutral* type — a variable of sort type, or
+`B[a]` with a neutral head — the type's approximant is an arbitrary type
+*shape* and there is no syntax left to induct on.  The statement there is
+exactly master's shape-level `HasType.join`, which is also what the Σ case
+needs.  So `SoundJoin` is a stand-in: the real lemma is the shape-level
+one, and the pair clause is the only place it fails.
+
 Three ways out, and the third is the one §5.3 was already heading for:
 
   (α) **restrict the pair order** so the second component lives in the
