@@ -200,8 +200,13 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
       TShape.WF Δ m →
       TShape.LE Δ m (Shape.T y) →
       Interp Δ Γ (.snd p) σ ρ m
+  /-- The equation is what the `succ` branch also carries, and for the same
+  reason: the *type* of a `natCase` is `C[M]`, and the branch's value is
+  typed at `C[zero]`, so soundness needs the two stages to be one.  The
+  shape `M ↦ zero` is semantic information; only the equation is syntax. -/
   | natCase_zero :
     Interp Δ Γ M σ ρ .zero →
+    Δ ⊢ M.subst σ ≡ .zero : .nat →
     Interp Δ Γ a σ ρ m →
     Interp Δ Γ (.natCase C M a b) σ ρ m
   /-- There is no syntactic predecessor former, so the label term for the
@@ -263,7 +268,7 @@ theorem Interp.wf {Δ Γ : List Term} {t : Term} {σ ρ m}
   | bvar hw | sort hw | unit hw | nat hw | zero hw | succ _ hw
   | app _ _ _ hw | lam _ _ _ _ _ hw | forallE _ _ _ _ _ _ hw | id hw | refl _ hw | tr hw
   | sigma _ _ _ _ _ _ hw | pair _ _ _ hw | fst _ hw | snd _ hw
-  | natCase_zero _ _ _ hw | natCase_succ _ _ _ _ _ hw
+  | natCase_zero _ _ _ _ hw | natCase_succ _ _ _ _ _ hw
   | Y _ _ _ _ hw => exact hw
 
 theorem Interp.mono (hΔ : ⊢ Δ) {Γ : List Term} {t : Term} {σ ρ} {m m' : TShape}
@@ -290,7 +295,7 @@ theorem Interp.mono (hΔ : ⊢ Δ) {Γ : List Term} {t : Term} {σ ρ} {m m' : T
   | pair ha hb hwf _ h1 => exact .pair ha hb hwf hw (TShape.LE.trans hΔ h h1)
   | fst hp _ h1 => exact .fst hp hw (TShape.LE.trans hΔ h h1)
   | snd hp _ h1 => exact .snd hp hw (TShape.LE.trans hΔ h h1)
-  | natCase_zero hM _ _ iha => exact .natCase_zero hM (iha hw h)
+  | natCase_zero hM hz _ _ iha => exact .natCase_zero hM hz (iha hw h)
   | natCase_succ hM hwv heq _ _ ihb => exact .natCase_succ hM hwv heq (ihb hw h)
   | Y hself hwx _ _ ihb => exact .Y hself hwx (ihb hw h)
   | id _ h1 => exact .id hw (TShape.LE.trans hΔ h h1)
@@ -322,7 +327,7 @@ theorem Interp.mono_val {Γ : List Term} {t : Term} {σ} {ρ ρ' : Valuation} {m
   | pair _ _ hwf hw h1 iha ihb => exact .pair (iha hρ) (ihb hρ) hwf hw h1
   | fst _ hw h1 ihp => exact .fst (ihp hρ) hw h1
   | snd _ hw h1 ihp => exact .snd (ihp hρ) hw h1
-  | natCase_zero _ _ ihM iha => exact .natCase_zero (ihM hρ) (iha hρ)
+  | natCase_zero _ hz _ ihM iha => exact .natCase_zero (ihM hρ) hz (iha hρ)
   | natCase_succ _ hwv heq _ ihM ihb =>
     refine .natCase_succ (ihM hρ) hwv heq ?_
     exact ihb (Valuation.LE.push.2 ⟨hρ, .refl (a := Shape.T _) hwv⟩)
@@ -358,7 +363,7 @@ theorem Interp.ctx {Δ Γ : List Term} {t σ ρ m} (H : Interp Δ Γ t σ ρ m) 
   | pair _ _ hwf hw h iha ihb => exact .pair iha ihb hwf hw h
   | fst _ hw h ihp => exact .fst ihp hw h
   | snd _ hw h ihp => exact .snd ihp hw h
-  | natCase_zero _ _ ihM iha => exact .natCase_zero ihM iha
+  | natCase_zero _ hz _ ihM iha => exact .natCase_zero ihM hz iha
   | natCase_succ _ hwv heq _ ihM ihb => exact .natCase_succ ihM hwv heq ihb
   | Y _ hwx _ ihself ihb => exact .Y ihself hwx ihb
   | id hw h => exact .id hw h
@@ -599,7 +604,10 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
     exact .pair (iha hΘ W) (ihb hΘ W) hwf' (hw.subst hΘ W) h1'
   | fst _ hw h1 ihp => exact .fst (ihp hΘ W) (hw.subst hΘ W) (h1.subst hΘ W)
   | snd _ hw h1 ihp => exact .snd (ihp hΘ W) (hw.subst hΘ W) (h1.subst hΘ W)
-  | natCase_zero _ _ ihM iha => exact .natCase_zero (ihM hΘ W) (iha hΘ W)
+  | natCase_zero _ hz _ ihM iha =>
+    have hz' := hz.subst hΘ W
+    rw [subst_subst] at hz'
+    exact .natCase_zero (ihM hΘ W) hz' (iha hΘ W)
   | natCase_succ _ hwv heq _ ihM ihb =>
     have heq' := heq.subst hΘ W
     rw [subst_subst] at heq'
@@ -683,7 +691,9 @@ theorem Interp.weak' {Δ : List Term} {Γ t σ' ρ m l} (H : Interp Δ Γ t (Sub
     exact .pair (iha hρ rfl) (ihb hρ rfl) hwf hw h1
   | fst _ hw h1 ihp => exact .fst (ihp hρ rfl) hw h1
   | snd _ hw h1 ihp => exact .snd (ihp hρ rfl) hw h1
-  | natCase_zero _ _ ihM iha => exact .natCase_zero (ihM hρ rfl) (iha hρ rfl)
+  | natCase_zero _ hz _ ihM iha =>
+    rw [← subst_lift'] at hz
+    exact .natCase_zero (ihM hρ rfl) hz (iha hρ rfl)
   | natCase_succ _ hwv heq _ ihM ihb =>
     rw [← subst_lift'] at heq
     refine .natCase_succ (ihM hρ rfl) hwv heq ?_
@@ -776,9 +786,10 @@ theorem Interp.unweak {Δ Γ' : List Term} {u σ' ρ' m}
   | snd _ hw h1 ihp =>
     intro _ t l ρ hρ ht; cases t <;> cases ht
     exact .snd (ihp hρ rfl) hw h1
-  | natCase_zero _ _ ihM iha =>
+  | natCase_zero _ hz _ ihM iha =>
     intro _ t l ρ hρ ht; cases t <;> cases ht
-    exact .natCase_zero (ihM hρ rfl) (iha hρ rfl)
+    rw [subst_lift'] at hz
+    exact .natCase_zero (ihM hρ rfl) hz (iha hρ rfl)
   | natCase_succ _ hwv heq _ ihM ihb =>
     intro _ t l ρ hρ ht; cases t <;> cases ht
     rw [subst_lift'] at heq

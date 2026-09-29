@@ -1546,6 +1546,21 @@ theorem TShape.HasType.isNumeral {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
     obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ hc
     exact absurd h2 (fun x => x)
 
+/-- And back: a numeral is typed at `nat`.  `bot` needs `nat` to be a
+type, which it is at every level. -/
+theorem Shape.IsNumeral.hasType {Δ : List Term} : ∀ {n} {v : Shape n},
+    Shape.IsNumeral v → TShape.HasType Δ v.T TShape.nat := by
+  intro n v h
+  induction h with
+  | bot => exact .bot .nat
+  | zero => exact .zero
+  | succ hw _ => exact .succ hw
+
+/-- The predecessor of a numeral is one. -/
+theorem Shape.IsNumeral.pred {n} {v : Shape n}
+    (h : Shape.IsNumeral (n := n+1) (.succ v)) : Shape.IsNumeral v := by
+  cases h with | succ hw => exact hw
+
 /-! ## The two unary formers
 
 `.succ N` and `.refl a` wrap their argument's shape, so directedness is
@@ -1692,13 +1707,13 @@ theorem dir_natCase {Γ : List Term} {C M a b B : Term} (hΓ : ⊢ Γ)
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | natCase_zero hM₁ ha₁ =>
+  | natCase_zero hM₁ hz₁ ha₁ =>
     cases h₂ with
-    | bot => exact ⟨_, ha₁.wf, .natCase_zero hM₁ ha₁, TShape.LE.refl ha₁.wf,
+    | bot => exact ⟨_, ha₁.wf, .natCase_zero hM₁ hz₁ ha₁, TShape.LE.refl ha₁.wf,
         TShape.bot_le' rfl⟩
-    | natCase_zero _ ha₂ =>
+    | natCase_zero _ _ ha₂ =>
       obtain ⟨s, hws, hs, hs₁, hs₂⟩ := iha hΔ W hwρ ha₁ ha₂
-      exact ⟨s, hws, .natCase_zero hM₁ hs, hs₁, hs₂⟩
+      exact ⟨s, hws, .natCase_zero hM₁ hz₁ hs, hs₁, hs₂⟩
     | natCase_succ hM₂ _ _ _ =>
       obtain ⟨_, hwz, _, hz₁, hz₂⟩ := ihM hΔ W hwρ hM₁ hM₂
       exact absurd (TShape.LE.zero_succ_absurd hz₁ hz₂) not_false
@@ -1706,7 +1721,7 @@ theorem dir_natCase {Γ : List Term} {C M a b B : Term} (hΓ : ⊢ Γ)
     cases h₂ with
     | bot => exact ⟨_, hbody₁.wf, .natCase_succ hM₁ hwv₁ heq₁ hbody₁,
         TShape.LE.refl hbody₁.wf, TShape.bot_le' rfl⟩
-    | natCase_zero hM₂ _ =>
+    | natCase_zero hM₂ _ _ =>
       obtain ⟨_, hwz, _, hz₁, hz₂⟩ := ihM hΔ W hwρ hM₁ hM₂
       exact absurd (TShape.LE.zero_succ_absurd hz₂ hz₁) not_false
     | @natCase_succ _ _ _ _ _ _ _ _ n₂ v₂ t₂ hM₂ hwv₂ heq₂ hbody₂ =>
@@ -1968,12 +1983,12 @@ theorem sound_natCase_zero {Γ : List Term} {C a b : Term} :
   refine ⟨fun h => ?_, fun h => ?_⟩
   · cases h with
     | bot => exact .bot
-    | natCase_zero _ ha => exact ha
+    | natCase_zero _ _ ha => exact ha
     | natCase_succ hM _ _ _ =>
       cases hM with
       | zero _ hle => exact absurd (TShape.LE.succ_zero_absurd hle) not_false
   · have hz : TShape.WF Δ TShape.zero := trivial
-    exact .natCase_zero (.zero hz (TShape.LE.refl hz)) h
+    exact .natCase_zero (.zero hz (TShape.LE.refl hz)) .zero h
 
 /-- `natCase C (succ n) a b` and `b[n]`. -/
 theorem sound_natCase_succ {Γ : List Term} {C a b n : Term}
@@ -2026,6 +2041,54 @@ theorem sound_Y_unfold {Γ : List Term} {A b : Term} {u : Bool}
   · obtain ⟨x, hbody, hx⟩ := hinst.1 h
     refine .Y hx hx.wf ?_
     rw [← Subst.one_comp]; exact hbody
+
+/-! ## `natCase`, congruence
+
+The two branches are the two premises', and the only work is at `succ`:
+the body lives at the stage extended by the label term `t` and at the slot
+`v`, so the body's `SoundEq` needs `(σ.cons t)` to be a substitution into
+`nat :: Γ` — which `succ_regular` gives, `t` being a `succ`'s argument —
+and needs the slot to be **admissible**, i.e. typed at `nat`.  Nothing in
+`Interp.natCase_succ` says so; what does is `SoundTy M nat`, through
+`HasType.isNumeral`: the shape `succ v` is typed at an approximant of
+`⟦nat⟧`, hence a numeral, hence so is `v`. -/
+theorem sound_natCase_of {Γ : List Term} {C C' M M' a a' b b' : Term}
+    (hMM' : Γ ⊢ M ≡ M' : Term.nat)
+    (ihM : SoundEq Γ M M') (ihMty : SoundTy Γ M Term.nat)
+    (iha : SoundEq Γ a a') (ihb : SoundEq (Term.nat :: Γ) b b')
+    {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
+    {m : TShape} (H : Interp Δ Γ (.natCase C M a b) σ ρ m) :
+    Interp Δ Γ (.natCase C' M' a' b') σ ρ m := by
+  cases H with
+  | bot => exact .bot
+  | natCase_zero hM hz ha =>
+    exact .natCase_zero ((ihM hΔ W hAdm).1 hM) (((hMM'.subst hΔ W).symm).trans hz)
+      ((iha hΔ W hAdm).1 ha)
+  | @natCase_succ _ _ _ _ _ _ _ _ n v t hM hwv heq hbody =>
+    -- the label term is a numeral's argument, so it is typed
+    have ht : Δ ⊢ t : Term.nat := heq.succ_regular (.inr rfl)
+    -- and the slot is typed at `nat`, because `M`'s shape is
+    obtain ⟨c, hc, hty⟩ := ihMty.approx hΔ W hAdm hM
+    have hvnat : TShape.HasType Δ v.T TShape.nat :=
+      (TShape.HasType.isNumeral hΔ (Interp.le_nat hc) hty).pred.hasType
+    have Wcons : Ctx.SubstEq Δ (σ.cons t) (σ.cons t) (Term.nat :: Γ) := .cons W .nat ht
+    have hAdm' : Adm Δ Γ₀ (Term.nat :: Γ) (σ.cons t) (ρ.push v.T) :=
+      .cons hAdm (fun _ hb => TShape.HasType.mono_l hΔ .nat (Interp.le_nat hb))
+        Interp.nat' (TShape.WF.T.2 hwv) hvnat
+    exact .natCase_succ ((ihM hΔ W hAdm).1 hM) hwv
+      (((hMM'.subst hΔ W).symm).trans heq)
+      ((ihb hΔ Wcons hAdm').1 hbody)
+
+/-- The `SoundEq` half of `natCaseDF`. -/
+theorem sound_natCase {Γ : List Term} {C C' M M' a a' b b' : Term}
+    (hMM' : Γ ⊢ M ≡ M' : Term.nat)
+    (ihM : SoundEq Γ M M') (ihMty : SoundTy Γ M Term.nat)
+    (iha : SoundEq Γ a a') (ihb : SoundEq (Term.nat :: Γ) b b') :
+    SoundEq Γ (.natCase C M a b) (.natCase C' M' a' b') := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm m
+  exact ⟨sound_natCase_of hMM' ihM ihMty iha ihb hΔ W hAdm,
+    sound_natCase_of hMM'.symm ihM.symm (SoundTy.of_eq hMM' ihM ihMty) iha.symm ihb.symm
+      hΔ W hAdm⟩
 
 /-! ## Inversion at the level of `SoundEq`
 
