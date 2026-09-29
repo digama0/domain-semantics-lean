@@ -852,6 +852,50 @@ by `IsDefEq.subst`.  `YDF`, `Y_unfold`: master's `Y_iff` (one line) and
 
 ### 5.1 Join-closure of a type's extension (`SoundJoin`)
 
+**Correction, from proving `appDF`: it is not needed by `tr` only.**  Every
+consumer of a *relational* lookup needs it.  A lookup's `join` rule returns
+`y₁ ⊔ y₂` with the two sides typed separately, and typing the join is the
+only way to type what the lookup returned; `SoundJoin.hasType_join`
+(`Presheaf.lean`) is the two-line bridge, using that typing is
+lower-closed.  Master never meets this because its lookup is a saturated
+max-below *function* — no `join` rule to discharge.  So the current
+consumers are `tr`'s directedness, `appDF`'s `SoundTy` (`sound_app_ty`
+takes it as a hypothesis and is otherwise complete), and whatever else
+reads a lookup: `lamDF`, `fst_snd`, `eta`.
+
+**And the obstruction is sharper than "incompatible dominators".**  The
+pair order is *componentwise*: `pair ty tm x'' y ≤ pair ty tm x' y` as soon
+as `x'' ≤ x'`, with the second component unmoved.  But the second
+component's code is the codomain looked up *at the first component*.  So:
+
+* read the code at the component and lower-closure fails — shrinking `x'`
+  shrinks the available code while `y` stays;
+* read it at a dominator and the join fails — two pairs can dominate
+  incompatibly.
+
+No choice is stable both ways, which is why `HasType.join` had to go when
+typing became lower-closed.  λ escapes because its order is lookup
+coverage: an entry's output is bounded by a lookup *at that entry's own
+input*, so shrinking an entry shrinks what it must be typed at, and the
+generator `g₀` composes downward (`TEvaluates.trans`).  In other words the
+λ-order already has the fibrewise character the pair order lacks.
+
+Three ways out, and the third is the one §5.3 was already heading for:
+
+  (α) **restrict the pair order** so the second component lives in the
+      fibre over the first;
+  (β) **index the second component by the first**, i.e. make a pair's
+      second half a one-entry graph and inherit λ's machinery verbatim;
+  (γ) **strengthen `SoundTy` at Σ (and Π) types** — a typed approximant of
+      a Σ-typed term is a pair whose label is the first projection and
+      whose dominator is an approximant of it; then two such, being
+      approximants of one term, have compatible dominators by `dir`.  This
+      is §5.3(a) and §4.7a's Σ twin, and it is also what `sndDF` and both
+      η rules need.  One decision covers `sndDF`, `SoundJoin`, `appDF`,
+      `trDF` and η.
+
+Original text follows.
+
 Needed by `dir` for `tr` only.  In upper-bound form it is the elementary
 shadow of `rawExtend_isDirected`.  Its Σ case fails at the shape level
 because two compatible pairs can carry incompatible dominating first
