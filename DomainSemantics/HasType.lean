@@ -850,24 +850,22 @@ theorem TEvaluates.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
   | join hc _ _ ih₁ ih₂ =>
     exact TShape.join_subst ▸ TEvaluates.join (TShape.Compat.subst hΘ W hc) ih₁ ih₂
 
-/-- Pair-decomposition: the components back at their own canonical
-levels, with the labels' definitional equality. -/
-theorem TShape.LE.pair_decomp {Δ : List Term} (hΔ : ⊢ Δ) {j n} {ty₂ tm₂ ty tm : Term}
-    {x₂ y₂ : Shape j} {x' y : Shape n}
-    (h : TShape.LE Δ (Shape.T (n := j+1) (ShapeS.pair ty₂ tm₂ x₂ y₂))
-      (Shape.T (n := n+1) (ShapeS.pair ty tm x' y))) :
-    LabelEq Δ ty₂ tm₂ ty tm ∧ TShape.LE Δ x₂.T x'.T ∧ TShape.LE Δ y₂.T y.T := by
+/-- Pair-decomposition: the first component back at its own canonical
+level, the label equality, and the graph covered by any bigger one's —
+`lam_decomp` with a first component alongside. -/
+theorem TShape.LE.pair_decomp {Δ : List Term} (hΔ : ⊢ Δ) {j n k} {A A' : Term}
+    {x₂ : Shape j} {g₂ : ShapeFun j} {x : Shape n} {g : ShapeFun n} {f'' : ShapeFun k}
+    (h : TShape.LE Δ (Shape.T (n := j+1) (ShapeS.pair A x₂ g₂))
+      (Shape.T (n := n+1) (ShapeS.pair A' x g)))
+    (hw : Shape.WF (n := j+1) Δ (.pair A x₂ g₂)) (hw' : Shape.WF (n := n+1) Δ (.pair A' x g))
+    (hg' : ∀ e ∈ g, TEvaluates Δ f'' e.ty e.tm e.inp.T e.out.T) :
+    TyEq Δ A A' ∧ TShape.LE Δ x₂.T x.T ∧
+      ∀ e ∈ g₂, TEvaluates Δ f'' e.ty e.tm e.inp.T e.out.T := by
   obtain ⟨M, hnM, hjM, h2⟩ := TShape.LE.at_succ h
   have hj : j ≤ M := Nat.le_of_succ_le_succ hjM
-  have hmax : max j n ≤ M := Nat.max_le.2 ⟨hj, hnM⟩
-  have ⟨hlab, hx, hy, _⟩ := h2
-  refine ⟨hlab, ?_, ?_⟩
-  · show Shape.LE Δ (x₂.lift (max j n)) (x'.lift (max j n))
-    refine (Shape.lift_le_lift hΔ hmax).1 ?_
-    rwa [Shape.lift_lift (Nat.le_max_left ..), Shape.lift_lift (Nat.le_max_right ..)]
-  · show Shape.LE Δ (y₂.lift (max j n)) (y.lift (max j n))
-    refine (Shape.lift_le_lift hΔ hmax).1 ?_
-    rwa [Shape.lift_lift (Nat.le_max_left ..), Shape.lift_lift (Nat.le_max_right ..)]
+  refine ⟨h2.2.2.2.2.1, (TShape.LE.def hΔ hj hnM).2 h2.1,
+    TEvaluates.of_cover_lift hΔ hj hw.2.2.1 h2.2.1.1
+      (TEvaluates.lift_cover hΔ hnM hw'.2.2.1 hg')⟩
 
 /-- Typing, over `TShape`. -/
 inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
@@ -908,17 +906,22 @@ inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
     -- the domain label is the Π's domain: intgrah's `Section` condition
     TyEq Δ A₀ A →
     HasType Δ (Shape.T (n := n+1) (.lam A₀ g)) (Shape.T (n := n'+1) (.forallE A B d f))
-  -- likewise: the shape is pinned, the first component is not.  `x` is the
-  -- dominator the code is read at, and `x'` any first component below it
-  | pair {n n'} {ty tm : Term} {x' y : Shape n} {x c : TShape}
-      {A B : Term} {d : Shape n'} {f : ShapeFun n'} :
+  -- **`lam`'s clause, with a first component alongside** (§5.1b).  The
+  -- second component is a graph, so each of its entries is typed at the
+  -- codomain read at *that entry's own* input, through the same generator
+  -- `g₀`; there is no dominating first component, and joins are unions
+  | pair {n n₀ n'} {A₀ : Term} {x : Shape n} {g : ShapeFun n} {f : ShapeFun n'}
+      {A B : Term} {d : Shape n'} {g₀ : List (Entry (Shape n₀) × TShape)} :
     HasType Δ d.T .type →
     (∀ e ∈ f, HasType Δ e.out.T .type) →
-    Shape.WF (n := n+1) Δ (.pair ty tm x' y) →
+    Shape.WF (n := n+1) Δ (.pair A₀ x g) →
     Shape.WF (n := n'+1) Δ (.sigma A B d f) →
-    TShape.LE Δ x'.T x → HasType Δ x d.T →
-    TEvaluates Δ f ty tm x c → HasType Δ y.T c →
-    HasType Δ (Shape.T (n := n+1) (.pair ty tm x' y)) (Shape.T (n := n'+1) (.sigma A B d f))
+    HasType Δ x.T d.T →
+    (∀ e ∈ g, TEvaluates Δ (g₀.map (·.1)) e.ty e.tm e.inp.T e.out.T) →
+    (∀ e ∈ g₀, TEvaluates Δ f e.1.ty e.1.tm e.1.inp.T e.2) →
+    (∀ e ∈ g₀, HasType Δ e.1.out.T e.2) →
+    TyEq Δ A₀ A →
+    HasType Δ (Shape.T (n := n+1) (.pair A₀ x g)) (Shape.T (n := n'+1) (.sigma A B d f))
   | refl {a n k} {w : Shape n} {A x y : Term} : Shape.WF Δ w →
     TShape.LE Δ (Shape.T (n := k+1) (.id true A x y)) a →
     HasType Δ a .type → HasType Δ (Shape.T (n := n+1) (.refl w)) a
@@ -1054,7 +1057,7 @@ theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
         exact .lam hd' hf' hwg hw' hg
           (fun e he => TEvaluates.trans hΔ hcov (hg₀ev e he)) hg₀ty (hdom.trans hPi.1)
       | _ => exact absurd h2 (fun x => x)
-  | pair hd hf hwp hwSg hxle hxd hev hy _ _ ihxd _ =>
+  | pair hd hf hwp hwSg hxd hg hg₀ev hg₀ty hdom _ _ ihxd _ =>
     intro a' h hA'
     obtain ⟨k, s⟩ := a'
     obtain ⟨M, hnM, hkM, h2⟩ := TShape.LE.src_succ h
@@ -1064,10 +1067,10 @@ theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
       cases s with
       | sigma A' B' d' f' =>
         obtain ⟨hd', hf', hw'⟩ := hA'.sigma_inv rfl
-        obtain ⟨_, hdd, hcov⟩ :=
+        obtain ⟨hSg, hdd, hcov⟩ :=
           TShape.LE.sigma_decomp hΔ h hwSg hw' (TEvaluates.refl hw'.2.2.2)
-        exact .pair hd' hf' hwp hw' hxle (ihxd d'.T hdd hd')
-          (TEvaluates.trans hΔ hcov hev) hy
+        exact .pair hd' hf' hwp hw' (ihxd d'.T hdd hd') hg
+          (fun e he => TEvaluates.trans hΔ hcov (hg₀ev e he)) hg₀ty (hdom.trans hSg.1)
       | _ => exact absurd h2 (fun x => x)
   | refl hw hc _ _ => exact fun _ h hA' => .refl hw (hc.trans hΔ h) hA'
 
@@ -1133,12 +1136,11 @@ theorem TShape.HasType.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShap
     have hn := Nat.le_of_succ_le_succ hk
     exact .lam hd hf ((Shape.lift_wf (Nat.succ_le_succ hn)).2 hwg) hwPi
       (TEvaluates.lift_cover hΔ hn hwg.2.2.1 hg) hg₀ev hg₀ty hdom
-  | pair hd hf hwp hwSg hxle hxd hev hy _ _ _ ihy =>
+  | pair hd hf hwp hwSg hxd hg hg₀ev hg₀ty hdom _ _ ihxd _ =>
     intro k hk; obtain ⟨k, rfl⟩ := succ_of hk
     have hn := Nat.le_of_succ_le_succ hk
     exact .pair hd hf ((Shape.lift_wf (Nat.succ_le_succ hn)).2 hwp) hwSg
-      ((TShape.LE.lift_le hΔ hn (TShape.LE.wf hxle)).trans hΔ hxle) hxd hev
-      (ihy hn)
+      (ihxd hn) (TEvaluates.lift_cover hΔ hn hwp.2.2.1 hg) hg₀ev hg₀ty hdom
   | refl hw hc hA _ =>
     intro k hk; obtain ⟨k, rfl⟩ := succ_of hk
     exact .refl ((Shape.lift_wf (Nat.le_of_succ_le_succ hk)).2 hw) hc hA
@@ -1213,12 +1215,11 @@ theorem TShape.HasType.lower_subject {Δ : List Term} (hΔ : ⊢ Δ) :
       have hwg' := (Shape.lift_wf (s := Shape.lam A₀ g) hk).1 hwg
       exact .lam hd hf hwg' hwPi
         (TEvaluates.lower_cover hΔ hk' hwg'.2.2.1 hg) hg₀ev hg₀ty hdom
-    | pair ty tm x' y =>
-      cases H with | pair hd hf hwp hwSg hxle hxd hev hy
-      have hwp' := (Shape.lift_wf (s := ShapeS.pair ty tm x' y) hk).1 hwp
-      exact .pair hd hf hwp' hwSg
-        ((TShape.LE.le_lift hΔ (m := x'.T) hk' hwp'.2.2.1).trans hΔ hxle)
-        hxd hev (ih hk' hy)
+    | pair A₀ x g =>
+      cases H with | pair hd hf hwp hwSg hxd hg hg₀ev hg₀ty hdom
+      have hwp' := (Shape.lift_wf (s := ShapeS.pair A₀ x g) hk).1 hwp
+      exact .pair hd hf hwp' hwSg (ih hk' hxd)
+        (TEvaluates.lower_cover hΔ hk' hwp'.2.2.1 hg) hg₀ev hg₀ty hdom
 
 /-- `⊥` is typed at `⊥`, since `⊥` is a type. -/
 theorem TShape.HasType.bot_bot {Δ : List Term} {m : TShape} (h : m.2 = Shape.bot) :
@@ -1304,14 +1305,21 @@ theorem TShape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
       exact TEvaluates.subst hΘ W (hg₀ev p hp)
     · obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
       exact ihg₀ty p hp
-  | pair _ _ hwp hwSg hxle _ hev _ ihd ihf ihxd ihy =>
+  | @pair _ _ _ _ _ _ _ _ _ _ g₀ _ _ hwp hwSg _ hg hg₀ev _ hdom ihd ihf ihxd ihg₀ty =>
     simp only [TShape.subst_T] at *
-    exact .pair ihd
-      (fun e he => by
-        obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
-        exact ihf e₀ he₀)
-      (Shape.WF.subst hΘ W hwp) (Shape.WF.subst hΘ W hwSg)
-      (TShape.LE.subst hΘ W hxle) ihxd (TEvaluates.subst hΘ W hev) ihy
+    refine .pair (g₀ := g₀.map fun p =>
+        (⟨p.1.ty.subst τ, p.1.tm.subst τ, p.1.inp.subst τ, p.1.out.subst τ⟩, p.2.subst τ))
+      ihd (fun e he => ?_) (Shape.WF.subst hΘ W hwp) (Shape.WF.subst hΘ W hwSg)
+      ihxd (fun e he => ?_) (fun e he => ?_) (fun e he => ?_) (hdom.subst hΘ W)
+    · obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
+      exact ihf e₀ he₀
+    · obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
+      have := TEvaluates.subst hΘ W (hg e₀ he₀)
+      simpa [ShapeFun.subst, List.map_map, Function.comp_def] using this
+    · obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+      exact TEvaluates.subst hΘ W (hg₀ev p hp)
+    · obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+      exact ihg₀ty p hp
   | refl hw hc _ ih =>
     simp only [TShape.subst_T] at *
     exact .refl (Shape.WF.subst hΘ W hw) (TShape.LE.subst hΘ W hc) ih
@@ -1374,10 +1382,10 @@ theorem TShape.HasType.join_sort {Δ : List Term} (hΔ : ⊢ Δ) :
         cases hy with | lam _ _ _ _ _ _ _
         exact absurd ha (fun h => by cases h)
       | _ => first | exact hy | exact absurd hc (fun x => x)
-    | pair ty tm a b =>
+    | pair A₀ x g =>
       cases z with
-      | pair ty' tm' a' b' =>
-        cases hy with | pair _ _ _ _ _ _ _ _
+      | pair A₀' x' g' =>
+        cases hy with | pair _ _ _ _ _ _ _ _ _
         exact absurd ha (fun h => by cases h)
       | _ => first | exact hy | exact absurd hc (fun x => x)
     | refl w =>
@@ -1588,16 +1596,21 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
         exact .lam hd hf hwg' hwPi
           (TShape.LE.lam_decomp hΔ h hwg' hwg hg) hg₀ev hg₀ty (h2.2.2.2.1.trans hdom)
       | _ => exact absurd h2 (fun x => x)
-  | pair hd hf _ hwSg hxle hxd hev hy _ _ _ ihy =>
+  | pair hd hf hwp hwSg hxd hg hg₀ev hg₀ty hdom _ _ ihxd _ =>
     intro m' h
     obtain ⟨j, s⟩ := m'
-    obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ h
-    cases j <;> cases s <;> first
-      | exact .bot (.sigma hd hf hwSg)
-      | (obtain ⟨hlab, hx2, hy2⟩ := TShape.LE.pair_decomp hΔ h
-         exact .pair hd hf (TShape.LE.wf h) hwSg (hx2.trans hΔ hxle) hxd
-           (hev.label hlab.symm) (ihy hy2))
-      | exact absurd h2 (fun x => x)
+    obtain ⟨M, _, hjM, h2⟩ := TShape.LE.at_succ h
+    cases j with
+    | zero => cases s <;> first | exact .bot (.sigma hd hf hwSg) | exact absurd h2 (fun x => x)
+    | succ j =>
+      cases s with
+      | bot => exact .bot (.sigma hd hf hwSg)
+      | pair A' x' g' =>
+        have hwp' : Shape.WF (n := j+1) Δ (.pair A' x' g') :=
+          (Shape.lift_wf hjM).1 (Shape.LE.wf h2)
+        obtain ⟨hA', hx', hcov⟩ := TShape.LE.pair_decomp hΔ h hwp' hwp hg
+        exact .pair hd hf hwp' hwSg (ihxd hx') hcov hg₀ev hg₀ty (hA'.trans hdom)
+      | _ => exact absurd h2 (fun x => x)
   | refl hw hc hA _ =>
     exact fun {m'} h => by
       obtain ⟨j, s⟩ := m'

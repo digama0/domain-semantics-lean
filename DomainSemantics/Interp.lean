@@ -178,36 +178,44 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
       TShape.LE Δ m
         (Shape.T (n := n+1) (ShapeS.sigma (A.subst σ) (B.subst σ.lift) d g)) →
       Interp Δ Γ (.sigma A B) σ ρ m
-  /-- A pair records the syntactic first component as its label, which
-  `Term.pair` conveniently carries.  That label is what the Σ-type's
-  codomain family is looked up at when the second component is typed. -/
-  | pair {n} {x y : Shape n} {A B a b : Term} :
+  /-- A pair is its first component together with a **graph**, mirroring
+  `lam` (§5.1b).  An entry `(A[σ], a[σ], inp, out)` reads "with at least
+  `inp` of the first component, the second is at least `out`", and it is
+  the *type* of the second component that makes that conditional: the
+  codomain family is read at `inp`, which is why the entry carries the type
+  witness `c` — as `tr` carries its motive's.  Without it an entry could
+  promise a big second component at a tiny first one, which no typing
+  could justify. -/
+  | pair {n} {x : Shape n} {g₀ : List (Entry (Shape n) × TShape)} {d : TShape}
+      {A B a b : Term} :
       Interp Δ Γ a σ ρ (Shape.T x) →
-      Interp Δ Γ b σ ρ (Shape.T y) →
-      Shape.WF (n := n+1) Δ (ShapeS.pair (A.subst σ) (a.subst σ) x y) →
+      Interp Δ Γ A σ ρ d →
+      TShape.HasType Δ d TShape.type →
+      Shape.WF (n := n+1) Δ (ShapeS.pair (A.subst σ) x (g₀.map (·.1))) →
+      (∀ e ∈ g₀, Δ ⊢ e.1.tm ≡ a.subst σ : e.1.ty) →
+      (∀ e ∈ g₀, TShape.HasType Δ e.1.inp.T d) →
+      (∀ e ∈ g₀, Interp Δ Γ a σ ρ e.1.inp.T) →
+      (∀ e ∈ g₀, Interp Δ Γ b σ ρ e.1.out.T) →
+      (∀ e ∈ g₀, Interp Δ (A :: Γ) B (σ.cons e.1.tm) (ρ.push e.1.inp.T) e.2) →
+      (∀ e ∈ g₀, TShape.HasType Δ e.1.out.T e.2) →
       TShape.WF Δ m →
-      TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.pair (A.subst σ) (a.subst σ) x y)) →
+      TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.pair (A.subst σ) x (g₀.map (·.1)))) →
       Interp Δ Γ (.pair A B a b) σ ρ m
-  /-- The projections read a component off a pair shape, as `app` reads an
-  output off a λ-shape. -/
-  | fst {n} {ty tm : Term} {x y : Shape n} :
-      Interp Δ Γ p σ ρ (Shape.T (n := n+1) (ShapeS.pair ty tm x y)) →
+  /-- The first projection reads the first component. -/
+  | fst {n} {A₀ : Term} {x : Shape n} {g : ShapeFun n} :
+      Interp Δ Γ p σ ρ (Shape.T (n := n+1) (ShapeS.pair A₀ x g)) →
       TShape.WF Δ m →
       TShape.LE Δ m (Shape.T x) →
       Interp Δ Γ (.fst p) σ ρ m
-  /-- The second projection is a **query**, as `app` is: the pair shape's
-  label is what its second component is typed at (`HasType.pair` looks the
-  codomain family up there), so reading the component off is allowed only
-  at a shape whose label is the first projection.  Without this the type
-  of `snd p` — `B[fst p]` — is not the type of what is read.
-
-  `fst` needs no such premise: the first component is typed at the domain,
-  which does not mention the label. -/
-  | snd {n} {ty tm : Term} {x y : Shape n} :
-      Interp Δ Γ p σ ρ (Shape.T (n := n+1) (ShapeS.pair ty tm x y)) →
-      Δ ⊢ tm ≡ (Term.fst p).subst σ : ty →
+  /-- The second projection is a **graph lookup**, as `app` is: at the
+  pair's own domain label, at the term `fst p`, and with the first
+  component as the input.  Reading it anywhere else would read a second
+  component conditional on more of the first than `p` has. -/
+  | snd {n} {A₀ : Term} {x : Shape n} {g : ShapeFun n} {y : TShape} :
+      Interp Δ Γ p σ ρ (Shape.T (n := n+1) (ShapeS.pair A₀ x g)) →
+      TEvaluates Δ g A₀ ((Term.fst p).subst σ) (Shape.T x) y →
       TShape.WF Δ m →
-      TShape.LE Δ m (Shape.T y) →
+      TShape.LE Δ m y →
       Interp Δ Γ (.snd p) σ ρ m
   /-- The equation is what the `succ` branch also carries, and for the same
   reason: the *type* of a `natCase` is `C[M]`, and the branch's value is
@@ -276,7 +284,7 @@ theorem Interp.wf {Δ Γ : List Term} {t : Term} {σ ρ m}
   | bot => exact .bot
   | bvar hw | sort hw | unit hw | nat hw | zero hw | succ _ hw
   | app _ _ _ hw | lam _ _ _ _ _ hw | forallE _ _ _ _ _ _ hw | id hw | refl _ hw | tr hw
-  | sigma _ _ _ _ _ _ hw | pair _ _ _ hw | fst _ hw | snd _ _ hw
+  | sigma _ _ _ _ _ _ hw | pair _ _ _ _ _ _ _ _ _ _ hw | fst _ hw | snd _ _ hw
   | natCase_zero _ _ _ _ hw | natCase_succ _ _ _ _ _ hw
   | Y _ _ _ _ hw => exact hw
 
@@ -301,7 +309,8 @@ theorem Interp.mono (hΔ : ⊢ Δ) {Γ : List Term} {t : Term} {σ ρ} {m m' : T
     exact .forallE hA hd hwf hlab hdom hbody hw (TShape.LE.trans hΔ h h1)
   | sigma hA hd hwf hlab hdom hbody _ h1 =>
     exact .sigma hA hd hwf hlab hdom hbody hw (TShape.LE.trans hΔ h h1)
-  | pair ha hb hwf _ h1 => exact .pair ha hb hwf hw (TShape.LE.trans hΔ h h1)
+  | pair ha hA hd hwf hlab hdom hinp hout hbody hty _ h1 =>
+    exact .pair ha hA hd hwf hlab hdom hinp hout hbody hty hw (TShape.LE.trans hΔ h h1)
   | fst hp _ h1 => exact .fst hp hw (TShape.LE.trans hΔ h h1)
   | snd hp hq _ h1 => exact .snd hp hq hw (TShape.LE.trans hΔ h h1)
   | natCase_zero hM hz _ _ iha => exact .natCase_zero hM hz (iha hw h)
@@ -333,7 +342,11 @@ theorem Interp.mono_val {Γ : List Term} {t : Term} {σ} {ρ ρ' : Valuation} {m
     exact .sigma (ihA hρ) hd hwf hlab hdom (fun e he => ihbody e he
       (Valuation.LE.push.2 ⟨hρ, TShape.LE.refl (a := Shape.T e.inp)
         (hwf.2.2.2.1 e he).2.2.1⟩)) hw h1
-  | pair _ _ hwf hw h1 iha ihb => exact .pair (iha hρ) (ihb hρ) hwf hw h1
+  | pair _ _ hd hwf hlab hdom _ _ hbody hty hw h1 iha ihA ihinp ihout ihbody =>
+    exact .pair (iha hρ) (ihA hρ) hd hwf hlab hdom (fun e he => ihinp e he hρ)
+      (fun e he => ihout e he hρ)
+      (fun e he => ihbody e he (Valuation.LE.push.2 ⟨hρ, TShape.LE.refl
+        (a := e.1.inp.T) (hwf.2.2.1.1 _ (List.mem_map.2 ⟨e, he, rfl⟩)).2.2.1⟩)) hty hw h1
   | fst _ hw h1 ihp => exact .fst (ihp hρ) hw h1
   | snd _ hq hw h1 ihp => exact .snd (ihp hρ) hq hw h1
   | natCase_zero _ hz _ ihM iha => exact .natCase_zero (ihM hρ) hz (iha hρ)
@@ -369,7 +382,9 @@ theorem Interp.ctx {Δ Γ : List Term} {t σ ρ m} (H : Interp Δ Γ t σ ρ m) 
     exact .forallE ihA hd hwf hlab hdom (fun e he => ihbody e he) hw h
   | sigma _ hd hwf hlab hdom _ hw h ihA ihbody =>
     exact .sigma ihA hd hwf hlab hdom (fun e he => ihbody e he) hw h
-  | pair _ _ hwf hw h iha ihb => exact .pair iha ihb hwf hw h
+  | pair _ _ hd hwf hlab hdom _ _ hbody hty hw h iha ihA ihinp ihout ihbody =>
+    exact .pair iha ihA hd hwf hlab hdom (fun e he => ihinp e he) (fun e he => ihout e he)
+      (fun e he => ihbody e he) hty hw h
   | fst _ hw h ihp => exact .fst ihp hw h
   | snd _ hq hw h ihp => exact .snd ihp hq hw h
   | natCase_zero _ hz _ ihM iha => exact .natCase_zero ihM hz iha
@@ -606,11 +621,38 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
     · obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
       have := ihbody e he hΘ W
       rwa [Subst.cons_comp, Valuation.subst_push, TShape.subst_T] at this
-  | pair _ _ hwf hw h1 iha ihb =>
+  | @pair _ _ _ _ _ _ g₀ _ _ _ _ _ ha hA hd hwf hlab hdom hinp hout hbody hty hw h1
+      iha ihA ihinp ihout ihbody =>
     have hwf' := hwf.subst hΘ W
     have h1' := h1.subst hΘ W
-    simp only [TShape.subst_T, Shape.subst, subst_subst] at hwf' h1'
-    exact .pair (iha hΘ W) (ihb hΘ W) hwf' (hw.subst hΘ W) h1'
+    simp only [TShape.subst_T, Shape.subst, subst_subst, ShapeFun.subst,
+      List.map_map, Function.comp_def] at hwf' h1'
+    refine .pair (g₀ := g₀.map fun p =>
+        (⟨p.1.ty.subst τ, p.1.tm.subst τ, p.1.inp.subst τ, p.1.out.subst τ⟩, p.2.subst τ))
+      (iha hΘ W) (ihA hΘ W) (TShape.HasType.subst hΘ W hd) ?_ ?_ ?_ ?_ ?_ ?_ ?_
+      (hw.subst hΘ W) ?_
+    · simpa [List.map_map, Function.comp_def] using hwf'
+    · intro e he
+      obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+      have := (hlab p hp).subst hΘ W
+      rwa [subst_subst] at this
+    · intro e he
+      obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+      exact TShape.HasType.subst hΘ W (hdom p hp)
+    · intro e he
+      obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+      exact ihinp p hp hΘ W
+    · intro e he
+      obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+      exact ihout p hp hΘ W
+    · intro e he
+      obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+      have := ihbody p hp hΘ W
+      rwa [Subst.cons_comp, Valuation.subst_push, TShape.subst_T] at this
+    · intro e he
+      obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+      exact TShape.HasType.subst hΘ W (hty p hp)
+    · simpa [List.map_map, Function.comp_def] using h1'
   | fst _ hw h1 ihp => exact .fst (ihp hΘ W) (hw.subst hΘ W) (h1.subst hΘ W)
   | snd _ hq hw h1 ihp =>
     have hq' := hq.subst hΘ W
@@ -698,9 +740,12 @@ theorem Interp.weak' {Δ : List Term} {Γ t σ' ρ m l} (H : Interp Δ Γ t (Sub
     · intro e he
       refine ihbody e he (l := l.cons) (fun i => ?_) Subst.lift_l_cons.symm
       cases i <;> simp_all [Valuation.push]
-  | pair _ _ hwf hw h1 iha ihb =>
-    rw [← subst_lift', ← subst_lift'] at hwf h1
-    exact .pair (iha hρ rfl) (ihb hρ rfl) hwf hw h1
+  | pair _ _ hd hwf hlab hdom _ _ hbody hty hw h1 iha ihA ihinp ihout ihbody =>
+    rw [← subst_lift'] at hwf h1 hlab
+    refine .pair (iha hρ rfl) (ihA hρ rfl) hd hwf hlab hdom (fun e he => ihinp e he hρ rfl)
+      (fun e he => ihout e he hρ rfl) (fun e he => ?_) hty hw h1
+    refine ihbody e he (l := l.cons) (fun i => ?_) Subst.lift_l_cons.symm
+    cases i <;> simp_all [Valuation.push]
   | fst _ hw h1 ihp => exact .fst (ihp hρ rfl) hw h1
   | snd _ hq hw h1 ihp =>
     rw [← subst_lift'] at hq
@@ -790,10 +835,13 @@ theorem Interp.unweak {Δ Γ' : List Term} {u σ' ρ' m}
     intro e he
     refine Subst.lift_l_cons ▸ ihbody e he (l := l.cons) (fun i => ?_) rfl
     cases i <;> simp_all [Valuation.push]
-  | pair _ _ hwf hw h1 iha ihb =>
+  | pair _ _ hd hwf hlab hdom _ _ hbody hty hw h1 iha ihA ihinp ihout ihbody =>
     intro _ t l ρ hρ ht; cases t <;> cases ht
-    rw [subst_lift', subst_lift'] at hwf h1
-    exact .pair (iha hρ rfl) (ihb hρ rfl) hwf hw h1
+    rw [subst_lift'] at hwf h1 hlab
+    refine .pair (iha hρ rfl) (ihA hρ rfl) hd hwf hlab hdom (fun e he => ihinp e he hρ rfl)
+      (fun e he => ihout e he hρ rfl) (fun e he => ?_) hty hw h1
+    refine Subst.lift_l_cons ▸ ihbody e he (l := l.cons) (fun i => ?_) rfl
+    cases i <;> simp_all [Valuation.push]
   | fst _ hw h1 ihp =>
     intro _ t l ρ hρ ht; cases t <;> cases ht
     exact .fst (ihp hρ rfl) hw h1
