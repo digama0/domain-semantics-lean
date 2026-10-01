@@ -351,6 +351,56 @@ repo's path without the quotient" is, in the end, **intrinsic typing** —
 the quotient is a convenience on top of it, and the part that does the
 work here is that every label comes with its typing.
 
+#### 3.1b The plan: stage-invariant clauses, and typed inductions
+
+*Decided.*  Extrinsic terms with a context around them and a typing
+assumed wherever one is needed — no quotient, no stage constructor
+(which is not the right analogue: it adds a *rule*, where what is wanted
+is that each existing rule respect the equivalence).  Each clause
+instead carries what makes it stage-invariant:
+
+| clause | assumption |
+|---|---|
+| `app` | `∃ A₀, (Γ ⊢ a : A₀) ∧ TyEq Δ A (A₀[σ])` — the λ-label *is* the argument's type |
+| `lam` | `∃ u, Γ ⊢ A : sort u` |
+| `forallE`, `sigma` | `∃ u, Γ ⊢ A : sort u`, `∃ v, A :: Γ ⊢ B : sort v` |
+| `pair` | `∃ u, Γ ⊢ A : sort u`, `Γ ⊢ a : A` |
+| `snd` | `∃ A₁, (Γ ⊢ fst p : A₁) ∧ TyEq Δ A₀ (A₁[σ])` |
+| `natCase_zero`, `natCase_succ` | `Γ ⊢ M : nat` |
+| `Y` | `∃ u, Γ ⊢ A : sort u`, `Γ ⊢ Y A b : A` |
+| `id`, `tr` | `∃ u, Γ ⊢ A : sort u`, `Γ ⊢ a : A`, `Γ ⊢ b : A` |
+
+`bvar`, the atoms, `succ`, `fst`, `refl` need nothing: no `σ` in sight.
+With these, every case of `stage` is the clause rebuilt at `σ'`, with
+`IsDefEq.subst` on the assumption for each label and `Ctx.SubstEq.cons`
+for each body — and `app`, the case that defeated every other repair, is
+one `defeqDF`, because in `appDF` the argument's type *is* the domain of
+the function's type.
+
+Three lemmas then have to be re-proved **by induction on a typing**
+rather than on the term, which is the same move and for the same reason:
+
+* `Interp.ctx` — now "any *definitionally equal* context"; the
+  annotations' typings are exactly what rebuilds the `Ctx.SubstEq`
+  under a binder.  (Done, in the work-in-progress patch.)
+* `Interp.unweak` — strengthening is not syntactically available, so the
+  lemma is indexed by a typing of the term in the *small* context and
+  the induction runs on that.
+* `Interp.slots` (new) — "an interpretation reads only the slots its
+  context has".  Needed because `Valuation.Approx` quantifies over *all*
+  slots, and a merge under a binder has nothing to say about the ones
+  past the end of `Γ`: `θ i` is not typed there, so it cannot be
+  unweakened.  A typed term only reads in-range slots, and that is again
+  an induction on the typing.
+
+Status: `notes/typed-clauses-wip.patch` carries the clause changes and
+the structural lemmas that are already done — `wf`, `mono`, `mono_val`,
+`ctx` (defeq contexts), `subst`, `weak'` (which now takes the
+`Ctx.Lift'`), `of_substTerm` (which now takes a typed `θ`).  What is
+left: `body_merge`/`list_merge`/`to_substTerm`/`substTerm`/`inst` (which
+need `Interp.slots`), the construction sites in `Presheaf.lean`, and
+then the three inductions above.
+
 ### 3.2 `IsDefEq.dir`, per former
 
 **Status: every case is proved except `tr`.**  What follows is the
