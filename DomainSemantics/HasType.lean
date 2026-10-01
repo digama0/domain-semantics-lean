@@ -1752,7 +1752,7 @@ theorem TShape.liftGen_map {n m : Nat} {g₀ : List (Entry (Shape n) × TShape)}
     (TShape.liftGen m g₀).map (·.1) = ShapeFun.lift (Shape.lift m) (g₀.map (·.1)) := by
   simp [TShape.liftGen, ShapeFun.lift, List.map_map, Function.comp_def]
 
-theorem join_gen_wf {Δ : List Term} (hΔ : ⊢ Δ) {n₀ n₀'}
+theorem join_gen_wf {Δ : List Term} {n₀ n₀'}
     {g₀ : List (Entry (Shape n₀) × TShape)} {g₀' : List (Entry (Shape n₀') × TShape)}
     (hw : ShapeFun.WFE Δ (Shape.WF Δ) (g₀.map (·.1)))
     (hw' : ShapeFun.WFE Δ (Shape.WF Δ) (g₀'.map (·.1))) :
@@ -1818,8 +1818,6 @@ theorem join_gen_code {Δ : List Term} (hΔ : ⊢ Δ) {n' n₀ n₀'} {f : Shape
 
 theorem join_gen_ty {Δ : List Term} (hΔ : ⊢ Δ) {n₀ n₀'}
     {g₀ : List (Entry (Shape n₀) × TShape)} {g₀' : List (Entry (Shape n₀') × TShape)}
-    (hw : ShapeFun.WFE Δ (Shape.WF Δ) (g₀.map (·.1)))
-    (hw' : ShapeFun.WFE Δ (Shape.WF Δ) (g₀'.map (·.1)))
     (hty : ∀ e ∈ g₀, TShape.HasType Δ e.1.out.T e.2)
     (hty' : ∀ e ∈ g₀', TShape.HasType Δ e.1.out.T e.2) :
     ∀ e ∈ TShape.liftGen (max n₀ n₀') g₀ ++ TShape.liftGen (max n₀ n₀') g₀',
@@ -1894,10 +1892,10 @@ theorem TShape.HasType.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
           cases hz with
           | @lam _ n₀' _ _ _ _ _ _ _ g₀' _ _ hwg' _ hwg₀' hg' hg₀ev' hg₀ty' hdom' =>
             exact .lam hd hfo (Shape.WF.join hΔ hc hwg hwg') hwPi
-              (join_gen_wf hΔ hwg₀ hwg₀')
+              (join_gen_wf hwg₀ hwg₀')
               (join_gen_cover hΔ hwg₀ hwg₀' hg hg')
               (join_gen_code hΔ hwg₀ hwg₀' hg₀ev hg₀ev')
-              (join_gen_ty hΔ hwg₀ hwg₀' hg₀ty hg₀ty') hdom
+              (join_gen_ty hΔ hg₀ty hg₀ty') hdom
       | _ => exact absurd hc (fun x => x)
     | pair A₀ x g =>
       cases z with
@@ -1909,10 +1907,10 @@ theorem TShape.HasType.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
           | @pair _ n₀' _ _ _ _ _ _ _ _ g₀' _ _ hwp' _ hxd' hwg₀' hg' hg₀ev' hg₀ty' hdom' =>
             exact .pair hd hfo (Shape.WF.join hΔ hc hwp hwp') hwSg
               (ih hc.2.1 hxd hxd')
-              (join_gen_wf hΔ hwg₀ hwg₀')
+              (join_gen_wf hwg₀ hwg₀')
               (join_gen_cover hΔ hwg₀ hwg₀' hg hg')
               (join_gen_code hΔ hwg₀ hwg₀' hg₀ev hg₀ev')
-              (join_gen_ty hΔ hwg₀ hwg₀' hg₀ty hg₀ty') hdom
+              (join_gen_ty hΔ hg₀ty hg₀ty') hdom
       | _ => exact absurd hc (fun x => x)
 
 /-- The same at the total level: lift both subjects to the common level
