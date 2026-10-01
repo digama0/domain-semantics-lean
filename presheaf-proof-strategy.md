@@ -238,6 +238,32 @@ Per rule, what moves:
 The lemma is used by `dir` (cross pairs) and by `sound` wherever a label
 equation from a graph entry has to be turned into an equation of stages.
 
+**Where it actually stops (2026-10-01).**  Every case of that plan goes
+through *except `app`*, and the obstruction is structural, not clerical.
+`Interp.app` looks the argument up at the **λ-shape's own label** `A₀`:
+
+```lean
+TEvaluates Δ g A₀ (a.subst σ) x y
+```
+
+Moving the stage means moving the query's *term* from `a[σ]` to `a[σ']`
+**at the type `A₀`**.  The typing of `a` and `W` give that equation at
+`A₁[σ]`, where `A₁` is `a`'s type in `Γ`; transporting it to `A₀` needs
+`Δ ⊢ A₀ ≡ A₁[σ]`, and for an arbitrary λ-shape — one that came out of a
+valuation slot, not out of a `lam` term — nothing says so.  Both types do
+type `a[σ]` (the entry's label equation says the first, the typing the
+second), so *uniqueness of types* would close it; but uniqueness is
+`HasType.uniq`, which comes from `StrongSound.uniq`, which comes after
+soundness, which uses `stage`.  A real cycle.
+
+The way out is not a lemma but a restructuring: **`stage` has to become a
+conclusion of the soundness induction** (alongside `SoundEq`/`SoundTy`),
+where the subterms' `SoundTy` is available as an induction hypothesis.
+Then `app` is one line — `Interp.lam_label_ty` says a *typed* approximant
+of a Π-typed term is a λ-shape labelled by `A[σ]` — and no uniqueness is
+needed.  Note this is the same shape of fix as §5.3's: both are facts
+about approximants of *typed* terms that the shape level cannot see.
+
 ### 3.2 `IsDefEq.dir`, per former
 
 **Status: every case is proved except `tr`.**  What follows is the
@@ -336,7 +362,7 @@ above both has to be typed at the motive above both.  Every other case is
 an upper bound with no typing to preserve, which is what lets them run
 under `Valuation.WF` with no admissibility anywhere.
 
-### 3.3 `Interp.substTerm`, `Interp.inst`
+### 3.3 `Interp.substTerm`, `Interp.inst` — **done**
 
 Master's `LE_Interp.subst`, with the stage moving and the directedness of
 the substituted terms as a hypothesis rather than a global lemma:
@@ -365,7 +391,19 @@ theorem Interp.inst (hΔ : ⊢ Δ) (ha : SoundDir Γ a) (W : Δ ⊢ σ : Γ) (h�
 
 `hθ` for `one a` is `ha` at `i = 0` and `Interp.bvar_iff` + `hρ` at
 `i+1`; then master's `inst` proof verbatim (`ρ'` coerced to `ρ.push (ρ' 0)`
-by `mono_val`).  `SoundDir Γ a` is available at every use site from
+by `mono_val`).
+
+**Both are proved** (`Interp.lean`), and the plan above is what the proof
+does, with three refinements.  `→` is an induction on the **term**, not
+on the derivation: `(bvar i)[θ]` is `θ i`, which has no head to invert,
+and that case is where the valuation is built (slot `i` holds the
+approximant, every other slot `⊥`).  The merge is factored out —
+`Valuation.Approx` (every slot approximates its `θ i`), `Approx.join` /
+`Approx.foldr`, and `Interp.body_merge` / `list_merge` for the clauses
+with one subderivation per graph entry; under a binder the body's
+valuation comes back with the binder's own slot in front, which
+`Interp.weak_iff` strips off the tail.  And `Y` needs its own induction,
+on the tower, since its clause is recursive in its own term.  `SoundDir Γ a` is available at every use site from
 `IsDefEq.dir` on the rule's typing of `a`.
 
 ### 3.4 `Interp.unweak`
