@@ -2773,12 +2773,12 @@ theorem dir_tr {Γ : List Term} {r : Bool} {A a b C X H : Term} {u : Bool} (hΓ 
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | tr hw₁ hle₁ hX₁ ha₁ hb₁ hA₁ hwv₁ hvA₁ hC₁ hcb₁ hm'₁ hH₁ =>
+  | tr hw₁ hle₁ hX₁ ha₁ hb₁ hA₁ hwv₁ hvA₁ hC₁ hcb₁ hm'₁ hH₁ heq₁ =>
     cases h₂ with
     | bot =>
       exact ⟨_, hX₁.wf, .tr hX₁.wf (TShape.LE.refl hX₁.wf) hX₁ ha₁ hb₁ hA₁ hwv₁ hvA₁
-        hC₁ hcb₁ hm'₁ hH₁, hle₁, TShape.bot_le' rfl⟩
-    | tr hw₂ hle₂ hX₂ ha₂ hb₂ hA₂ hwv₂ hvA₂ hC₂ hcb₂ hm'₂ hH₂ =>
+        hC₁ hcb₁ hm'₁ hH₁ heq₁, hle₁, TShape.bot_le' rfl⟩
+    | tr hw₂ hle₂ hX₂ ha₂ hb₂ hA₂ hwv₂ hvA₂ hC₂ hcb₂ hm'₂ hH₂ _ =>
       -- the witness: the join interprets both endpoints
       have ⟨hcv, hav⟩ := Interp.Dir.join hΔ (iha hΔ W hwρ) ha₁ ha₂
       have ⟨_, hbv⟩ := Interp.Dir.join hΔ (ihb hΔ W hwρ) hb₁ hb₂
@@ -2807,7 +2807,7 @@ theorem dir_tr {Γ : List Term} {r : Bool} {A a b C X H : Term} {u : Bool} (hΓ 
       -- and the proof premise, by `H`'s own directedness
       have hwm' := TShape.WF.join hΔ hcm hm'₁.wf.1 hm'₂.wf.1
       refine ⟨_, hwm', .tr hwm' (TShape.LE.refl hwm')
-          hXv hav hbv hAv hwv hty hcbv hcbty hm'ty ?_,
+          hXv hav hbv hAv hwv hty hcbv hcbty hm'ty ?_ heq₁,
         hle₁.trans hΔ hm'le.1, hle₂.trans hΔ hm'le.2⟩
       intro hr
       obtain ⟨s, hws, hs, hs₁, hs₂⟩ := ihH hΔ W hwρ (hH₁ hr) (hH₂ hr)
@@ -3240,7 +3240,7 @@ the stage term that changed), which is the pattern `YDF` already uses. -/
 
 theorem sound_tr_eq_of {Γ : List Term} {A A' a a' b b' C C' X X' H H' : Term}
     {u v : Bool} {r : Bool} (hΓ : ⊢ Γ)
-    (hAA' : Γ ⊢ A ≡ A' : .sort u) (hbb' : Γ ⊢ b ≡ b' : A)
+    (hAA' : Γ ⊢ A ≡ A' : .sort u) (haa' : Γ ⊢ a ≡ a' : A) (hbb' : Γ ⊢ b ≡ b' : A)
     (hC' : A' :: Γ ⊢ C' : .sort v)
     (ihA : SoundTy Γ A (.sort u))
     (ihAeq : SoundEq Γ A A') (ihaeq : SoundEq Γ a a') (ihbeq : SoundEq Γ b b')
@@ -3250,7 +3250,7 @@ theorem sound_tr_eq_of {Γ : List Term} {A A' a a' b b' C C' X X' H H' : Term}
     Interp Δ Γ (.tr r A' a' b' C' X' H') σ ρ m := by
   cases hm with
   | bot => exact .bot
-  | tr hw hle hX ha hb hA hwv hvA hC hcb hm' hH =>
+  | tr hw hle hX ha hb hA hwv hvA hC hcb hm' hH heq =>
     have hΓA' : ⊢ (A' :: Γ) := ⟨hΓ, _, hAA'.hasType.2⟩
     have WC : Ctx.SubstEq Δ (σ.cons (b.subst σ)) (σ.cons (b.subst σ)) (A :: Γ) :=
       .cons W hAA'.hasType.1 (hbb'.hasType.1.subst hΔ W)
@@ -3262,11 +3262,14 @@ theorem sound_tr_eq_of {Γ : List Term} {A A' a a' b b' C C' X X' H H' : Term}
       ((ihbeq hΔ W hAdm).1 hb) ((ihAeq hΔ W hAdm).1 hA) hwv hvA
       (IsDefEq.stage hΓA' hC' hΔ WC' ((ihCeq hΔ WC hAdm').1 hC).ctx)
       hcb hm' (fun hr => (ihHeq hΔ W hAdm).1 (hH hr))
+      -- the endpoints' equation moves along the congruences
+      (((hAA'.subst hΔ W).defeqDF
+        (((haa'.subst hΔ W).symm.trans heq).trans (hbb'.subst hΔ W))))
 
 /-- The `SoundEq` half of `trDF`. -/
 theorem sound_tr_eq {Γ : List Term} {A A' a a' b b' C C' X X' H H' : Term}
     {u v : Bool} {r : Bool} (hΓ : ⊢ Γ)
-    (hAA' : Γ ⊢ A ≡ A' : .sort u) (hbb' : Γ ⊢ b ≡ b' : A)
+    (hAA' : Γ ⊢ A ≡ A' : .sort u) (haa' : Γ ⊢ a ≡ a' : A) (hbb' : Γ ⊢ b ≡ b' : A)
     (hC : A :: Γ ⊢ C ≡ C' : .sort v) (hC' : A' :: Γ ⊢ C ≡ C' : .sort v)
     (ihA : SoundTy Γ A (.sort u))
     (ihAeq : SoundEq Γ A A') (ihaeq : SoundEq Γ a a') (ihbeq : SoundEq Γ b b')
@@ -3274,10 +3277,10 @@ theorem sound_tr_eq {Γ : List Term} {A A' a a' b b' C C' X X' H H' : Term}
     (ihXeq : SoundEq Γ X X') (ihHeq : SoundEq Γ H H') :
     SoundEq Γ (.tr r A a b C X H) (.tr r A' a' b' C' X' H') := by
   intro Δ Γ₀ σ ρ hΔ W hAdm m
-  refine ⟨sound_tr_eq_of hΓ hAA' hbb' hC'.hasType.2 ihA ihAeq ihaeq ihbeq ihCeq ihXeq ihHeq
+  refine ⟨sound_tr_eq_of hΓ hAA' haa' hbb' hC'.hasType.2 ihA ihAeq ihaeq ihbeq ihCeq ihXeq ihHeq
       hΔ W hAdm, ?_⟩
-  exact sound_tr_eq_of hΓ hAA'.symm (hAA'.defeqDF hbb'.symm) hC.hasType.1
-    (SoundTy.of_eq hAA' ihAeq ihA) ihAeq.symm ihaeq.symm ihbeq.symm ihCeq'.symm
+  exact sound_tr_eq_of hΓ hAA'.symm (hAA'.defeqDF haa'.symm) (hAA'.defeqDF hbb'.symm)
+    hC.hasType.1 (SoundTy.of_eq hAA' ihAeq ihA) ihAeq.symm ihaeq.symm ihbeq.symm ihCeq'.symm
     ihXeq.symm ihHeq.symm hΔ W hAdm
 
 /-- The `SoundTy` half: the motive's value *is* an approximant of `C[b]`,
@@ -3291,7 +3294,7 @@ theorem sound_tr_ty {Γ : List Term} {A a b C X H : Term} {r : Bool}
   have hwρ := hAdm.wf
   cases hm with
   | bot => exact ⟨TShape.bot, .bot, .bot (.bot .sort)⟩
-  | tr hw hle hX ha hbv hA hwv hvA hC hcb hm' hH =>
+  | tr hw hle hX ha hbv hA hwv hvA hC hcb hm' hH _ =>
     refine ⟨_, (Interp.inst (A := A) (b := C) hΔ (ihbdir hΔ W hwρ) hwρ).2
       ⟨_, ?_, hbv⟩, TShape.HasType.mono_l hΔ hm' hle⟩
     rw [Subst.one_comp]
@@ -3314,7 +3317,7 @@ theorem sound_tr_refl_eq {Γ : List Term} {A a C X : Term} {u v : Bool} {r : Boo
   · intro h
     cases h with
     | bot => exact .bot
-    | tr hw hle hX _ _ _ _ _ _ _ _ _ => exact Interp.mono hΔ hw hle hX
+    | tr hw hle hX _ _ _ _ _ _ _ _ _ _ => exact Interp.mono hΔ hw hle hX
   · intro h
     obtain ⟨c, hc, hct⟩ := ihx.approx hΔ W hAdm h
     obtain ⟨x₀, hC₀, ha₀⟩ :=
@@ -3326,7 +3329,7 @@ theorem sound_tr_refl_eq {Γ : List Term} {A a C X : Term} {u v : Bool} {r : Boo
     have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons (a.subst σ)) (ρ.push x₀) :=
       .cons hAdm (fun _ hd => ihA.isType hΔ W hAdm hd) hvA ha₀.wf htyx₀
     refine .tr h.wf (TShape.LE.refl h.wf) h ha₀ ha₀ hvA ha₀.wf htyx₀ hC₀
-      (ihC.isType hΔ Wa hAdm' hC₀) hct ?_
+      (ihC.isType hΔ Wa hAdm' hC₀) hct ?_ (ha.subst hΔ W)
     rintro rfl
     exact .refl ha₀ ha₀.wf (TShape.LE.refl ha₀.wf)
 
@@ -3913,7 +3916,7 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
       ihA iha ihb ihC ihC' ihX ihH =>
     have hΓA : ⊢ (A :: _) := ⟨hΓ, _, hAA'.hasType.1⟩
     have hΓA' : ⊢ (A' :: _) := ⟨hΓ, _, hAA'.hasType.2⟩
-    exact ⟨sound_tr_eq hΓ hAA' hbb' hC hC' (ihA hΓ).2 (ihA hΓ).1 (iha hΓ).1 (ihb hΓ).1
+    exact ⟨sound_tr_eq hΓ hAA' haa' hbb' hC hC' (ihA hΓ).2 (ihA hΓ).1 (iha hΓ).1 (ihb hΓ).1
         (ihC hΓA).1 (ihC' hΓA').1 (ihX hΓ).1 (ihH hΓ).1,
       sound_tr_ty (IsDefEq.trDF hAA' haa' hbb' hC hC' hXX' hHH' hCb hid).hasType.1
         (IsDefEq.dir hΓ hbb').1⟩

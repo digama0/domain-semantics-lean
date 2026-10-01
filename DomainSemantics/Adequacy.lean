@@ -1069,8 +1069,36 @@ theorem LR.adequacy (H : Γ ⊢ M ≡ N : A)
       exact .bot' HCb.hasType.1 hA hmem.isType fun hM' hA' hmem' => (ihCb hM' hA' hmem').left
     cases hM with | bot => cases hm .rfl | tr le_m hx_m hva hvb hvA hv_ty_vA hc_C hty hH_refl
     rename_i vb vA m' a_ty
-    -- TODO(r=false): the transport for a Prop-valued Id (`r = false`) collapses via
-    -- `proofIrrel` rather than a refl witness; that branch is left for later.
+    -- **The hole this model cannot fill — and the reason for the labelled
+    -- redesign.**  At `r = true` the proof is informative: `hH_refl` says `H`'s
+    -- shape is a `refl`, the logical relation at an `id` type turns that into
+    -- `H ⤳* refl a₁` with `a₁ ≡ A` and `a₁ ≡ B`, hence `A ≡ B`, hence the
+    -- transport *reduces* (`tr_refl`) to `X` — which is what the relation at a
+    -- non-`⊥` shape demands.
+    --
+    -- At `r = false` the identity is a **Prop**, so every proof has shape `⊥`
+    -- (`WShape.HasType.proofIrrel`) and carries no information at all.  The
+    -- other repo's answer is that the proof never carries any: a transport is
+    -- a *coercion*, `⟦tr A a b C x h⟧ = rawExtend ⟦C[b]⟧ ⟦x⟧`, and its
+    -- computation rule is **K** — `tr A a b C x h ≡ x` as soon as `a ≡ b`,
+    -- whatever `h` is (derivable here from `proofIrrel` and `tr_refl`).  So
+    -- the transport's value must be licensed by the *endpoints' definitional
+    -- equality*, and the `tr` clause has to carry that judgment.
+    --
+    -- `LE_Interp ρ m M` cannot: it has no context and no stage, so it cannot
+    -- state `a ≡ b`, and — worse — it reads the motive at a valuation *slot*
+    -- (`LE_Interp (ρ.push v) cb C`), so it cannot tell `C[a]` from `C[b]` when
+    -- `a` and `b` share the slot `v`.  The clause therefore hands a *stuck*
+    -- transport the transported value's shapes, which no reduction can
+    -- justify, and this case of adequacy is false for that model, not merely
+    -- unproved.
+    --
+    -- `Interp` (`Interp.lean`) reads the motive at the stage `σ.cons (b[σ])`,
+    -- where the syntax of `b` is present, and its `tr` clause carries
+    -- `Δ ⊢ a[σ] ≡ b[σ] : A[σ]` beside it; `Interp.tr_bot_of_ne` is the
+    -- consequence — a transport whose endpoints differ at the stage is `⊥`.
+    -- The new line's `trDF`, `tr_refl` and directedness are proved there for
+    -- both `r` (`sound_tr_eq`, `sound_tr_ty`, `sound_tr_refl_eq`, `dir_tr`).
     obtain rfl : r = true := sorry
     refine .wf₀ fun hΓ₀ => ?_
     have h_vbvA :=

@@ -735,6 +735,59 @@ rawExtend ⟦C[b/]⟧ ⟦x⟧`, directed by `rawExtend_isDirected`, free.
 This is the only consumer of join-closure of a type's extension once the
 Π case takes `Valuation.WF`.  Its Σ instance is the `pair`-dominator
 obstruction (`HasType.lean`, removal note; `SoundJoin`'s doc comment).
+
+#### 4.7c The proof-irrelevant transport: what the clause must carry
+
+**The case the redesign is for.**  All of the above is about `r = true`,
+where the proof is informative.  At `r = false` the identity type is a
+**Prop**, so every proof has shape `⊥` (`HasType.proofIrrel`) and the
+`r = true → Interp H (refl v)` premise says nothing.  What then licenses
+the transport's value?
+
+The other repo answers: nothing about the proof ever does.  There the
+identity type is proof-irrelevant throughout, the transport is a
+**coercion**
+
+```
+⟦tr A a b C x h⟧ = rawExtend ⟦C[b/]⟧ ⟦x⟧
+```
+
+(`rawInterpret_transport_value`), and its computation rule is not
+`tr_refl` but **K**:
+
+```
+Γ ⊢ A : sort u    Γ ⊢ a ≡ b : A    A :: Γ ⊢ C : sort v
+Γ ⊢ x : C[a/]     Γ ⊢ h : id A a b
+─────────────────────────────────────────── tr_K
+Γ ⊢ tr A a b C x h ≡ x : C[b/]
+```
+
+— the transport computes as soon as the *endpoints* are definitionally
+equal, whatever the proof is.  (In our syntax `tr_K` at `r = false` is
+derivable: `proofIrrel` gives `h ≡ refl a` once `a ≡ b` makes
+`refl a : id false A a b` typecheck, and then `tr_refl` fires.)
+
+So the value is licensed by a **judgment about the endpoints**, and the
+`tr` clause has to carry it.  `Interp.tr` now does:
+
+```lean
+Δ ⊢ a.subst σ ≡ b.subst σ : A.subst σ →
+```
+
+beside the motive's `Interp Δ (A :: Γ) C (σ.cons (b.subst σ)) (ρ.push v) cb`.
+`Interp.tr_bot_of_ne` is the consequence: a transport whose endpoints are
+not equal *at the stage* has only `⊥`.
+
+**Why the old model cannot do this, and why that is the whole point.**
+`LE_Interp ρ m M` has no context and no stage.  It cannot state `a ≡ b`;
+and it reads the motive at a valuation *slot* (`LE_Interp (ρ.push v) cb C`),
+so when `a` and `b` share the slot `v` — which `⊥` always is — it cannot
+tell `C[a]` from `C[b]` either.  Its `tr` clause therefore hands a
+**stuck** transport the transported value's shapes, and no reduction
+justifies that: `LR.adequacy`'s `trDF` case at `r = false` is false for
+that model, not merely unproved (`Adequacy.lean`, where the one remaining
+`sorry` of the old line sits).  Labels and stages are exactly what buys
+the missing premise.
 Options in §5.1.  Everything else about `tr` is master's proof.
 
 ### 4.7a `sndDF` and `fst_snd`: the Σ analogue of §5.3

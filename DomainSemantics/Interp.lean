@@ -257,7 +257,23 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
     Interp Δ Γ (.refl true a) σ ρ m
   /-- Transport.  Master's constructor, with the motive evaluated at the
   stage extended by `b`, which is the label term the motive's binder is
-  instantiated with. -/
+  instantiated with — **and with the endpoints' equation at the stage**.
+
+  That equation is what the proof-irrelevant identity type needs, and it
+  is the one thing an unlabelled model cannot say.  At `r = false` a
+  proof has only the `⊥` shape (`HasType.proofIrrel`), so nothing about
+  it can license the transport's value; the other repo's answer is that
+  the proof never licenses it — `⟦tr A a b C x h⟧ = rawExtend ⟦C[b]⟧ ⟦x⟧`
+  is a *coercion*, and its computation rule is **K**: `tr A a b C x h ≡ x`
+  as soon as `a ≡ b`, whatever `h` is.  Here `a ≡ b` is a judgment, so the
+  clause carries it at the stage, exactly as `natCase_zero` carries
+  `M[σ] ≡ zero`.  Without it a *stuck* transport (endpoints not equal at
+  the stage) would still be given `X`'s approximants, which no syntactic
+  rule can justify: that is the hole left in the old, context-free
+  `LE_Interp` (`Adequacy.lean`), and the reason for the labelled redesign.
+
+  At `r = true` the proof is informative and the `refl`-shape premise is
+  kept as well; `tr_refl` supplies both. -/
   | tr {v vA m' cb : TShape} {r : Bool} {A a b C X H : Term} :
     TShape.WF Δ m →
     TShape.LE Δ m m' →
@@ -271,6 +287,7 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
     TShape.HasType Δ cb TShape.type →
     TShape.HasType Δ m' cb →
     (r = true → Interp Δ Γ H σ ρ (Shape.T (n := v.1+1) (ShapeS.refl v.2))) →
+    Δ ⊢ a.subst σ ≡ b.subst σ : A.subst σ →
     Interp Δ Γ (.tr r A a b C X H) σ ρ m
 
 /-! ## Monotonicity
@@ -318,8 +335,8 @@ theorem Interp.mono (hΔ : ⊢ Δ) {Γ : List Term} {t : Term} {σ ρ} {m m' : T
   | Y hself hwx _ _ ihb => exact .Y hself hwx (ihb hw h)
   | id _ h1 => exact .id hw (TShape.LE.trans hΔ h h1)
   | refl hv _ h1 => exact .refl hv hw (TShape.LE.trans hΔ h h1)
-  | tr _ hle hX ha hb hA hwv hvA hC hcb hm' hH _ _ _ _ _ _ =>
-    exact .tr hw (TShape.LE.trans hΔ h hle) hX ha hb hA hwv hvA hC hcb hm' hH
+  | tr _ hle hX ha hb hA hwv hvA hC hcb hm' hH heq _ _ _ _ _ _ =>
+    exact .tr hw (TShape.LE.trans hΔ h hle) hX ha hb hA hwv hvA hC hcb hm' hH heq
 
 theorem Interp.mono_val {Γ : List Term} {t : Term} {σ} {ρ ρ' : Valuation} {m : TShape}
     (hΔ : ⊢ Δ) (hρ : ρ.LE Δ ρ') (H : Interp Δ Γ t σ ρ m) : Interp Δ Γ t σ ρ' m := by
@@ -357,8 +374,9 @@ theorem Interp.mono_val {Γ : List Term} {t : Term} {σ} {ρ ρ' : Valuation} {m
     exact .Y (ihself hρ) hwx (ihb (Valuation.LE.push.2 ⟨hρ, .refl hwx⟩))
   | id hw h1 => exact .id hw h1
   | refl _ hw h1 ihv => exact .refl (ihv hρ) hw h1
-  | tr hw hle _ _ _ _ hwv hvA _ hcb hm' _ ihX iha ihb ihA ihC ihH =>
-    refine .tr hw hle (ihX hρ) (iha hρ) (ihb hρ) (ihA hρ) hwv hvA ?_ hcb hm' (fun hr => ihH hr hρ)
+  | tr hw hle _ _ _ _ hwv hvA _ hcb hm' _ heq ihX iha ihb ihA ihC ihH =>
+    refine .tr hw hle (ihX hρ) (iha hρ) (ihb hρ) (ihA hρ) hwv hvA ?_ hcb hm'
+      (fun hr => ihH hr hρ) heq
     exact ihC (Valuation.LE.push.2 ⟨hρ, .refl hwv⟩)
 
 /-- The term's own context is not load-bearing: no rule mentions `Γ`
@@ -392,8 +410,8 @@ theorem Interp.ctx {Δ Γ : List Term} {t σ ρ m} (H : Interp Δ Γ t σ ρ m) 
   | Y _ hwx _ ihself ihb => exact .Y ihself hwx ihb
   | id hw h => exact .id hw h
   | refl _ hw h ihv => exact .refl ihv hw h
-  | tr hw hle _ _ _ _ hwv hvA _ hcb hm' _ ihX iha ihb ihA ihC ihH =>
-    exact .tr hw hle ihX iha ihb ihA hwv hvA ihC hcb hm' (fun hr => ihH hr)
+  | tr hw hle _ _ _ _ hwv hvA _ hcb hm' _ heq ihX iha ihb ihA ihC ihH =>
+    exact .tr hw hle ihX iha ihb ihA hwv hvA ihC hcb hm' (fun hr => ihH hr) heq
 
 /-! ## Constructors at the canonical shape
 
@@ -677,10 +695,12 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
     simp only [TShape.subst_T, Shape.subst, subst_subst] at this
     exact .id (hw.subst hΘ W) this
   | refl _ hw h1 ihv => exact .refl (ihv hΘ W) (hw.subst hΘ W) (h1.subst hΘ W)
-  | tr hw hle _ _ _ _ hwv hvA _ hcb hm' _ ihX iha ihb ihA ihC ihH =>
+  | tr hw hle _ _ _ _ hwv hvA _ hcb hm' _ heq ihX iha ihb ihA ihC ihH =>
+    have heq' := heq.subst hΘ W
+    rw [subst_subst, subst_subst, subst_subst] at heq'
     refine .tr (hw.subst hΘ W) (hle.subst hΘ W) (ihX hΘ W) (iha hΘ W) (ihb hΘ W) (ihA hΘ W)
       (hwv.subst hΘ W) (hvA.subst hΘ W) ?_ (hcb.subst hΘ W) (hm'.subst hΘ W)
-      (fun hr => ihH hr hΘ W)
+      (fun hr => ihH hr hΘ W) heq'
     have := ihC hΘ W
     rwa [Subst.cons_comp, subst_subst, Valuation.subst_push] at this
 
@@ -768,9 +788,10 @@ theorem Interp.weak' {Δ : List Term} {Γ t σ' ρ m l} (H : Interp Δ Γ t (Sub
     simp only [← subst_lift'] at h1
     exact .id hw h1
   | refl _ hw h1 ihv => exact .refl (ihv hρ rfl) hw h1
-  | tr hw hle _ _ _ _ hwv hvA _ hcb hm' _ ihX iha ihb ihA ihC ihH =>
+  | tr hw hle _ _ _ _ hwv hvA _ hcb hm' _ heq ihX iha ihb ihA ihC ihH =>
+    rw [← subst_lift', ← subst_lift', ← subst_lift'] at heq
     refine .tr hw hle (ihX hρ rfl) (iha hρ rfl) (ihb hρ rfl) (ihA hρ rfl) hwv hvA ?_ hcb hm'
-      (fun hr => ihH hr hρ rfl)
+      (fun hr => ihH hr hρ rfl) heq
     refine ihC (l := l.cons) (fun i => ?_) ?_
     · cases i <;> simp_all [Valuation.push]
     · rw [← Subst.lift_l_cons]
@@ -890,11 +911,12 @@ theorem Interp.of_substTerm {Δ Γ : List Term} {t : Term} {τ ρ' m} (hΔ : ⊢
     simp only [← subst_subst] at h1
     exact .id hw h1
   | refl _ hw h1 ihv => intro _ _ _ _ hτ hθ; exact .refl (ihv hτ hθ) hw h1
-  | tr hw hle _ _ _ _ hwv hvA _ hcb hm' _ ihX iha ihb ihA ihC ihH =>
+  | tr hw hle _ _ _ _ hwv hvA _ hcb hm' _ heq ihX iha ihb ihA ihC ihH =>
     intro Γ' θ σ ρ hτ hθ
     subst hτ
+    rw [← subst_subst, ← subst_subst, ← subst_subst] at heq
     refine .tr hw hle (ihX rfl hθ) (iha rfl hθ) (ihb rfl hθ) (ihA rfl hθ) hwv hvA ?_ hcb hm'
-      (fun hr => ihH hr rfl hθ)
+      (fun hr => ihH hr rfl hθ) heq
     rw [subst_subst]
     refine ihC (θ := θ.lift) Subst.lift_comp_cons.symm (fun i => ?_)
     cases i with
@@ -997,10 +1019,11 @@ theorem Interp.unweak {Δ Γ' : List Term} {u σ' ρ' m}
   | refl _ hw h1 ihv =>
     intro _ t l ρ hρ ht; cases t <;> cases ht
     exact .refl (ihv hρ rfl) hw h1
-  | tr hw hle _ _ _ _ hwv hvA _ hcb hm' _ ihX iha ihb ihA ihC ihH =>
+  | tr hw hle _ _ _ _ hwv hvA _ hcb hm' _ heq ihX iha ihb ihA ihC ihH =>
     intro _ t l ρ hρ ht; cases t <;> cases ht
+    rw [subst_lift', subst_lift', subst_lift'] at heq
     refine .tr hw hle (ihX hρ rfl) (iha hρ rfl) (ihb hρ rfl) (ihA hρ rfl) hwv hvA ?_ hcb hm'
-      (fun hr => ihH hr hρ rfl)
+      (fun hr => ihH hr hρ rfl) heq
     rw [← subst_lift']
     refine Subst.lift_l_cons ▸ ihC (l := l.cons) (fun i => ?_) rfl
     cases i <;> simp_all [Valuation.push]
@@ -1118,6 +1141,23 @@ theorem Interp.Dir.weak {Δ Γ Γ' : List Term} {t σ ρ x e} (h : Interp.Dir Δ
       Interp Δ Γ t σ ρ m := fun {_} => Interp.weak_iff (fun _ => rfl)
   obtain ⟨s, hws, hs, hs₁, hs₂⟩ := h (hiff.1 h₁) (hiff.1 h₂)
   exact ⟨s, hws, hiff.2 hs, hs₁, hs₂⟩
+
+/-- **A transport computes only by K.**  If the endpoints are not
+definitionally equal at the stage, the transport has no information —
+the `tr` clause cannot fire and only `bot` is left.
+
+This is the fact the old, context-free `LE_Interp` cannot state, and it
+is what an adequacy proof needs: a *stuck* transport must not be given
+the transported value's shapes, because no syntactic rule relates the
+two.  Here the motive is read at the stage `σ.cons (b[σ])`, so `C[b]` is
+pinned by the syntax of `b`, and the endpoints' equation can be demanded
+alongside it. -/
+theorem Interp.tr_bot_of_ne {Δ Γ : List Term} {r : Bool} {A a b C X H : Term} {σ ρ m}
+    (h : Interp Δ Γ (.tr r A a b C X H) σ ρ m)
+    (hne : ¬ (Δ ⊢ a.subst σ ≡ b.subst σ : A.subst σ)) : m.2 = Shape.bot := by
+  cases h with
+  | bot => rfl
+  | tr _ _ _ _ _ _ _ _ _ _ _ _ heq => exact absurd heq hne
 
 /-- An approximant of a variable is below its slot. -/
 theorem Interp.le_bvar {Δ Γ : List Term} {i σ ρ m}
@@ -1461,7 +1501,8 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
     intro Γ Γ' θ σ ρ m hθ hm
     cases hm with
     | bot => exact ⟨Valuation.nil, .bot, Valuation.Approx.nil⟩
-    | @tr _ _ _ _ v vA m'' cb _ _ _ _ _ _ _ hw hle hXi hai hbi hAi hwv hvA hCi hcb hm' hHi =>
+    | @tr _ _ _ _ v vA m'' cb _ _ _ _ _ _ _ hw hle hXi hai hbi hAi hwv hvA hCi hcb hm' hHi
+        heq =>
       obtain ⟨ρ₀, hX', hA₀⟩ := ihX hθ hXi
       obtain ⟨ρ₁, ha', hA₁⟩ := iha hθ hai
       obtain ⟨ρ₂, hb', hA₂⟩ := ihb hθ hbi
@@ -1485,12 +1526,13 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
       refine ⟨_, .tr hw hle (Interp.mono_val hΔ (hles ρ₀ (by simp)) hX')
         (Interp.mono_val hΔ (hles ρ₁ (by simp)) ha')
         (Interp.mono_val hΔ (hles ρ₂ (by simp)) hb')
-        (Interp.mono_val hΔ (hles ρ₃ (by simp)) hA'') hwv hvA ?_ hcb hm' ?_, hAj⟩
+        (Interp.mono_val hΔ (hles ρ₃ (by simp)) hA'') hwv hvA ?_ hcb hm' ?_ ?_, hAj⟩
       · have := Interp.mono_val hΔ (Valuation.LE.push.2
           ⟨hles ρ₄ (by simp), TShape.LE.refl hwv⟩) (hC' () (by simp))
         rwa [subst_subst] at this
       · intro hr
         exact Interp.mono_val hΔ (hles ρ₅ (by simp)) (hH' () (by simp [hr]))
+      · rwa [subst_subst, subst_subst, subst_subst] at heq
 
 /-- Substitution in the **term**, in master's `∃ ρ'` form.  A substitution
 `θ` from `Γ` into `Γ'` turns an approximant of `t[θ]` into an approximant
