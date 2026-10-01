@@ -256,13 +256,58 @@ second), so *uniqueness of types* would close it; but uniqueness is
 `HasType.uniq`, which comes from `StrongSound.uniq`, which comes after
 soundness, which uses `stage`.  A real cycle.
 
-The way out is not a lemma but a restructuring: **`stage` has to become a
-conclusion of the soundness induction** (alongside `SoundEq`/`SoundTy`),
-where the subterms' `SoundTy` is available as an induction hypothesis.
-Then `app` is one line — `Interp.lam_label_ty` says a *typed* approximant
-of a Π-typed term is a λ-shape labelled by `A[σ]` — and no uniqueness is
-needed.  Note this is the same shape of fix as §5.3's: both are facts
-about approximants of *typed* terms that the shape level cannot see.
+**The cycle, precisely.**  Transporting a definitional equation to
+another type of the same two terms is *uniqueness of types*: from
+`Δ ⊢ x ≡ y : T` and `Δ ⊢ x : T'` one gets `Δ ⊢ x ≡ y : T'` only through
+`Δ ⊢ T ≡ T'`.  Uniqueness here is `StrongSound.uniq`, which rests on the
+`SoundEq`-level inversions, which rest on `IsDefEq.sound`, which rests on
+`IsDefEq.dir`, which uses `stage` at the graphs' cross pairs.  Four
+steps, and back to the start.
+
+It is not broken by making the induction simultaneous.  In the `app`
+case the two typings of `a[σ]` are *not* subderivations: one is the
+rule's premise substituted, the other comes from a graph entry's label
+and is an arbitrary derivation at the stage.
+
+What *does* break it is the `appDF` rule's own shape: there the
+argument's type **is** the domain of the function's type.  With
+admissibility and the subterm's `SoundTy f (Π A₀ B)` in hand,
+`Interp.lam_label_ty` gives `TyEq Δ A (A₀[σ])` and the transport is one
+`defeqDF` — no uniqueness.  So `stage` *at admissible stages* is a
+conclusion of the soundness induction, as §5.3's `HasDom` would be.
+
+**But that version does not serve `dir`**, which is where `stage` is
+actually used: the cross pairs of `sound_lam_ub` and `graph_coherent`
+live at a *later* stage `Θ`, under `Valuation.WF`, and there is no
+`Adm.subst` — `Adm.cons`'s "every approximant of `A` is a type" field
+quantifies over the approximants of its own stage, and a later stage has
+more of them.  `dir` needs `stage` at every well-formed stage.
+
+So the choice is between three repairs, and it is a design decision:
+
+  (a) **Put the connection in the clause.**  `Interp.app` carries
+      `Γ ⊢ a : A₀` and `TyEq Δ A (A₀[σ])`: the λ-shape's label is the
+      argument's type at the stage.  Then `app` is one `defeqDF` at
+      *every* stage, so `dir` is served and no typing theory is invoked.
+      The cost is that `Interp` becomes a relation on *typed* terms: a
+      clause mentioning `Γ` breaks `Interp.ctx` (context irrelevance,
+      used by `lamDF`, `trDF`, `YDF` to move a body from `A :: Γ` to
+      `A' :: Γ`), and reinstating it for defeq contexts needs the
+      binders' annotations typed — i.e. the same premise on `lam`,
+      `forallE`, `sigma`, `pair`.  `Interp.substTerm` would likewise
+      need `θ` typed, which every call site has.
+  (b) **Rework the coherence condition** so that `dir` no longer needs
+      `stage` at later stages, and take the admissible-stage version as
+      a conclusion of `sound`.  `Shape.Compat`'s quantification over
+      later stages is what forces it.
+  (c) **Quotient the labels**, as the other repo does: its `Ctx` has
+      typed substitutions *modulo defeq* as morphisms, so two
+      definitionally equal stages are one morphism and stage invariance
+      is not a theorem at all.  Its syntax is intrinsically typed, which
+      is (a) taken to its conclusion.
+
+(a) is the smallest step that unblocks everything, and it is where (c)
+starts: interpret typed terms, and let the clause say what the label is.
 
 ### 3.2 `IsDefEq.dir`, per former
 
