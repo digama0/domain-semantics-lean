@@ -393,13 +393,31 @@ rather than on the term, which is the same move and for the same reason:
   unweakened.  A typed term only reads in-range slots, and that is again
   an induction on the typing.
 
-Status: `notes/typed-clauses-wip.patch` carries the clause changes and
-the structural lemmas that are already done — `wf`, `mono`, `mono_val`,
-`ctx` (defeq contexts), `subst`, `weak'` (which now takes the
-`Ctx.Lift'`), `of_substTerm` (which now takes a typed `θ`).  What is
-left: `body_merge`/`list_merge`/`to_substTerm`/`substTerm`/`inst` (which
-need `Interp.slots`), the construction sites in `Presheaf.lean`, and
-then the three inductions above.
+`Interp.slots` turned out to be avoidable.  What the merges need is only
+that a slot *past the end of `Γ`* can be strengthened, and there every
+`θ` in sight is a variable: `Subst.one a` has the argument at slot `0`
+and variables after it, and lifting preserves that.  So the hypothesis
+is `Subst.Good Γ' θ` — "every slot is typed in `Γ'` or is a `bvar`" —
+and `Interp.unweak_slot` splits on it: typed slots go by `unweak`,
+variables by hand, since both sides of `Interp.bvar` say `m ≤ ρ j`.
+
+Status (`notes/typed-clauses-wip.patch`, 2600 lines, applies to this
+commit).  **`Interp.lean` compiles**, with two `sorry`s — `unweak` and
+`to_substTerm`, the two typing inductions.  Done there: the clause
+changes, `wf`, `mono`, `mono_val`, `ctx` (defeq contexts, via
+`Ctx.SubstEq.defeqHead` and `id_lift`), `subst`, `weak'` (takes the
+`Ctx.Lift'`), `of_substTerm` (takes a typed `θ`), `Subst.Good` with
+`lift`/`one`, `unweak_slot`, `Dir.weak_slot`, `body_merge`,
+`list_merge`, `substTerm`, `inst`.
+
+`Presheaf.lean` is where the patch stops: about 80 sites still need the
+clause premises supplied or absorbed.  They are mechanical — a `cases`
+pattern grows a name, a constructor application grows an argument, and
+the argument is in scope at every one of them, because the soundness
+proofs carry the rule's premises.  The three sites repaired so far
+(`forallE`/`sigma` congruences, the Π/Σ/λ upper bounds) show the shape:
+`⟨u, hAty⟩ ⟨v, hB⟩` at a construction, `hAt hBt` at an inversion, and
+`Interp.ctx` now takes `Ctx.SubstEq.defeqHead W.wf hAA'`.
 
 ### 3.2 `IsDefEq.dir`, per former
 
