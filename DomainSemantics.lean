@@ -45,3 +45,13 @@ open DomainSemantics
 -- **Definitional UIP is false**: It is not the case that all proofs of a (proof-relevant) identity are equal.
 /-- info: 'DomainSemantics.not_UIP' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms not_UIP
+
+-- **The defect this model cannot repair**: a *stuck* transport — endpoints
+-- not definitionally equal, so no rule computes it — is given the
+-- transported value's shape, which is why `LR.adequacy`'s `r = false` case
+-- is false here rather than unproved.  `DomainSemantics/Status.lean` is the
+-- board for the labelled model, where the clause asks for the endpoints'
+-- equation; the two roots are separate because `Shape` and `ShapeOld` share
+-- a name.
+/-- info: 'DomainSemantics.LE_Interp.tr_stuck' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms LE_Interp.tr_stuck
