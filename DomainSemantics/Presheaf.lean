@@ -35,9 +35,6 @@ does that work). -/
 
 namespace DomainSemantics
 
-@[simp] theorem Subst.lift_id : Subst.id.lift = Subst.id := by
-  funext i; cases i <;> rfl
-
 @[simp] theorem Subst.id_comp {σ : Subst} : Subst.id.comp σ = σ := by
   funext i; rfl
 

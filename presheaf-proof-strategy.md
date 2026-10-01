@@ -309,6 +309,48 @@ So the choice is between three repairs, and it is a design decision:
 (a) is the smallest step that unblocks everything, and it is where (c)
 starts: interpret typed terms, and let the clause say what the label is.
 
+#### 3.1a What "the other repo's path without the quotient" costs
+
+Both (a) and (c) were tried on paper, and the measurement is this.
+
+**The quotient is not the obstacle; the *intrinsic typing* is.**  Two
+repairs suggest themselves, and each dies on a different lemma:
+
+* **Close `Interp` under stage equality**, i.e. add the constructor
+
+  ```lean
+  | stage : Ctx.SubstEq Δ σ σ' Γ → Interp Δ Γ t σ' ρ m → Interp Δ Γ t σ ρ m
+  ```
+
+  — a function on a quotient is a function on the carrier that respects
+  the equivalence, built in rather than proved.  `stage` then costs one
+  constructor.  Each inversion grows a case, which is always "recurse at
+  `σ'`, move the conclusion back", and `dir` survives because the
+  constructor moves derivations *both* ways, so two derivations can
+  always be brought to one stage.  It dies at `Interp.weak'`,
+  `Interp.unweak` and `Interp.substTerm`, which pattern-match the
+  stage's *shape* (`lift_l l σ'`, `θ.comp σ`): the stage case hands them
+  an arbitrary `σ''` with no such shape.  `lift_l` can be inverted
+  (`liftVar` is injective), `θ.comp` cannot.
+
+* **Type the clauses** — `lam` carries `∃ u, Γ ⊢ A : .sort u`, `app`
+  carries `Γ ⊢ a : A₀` and `TyEq Δ A (A₀[σ])`, and so on.  `stage`'s
+  `app` case is then one `defeqDF`.  Measured: one clause (`lam`) costs
+  ≈15 sites, so all twelve label-forming clauses cost ≈200, which is
+  affordable.  What is not affordable is what the premises break:
+  `Interp.ctx` (context irrelevance) needs the annotations typed, which
+  the typing itself supplies — fine — but **`Interp.unweak` needs
+  *strengthening*** of a typing, and this syntax has only `IsDefEq.weak'`.
+  Strengthening is exactly the kind of lemma this development exists to
+  avoid assuming.
+
+The other repo has neither problem because its syntax is *intrinsically
+typed*: a term carries its context, so `unweak` is not a lemma one
+states, and the typing premises are not premises at all.  So "the other
+repo's path without the quotient" is, in the end, **intrinsic typing** —
+the quotient is a convenience on top of it, and the part that does the
+work here is that every label comes with its typing.
+
 ### 3.2 `IsDefEq.dir`, per former
 
 **Status: every case is proved except `tr`.**  What follows is the

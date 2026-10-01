@@ -167,6 +167,9 @@ def Subst.lift_r (σ : Subst) (ρ : Lift) : Subst := fun x => (σ x).lift' ρ
 through `ρ.liftVar`). -/
 def Subst.lift_l (ρ : Lift) (σ : Subst) : Subst := fun x => σ (ρ.liftVar x)
 
+@[simp] theorem Subst.lift_id : Subst.id.lift = Subst.id := by
+  funext i; cases i <;> rfl
+
 theorem Subst.tail_eq_lift_l {σ : Subst} : σ.tail = σ.lift_l Lift.refl.skip := rfl
 
 theorem Subst.lift_l_lift {σ : Subst} {ρ} : (σ.lift_l ρ).lift = σ.lift.lift_l ρ.cons := by
