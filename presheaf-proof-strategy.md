@@ -779,6 +779,23 @@ beside the motive's `Interp Δ (A :: Γ) C (σ.cons (b.subst σ)) (ρ.push v) cb
 not equal *at the stage* has only `⊥`.
 
 **Why the old model cannot do this, and why that is the whole point.**
+**The witness.**  `LE_Interp.tr_stuck` (`Adequacy.lean`, axiom-clean) is
+the counterexample, in three lines:
+
+```lean
+theorem LE_Interp.tr_stuck {ρ : Valuation} {H : Term} :
+    LE_Interp ρ (WShape.T (n := 1) .zero)
+      (.tr false .nat .zero (.succ .zero) .nat .zero H)
+```
+
+The endpoints `zero` and `succ zero` are not definitionally equal, so no
+rule computes this transport and it is stuck at every stage — yet the
+model gives it the shape `zero`: take `v := ⊥` (the only shape below both
+`zero` and `succ ⊥`), read the constant motive there, and the
+transported value `zero` is typed at it.  Adequacy says a term of shape
+`zero` reduces to `zero`; this one does not.  `Interp.tr_stuck_bot` is
+the same example on the new side, where it is `⊥`.
+
 `LE_Interp ρ m M` has no context and no stage.  It cannot state `a ≡ b`;
 and it reads the motive at a valuation *slot* (`LE_Interp (ρ.push v) cb C`),
 so when `a` and `b` share the slot `v` — which `⊥` always is — it cannot

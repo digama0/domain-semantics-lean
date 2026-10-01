@@ -1159,6 +1159,17 @@ theorem Interp.tr_bot_of_ne {Δ Γ : List Term} {r : Bool} {A a b C X H : Term} 
   | bot => rfl
   | tr _ _ _ _ _ _ _ _ _ _ _ _ heq => exact absurd heq hne
 
+/-- The same example `LE_Interp.tr_stuck` settles the other way: the
+transport `tr false nat zero (succ zero) nat zero h`, which no rule
+computes, has only `⊥` here, because `zero ≢ succ zero`.  (That the
+endpoints are not equal is `IsDefEq.sound`'s business, so it is a
+hypothesis; the point is that the clause now *asks*.) -/
+theorem Interp.tr_stuck_bot {Δ Γ : List Term} {σ ρ m H}
+    (hne : ¬ (Δ ⊢ Term.zero ≡ Term.succ Term.zero : Term.nat))
+    (h : Interp Δ Γ (.tr false .nat .zero (.succ .zero) .nat .zero H) σ ρ m) :
+    m.2 = Shape.bot :=
+  Interp.tr_bot_of_ne h (by simpa using hne)
+
 /-- An approximant of a variable is below its slot. -/
 theorem Interp.le_bvar {Δ Γ : List Term} {i σ ρ m}
     (H : Interp Δ Γ (.bvar i) σ ρ m) : TShape.LE Δ m (ρ i) := by

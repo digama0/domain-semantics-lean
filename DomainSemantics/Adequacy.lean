@@ -2687,3 +2687,31 @@ theorem unit_id_inv (hΓ : ⊢ Γ) :
 theorem nat_id_inv (hΓ : ⊢ Γ) :
     ¬Γ ⊢ Term.nat ≡ Term.id r₂ A₁ a₁ b₁ : .sort r₂ :=
   fun H => have ⟨_, _, _, H, _⟩ := id_whRed_l hΓ H; nomatch WHNF.nat.whRedS H
+
+/-! ## The defect, concretely
+
+`LR.adequacy` above is complete except for one case, and the `sorry`
+there is not a gap in the argument: the statement fails for this model.
+Here is the witness, in three lines.
+
+Take the transport `tr false nat zero (succ zero) nat zero h`.  Its
+endpoints are `zero` and `succ zero`, which are *not* definitionally
+equal, so no rule computes it — `tr_refl` wants the proof to be a `refl`
+and `h` is opaque — and it is stuck at every stage.  Yet `LE_Interp`
+gives it the shape `zero`: take the common endpoint shape `v := ⊥` (the
+only shape below both `zero` and `succ ⊥`), read the constant motive
+there, and the transported value `zero` is typed at it.
+
+Adequacy says a term with shape `zero` reduces to `zero`.  This one does
+not.  The clause is what has to change, and it cannot change here: the
+premise it needs is `a ≡ b`, a *judgment about the endpoints*, and
+`LE_Interp ρ m M` has neither a context to state it in nor a stage to
+pin `C[b]` with.  `Interp` (`Interp.lean`) has both, carries exactly that
+premise, and `Interp.tr_bot_of_ne` is this example's fate there. -/
+theorem LE_Interp.tr_stuck {ρ : Valuation} {H : Term} :
+    LE_Interp ρ (WShape.T (n := 1) .zero)
+      (.tr false .nat .zero (.succ .zero) .nat .zero H) :=
+  .tr (m' := WShape.T (n := 1) .zero) .rfl (.zero .rfl)
+    (v := WShape.T (n := 1) .bot) .bot .bot
+    (vA := WShape.T (n := 1) .nat) (.nat .rfl) (.bot (.nat))
+    (cb := WShape.T (n := 1) .nat) (.nat .rfl) (.zero) (by simp)
