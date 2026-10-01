@@ -332,6 +332,14 @@ def ShapeFun.WF (Γ : List Term) (W : Shape n → Prop) (f : ShapeFun n) : Prop 
   (∀ e ∈ f, (∃ u, Γ ⊢ e.ty : .sort u) ∧ Γ ⊢ e.tm : e.ty ∧ W e.inp ∧ W e.out) ∧
   ShapeFun.Compat Shape.Compat Γ f f
 
+/-- The entries' shapes are well formed — `WF`'s first half, without the
+coherence.  A *generator* (`HasType.lam`, `HasType.pair`) satisfies this
+but not `ShapeFun.WF`: two generators certifying compatible λ-values need
+not be compatible with each other, since a generator entry no graph entry
+uses is unconstrained. -/
+def ShapeFun.WFE (Γ : List Term) (W : Shape n → Prop) (f : ShapeFun n) : Prop :=
+  ∀ e ∈ f, W e.inp ∧ W e.out
+
 /-- Every label occurring in the shape is well-typed in `Γ`. -/
 def Shape.WF (Γ : List Term) : ∀ {n}, Shape n → Prop
   | 0, .bot | 0, .sort _ | _+1, .bot | _+1, .sort _ | _+1, .unit _ | _+1, .nat | _+1, .zero => True
@@ -1187,6 +1195,14 @@ theorem ShapeFun.WF.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f : ShapeFun 
   obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
   have ⟨⟨u, hty⟩, htm, hin, hout⟩ := hf.1 e he
   exact ⟨⟨u, hty.subst hΘ W⟩, htm.subst hΘ W, ih hin, ih hout⟩
+
+theorem ShapeFun.WFE.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f : ShapeFun n}
+    (ih : ∀ {a : Shape n}, Shape.WF Δ a → Shape.WF Θ (a.subst τ))
+    (hf : ShapeFun.WFE Δ (Shape.WF Δ) f) :
+    ShapeFun.WFE Θ (Shape.WF Θ) (ShapeFun.subst (Shape.subst · τ) τ f) := by
+  intro d hd
+  obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
+  exact ⟨ih (hf e he).1, ih (hf e he).2⟩
 
 theorem Shape.WF.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
     ∀ {n} {s : Shape n}, Shape.WF Δ s → Shape.WF Θ (s.subst τ) := by
@@ -2502,6 +2518,26 @@ theorem TShape.join_eq_bot {a b : TShape} (ha : a.2 = Shape.bot) (hb : b.2 = Sha
   rw [ha, hb]
   simp only [Shape.lift_bot]
   cases max a.1 b.1 <;> rfl
+
+/-- Joining with `⊥`, at the shape level. -/
+@[simp] theorem Shape.bot_join : ∀ {n} {s : Shape n}, (Shape.bot (n := n)).join s = s := by
+  intro n; cases n <;> intro s <;> cases s <;> rfl
+
+@[simp] theorem Shape.join_bot : ∀ {n} {s : Shape n}, s.join (Shape.bot (n := n)) = s := by
+  intro n; cases n <;> intro s <;> cases s <;> rfl
+
+/-- And at the total level, where it is lifting. -/
+theorem TShape.bot_join {n} {b : TShape} :
+    TShape.join (Shape.T (n := n) Shape.bot) b = ⟨max n b.1, b.2.lift (max n b.1)⟩ := by
+  show (⟨max n b.1, (Shape.lift (max n b.1) (Shape.bot (n := n))).join
+    (Shape.lift (max n b.1) b.2)⟩ : TShape) = _
+  rw [Shape.lift_bot, Shape.bot_join]
+
+theorem TShape.join_bot {n} {a : TShape} :
+    TShape.join a (Shape.T (n := n) Shape.bot) = ⟨max a.1 n, a.2.lift (max a.1 n)⟩ := by
+  show (⟨max a.1 n, (Shape.lift (max a.1 n) a.2).join
+    (Shape.lift (max a.1 n) (Shape.bot (n := n)))⟩ : TShape) = _
+  rw [Shape.lift_bot, Shape.join_bot]
 
 /-! The two unary shape formers are monotone.  Master's
 `TShape.succ_le_succ`, one direction; the level bookkeeping is one use of

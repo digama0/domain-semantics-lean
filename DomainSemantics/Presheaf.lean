@@ -603,6 +603,17 @@ def SoundJoin (Γ : List Term) (A : Term) : Prop :=
       TShape.HasType Δ x a → TShape.HasType Δ y a → TShape.Compat Δ x y →
       ∃ z, TShape.WF Δ z ∧ TShape.LE Δ x z ∧ TShape.LE Δ y z ∧ TShape.HasType Δ z a
 
+/-- **`SoundJoin` holds, for every type.**  Once a Σ-value is a first
+component and a graph (§5.1b), the subject join is `TShape.HasType.join`:
+no `Interp`, no `Adm`, no induction on `A` — the pairs' graphs append and
+their first components join by the inner induction.  The definition is
+kept because its consumers quantify over it; this is the only proof any
+of them will ever need. -/
+theorem sound_join {Γ : List Term} {A : Term} : SoundJoin Γ A := by
+  intro Δ Γ₀ σ ρ hΔ _ _ a x y _ hx hy hxa hya hc
+  exact ⟨x.join y, TShape.WF.join hΔ hc hx hy, (TShape.le_join hΔ hx hy hc).1,
+    (TShape.le_join hΔ hx hy hc).2, TShape.HasType.join hΔ hc hxa hya⟩
+
 /-- What `SoundJoin` is for: with typing lower-closed, a typed *upper
 bound* types the join itself.  Every consumer of a relational lookup needs
 this, since the lookup's `join` rule returns `y₁ ⊔ y₂` and the two sides
@@ -1711,17 +1722,17 @@ entry's own input — and that input is below the argument's shape, so the
 slot the code is read at approximates `a`.  The `pair` clause's dominator
 sits above, which is why the same argument does not run at `snd`.
 
-The `join` rule of the lookup is the only real cost: it lands on two typed
-shapes, and typing their join is exactly `SoundJoin` (§5.1) — which is
-therefore not only `tr`'s business, as the plan had it, but every
-consumer's of a relational lookup. -/
+The `join` rule of the lookup lands on two typed shapes, and typing their
+join is exactly `SoundJoin` (§5.1) — not only `tr`'s business, as the plan
+had it, but every consumer's of a relational lookup.  It is `sound_join`,
+proved once and for all. -/
 theorem sound_app_ty {Γ : List Term} {A B f a : Term} {u v : Bool}
     (hΓ : ⊢ Γ) (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v) (ha : Γ ⊢ a : A)
     (happ : Γ ⊢ .app f a : B.inst a)
     (hfty : SoundTy Γ f (.forallE A B)) (hBaty : SoundTy Γ (B.inst a) (.sort v))
-    (hadir : SoundDir Γ a) (hBdir : SoundDir (A :: Γ) B)
-    (hjoin : SoundJoin Γ (B.inst a)) :
+    (hadir : SoundDir Γ a) (hBdir : SoundDir (A :: Γ) B) :
     SoundTy Γ (.app f a) (B.inst a) := by
+  have hjoin : SoundJoin Γ (B.inst a) := sound_join
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
   refine ⟨happ, ?_⟩
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
@@ -1733,7 +1744,7 @@ theorem sound_app_ty {Γ : List Term} {A B f a : Term} {u v : Bool}
   | @app _ _ _ _ _ _ n g x y A₁ hF hx hev hw hle =>
     obtain ⟨s, hs, hfsty⟩ := hfty.approx hΔ W hAdm hF
     cases hfsty with
-    | @lam _ _ _ _ _ _ _ _ _ g₀ hd hfout hwg hwPi hg hg₀ev hg₀ty hdomA =>
+    | @lam _ _ _ _ _ _ _ _ _ g₀ hd hfout hwg hwPi hwg₀ hg hg₀ev hg₀ty hdomA =>
       cases hs with
       | @forallE _ _ _ _ nc gc dc _ _ hAint hdty hwf hlab hdomc hbody hwm hlePi =>
         obtain ⟨hPiLab, _, hcov⟩ :=
@@ -1815,7 +1826,7 @@ theorem Interp.lam_label_ty {Γ Γ₀ Δ : List Term} {f A B : Term} {σ ρ}
     TyEq Δ A' (A.subst σ) := by
   obtain ⟨s, hs, hsty⟩ := hty.approx hΔ W hAdm hf
   cases hsty with
-  | lam _ _ _ hwPi _ _ _ hdom =>
+  | lam _ _ _ hwPi _ _ _ _ hdom =>
     cases hs with
     | forallE _ _ hwf _ _ _ _ hle =>
       obtain ⟨hPi, _, _⟩ :=
@@ -1929,35 +1940,6 @@ theorem dir_id {Γ : List Term} {A a b : Term} {u r : Bool}
   · cases h₂ with
     | bot => exact TShape.bot_le' rfl
     | id _ hle => exact hle
-
-/-- **Everything typed at `nat` is a numeral.**  The three clauses whose
-type can be a `nat` shape are `bot`, `zero` and `succ`, and those are the
-three constructors of `IsNumeral`. -/
-theorem TShape.HasType.isNumeral {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
-    (ha : TShape.LE Δ a TShape.nat) (h : TShape.HasType Δ m a) :
-    Shape.IsNumeral m.2 := by
-  cases TShape.HasType.mono_r hΔ h TShape.nat ha .nat with
-  | bot _ => exact .bot
-  | zero => exact .zero
-  | succ hN => exact .succ hN
-  | refl _ hc _ =>
-    obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ hc
-    exact absurd h2 (fun x => x)
-
-/-- And back: a numeral is typed at `nat`.  `bot` needs `nat` to be a
-type, which it is at every level. -/
-theorem Shape.IsNumeral.hasType {Δ : List Term} : ∀ {n} {v : Shape n},
-    Shape.IsNumeral v → TShape.HasType Δ v.T TShape.nat := by
-  intro n v h
-  induction h with
-  | bot => exact .bot .nat
-  | zero => exact .zero
-  | succ hw _ => exact .succ hw
-
-/-- The predecessor of a numeral is one. -/
-theorem Shape.IsNumeral.pred {n} {v : Shape n}
-    (h : Shape.IsNumeral (n := n+1) (.succ v)) : Shape.IsNumeral v := by
-  cases h with | succ hw => exact hw
 
 /-! ## The two unary formers
 
@@ -2711,15 +2693,7 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
     refine ⟨sound_app_eq hff' haa' (ihf hΓ).2 (ihf hΓ).1 (iha hΓ).1,
       sound_app_ty hΓ hA.hasType.1 hB.hasType.1 haa'.hasType.1
         (.appDF hA hB hff'.hasType.1 haa'.hasType.1 hBinst.hasType.1)
-        (ihf hΓ).2 (ihBinst hΓ).2 (IsDefEq.dir hΓ haa').1 (IsDefEq.dir hΓA hB).1 ?_⟩
-    -- the lookup's `join` rule, i.e. `SoundJoin Γ (B.inst a)` (§5.1): the
-    -- only step of this case that is not proved.  The padded premise
-    -- `Γ ⊢ B.inst a ≡ B.inst a' : sort v` is what would supply it, as an
-    -- induction hypothesis, once `SoundJoin` is a third conclusion here —
-    -- but that conclusion is not provable by *this* induction: at a
-    -- neutral type it is master's shape-level `HasType.join`, and there
-    -- the `pair` clause blocks
-    sorry
+        (ihf hΓ).2 (ihBinst hΓ).2 (IsDefEq.dir hΓ haa').1 (IsDefEq.dir hΓA hB).1⟩
   | lamDF => sorry
   -- the two halves proved above
   | forallEDF hAA' hB hB' ihA ihB ihB' =>
