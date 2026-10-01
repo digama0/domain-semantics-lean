@@ -2667,6 +2667,82 @@ theorem sound_natCase {Γ : List Term} {C C' M M' a a' b b' : Term}
     sound_natCase_of hMM'.symm ihM.symm (SoundTy.of_eq hMM' ihM ihMty) iha.symm ihb.symm
       hΔ W hAdm⟩
 
+/-- **The type of a `natCase`.**
+
+The type is `C[M]` and each branch is typed at `C` instantiated at a
+*different* term — `zero` in one branch, `succ t` in the other — so the
+whole content is moving the motive's stage.  Both `Interp` clauses carry
+what that takes: the branch's defining equation (`M[σ] ≡ zero`,
+`M[σ] ≡ succ t`), which `IsDefEq.stage` turns into a move of the
+motive's extended stage, and an approximant of `M` at the branch's own
+shape (`zero`, `succ v`), which is the slot `Interp.inst` reads the
+motive at.  The `succ` branch is the same argument one weakening up: the
+body's type is `C↑[succ #0]`, so the motive comes back by
+`Interp.unweak`. -/
+theorem sound_natCase_ty {Γ : List Term} {C M a b : Term} {v : Bool} (hΓ : ⊢ Γ)
+    (hC : Term.nat :: Γ ⊢ C : .sort v)
+    (hnc : Γ ⊢ .natCase C M a b : C.inst M)
+    (iha : SoundTy Γ a (C.inst .zero))
+    (ihb : SoundTy (Term.nat :: Γ) b ((C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0))))
+    (ihMty : SoundTy Γ M Term.nat) (ihMdir : SoundDir Γ M) :
+    SoundTy Γ (.natCase C M a b) (C.inst M) := by
+  have hΓN : ⊢ (Term.nat :: Γ) := ⟨hΓ, _, .nat⟩
+  have hzdir : SoundDir Γ (Term.zero) :=
+    dir_atom Interp.le_zero (fun hw h => .zero hw h) trivial
+  refine ⟨hnc, ?_⟩
+  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+  have hwρ := hAdm.wf
+  cases hm with
+  | bot => exact ⟨TShape.bot, .bot, .bot (.bot .sort)⟩
+  | natCase_zero hMz hz hma =>
+    obtain ⟨c, hc, hct⟩ := iha.approx hΔ W hAdm hma
+    obtain ⟨x, hCx, hxz⟩ :=
+      (Interp.inst (A := Term.nat) (b := C) hΔ (hzdir hΔ W hwρ) hwρ).1 hc
+    rw [Subst.one_comp] at hCx
+    have W0 : Ctx.SubstEq Δ (σ.cons (Term.zero.subst σ)) (σ.cons (M.subst σ))
+        (Term.nat :: Γ) := .cons W .nat hz.symm
+    refine ⟨c, (Interp.inst (A := Term.nat) (b := C) hΔ (ihMdir hΔ W hwρ) hwρ).2
+      ⟨x, ?_, Interp.mono hΔ hxz.wf (Interp.le_zero hxz) hMz⟩, hct⟩
+    rw [Subst.one_comp]
+    exact IsDefEq.stage hΓN hC hΔ W0 hCx
+  | @natCase_succ _ _ _ _ _ _ _ _ n w t hMs hwv heq hmb =>
+    -- the branch's stage, and that it is admissible
+    have ht : Δ ⊢ t : Term.nat := heq.succ_regular (.inr rfl)
+    have Wcons : Ctx.SubstEq Δ (σ.cons t) (σ.cons t) (Term.nat :: Γ) := .cons W .nat ht
+    obtain ⟨cM, hcM, htyM⟩ := ihMty.approx hΔ W hAdm hMs
+    have hvnat : TShape.HasType Δ w.T TShape.nat :=
+      (TShape.HasType.isNumeral hΔ (Interp.le_nat hcM) htyM).pred.hasType
+    have hwv' : TShape.WF Δ w.T := TShape.WF.T.2 hwv
+    have hAdm' : Adm Δ Γ₀ (Term.nat :: Γ) (σ.cons t) (ρ.push w.T) :=
+      .cons hAdm (fun _ hb => TShape.HasType.mono_l hΔ .nat (Interp.le_nat hb))
+        Interp.nat' hwv' hvnat
+    -- the body's type, unfolded one `inst` and one weakening
+    obtain ⟨c, hc, hct⟩ := ihb.approx hΔ Wcons hAdm' hmb
+    obtain ⟨y, hCy, hsy⟩ := (Interp.inst (A := Term.nat) (b := C.lift' (.cons (.skip .refl)))
+      hΔ (dir_succ (dir_bvar (Γ := Term.nat :: Γ)) hΔ Wcons (Valuation.WF.push hwρ hwv'))
+      (Valuation.WF.push hwρ hwv')).1 hc
+    rw [Subst.one_comp] at hCy
+    have hCy' : Interp Δ (Term.nat :: Γ) C (σ.cons ((Term.succ (.bvar 0)).subst (σ.cons t)))
+        (ρ.push y) c := by
+      have h := Interp.unweak hCy (Γ := Term.nat :: Γ) (t := C) (l := .cons (.skip .refl))
+        (ρ := ρ.push y) (fun i => by cases i <;> rfl) rfl
+      rwa [← Subst.lift_l_cons, ← Subst.tail_eq_lift_l] at h
+    -- `succ #0` at this stage is `succ t`, and the slot is below `succ w`
+    have hyle : TShape.LE Δ y (Shape.T (n := n+1) (ShapeS.succ w)) := by
+      cases hsy with
+      | bot => exact TShape.bot_le' rfl
+      | @succ _ _ _ _ _ n' v' hv _ hle =>
+        refine hle.trans hΔ (TShape.LE.succ_of hΔ (a := v'.T) (b := w.T) ?_)
+        cases hv with
+        | bot => exact TShape.bot_le' rfl
+        | bvar _ h1 => exact h1
+    have W1 : Ctx.SubstEq Δ (σ.cons ((Term.succ (.bvar 0)).subst (σ.cons t)))
+        (σ.cons (M.subst σ)) (Term.nat :: Γ) := .cons W .nat heq.symm
+    refine ⟨c, (Interp.inst (A := Term.nat) (b := C) hΔ (ihMdir hΔ W hwρ) hwρ).2
+      ⟨y, ?_, Interp.mono hΔ hsy.wf hyle hMs⟩, hct⟩
+    rw [Subst.one_comp]
+    exact IsDefEq.stage hΓN hC hΔ W1 hCy'
+
 /-! ## Inversion at the level of `SoundEq`
 
 The labels are in the shapes, so a semantic equality of two types yields
@@ -2992,7 +3068,11 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   | zero =>
     exact sound_atom .zero Interp.le_zero Interp.nat' .zero
   | succDF _ ih => exact sound_succ (ih hΓ).1 (ih hΓ).2
-  | natCaseDF => sorry
+  | @natCaseDF _ v C C' M M' a a' b b' hCC' hMM' haa' hbb' hCM _ ihM iha ihb ihCM =>
+    exact ⟨sound_natCase hMM' (ihM hΓ).1 (ihM hΓ).2 (iha hΓ).1 (ihb ⟨hΓ, _, .nat⟩).1,
+      sound_natCase_ty hΓ hCC'.hasType.1
+        (IsDefEq.natCaseDF hCC' hMM' haa' hbb' hCM).hasType.1
+        (iha hΓ).2 (ihb ⟨hΓ, _, .nat⟩).2 (ihM hΓ).2 (IsDefEq.dir hΓ hMM').1⟩
   -- the computation rules again: padded, so `SoundTy` is an IH
   | natCase_zero _ _ _ _ _ _ _ ihredex => exact ⟨sound_natCase_zero, (ihredex hΓ).2⟩
   | @natCase_succ _ C v n a b _ hn _ hb _ _ _ _ _ _ ihredex _ =>
