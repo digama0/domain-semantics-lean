@@ -2190,6 +2190,90 @@ theorem dir_refl {Γ : List Term} {a : Term} {r : Bool} (h : SoundDir Γ a) :
       · exact hwz
       · exact .refl hz hwz (TShape.LE.refl hwz)
 
+/-- Above a `refl`-shape there is only a `refl`-shape, and the order
+between two of them is the order between their witnesses — `succ_ub` and
+`succ_decomp` for the other unary former. -/
+theorem TShape.LE.refl_ub {Δ : List Term} {n} {v : Shape n} {z : TShape}
+    (h : TShape.LE Δ (Shape.T (n := n+1) (ShapeS.refl v)) z) :
+    ∃ (k : Nat) (w : Shape k), z = Shape.T (n := k+1) (ShapeS.refl w) := by
+  obtain ⟨j, t⟩ := z
+  obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
+  cases j with
+  | zero => cases t <;> exact absurd h2 (fun x => x)
+  | succ j =>
+    cases t with
+    | refl w => exact ⟨j, w, rfl⟩
+    | _ => exact absurd h2 (fun x => x)
+
+theorem TShape.LE.refl_decomp {Δ : List Term} (hΔ : ⊢ Δ) {n k} {v : Shape n} {w : Shape k}
+    (h : TShape.LE Δ (Shape.T (n := n+1) (ShapeS.refl v))
+      (Shape.T (n := k+1) (ShapeS.refl w))) : TShape.LE Δ v.T w.T := by
+  obtain ⟨M, hkM, hnM, h2⟩ := TShape.LE.at_succ h
+  exact (TShape.LE.def hΔ (Nat.le_of_succ_le_succ hnM) hkM).2 h2
+
+/-- **Directedness for `.tr`** — the case the plan called open, and the
+one consumer of `SoundJoin`.
+
+Everything in the `tr` clause is joined slotwise: the witness shape `v`
+(which interprets both endpoints, so it is the *join*, not an upper
+bound, taken twice), the type `vA`, the motive's value `cb` at the joined
+slot, and the transported shape `m'`.  Three of the clause's premises are
+typings, and each is a subject join at one type: `v` at `vA₁ ⊔ vA₂`, `cb`
+at `type`, `m'` at `cb₁ ⊔ cb₂` — `TShape.HasType.join`, which is why this
+case waited for it.  The proof premise is moved by `H`'s own
+directedness: a shape above two `refl`s is a `refl`, above both
+witnesses. -/
+theorem dir_tr {Γ : List Term} {r : Bool} {A a b C X H : Term} {u : Bool} (hΓ : ⊢ Γ)
+    (hA : Γ ⊢ A : .sort u) (hb : Γ ⊢ b : A)
+    (ihA : SoundDir Γ A) (iha : SoundDir Γ a) (ihb : SoundDir Γ b)
+    (ihC : SoundDir (A :: Γ) C) (ihX : SoundDir Γ X) (ihH : SoundDir Γ H) :
+    SoundDir Γ (.tr r A a b C X H) := by
+  intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
+  cases h₁ with
+  | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
+  | tr hw₁ hle₁ hX₁ ha₁ hb₁ hA₁ hwv₁ hvA₁ hC₁ hcb₁ hm'₁ hH₁ =>
+    cases h₂ with
+    | bot =>
+      exact ⟨_, hX₁.wf, .tr hX₁.wf (TShape.LE.refl hX₁.wf) hX₁ ha₁ hb₁ hA₁ hwv₁ hvA₁
+        hC₁ hcb₁ hm'₁ hH₁, hle₁, TShape.bot_le' rfl⟩
+    | tr hw₂ hle₂ hX₂ ha₂ hb₂ hA₂ hwv₂ hvA₂ hC₂ hcb₂ hm'₂ hH₂ =>
+      -- the witness: the join interprets both endpoints
+      have ⟨hcv, hav⟩ := Interp.Dir.join hΔ (iha hΔ W hwρ) ha₁ ha₂
+      have ⟨_, hbv⟩ := Interp.Dir.join hΔ (ihb hΔ W hwρ) hb₁ hb₂
+      have hwv := TShape.WF.join hΔ hcv hwv₁ hwv₂
+      have hvle := TShape.le_join hΔ hwv₁ hwv₂ hcv
+      -- its type
+      have ⟨hcA, hAv⟩ := Interp.Dir.join hΔ (ihA hΔ W hwρ) hA₁ hA₂
+      have hvAty := TShape.HasType.join hΔ hcA hvA₁.isType hvA₂.isType
+      have hvAle := TShape.le_join hΔ hvA₁.isType.wf.1 hvA₂.isType.wf.1 hcA
+      have hty : TShape.HasType Δ _ _ := TShape.HasType.join hΔ hcv
+        (hvA₁.mono_r hΔ _ hvAle.1 hvAty) (hvA₂.mono_r hΔ _ hvAle.2 hvAty)
+      -- the motive, at the joined slot
+      have WA : Ctx.SubstEq Δ (σ.cons (b.subst σ)) (σ.cons (b.subst σ)) (A :: Γ) :=
+        .cons W hA (hb.subst hΔ W)
+      have hC₁' := Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hvle.1⟩) hC₁
+      have hC₂' := Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hvle.2⟩) hC₂
+      have ⟨hccb, hcbv⟩ :=
+        Interp.Dir.join hΔ (ihC hΔ WA (Valuation.WF.push hwρ hwv)) hC₁' hC₂'
+      have hcbty := TShape.HasType.join hΔ hccb hcb₁ hcb₂
+      have hcble := TShape.le_join hΔ hcb₁.wf.1 hcb₂.wf.1 hccb
+      -- the transported shape
+      have ⟨hcm, hXv⟩ := Interp.Dir.join hΔ (ihX hΔ W hwρ) hX₁ hX₂
+      have hm'ty := TShape.HasType.join hΔ hcm
+        (hm'₁.mono_r hΔ _ hcble.1 hcbty) (hm'₂.mono_r hΔ _ hcble.2 hcbty)
+      have hm'le := TShape.le_join hΔ hm'₁.wf.1 hm'₂.wf.1 hcm
+      -- and the proof premise, by `H`'s own directedness
+      have hwm' := TShape.WF.join hΔ hcm hm'₁.wf.1 hm'₂.wf.1
+      refine ⟨_, hwm', .tr hwm' (TShape.LE.refl hwm')
+          hXv hav hbv hAv hwv hty hcbv hcbty hm'ty ?_,
+        hle₁.trans hΔ hm'le.1, hle₂.trans hΔ hm'le.2⟩
+      intro hr
+      obtain ⟨s, hws, hs, hs₁, hs₂⟩ := ihH hΔ W hwρ (hH₁ hr) (hH₂ hr)
+      obtain ⟨k, w, rfl⟩ := TShape.LE.refl_ub hs₁
+      exact Interp.mono hΔ hwv
+        (TShape.LE.refl_of hΔ (TShape.join_le hΔ (TShape.LE.refl_decomp hΔ hs₁)
+          (TShape.LE.refl_decomp hΔ hs₂))) hs
+
 /-! ## β
 
 The rule is padded with typings of both sides, so only `SoundEq` has
@@ -2609,12 +2693,16 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
     exact ⟨dir_id hAA'.hasType.1 haa'.hasType.1 hbb'.hasType.1,
       dir_id hAA'.hasType.2 (hAA'.defeqDF haa'.hasType.2) (hAA'.defeqDF hbb'.hasType.2)⟩
   | reflDF _ _ _ _ iha _ => exact ⟨dir_refl (iha hΓ).1, dir_refl (iha hΓ).2⟩
-  -- **the one open case**, and the only consumer of `SoundJoin`: two
-  -- transports are typed at two approximants of the motive, and the
-  -- witness above both has to be typed at the motive above both.  Every
-  -- other case is an upper bound with no typing to preserve, which is why
-  -- they run under `Valuation.WF` with no admissibility in sight
-  | trDF => sorry
+  -- the case `SoundJoin` was for: two transports are typed at two
+  -- approximants of the motive, and the witness above both has to be
+  -- typed at the motive above both.  Every other case is an upper bound
+  -- with no typing to preserve, which is why they run under
+  -- `Valuation.WF` with no admissibility in sight
+  | trDF hAA' haa' hbb' hC hC' hxx' hhh' _ _ ihA iha ihb ihC ihC' ihx ihh =>
+    exact ⟨dir_tr hΓ hAA'.hasType.1 hbb'.hasType.1 (ihA hΓ).1 (iha hΓ).1 (ihb hΓ).1
+        (ihC ⟨hΓ, _, hAA'.hasType.1⟩).1 (ihx hΓ).1 (ihh hΓ).1,
+      dir_tr hΓ hAA'.hasType.2 (hAA'.defeqDF hbb'.hasType.2) (ihA hΓ).2 (iha hΓ).2 (ihb hΓ).2
+        (ihC' ⟨hΓ, _, hAA'.hasType.2⟩).2 (ihx hΓ).2 (ihh hΓ).2⟩
   -- the computation rules are padded with typings of both sides, so each
   -- of these is its two premises' conclusions
   | beta _ _ _ _ _ _ _ _ ih₃ ih₄ => exact ⟨(ih₃ hΓ).1, (ih₄ hΓ).1⟩
