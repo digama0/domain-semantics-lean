@@ -2835,6 +2835,108 @@ theorem sound_Y_eq {Γ : List Term} {A A' b b' : Term} {u : Bool} (hΓ : ⊢ Γ)
     (hAA'.defeqDF hYY'.symm) hb.hasType.1 W hAdm
     (SoundTy.of_eq hAA' ihAeq ihA) ihbty' ihbeq'
 
+/-! ## Transport
+
+`Interp.tr` carries its motive's value at the stage extended by `b` —
+the term the motive's binder is instantiated with — and the whole of
+`SoundTy` is that this *is* `Interp.inst`'s decomposition of `C[b]`, with
+the clause's own `v` as the slot.  `SoundEq` moves each premise with its
+own induction hypothesis; the motive takes three steps (its `SoundEq`,
+then `Interp.ctx` for the domain that changed, then `IsDefEq.stage` for
+the stage term that changed), which is the pattern `YDF` already uses. -/
+
+theorem sound_tr_eq_of {Γ : List Term} {A A' a a' b b' C C' X X' H H' : Term}
+    {u v : Bool} {r : Bool} (hΓ : ⊢ Γ)
+    (hAA' : Γ ⊢ A ≡ A' : .sort u) (hbb' : Γ ⊢ b ≡ b' : A)
+    (hC' : A' :: Γ ⊢ C' : .sort v)
+    (ihA : SoundTy Γ A (.sort u))
+    (ihAeq : SoundEq Γ A A') (ihaeq : SoundEq Γ a a') (ihbeq : SoundEq Γ b b')
+    (ihCeq : SoundEq (A :: Γ) C C') (ihXeq : SoundEq Γ X X') (ihHeq : SoundEq Γ H H')
+    {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
+    {m : TShape} (hm : Interp Δ Γ (.tr r A a b C X H) σ ρ m) :
+    Interp Δ Γ (.tr r A' a' b' C' X' H') σ ρ m := by
+  cases hm with
+  | bot => exact .bot
+  | tr hw hle hX ha hb hA hwv hvA hC hcb hm' hH =>
+    have hΓA' : ⊢ (A' :: Γ) := ⟨hΓ, _, hAA'.hasType.2⟩
+    have WC : Ctx.SubstEq Δ (σ.cons (b.subst σ)) (σ.cons (b.subst σ)) (A :: Γ) :=
+      .cons W hAA'.hasType.1 (hbb'.hasType.1.subst hΔ W)
+    have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons (b.subst σ)) (ρ.push _) :=
+      .cons hAdm (fun _ hc => ihA.isType hΔ W hAdm hc) hA hwv hvA
+    have WC' : Ctx.SubstEq Δ (σ.cons (b.subst σ)) (σ.cons (b'.subst σ)) (A' :: Γ) :=
+      .cons W hAA'.hasType.2 ((hAA'.subst hΔ W).defeqDF (hbb'.subst hΔ W))
+    refine .tr hw hle ((ihXeq hΔ W hAdm).1 hX) ((ihaeq hΔ W hAdm).1 ha)
+      ((ihbeq hΔ W hAdm).1 hb) ((ihAeq hΔ W hAdm).1 hA) hwv hvA
+      (IsDefEq.stage hΓA' hC' hΔ WC' ((ihCeq hΔ WC hAdm').1 hC).ctx)
+      hcb hm' (fun hr => (ihHeq hΔ W hAdm).1 (hH hr))
+
+/-- The `SoundEq` half of `trDF`. -/
+theorem sound_tr_eq {Γ : List Term} {A A' a a' b b' C C' X X' H H' : Term}
+    {u v : Bool} {r : Bool} (hΓ : ⊢ Γ)
+    (hAA' : Γ ⊢ A ≡ A' : .sort u) (hbb' : Γ ⊢ b ≡ b' : A)
+    (hC : A :: Γ ⊢ C ≡ C' : .sort v) (hC' : A' :: Γ ⊢ C ≡ C' : .sort v)
+    (ihA : SoundTy Γ A (.sort u))
+    (ihAeq : SoundEq Γ A A') (ihaeq : SoundEq Γ a a') (ihbeq : SoundEq Γ b b')
+    (ihCeq : SoundEq (A :: Γ) C C') (ihCeq' : SoundEq (A' :: Γ) C C')
+    (ihXeq : SoundEq Γ X X') (ihHeq : SoundEq Γ H H') :
+    SoundEq Γ (.tr r A a b C X H) (.tr r A' a' b' C' X' H') := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm m
+  refine ⟨sound_tr_eq_of hΓ hAA' hbb' hC'.hasType.2 ihA ihAeq ihaeq ihbeq ihCeq ihXeq ihHeq
+      hΔ W hAdm, ?_⟩
+  exact sound_tr_eq_of hΓ hAA'.symm (hAA'.defeqDF hbb'.symm) hC.hasType.1
+    (SoundTy.of_eq hAA' ihAeq ihA) ihAeq.symm ihaeq.symm ihbeq.symm ihCeq'.symm
+    ihXeq.symm ihHeq.symm hΔ W hAdm
+
+/-- The `SoundTy` half: the motive's value *is* an approximant of `C[b]`,
+read at the clause's own witness shape. -/
+theorem sound_tr_ty {Γ : List Term} {A a b C X H : Term} {r : Bool}
+    (htr : Γ ⊢ .tr r A a b C X H : C.inst b)
+    (ihbdir : SoundDir Γ b) :
+    SoundTy Γ (.tr r A a b C X H) (C.inst b) := by
+  refine ⟨htr, ?_⟩
+  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+  have hwρ := hAdm.wf
+  cases hm with
+  | bot => exact ⟨TShape.bot, .bot, .bot (.bot .sort)⟩
+  | tr hw hle hX ha hbv hA hwv hvA hC hcb hm' hH =>
+    refine ⟨_, (Interp.inst (A := A) (b := C) hΔ (ihbdir hΔ W hwρ) hwρ).2
+      ⟨_, ?_, hbv⟩, TShape.HasType.mono_l hΔ hm' hle⟩
+    rw [Subst.one_comp]
+    exact hC
+
+/-- **`tr` at `refl` is the transported value.**  Forward is one `mono`:
+the clause's `m'` is an approximant of `X`.  Backward is the clause
+rebuilt around the value's own typing: `SoundTy X (C[a])` gives a code,
+`Interp.inst` splits it into the motive at a slot approximating `a`, and
+that slot serves as the witness `v` — including for the proof premise,
+since `refl`'s shape is `refl` of whatever interprets `a`. -/
+theorem sound_tr_refl_eq {Γ : List Term} {A a C X : Term} {u v : Bool} {r : Bool}
+    (hA : Γ ⊢ A : .sort u) (ha : Γ ⊢ a : A)
+    (ihA : SoundTy Γ A (.sort u)) (ihaty : SoundTy Γ a A) (ihadir : SoundDir Γ a)
+    (ihC : SoundTy (A :: Γ) C (.sort v)) (ihx : SoundTy Γ X (C.inst a)) :
+    SoundEq Γ (.tr r A a a C X (.refl r a)) X := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm m
+  have hwρ := hAdm.wf
+  constructor
+  · intro h
+    cases h with
+    | bot => exact .bot
+    | tr hw hle hX _ _ _ _ _ _ _ _ _ => exact Interp.mono hΔ hw hle hX
+  · intro h
+    obtain ⟨c, hc, hct⟩ := ihx.approx hΔ W hAdm h
+    obtain ⟨x₀, hC₀, ha₀⟩ :=
+      (Interp.inst (A := A) (b := C) hΔ (ihadir hΔ W hwρ) hwρ).1 hc
+    rw [Subst.one_comp] at hC₀
+    obtain ⟨vA, hvA, htyx₀⟩ := ihaty.approx hΔ W hAdm ha₀
+    have Wa : Ctx.SubstEq Δ (σ.cons (a.subst σ)) (σ.cons (a.subst σ)) (A :: Γ) :=
+      .cons W hA (ha.subst hΔ W)
+    have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons (a.subst σ)) (ρ.push x₀) :=
+      .cons hAdm (fun _ hd => ihA.isType hΔ W hAdm hd) hvA ha₀.wf htyx₀
+    refine .tr h.wf (TShape.LE.refl h.wf) h ha₀ ha₀ hvA ha₀.wf htyx₀ hC₀
+      (ihC.isType hΔ Wa hAdm' hC₀) hct ?_
+    rintro rfl
+    exact .refl ha₀ ha₀.wf (TShape.LE.refl ha₀.wf)
+
 /-! ## Inversion at the level of `SoundEq`
 
 The labels are in the shapes, so a semantic equality of two types yields
@@ -3182,8 +3284,18 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
     exact ⟨sound_Y_unfold hA.hasType.1 hY.hasType.1 (IsDefEq.dir hΓ hY).1, (ihY hΓ).2⟩
   | idDF hAA' haa' hbb' _ _ _ => exact sound_id hAA' haa' hbb'
   | reflDF hA haa' hid _ iha _ => exact sound_refl hA haa' hid (iha hΓ).1
-  | trDF => sorry
-  | tr_refl => sorry
+  | @trDF _ A A' u a a' b b' v C C' X X' r H H' hAA' haa' hbb' hC hC' hXX' hHH' hCb hid
+      ihA iha ihb ihC ihC' ihX ihH =>
+    have hΓA : ⊢ (A :: _) := ⟨hΓ, _, hAA'.hasType.1⟩
+    have hΓA' : ⊢ (A' :: _) := ⟨hΓ, _, hAA'.hasType.2⟩
+    exact ⟨sound_tr_eq hΓ hAA' hbb' hC hC' (ihA hΓ).2 (ihA hΓ).1 (iha hΓ).1 (ihb hΓ).1
+        (ihC hΓA).1 (ihC' hΓA').1 (ihX hΓ).1 (ihH hΓ).1,
+      sound_tr_ty (IsDefEq.trDF hAA' haa' hbb' hC hC' hXX' hHH' hCb hid).hasType.1
+        (IsDefEq.dir hΓ hbb').1⟩
+  | @tr_refl _ A u a v C X r hA ha hC hx htr ihA iha ihC ihx ihtr =>
+    exact ⟨sound_tr_refl_eq hA ha (ihA hΓ).2 (iha hΓ).2 (IsDefEq.dir hΓ ha).1
+        (ihC ⟨hΓ, _, hA⟩).2 (ihx hΓ).2,
+      (ihtr hΓ).2⟩
   -- both sides are typed at a proposition, so both collapse to `⊥`
   | proofIrrel _ _ _ ih₁ ih₂ ih₃ =>
     exact sound_of_bot_at (ih₂ hΓ).2
