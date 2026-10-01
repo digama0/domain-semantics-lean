@@ -2743,6 +2743,98 @@ theorem sound_natCase_ty {Γ : List Term} {C M a b : Term} {v : Bool} (hΓ : ⊢
     rw [Subst.one_comp]
     exact IsDefEq.stage hΓN hC hΔ W1 hCy'
 
+/-! ## The fixed point
+
+`Interp.Y` is a tower of unfoldings, so both halves are inductions on the
+derivation with the term generalized, as `dir_Y_aux` already is: each
+level's induction hypothesis supplies what the next level's stage needs —
+for `SoundTy` the typing of the slot (which is what `Adm.cons` asks
+for), and for `SoundEq` the inner tower already moved to the other side. -/
+
+/-- The type of a fixed point: the body is typed at `A↑` one slot up, and
+`Interp.unweak` brings that back to `A`.  The slot the body is read at is
+the previous level of the tower, typed by the induction hypothesis — which
+is exactly the `Adm.cons` obligation. -/
+theorem sound_Y_ty_aux {Δ : List Term} (hΔ : ⊢ Δ) {Γ₀ Γ : List Term} {t : Term} {σ ρ}
+    {m : TShape} (H : Interp Δ Γ t σ ρ m) :
+    ∀ {A b : Term} {u : Bool}, t = .Y A b →
+      Γ ⊢ A : .sort u → Γ ⊢ .Y A b : A →
+      Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
+      SoundTy Γ A (.sort u) → SoundTy (A :: Γ) b A.lift →
+      ∃ c, Interp Δ Γ A σ ρ c ∧ TShape.HasType Δ m c := by
+  induction H with
+  | @Y Γ' σ' ρ' m' A b x hx hwx hbody ihx _ =>
+    rintro A' b' u ⟨⟩ hA hY W hAdm ihA ihb
+    obtain ⟨cx, hcx, htyx⟩ := ihx rfl hA hY W hAdm ihA ihb
+    have WY : Ctx.SubstEq Δ (σ'.cons ((Term.Y A b).subst σ'))
+        (σ'.cons ((Term.Y A b).subst σ')) (A :: Γ') := .cons W hA (hY.subst hΔ W)
+    have hAdm' : Adm Δ Γ₀ (A :: Γ') (σ'.cons ((Term.Y A b).subst σ')) (ρ'.push _) :=
+      .cons hAdm (fun _ hb => ihA.isType hΔ W hAdm hb) hcx hwx htyx
+    obtain ⟨c, hc, hct⟩ := ihb.approx hΔ WY hAdm' hbody
+    exact ⟨c, Interp.unweak hc (Γ := Γ') (t := A) (l := .skip .refl) (fun i => rfl) rfl, hct⟩
+  | bot => exact fun _ _ _ _ _ _ _ => ⟨TShape.bot, .bot, .bot (.bot .sort)⟩
+  | _ => intro A b u hne; cases hne
+
+theorem sound_Y_ty {Γ : List Term} {A b : Term} {u : Bool}
+    (hA : Γ ⊢ A : .sort u) (hY : Γ ⊢ .Y A b : A)
+    (ihA : SoundTy Γ A (.sort u)) (ihb : SoundTy (A :: Γ) b A.lift) :
+    SoundTy Γ (.Y A b) A := by
+  refine ⟨hY, ?_⟩
+  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+  exact sound_Y_ty_aux hΔ hm rfl hA hY W hAdm ihA ihb
+
+/-- The congruence: the tower moves one level at a time.  The inner
+unfolding is the induction hypothesis, the body moves by its own
+`SoundEq` (at the *old* context, then `Interp.ctx` to the new one), and
+the stage — which names the fixed point itself — moves by
+`IsDefEq.stage` along the congruence being proved. -/
+theorem sound_Y_eq_aux {Δ : List Term} (hΔ : ⊢ Δ) {Γ₀ Γ : List Term} {t : Term} {σ ρ}
+    {m : TShape} (H : Interp Δ Γ t σ ρ m) :
+    ∀ {A A' b b' : Term} {u : Bool}, t = .Y A b → ⊢ Γ →
+      Γ ⊢ A ≡ A' : .sort u → Γ ⊢ .Y A b : A → Γ ⊢ .Y A b ≡ .Y A' b' : A →
+      A' :: Γ ⊢ b' : A'.lift →
+      Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
+      SoundTy Γ A (.sort u) → SoundTy (A :: Γ) b A.lift → SoundEq (A :: Γ) b b' →
+      Interp Δ Γ (.Y A' b') σ ρ m := by
+  induction H with
+  | @Y Γ' σ' ρ' m' A b x hx hwx hbody ihx _ =>
+    rintro A₁ A' b₁ b' u ⟨⟩ hΓ hAA' hY hYY' hb' W hAdm ihA ihbty ihbeq
+    -- the inner tower, already moved
+    have hx' := ihx rfl hΓ hAA' hY hYY' hb' W hAdm ihA ihbty ihbeq
+    -- the slot is typed, so the body's stage is admissible
+    obtain ⟨cx, hcx, htyx⟩ :=
+      sound_Y_ty_aux hΔ hx rfl hAA'.hasType.1 hY W hAdm ihA ihbty
+    have WY : Ctx.SubstEq Δ (σ'.cons ((Term.Y A b).subst σ'))
+        (σ'.cons ((Term.Y A b).subst σ')) (A :: Γ') :=
+      .cons W hAA'.hasType.1 (hY.subst hΔ W)
+    have hAdm' : Adm Δ Γ₀ (A :: Γ') (σ'.cons ((Term.Y A b).subst σ')) (ρ'.push _) :=
+      .cons hAdm (fun _ hb => ihA.isType hΔ W hAdm hb) hcx hwx htyx
+    -- the body, at the other side and at the other stage
+    have hbody' := (ihbeq hΔ WY hAdm').1 hbody
+    have W' : Ctx.SubstEq Δ (σ'.cons ((Term.Y A b).subst σ'))
+        (σ'.cons ((Term.Y A' b').subst σ')) (A' :: Γ') :=
+      .cons W hAA'.hasType.2 ((hAA'.subst hΔ W).defeqDF (hYY'.subst hΔ W))
+    have hΓA' : ⊢ (A' :: Γ') := ⟨hΓ, _, hAA'.hasType.2⟩
+    exact .Y hx' hwx (IsDefEq.stage hΓA' hb' hΔ W' hbody'.ctx)
+  | bot => exact fun _ _ _ _ _ _ _ _ _ _ _ => .bot
+  | _ => intro A₁ A' b₁ b' u hne; cases hne
+
+/-- The `SoundEq` half of `YDF`. -/
+theorem sound_Y_eq {Γ : List Term} {A A' b b' : Term} {u : Bool} (hΓ : ⊢ Γ)
+    (hAA' : Γ ⊢ A ≡ A' : .sort u) (hYY' : Γ ⊢ .Y A b ≡ .Y A' b' : A)
+    (hb : A :: Γ ⊢ b ≡ b' : A.lift) (hb' : A' :: Γ ⊢ b ≡ b' : A'.lift)
+    (ihAeq : SoundEq Γ A A') (ihA : SoundTy Γ A (.sort u))
+    (ihbty : SoundTy (A :: Γ) b A.lift) (ihbeq : SoundEq (A :: Γ) b b')
+    (ihbty' : SoundTy (A' :: Γ) b' A'.lift) (ihbeq' : SoundEq (A' :: Γ) b' b) :
+    SoundEq Γ (.Y A b) (.Y A' b') := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm m
+  refine ⟨fun h => sound_Y_eq_aux hΔ h rfl hΓ hAA' hYY'.hasType.1 hYY' hb'.hasType.2
+      W hAdm ihA ihbty ihbeq, fun h => ?_⟩
+  have hY' : Γ ⊢ .Y A' b' : A' := hAA'.defeqDF hYY'.hasType.2
+  exact sound_Y_eq_aux hΔ h rfl hΓ hAA'.symm hY'
+    (hAA'.defeqDF hYY'.symm) hb.hasType.1 W hAdm
+    (SoundTy.of_eq hAA' ihAeq ihA) ihbty' ihbeq'
+
 /-! ## Inversion at the level of `SoundEq`
 
 The labels are in the shapes, so a semantic equality of two types yields
@@ -3078,7 +3170,14 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   | @natCase_succ _ C v n a b _ hn _ hb _ _ _ _ _ _ ihredex _ =>
     exact ⟨sound_natCase_succ hΓ hn.hasType.1 hb.hasType.1 (IsDefEq.dir hΓ hn).1,
       (ihredex hΓ).2⟩
-  | YDF => sorry
+  | @YDF _ A A' u b b' hAA' hb hb' ihA ihb ihb' =>
+    have hΓA : ⊢ (A :: _) := ⟨hΓ, _, hAA'.hasType.1⟩
+    have hΓA' : ⊢ (A' :: _) := ⟨hΓ, _, hAA'.hasType.2⟩
+    have hYY' : _ ⊢ Term.Y A b ≡ Term.Y A' b' : A := .YDF hAA' hb hb'
+    exact ⟨sound_Y_eq hΓ hAA' hYY' hb hb' (ihA hΓ).1 (ihA hΓ).2
+        (ihb hΓA).2 (ihb hΓA).1
+        (SoundTy.of_eq hb' (ihb' hΓA').1 (ihb' hΓA').2) (ihb' hΓA').1.symm,
+      sound_Y_ty hAA'.hasType.1 hYY'.hasType.1 (ihA hΓ).2 (ihb hΓA).2⟩
   | @Y_unfold _ A u b hA hb hY hunf _ _ ihY _ =>
     exact ⟨sound_Y_unfold hA.hasType.1 hY.hasType.1 (IsDefEq.dir hΓ hY).1, (ihY hΓ).2⟩
   | idDF hAA' haa' hbb' _ _ _ => exact sound_id hAA' haa' hbb'
