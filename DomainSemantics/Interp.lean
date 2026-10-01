@@ -776,6 +776,131 @@ theorem Interp.weak' {Δ : List Term} {Γ t σ' ρ m l} (H : Interp Δ Γ t (Sub
     · rw [← Subst.lift_l_cons]
       exact congrArg _ (subst_lift')
 
+/-- Composing with a lifted substitution, under an extended stage. -/
+theorem Subst.lift_comp_cons {θ σ : Subst} {e : Term} :
+    θ.lift.comp (σ.cons e) = (θ.comp σ).cons e := by
+  funext i; cases i with
+  | zero => rfl
+  | succ i => exact lift_subst_cons
+
+/-- **Substitution in the term, the constructive direction.**  An
+approximant of `t` at the composed stage, under a valuation whose slots
+approximate the `θ i`, is an approximant of `t[θ]`.  Master's
+`LE_Interp.subst` in the direction that needs no directedness: every
+clause is rebuilt verbatim, with `subst_subst` for the labels and
+`Interp.weak'` for the slot a binder adds. -/
+theorem Interp.of_substTerm {Δ Γ : List Term} {t : Term} {τ ρ' m} (hΔ : ⊢ Δ)
+    (H : Interp Δ Γ t τ ρ' m) :
+    ∀ {Γ' : List Term} {θ σ ρ}, τ = θ.comp σ →
+      (∀ i, Interp Δ Γ' (θ i) σ ρ (ρ' i)) →
+      Interp Δ Γ' (t.subst θ) σ ρ m := by
+  induction H with
+  | bot => intro _ _ _ _ _ _; exact .bot
+  | bvar hw h1 => intro _ _ _ _ _ hθ; exact Interp.mono hΔ hw h1 (hθ _)
+  | sort hw h1 => intro _ _ _ _ _ _; exact .sort hw h1
+  | unit hw h1 => intro _ _ _ _ _ _; exact .unit hw h1
+  | nat hw h1 => intro _ _ _ _ _ _; exact .nat hw h1
+  | zero hw h1 => intro _ _ _ _ _ _; exact .zero hw h1
+  | succ _ hw h1 ihv => intro _ _ _ _ hτ hθ; exact .succ (ihv hτ hθ) hw h1
+  | app _ _ hev hw h1 ihF iha =>
+    intro _ _ _ _ hτ hθ
+    subst hτ
+    rw [← subst_subst] at hev
+    exact .app (ihF rfl hθ) (iha rfl hθ) hev hw h1
+  | @lam _ _ _ _ _ _ _ _ _ hA hd hwf hdom hbody hw h1 ihA ihbody =>
+    intro Γ' θ σ ρ hτ hθ
+    subst hτ
+    rw [← subst_subst] at hwf h1
+    refine .lam (ihA rfl hθ) hd hwf hdom (fun e he => ?_) hw h1
+    refine ihbody e he (θ := θ.lift) Subst.lift_comp_cons.symm (fun i => ?_)
+    cases i with
+    | zero => exact .bvar (hwf.2.2.1.1 e he).2.2.1 (TShape.LE.refl (hwf.2.2.1.1 e he).2.2.1)
+    | succ i => exact Interp.weak' (l := .skip .refl) (hθ i) (fun _ => rfl)
+  | @forallE _ _ _ _ _ _ _ _ _ hA hd hwf hlab hdom hbody hw h1 ihA ihbody =>
+    intro Γ' θ σ ρ hτ hθ
+    subst hτ
+    rw [Subst.comp_lift, ← subst_subst, ← subst_subst] at hwf h1
+    refine .forallE (ihA rfl hθ) hd hwf (fun e he => ?_) hdom (fun e he => ?_) hw h1
+    · obtain ⟨u, hu⟩ := hlab e he
+      exact ⟨u, by rwa [← subst_subst] at hu⟩
+    · refine ihbody e he (θ := θ.lift) Subst.lift_comp_cons.symm (fun i => ?_)
+      cases i with
+      | zero =>
+        exact .bvar (hwf.2.2.2.1 e he).2.2.1 (TShape.LE.refl (hwf.2.2.2.1 e he).2.2.1)
+      | succ i => exact Interp.weak' (l := .skip .refl) (hθ i) (fun _ => rfl)
+  | @sigma _ _ _ _ _ _ _ _ _ hA hd hwf hlab hdom hbody hw h1 ihA ihbody =>
+    intro Γ' θ σ ρ hτ hθ
+    subst hτ
+    rw [Subst.comp_lift, ← subst_subst, ← subst_subst] at hwf h1
+    refine .sigma (ihA rfl hθ) hd hwf (fun e he => ?_) hdom (fun e he => ?_) hw h1
+    · obtain ⟨u, hu⟩ := hlab e he
+      exact ⟨u, by rwa [← subst_subst] at hu⟩
+    · refine ihbody e he (θ := θ.lift) Subst.lift_comp_cons.symm (fun i => ?_)
+      cases i with
+      | zero =>
+        exact .bvar (hwf.2.2.2.1 e he).2.2.1 (TShape.LE.refl (hwf.2.2.2.1 e he).2.2.1)
+      | succ i => exact Interp.weak' (l := .skip .refl) (hθ i) (fun _ => rfl)
+  | @pair _ _ _ _ _ _ _ _ _ _ _ _ ha hA hd hwf hlab hdom hinp hout hbody hty hw h1
+      iha ihA ihinp ihout ihbody =>
+    intro Γ' θ σ ρ hτ hθ
+    subst hτ
+    rw [← subst_subst] at hwf h1
+    refine .pair (iha rfl hθ) (ihA rfl hθ) hd hwf (fun e he => ?_) hdom
+      (fun e he => ihinp e he rfl hθ) (fun e he => ihout e he rfl hθ)
+      (fun e he => ?_) hty hw h1
+    · have := hlab e he; rwa [← subst_subst] at this
+    · refine ihbody e he (θ := θ.lift) Subst.lift_comp_cons.symm (fun i => ?_)
+      cases i with
+      | zero =>
+        exact .bvar (hwf.2.2.1.1 e.1 (List.mem_map.2 ⟨e, he, rfl⟩)).2.2.1
+          (TShape.LE.refl (hwf.2.2.1.1 e.1 (List.mem_map.2 ⟨e, he, rfl⟩)).2.2.1)
+      | succ i => exact Interp.weak' (l := .skip .refl) (hθ i) (fun _ => rfl)
+  | fst _ hw h1 ihp => intro _ _ _ _ hτ hθ; exact .fst (ihp hτ hθ) hw h1
+  | snd _ hq hw h1 ihp =>
+    intro _ _ _ _ hτ hθ
+    subst hτ
+    rw [← subst_subst] at hq
+    exact .snd (ihp rfl hθ) hq hw h1
+  | natCase_zero _ hz _ ihM iha =>
+    intro _ _ _ _ hτ hθ
+    subst hτ
+    rw [← subst_subst] at hz
+    exact .natCase_zero (ihM rfl hθ) hz (iha rfl hθ)
+  | natCase_succ _ hwv heq _ ihM ihb =>
+    intro Γ' θ σ ρ hτ hθ
+    subst hτ
+    rw [← subst_subst] at heq
+    refine .natCase_succ (ihM rfl hθ) hwv heq ?_
+    refine ihb (θ := θ.lift) Subst.lift_comp_cons.symm (fun i => ?_)
+    cases i with
+    | zero => exact .bvar (TShape.WF.T.2 hwv) (TShape.LE.refl (TShape.WF.T.2 hwv))
+    | succ i => exact Interp.weak' (l := .skip .refl) (hθ i) (fun _ => rfl)
+  | Y _ hwx _ ihself ihb =>
+    intro Γ' θ σ ρ hτ hθ
+    subst hτ
+    refine .Y (ihself rfl hθ) hwx ?_
+    simp only [Term.subst, subst_subst, ← Subst.comp_lift]
+    refine ihb (θ := θ.lift) Subst.lift_comp_cons.symm (fun i => ?_)
+    cases i with
+    | zero => exact .bvar hwx (TShape.LE.refl hwx)
+    | succ i => exact Interp.weak' (l := .skip .refl) (hθ i) (fun _ => rfl)
+  | id hw h1 =>
+    intro _ _ _ _ hτ hθ
+    subst hτ
+    simp only [← subst_subst] at h1
+    exact .id hw h1
+  | refl _ hw h1 ihv => intro _ _ _ _ hτ hθ; exact .refl (ihv hτ hθ) hw h1
+  | tr hw hle _ _ _ _ hwv hvA _ hcb hm' _ ihX iha ihb ihA ihC ihH =>
+    intro Γ' θ σ ρ hτ hθ
+    subst hτ
+    refine .tr hw hle (ihX rfl hθ) (iha rfl hθ) (ihb rfl hθ) (ihA rfl hθ) hwv hvA ?_ hcb hm'
+      (fun hr => ihH hr rfl hθ)
+    rw [subst_subst]
+    refine ihC (θ := θ.lift) Subst.lift_comp_cons.symm (fun i => ?_)
+    cases i with
+    | zero => exact .bvar hwv (TShape.LE.refl hwv)
+    | succ i => exact Interp.weak' (l := .skip .refl) (hθ i) (fun _ => rfl)
+
 /-! ## Obligations
 
 The lemmas about `Interp` that the soundness induction still needs, stated
@@ -924,16 +1049,23 @@ have to wait for soundness.  Labels need no stage lemma: `A[θ ∘ σ]` and
 theorem Interp.substTerm (hΔ : ⊢ Δ) {θ : Subst}
     (hθ : ∀ i, Interp.Dir Δ Γ' (θ i) σ ρ) :
     Interp Δ Γ' (t.subst θ) σ ρ m ↔
-    ∃ ρ', Interp Δ Γ t (θ.comp σ) ρ' m ∧ ∀ i, Interp Δ Γ' (θ i) σ ρ (ρ' i) := by
-  sorry
+    ∃ ρ', Interp Δ Γ t (θ.comp σ) ρ' m ∧ ∀ i, Interp Δ Γ' (θ i) σ ρ (ρ' i) :=
+  -- `←` is `Interp.of_substTerm`, which needs none of the hypotheses; only
+  -- `→`, where the subderivations' valuations have to be merged, is open
+  ⟨sorry, fun ⟨_, h, hs⟩ => Interp.of_substTerm hΔ h rfl hs⟩
 
 /-- The single-substitution form, which is what `beta` uses: `b[a]` at
 stage `σ` is `b` at the stage extended by `a[σ]`, under the valuation
 extended by an approximant of `a`.  Master's `LE_Interp.inst`. -/
 theorem Interp.inst (hΔ : ⊢ Δ) (ha : Interp.Dir Δ Γ a σ ρ) (hρ : Valuation.WF Δ ρ) :
     Interp Δ Γ (b.inst a) σ ρ m ↔
-    ∃ x, Interp Δ (A :: Γ) b ((Subst.one a).comp σ) (ρ.push x) m ∧ Interp Δ Γ a σ ρ x := by
-  sorry
+    ∃ x, Interp Δ (A :: Γ) b ((Subst.one a).comp σ) (ρ.push x) m ∧ Interp Δ Γ a σ ρ x :=
+  -- as for `substTerm`, `←` is the general lemma at `θ = one a`: slot `0`
+  -- holds the argument's approximant and slot `i+1` the valuation's own
+  ⟨sorry, fun ⟨x, hb, hx⟩ => Interp.of_substTerm hΔ hb rfl (fun i => by
+    cases i with
+    | zero => exact hx
+    | succ i => exact .bvar (hρ i) (TShape.LE.refl (hρ i)))⟩
 
 -- Stage invariance under a definitionally equal stage is **not** a lemma
 -- about `Interp`: for a raw `t` it is false.  Take `t = .forallE A B` with
