@@ -1184,19 +1184,6 @@ to be collected into a list — and then brought to one level, since a
 graph is a list at one level.  These two utilities are that, and nothing
 about this model. -/
 
-/-- Collect a per-element existential into a list of pairs. -/
-theorem List.exists_pairs {α β : Type _} {P : α → β → Prop} :
-    ∀ {g : List α}, (∀ e ∈ g, ∃ c, P e c) →
-      ∃ g₀ : List (α × β), g₀.map Prod.fst = g ∧ ∀ p ∈ g₀, P p.1 p.2
-  | [], _ => ⟨[], rfl, by simp⟩
-  | e :: g, h => by
-    obtain ⟨c, hc⟩ := h e (by simp)
-    obtain ⟨g₀, hmap, hall⟩ := List.exists_pairs (g := g) (fun e' he' => h e' (by simp [he']))
-    refine ⟨(e, c) :: g₀, by simp [hmap], fun p hp => ?_⟩
-    match List.mem_cons.1 hp with
-    | .inl h => exact h ▸ hc
-    | .inr h => exact hall p h
-
 /-- The maximum of a list of levels, above a floor. -/
 def levelMax {α : Type _} (f : α → Nat) (k : Nat) : List α → Nat
   | [] => k
