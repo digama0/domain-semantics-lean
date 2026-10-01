@@ -795,45 +795,29 @@ Two conclusions for us.
 into an approximant of the codomain there.  The `SoundEq` half of `sndDF`
 and the `pair_snd` β-rule go through with it.
 
-### 4.7b The dominator: where `sndDF`'s `SoundTy` now stops
+### 4.7b The dominator: resolved by (β)
 
-With the label pinned, `SoundTy Γ (.snd p) (B.inst (.fst p))` needs one
-more thing, and it is **not** about labels.  `HasType.pair` reads the
-second component's code at a *dominator*:
+*Superseded.*  This section recorded the obstruction as it stood with the
+old Σ-value (a first component and a *single* second component, typed at
+a code read at a **dominator** `x ≥ x'` of the first component).  The
+dominator was there for lower-closure of typing, while `Interp.inst`
+needs the code read at a slot that *approximates* `fst p` — the two pull
+in opposite directions, and the note closed by listing three ways out,
+all of them the §5.1/§5.3 decision.
 
-```lean
-| pair … {x' y : Shape n} {x c : TShape} … :
-    TShape.LE Δ x'.T x → HasType Δ x d.T →
-    TEvaluates Δ f ty tm x c → HasType Δ y.T c → …
-```
+(β) (§5.1b) removed the dominator: a Σ-value is now a first component
+`x` and a *graph* `g`, and `HasType.pair` certifies that graph by a
+**generator**, exactly as `HasType.lam` does.  A generator entry sits
+*below* the graph entry it covers, whose input is below `x`, and `x` is
+an approximant of `fst p` (the `fst` rule says so); so every code is read
+at a slot approximating `fst p`, and `Interp.inst` applies.
 
-`x'` is the pair's actual first component and `x ≥ x'` is where the code
-is read.  The dominator is there for **lower-closure** of typing: shrink
-`x'` and the lookup at `x'` would shrink with it, so `y`'s code has to be
-read somewhere that does not move.  But `Interp.inst` demands the opposite:
-an approximant of `B[fst p]` is a body at a slot that **approximates**
-`fst p`, and the dominator need not.  So `y` is typed at the codomain
-evaluated at a slot we cannot use.
-
-This is the same wart §5.1 records for `SoundJoin` ("two compatible pairs
-can carry incompatible dominators"), and the *same tension appears at Π*:
-`HasType.lam`'s generator `g₀` plays the dominator's role there, so
-`appDF`'s `SoundTy` will meet it too — the code that types an application's
-result is a lookup at a generator entry's input, and `Interp.inst` wants a
-slot approximating the argument.
-
-So the Σ half is not a Σ problem.  The statement to decide is:
-
-> **typing reads codes at dominators (for lower-closure), while `inst`
-> reads types at approximating slots.**
-
-Options: (i) read codes at the component/argument itself and recover
-lower-closure another way; (ii) weaken `Interp.inst` so that a type may be
-read at a slot *above* the argument's (this is false for a general
-family, but may hold for *typed* slots, which is exactly what a decoder
-would give); (iii) carry, in `SoundTy` at Σ (resp. Π), a code read at the
-component (resp. argument) itself — the §5.3(a) shape again.  All three
-are the same decision as §5.1 and §5.3.
+`sound_snd_ty` is `sound_app_ty` transposed, line for line, and
+`sound_snd_eq` is `sound_app_eq`'s twin with `Interp.pair_label_ty` for
+the query's type.  `sndDF` is closed.  The remaining Σ hole is
+`fst_snd` (η), which needs the §4.7a label invariant — that a Σ-typed
+value's label names its *own* first projection — and that is still the
+§5.3 decision.
 
 ### 4.8 The remaining cases, in one line each
 
@@ -850,7 +834,25 @@ by `IsDefEq.subst`.  `YDF`, `Y_unfold`: master's `Y_iff` (one line) and
 
 ## 5. Open decisions
 
-### 5.1 Join-closure of a type's extension (`SoundJoin`)
+### 5.1 Join-closure of a type's extension (`SoundJoin`) — **closed**
+
+**Resolved by (β) (§5.1b).**  `TShape.HasType.join` is proved
+(`HasType.lean`): at one level, by induction on the level, with the
+sort-typed shapes going to `join_sort`, numerals through
+`IsNumeral.join`, and `lam`/`pair` appending their graphs and
+concatenating their generators (lifted to a common level by
+`join_gen_wf`/`_cover`/`_code`/`_ty`).  For the lift to carry the
+lookups, both clauses now also carry their generator's entrywise
+well-formedness, `ShapeFun.WFE` — the first half of `ShapeFun.WF`,
+without the coherence, which two generators certifying *compatible*
+values need not have.
+
+`SoundJoin` is therefore `sound_join`: no `Interp`, no `Adm`, no
+induction on the type.  Its consumers are discharged — `sound_app_ty`
+lost its hypothesis, `dir_tr` is proved, and `IsDefEq.dir` has no holes
+at all.  The analysis below is kept because it is what identified (β),
+and because §5.5's counterexample remains the reason the *old* pair
+could not be joined.
 
 **Correction, from proving `appDF`: it is not needed by `tr` only.**  Every
 consumer of a *relational* lookup needs it.  A lookup's `join` rule returns
@@ -991,6 +993,11 @@ parallel one.  Estimated surgery: `ShapeS.pair`'s signature and the
 order/`WF`/`Compat`/`join`/`subst`/`lift` clauses, `HasType.pair`,
 `Interp.pair`/`fst`/`snd`, and the Σ proofs (`sound_fst`, the β-rules,
 `dir_pair`/`fst`/`snd`, `pair_ub`/`pair_decomp`).
+
+**Done**, and the estimate was right.  What it bought, beyond the join:
+`sndDF`'s `SoundTy` (§4.7b — the dominator was the obstruction, and it is
+gone), `appDF`'s `SoundTy`, and `trDF`'s directedness.  What it did not
+buy: `fst_snd`, which needs §4.7a's label invariant, i.e. §5.3.
 
 Three ways out, and the third is the one §5.3 was already heading for:
 
