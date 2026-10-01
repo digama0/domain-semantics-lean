@@ -193,8 +193,17 @@ theorem forallE_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term}
   exact absurd ((TShape.LE.def_mp (Nat.le_refl 1) (Nat.le_refl 1)) (Interp.le_id h))
     (by simp only [Shape.lift_piAtom, Shape.lift_self]; exact id)
 
-theorem sigma_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term} :
-    ¬Γ ⊢ Term.sigma A₀ B₀ ≡ Term.id r A a b : .sort s := by sorry
+theorem sigma_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term}
+    (hΓ : ⊢ Γ) : ¬Γ ⊢ Term.sigma A₀ B₀ ≡ Term.id r A a b : .sort s := by
+  intro H
+  have ⟨u, hA₀⟩ := H.sigma_dom
+  have ⟨v, hB₀⟩ := H.sigma_cod
+  have hprobe : Interp Γ Γ (.sigma A₀ B₀) Subst.id Valuation.nil
+      (Shape.T (n := 1) (Shape.sigmaAtom (A₀.subst Subst.id) (B₀.subst Subst.id.lift))) :=
+    Interp.sigmaAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀)
+  have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 hprobe
+  exact absurd ((TShape.LE.def_mp (Nat.le_refl 1) (Nat.le_refl 1)) (Interp.le_id h))
+    (by simp only [Shape.lift_sigmaAtom, Shape.lift_self]; exact id)
 
 /-! ### The remaining label inversions -/
 
