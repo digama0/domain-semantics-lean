@@ -1177,6 +1177,76 @@ more than its typed part) — plus the option of removing η (and
 and cannot simply skip one.  The experiment is reverted; none of it is in
 the tree.
 
+#### 4.5g What the original actually does at η — read off the source
+
+Read against `/project/presheaf-semantics-lean`, after §4.5f ruled out
+the cheap route.  **The original has no typed-input condition at all**,
+and the reason is one line of its λ clause:
+
+```lean
+-- Interpretation/Binder.lean
+noncomputable def normalizedSectionValue (hA) (C B) (σ ρ label) (I : RawValue Γ₁) :=
+  sectionValue hA B σ ρ label (D.rawExtend (C.app _ σ.op ρ) I)
+```
+
+`⟦λA.b⟧` is `abstraction (normalizedBody …)` (`Interpretation.lean`,
+`Interpretation/Abstraction.lean`), so **the body is read at the input
+*normalised at the domain*, `rawExtend ⟦A⟧ I`**, never at `I`.  An entry
+at an arbitrary input therefore carries exactly the value at its
+normalised part, and nothing has to produce a typed input.
+
+Our `Interp.lam` does the opposite: it keeps the raw input and *demands*
+`hdom : HasType Δ e.inp.T d`.  That premise is what makes the extended
+stage admissible — and it is the η blocker.  **It is a mistranslation of
+`normalizedBodyAction`**: the original normalises where we require.
+
+Three further things the source settles:
+
+* **Their typing is not ours.**  `HasFixedness Γ t A` is
+  `rawExtend ⟦A⟧ ⟦t⟧ = ⟦t⟧` (`Soundness/Judgment.lean`): the *value* is
+  closed under the type's decoder.  There is no per-point typing
+  predicate, so the question §5.3 asks — lower-closed `HasType` or
+  `HasDom` — does not arise there.  Our lower-closed `HasType` is a
+  strengthening of master's per-point condition and is **not** in
+  tension with η.  What it does not give is decode-closure, and that is
+  what η consumes.
+* **η, in their proof** (`Soundness/EliminationRules.lean`,
+  `HasEquality.eta_formation`): the expansion's body value at an
+  arbitrary argument `X` is, by the λ clause, the application of `⟦e⟧`
+  at `Y = decode ⟦A⟧ X`; `HasFixedness` of `e` at `Π A B` makes `⟦e⟧` a
+  fixed point of the Π-retraction, and
+  `DependentOperator.application_fixed` then rewrites the application at
+  `Y` back to the application at `X`.  So `abstraction (arrowAction ⟦e⟧)
+  = ⟦e⟧`.  Both ingredients are used: the clause's normalisation and the
+  value's fixedness.
+* **The decoder is their big construction** — `Domain/Decoder/*`, ~1.5k
+  lines, built as a fixed point over stages (`PiStages`,
+  `PiFixedPoint`, `FunctionRetraction`), because *their* codes are
+  domain elements.  Ours are finite shapes, so the analogue
+  `decode : TShape → TShape → TShape` should be structural recursion on
+  the code, which is much cheaper.
+
+**What the translation needs, then** (three pieces, in order):
+
+1. `Shape.decode d x` — "`x` read at the code `d`" — by recursion on the
+   code, with `HasType Δ (decode d x) d`, `decode d x = x` for `x` typed
+   at `d`, monotone in `x`, and stable under substitution and lifting.
+2. `Interp.lam` (and `pair`) reads the body at `decode d e.inp`, and
+   `hdom` **goes away**: admissibility of the extended stage is then free,
+   since a decoded shape is typed by construction.  `beta` cancels the
+   normalisation with the argument's own typedness (`SoundTy a A`), which
+   is what master's `HasFixedness a A` is for there.
+3. `SoundTy` gains decode-closure of the approximant set — their
+   `HasFixedness`, i.e. the saturation statement in approximant form —
+   proved per rule in the same induction.  η then reads `e`'s own
+   approximant back out at the decoded input, with no typed input ever
+   constructed.
+
+Step 2 touches every proof that reads the λ clause, so this is the
+largest single change left in the development; steps 1 and 3 are
+additive.  It is, however, the faithful translation, and it keeps
+everything §5.5 bought.
+
 ### 4.6 `proofIrrel`, `unit_eta`, `star`
 
 Done or routine: `sound_of_bot`, `sound_of_bot_at`, `Interp.eq_bot_of_prop`
