@@ -1227,68 +1227,63 @@ Three further things the source settles:
   the code, which is much cheaper.
 
 **Their typing is a projection, and that is the device we lack.**  There
-is no `HasType` there because `x : a` is `p_a x = x`: each code `a` names
-an idempotent, *deflationary* operator on values (`natIdeal_le : natIdeal
-X ≤ X`, `natIdeal_idempotent`; `universeIdeal r X` is `X` filtered by
+is no `HasType` there because `x : a` is `p_a x = x`: each code names an
+idempotent, **deflationary** operator on values (`natIdeal_le : natIdeal
+X ≤ X` with `natIdeal_idempotent`; `universeIdeal r X` is `X` filtered by
 `IsCode`; `decode (pi label A B) = piOperator A B`, the arrow retraction
 `F ↦ λX. Q (F (P X))`).  For the base codes the projection is a *filter*
-by a downward-closed condition on points, which is exactly our
-lower-closed `HasType` — so downward closure and η are not in tension,
-as the two sides of that `iff` make clear.  At Π the projection does more
-than filter: it **renormalises**, replacing an entry's output by the
-value at the projected input.  That is the content we do not have.
+by a downward-closed condition on points — which is our lower-closed
+`HasType`, so downward closure and η are not in tension.  At Π it does
+more: it **renormalises**, replacing an entry's output by the value at
+the projected input.
 
-**Why it cannot be a function on our shapes.**  Renormalising needs the
-*lookup* at the projected input, i.e. a join of the outputs that fire
-there — total on their ideals, **partial** on our shapes (`Shape.join`
-wants `Compat`).  So the projection has to be relational here:
-
-```lean
--- by structural recursion on the code `d`
-Shape.Fixed Δ d x
-  | .nat, .sort, .unit, .id, ⊥  => TShape.HasType Δ x d      -- filters
-  | .forallE A B d₀ f           => ∀ q ∈ g, ∃ x₀, Fixed Δ d₀ x₀ ∧ x₀ ≤ q.inp ∧
-                                     TEvaluates g q.ty q.tm x₀ q.out ∧ …   -- renormalises
-```
-
-no joins, and the existential stands in for `p_A q.inp`.
-
-**`Fixed` is not downward closed, and must not be used as if it were.**
-A graph covered by a `Fixed` one can have an entry whose input is below
-nothing typed that still fires.  Their fixedness is a statement about the
-whole *ideal*, and the ideal is our *set of approximants* — so the right
-form here is the saturating one:
+**Where the content sits.**  Deflationarity is the part that matters
+here.  `p z ≤ z`, and an ideal is downward closed, so `p z` is
+automatically a *member*: their "every member is below a fixed one"
+silently means "below a fixed **member**".  Our `Interp` is downward
+closed too, so the same reading is available — and at approximant level
+the statement needs no projection at all:
 
 ```lean
-SoundFix Γ t A :=  -- their `HasFixedness`, in approximant form
-  at every admissible stage, every approximant of `t` is below a `Fixed`
-  approximant of `t` (at an approximant of `A`)
+SoundDom Γ e :  -- their `HasFixedness`, read through ideal = approximant set
+  at every admissible stage, every λ-shape approximant of `e` is `≤` an
+  approximant of `e` all of whose entry inputs are typed at the domain
 ```
 
-which *is* downward closed by construction, and is a fourth conclusion of
-`IsDefEq.sound` alongside `SoundEq`, `SoundTy` and `Term.Pinned`.
+An entry at an untyped input carries the value at its typed part, which
+is exactly why dropping to the typed-input approximant loses nothing.
 
-**What the translation needs, then:**
+η ← is then three lines of bookkeeping: take that approximant `z ⊒ m`,
+use **its** graph for the η-expansion — inputs typed, so `Interp.lam`'s
+`hdom` holds; bodies are `z`'s own lookups by `TEvaluates.refl`, and `z`
+*is* an approximant, so the `app` clause applies; and `m ≤ z` covers the
+original.
 
-1. `Shape.Fixed Δ d x`, by recursion on the code, with the base cases
-   `HasType` and the Π/Σ cases renormalising as above.
-2. `SoundFix` as the fourth conclusion of soundness.
-3. η ← then reads the typed input off the `Fixed` dominator: its entries'
-   outputs are already achieved at inputs that are `Fixed` at the domain,
-   so the η-expansion's graph has the typed inputs `Interp.lam` demands,
-   and it covers the original approximant.
-4. The one non-additive part: `Interp.lam`'s `hdom` and `Adm`'s slot
-   condition must ask for `Fixed`, not merely `HasType` — otherwise the
-   `bvar` case of (2) has nothing to say about a slot.  Producers of
-   λ-shapes then have to supply `Fixed` inputs, which (2) gives them
-   (`beta` picks its input from `SoundTy e' A`, and would pick it from
-   `SoundFix e' A` instead).
+**Taking the downward closure as the Π clause of `HasType`** (the
+obvious thing to try) is fine as a *definition* — it stays downward
+closed, so `mono_l` survives — but it is not the content: η needs the
+witness to be an approximant, and an existential over shapes has no link
+to `Interp`.  Definition and content are separate here.
 
-That is the whole of the original's η, with the projection turned from a
-function on ideals into a predicate on shapes.  Step 4 is a premise
-change rather than a reinterpretation of the λ clause, so it is smaller
-than normalising the body would be, but it is still the part that
-touches every producer.
+**What is needed, then:**
+
+1. `Shape.Dom Δ d x` — *hereditarily* typed: `x` is typed at the code
+   `d`, and where `d` is a Π or Σ code, every entry input of `x` is again
+   `Dom` at `d`'s domain.  Structural recursion on the code; no joins,
+   since nothing is renormalised.
+2. `SoundDom` as a fourth conclusion of `IsDefEq.sound`, beside
+   `SoundEq`, `SoundTy` and `Term.Pinned`.  The `lam` case is free (`z :=
+   m`, its inputs typed by `hdom`); the computation rules come from the
+   padding IHs, as `Pinned`'s did.
+3. `Interp.lam`'s `hdom` and `Adm`'s slot condition ask for `Dom` rather
+   than `HasType` — otherwise the `bvar` case of (2) has nothing to say
+   about a slot, since a slot is where an arbitrary approximant enters.
+   Most producers just carry the premise; the one real obligation is
+   `beta` ←, which picks its input from `SoundTy e' A` and will pick it
+   from `SoundDom` instead.
+
+Step 3 is the only part that touches existing proofs, and it is a
+premise change rather than a reinterpretation of the clause.
 
 ### 4.6 `proofIrrel`, `unit_eta`, `star`
 
