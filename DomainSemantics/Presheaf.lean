@@ -3869,6 +3869,93 @@ theorem sound_natCase_ty {Γ : List Term} {C M a b : Term} {v : Bool} (hΓ : ⊢
     rw [Subst.one_comp]
     exact IsDefEq.stage hΓN hC hΔ W1 hCy'
 
+/-- **Saturation at a `natCase`.**  A `natCase`'s approximant is its
+branch's, so the branch's own saturation is the whole content; the code
+moves from the branch's type to `C[M]` exactly as in `sound_natCase_ty`,
+because `M[σ]` is the branch's index at the stage. -/
+theorem sound_natCase_dom {Γ : List Term} {C M a b : Term} {v : Bool} (hΓ : ⊢ Γ)
+    (hPC : C.Pinned (Term.nat :: Γ))
+    (hC : Term.nat :: Γ ⊢ C : .sort v)
+    (ihadom : SoundDom Γ a (C.inst .zero))
+    (ihbdom : SoundDom (Term.nat :: Γ) b
+      ((C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0))))
+    (ihMty : SoundTy Γ M Term.nat) (ihMdom : SoundDom Γ M Term.nat)
+    (ihMdir : SoundDir Γ M) :
+    SoundDom Γ (.natCase C M a b) (C.inst M) := by
+  have hΓN : ⊢ (Term.nat :: Γ) := ⟨hΓ, _, .nat⟩
+  have hzdir : SoundDir Γ (Term.zero) :=
+    dir_atom Interp.le_zero (fun hw h => .zero hw h) trivial
+  have hClift : Term.nat :: Term.nat :: Γ ⊢ C.lift' (.cons (.skip .refl)) : .sort v :=
+    IsDefEq.weak' (.cons (.skip .refl)) hC
+  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+  have hwρ := hAdm.wf
+  cases hm with
+  | bot => exact ⟨TShape.bot, TShape.bot, .bot, TShape.bot_le' rfl, .bot,
+      TShape.Dom.bot (.bot (.bot .sort))⟩
+  | natCase_zero hMz hz hma hMt =>
+    obtain ⟨ma, c, hma', hmle, hc, hdc⟩ := ihadom hΔ W hAdm hma
+    obtain ⟨x, hCx, hxz⟩ :=
+      (Interp.inst (A := Term.nat) (b := C) hΔ hΓ .nat .zero hC hPC W hAdm
+        (Subst.Saturates.one hΔ hΓ W hAdm IsTypeAt.nat (SoundDom.nat TypedAt.zero))
+        (hzdir hΔ W hwρ) hwρ).1 hc
+    rw [Subst.one_comp] at hCx
+    have W0 : Ctx.SubstEq Δ (σ.cons (Term.zero.subst σ)) (σ.cons (M.subst σ))
+        (Term.nat :: Γ) := .cons W .nat hz.symm
+    refine ⟨ma, c, .natCase_zero hMz hz hma' hMt, hmle,
+      (Interp.inst (A := Term.nat) (b := C) hΔ hΓ .nat hMt hC hPC W hAdm
+        (Subst.Saturates.one hΔ hΓ W hAdm IsTypeAt.nat ihMdom)
+        (ihMdir hΔ W hwρ) hwρ).2
+        ⟨x, ?_, Interp.mono hΔ hxz.wf (Interp.le_zero hxz) hMz⟩, hdc⟩
+    rw [Subst.one_comp]
+    exact IsDefEq.stage hΓN hC hΔ W0 hCx
+  | @natCase_succ _ _ _ _ _ _ _ _ n w t hMs hwv heq hmb hMt =>
+    have ht : Δ ⊢ t : Term.nat := heq.succ_regular (.inr rfl)
+    have Wcons : Ctx.SubstEq Δ (σ.cons t) (σ.cons t) (Term.nat :: Γ) := .cons W .nat ht
+    obtain ⟨cM, hcM, htyM⟩ := ihMty.approx hΔ W hAdm hMs
+    have hvnat : TShape.HasType Δ w.T TShape.nat :=
+      (TShape.HasType.isNumeral hΔ (Interp.le_nat hcM) htyM).pred.hasType
+    have hwv' : TShape.WF Δ w.T := TShape.WF.T.2 hwv
+    have hAdm' : Adm Δ Γ₀ (Term.nat :: Γ) (σ.cons t) (ρ.push w.T) :=
+      .cons hAdm W.wf (fun _ hb => TShape.HasType.mono_l hΔ .nat (Interp.le_nat hb))
+        Interp.nat' hwv' (TShape.Dom.of_not_binder (fun h => h) hvnat)
+    obtain ⟨mb, c, hmb', hmle, hc, hdc⟩ := ihbdom hΔ Wcons hAdm' hmb
+    obtain ⟨y, hCy, hsy⟩ := (Interp.inst (A := Term.nat) (b := C.lift' (.cons (.skip .refl)))
+      hΔ hΓN .nat (.succDF (.bvar .zero .nat)) hClift
+      (Term.Pinned.weak' hΓN hC.annot.1 (.cons (.skip .refl)) hPC) Wcons hAdm'
+      (Subst.Saturates.one hΔ hΓN Wcons hAdm' IsTypeAt.nat (SoundDom.nat TypedAt.succ_bvar0))
+      (dir_succ (dir_bvar (Γ := Term.nat :: Γ)) hΔ Wcons (Valuation.WF.push hwρ hwv'))
+      (Valuation.WF.push hwρ hwv')).1 hc
+    rw [Subst.one_comp] at hCy
+    have hCy' : Interp Δ (Term.nat :: Γ) C (σ.cons ((Term.succ (.bvar 0)).subst (σ.cons t)))
+        (ρ.push y) c := by
+      have h := Interp.unweak (Δ := Δ) hΔ hΓN hC.annot.1 (Γ' := Term.nat :: Term.nat :: Γ)
+        (l := .cons (.skip .refl)) (ρ := ρ.push y)
+        (.cons (.skip .refl))
+        (show Ctx.SubstEq Δ ((σ.cons t).cons ((Term.succ (.bvar 0)).subst (σ.cons t)))
+            ((σ.cons t).cons ((Term.succ (.bvar 0)).subst (σ.cons t)))
+            (Term.nat :: Term.nat :: Γ) from
+          .cons Wcons .nat
+            (by simpa using IsDefEq.subst hΔ Wcons (IsDefEq.succDF (.bvar .zero .nat))))
+        (fun i => by cases i <;> rfl) hCy
+      rwa [← Subst.lift_l_cons, ← Subst.tail_eq_lift_l] at h
+    have hyle : TShape.LE Δ y (Shape.T (n := n+1) (ShapeS.succ w)) := by
+      cases hsy with
+      | bot => exact TShape.bot_le' rfl
+      | @succ _ _ _ _ _ n' v' hv _ hle =>
+        refine hle.trans hΔ (TShape.LE.succ_of hΔ (a := v'.T) (b := w.T) ?_)
+        cases hv with
+        | bot => exact TShape.bot_le' rfl
+        | bvar _ h1 => exact h1
+    have W1 : Ctx.SubstEq Δ (σ.cons ((Term.succ (.bvar 0)).subst (σ.cons t)))
+        (σ.cons (M.subst σ)) (Term.nat :: Γ) := .cons W .nat heq.symm
+    refine ⟨mb, c, .natCase_succ hMs hwv heq hmb' hMt, hmle,
+      (Interp.inst (A := Term.nat) (b := C) hΔ hΓ .nat hMt hC hPC W hAdm
+        (Subst.Saturates.one hΔ hΓ W hAdm IsTypeAt.nat ihMdom)
+        (ihMdir hΔ W hwρ) hwρ).2
+        ⟨y, ?_, Interp.mono hΔ hsy.wf hyle hMs⟩, hdc⟩
+    rw [Subst.one_comp]
+    exact IsDefEq.stage hΓN hC hΔ W1 hCy'
+
 /-! ## The fixed point
 
 `Interp.Y` is a tower of unfoldings, so both halves are inductions on the
@@ -3908,6 +3995,41 @@ theorem sound_Y_ty {Γ : List Term} {A b : Term} {u : Bool} (hΓ : ⊢ Γ)
   refine ⟨hY, ?_⟩
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
   exact sound_Y_ty_aux hΔ hm rfl hΓ hA hY W hAdm ihA ihb
+
+/-- **Saturation at a fixed point.**  An unfolding's approximant is the
+body's at the slot, so the body's own saturation is the whole content:
+the enlarged value is still an unfolding at the same slot, and its code
+unweakens from `A↑` to `A`. -/
+theorem sound_Y_dom_aux {Δ : List Term} (hΔ : ⊢ Δ) {Γ₀ Γ : List Term} {t : Term} {σ ρ}
+    {m : TShape} (H : Interp Δ Γ t σ ρ m) :
+    ∀ {A b : Term} {u : Bool}, t = .Y A b → ⊢ Γ →
+      Γ ⊢ A : .sort u → Γ ⊢ .Y A b : A →
+      Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
+      SoundTy Γ A (.sort u) → SoundDom (A :: Γ) b A.lift →
+      ∃ m' c, Interp Δ Γ (.Y A b) σ ρ m' ∧ TShape.LE Δ m m' ∧
+        Interp Δ Γ A σ ρ c ∧ TShape.Dom Δ c m' := by
+  induction H with
+  | @Y Γ' σ' ρ' m' A b x d hx hwx hd hdty hDom hbody hAt hYt _ _ _ =>
+    rintro A' b' u ⟨⟩ hΓ hA hY W hAdm ihA ihbdom
+    have WY : Ctx.SubstEq Δ (σ'.cons ((Term.Y A b).subst σ'))
+        (σ'.cons ((Term.Y A b).subst σ')) (A :: Γ') := .cons W hA (hY.subst hΔ W)
+    have hAdm' : Adm Δ Γ₀ (A :: Γ') (σ'.cons ((Term.Y A b).subst σ')) (ρ'.push _) :=
+      .cons hAdm W.wf (fun _ hb => ihA.isType hΔ W hAdm hb) hd hwx hDom
+    obtain ⟨mb, c, hmb, hmle, hc, hdc⟩ := ihbdom hΔ WY hAdm' hbody
+    exact ⟨mb, c, .Y hx hwx hd hdty hDom hmb hAt hYt, hmle,
+      Interp.unweak (Δ := Δ) hΔ hΓ hA.annot.1 (Γ' := A :: Γ') (l := .skip .refl)
+        (.skip .refl) WY (fun i => rfl) hc, hdc⟩
+  | bot =>
+    exact fun _ _ _ _ _ _ _ _ => ⟨TShape.bot, TShape.bot, .bot, TShape.bot_le' rfl, .bot,
+      TShape.Dom.bot (.bot (.bot .sort))⟩
+  | _ => intro A b u hne; cases hne
+
+theorem sound_Y_dom {Γ : List Term} {A b : Term} {u : Bool} (hΓ : ⊢ Γ)
+    (hA : Γ ⊢ A : .sort u) (hY : Γ ⊢ .Y A b : A)
+    (ihA : SoundTy Γ A (.sort u)) (ihbdom : SoundDom (A :: Γ) b A.lift) :
+    SoundDom Γ (.Y A b) A := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+  exact sound_Y_dom_aux hΔ hm rfl hΓ hA hY W hAdm ihA ihbdom
 
 /-- The congruence: the tower moves one level at a time.  The inner
 unfolding is the induction hypothesis, the body moves by its own
