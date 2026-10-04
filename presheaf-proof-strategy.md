@@ -553,7 +553,7 @@ of it, gathered structurally as `Term.Pinned` (`Interp.lean`):
 assumption is now `IsDefEq.pinned` (`Pinned.lean`): *every well-typed
 term is pinned* — the third conclusion itself, nothing more.
 
-**What finishing it still needs**, found by trying: `Pinned`'s conjuncts
+**What finishing it still needs**, found by trying (twice): `Pinned`'s conjuncts
 are statements at the *source* stage, and proving them from a subterm's
 `SoundTy` means transporting that `SoundTy` across `θ`, which reads it at
 the stage `θ ∘ σ` under the valuation `to_substTerm` **builds**.  So that
@@ -564,6 +564,29 @@ condition on `θ` — the original's `SourceAdmissible` and
 `HasSubstitution` for exactly this reason.  Translating that pair is the
 next step, and at `inst`'s call sites its hypothesis is free: there
 `θ = one a` and the slot's typing is `SoundTy Γ a A`.
+
+**But it is not a mechanical translation, and this is the third place the
+model's difference from the original shows.**  There the `Γ`-side
+valuation *is* `⟦θ⟧` — an ideal, one object, admissible by construction.
+Here it is an approximant the `∃` picks, and **admissibility is not
+upward closed**: enlarging a valuation breaks its slots' typings, typing
+being a lower set.  So "enlarge the reconstructed valuation until it
+hosts the type-approximants `Adm` wants" does not close — each
+enlargement needs its new slots typed, and their types are read at a
+bigger valuation again.  This is the same ideal-versus-approximant gap
+as §5.1's join-closure and §5.5's lower-closure, in a third place.
+
+Two things came out of the attempt.  `Adm` is now a **predicate on
+slots** — every slot well formed, and the slot a variable reads typed at
+an approximant of its type — rather than an inductive indexed by a base
+context.  It says the same of every valuation the inductive admitted
+(`Adm.lookup` *was* that statement), it makes enlargements and joins
+expressible, and it drops a context index from every signature.  And the
+way through looks like the original's own: `SingleSubstitution` is used
+only at a single substitution, and there the `Γ`-side valuation is
+`ρ.push x` with `ρ` already admissible and `x` choosable among `a`'s
+approximants — so the specialised form may close where the general one
+does not.
 
 Two things that would *not* work, recorded so they are not retried:
 

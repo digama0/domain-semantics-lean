@@ -22,10 +22,27 @@ admissible whenever the source one is, since `SoundTy` is stated at
 admissible stages and the transport of a subterm's `SoundTy` across `θ`
 reads it there.  That is the original's `SourceAdmissible`/
 `SingleSubstitution` pair (`Soundness/Admissible.lean`,
-`Soundness/SingleSubstitution.lean`), and it is the next piece to
-translate.  The two places it bites are the `natCase_succ` and `Y`
-clauses, whose binder slot is not an entry input and so is typed only
-through the scrutinee's — resp. the tower's — own `SoundTy`.
+`Soundness/SingleSubstitution.lean`).
+
+**And translating that pair is not mechanical**, which is worth knowing
+before trying.  There the `Γ`-side valuation *is* the interpretation of
+`θ` — an ideal, hence a single object, and admissible by construction.
+Here it is an approximant the `∃` picks, and **admissibility is not
+upward closed**: enlarging a valuation breaks its slots' typings, since
+typing is a lower set.  So the obvious repair — enlarge the reconstructed
+valuation until it hosts the type-approximants `Adm` asks for — does not
+terminate: each enlargement needs the new slots typed, whose types are
+read at a bigger valuation again.  `Adm` being a predicate on slots
+(rather than the old inductive) is what makes joins and enlargements
+expressible at all, so it is the right base to try from; what is missing
+is a reason for the process to close.
+
+Where it is tractable: at `Interp.inst`, the one use that matters, the
+`Γ`-side valuation is `ρ.push x` with `ρ` already admissible, and `x` can
+be chosen typed among `a`'s approximants (`SoundTy Γ a A` and
+directedness).  So a form of the substitution lemma specialised to
+`one a` — the original's `SingleSubstitution`, which is also only ever
+used there — may well close where the general one does not.
 -/
 
 namespace DomainSemantics
