@@ -1291,6 +1291,246 @@ theorem Interp.unweak {Δ : List Term} (hΔ : ⊢ Δ) :
       | zero => rfl
       | succ i => simp [Valuation.push, hρ i]
 
+/-- **Stage invariance.**  The interpretation depends on its stage only up
+to definitional equality.  Master needs no such lemma, his shapes carrying
+no labels; the other repo gets it from the quotient, two definitionally
+equal substitutions being the *same* morphism of `Ctx`.
+
+Here every clause carries what its own labels need to move: a binder's
+annotation is typed in `Γ` (so `IsDefEq.subst'` moves its label), a
+`natCase`'s scrutinee is a numeral (so its branch equation moves), a
+`pair`'s first component is typed at the annotation (so the entries' label
+terms move), and an `app`'s or `snd`'s query is `Stable` at the shape's
+label — which is exactly the equation `TEvaluates.mono` asks for, and the
+one thing no typing in `Γ` could supply, the label being a term of `Δ`.
+
+So the induction is structural in the term, with `Term.Annot` for the
+annotations.  `Y` is the one case that is not structural: its tower
+premise is the same term one level down, so that case runs on the
+derivation. -/
+theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
+    ∀ {t : Term} {Γ : List Term} {σ σ₂ ρ m}, ⊢ Γ → t.Annot Γ →
+      Ctx.SubstEq Δ σ σ₂ Γ → Interp Δ Γ t σ ρ m → Interp Δ Γ t σ₂ ρ m := by
+  intro t
+  induction t with
+  | bvar i =>
+    intro Γ σ σ₂ ρ m _ _ _ H
+    cases H with
+    | bot => exact .bot
+    | bvar hw hle => exact .bvar hw hle
+  | sort u =>
+    intro Γ σ σ₂ ρ m _ _ _ H
+    cases H with
+    | bot => exact .bot
+    | sort hw hle => exact .sort hw hle
+  | unit r =>
+    intro Γ σ σ₂ ρ m _ _ _ H
+    cases H with
+    | bot => exact .bot
+    | unit hw hle => exact .unit hw hle
+  | star r =>
+    intro Γ σ σ₂ ρ m _ _ _ H
+    cases H with | bot => exact .bot
+  | nat =>
+    intro Γ σ σ₂ ρ m _ _ _ H
+    cases H with
+    | bot => exact .bot
+    | nat hw hle => exact .nat hw hle
+  | zero =>
+    intro Γ σ σ₂ ρ m _ _ _ H
+    cases H with
+    | bot => exact .bot
+    | zero hw hle => exact .zero hw hle
+  | succ N ih =>
+    intro Γ σ σ₂ ρ m hΓ hAnn W H
+    cases H with
+    | bot => exact .bot
+    | succ hv hw hle => exact .succ (ih hΓ hAnn W hv) hw hle
+  | app F a ihF iha =>
+    intro Γ σ σ₂ ρ m hΓ hAnn W H
+    obtain ⟨hAF, hAa⟩ := hAnn
+    cases H with
+    | bot => exact .bot
+    | app hF hx hev hw hle hty =>
+      have heq := hty.move hΔ W
+      exact .app (ihF hΓ hAF W hF) (iha hΓ hAa W hx)
+        (TEvaluates.mono hΔ ⟨heq.hasType.1.isType hΔ, heq⟩ (TShape.LE.refl hx.wf) hev)
+        hw hle (hty.stage W)
+  | lam A b ihA ihb =>
+    intro Γ σ σ₂ ρ m hΓ hAnn W H
+    obtain ⟨⟨u, hA⟩, hAA, hAb⟩ := hAnn
+    have hAσ : TyEq Δ (A.subst σ) (A.subst σ₂) := ⟨u, IsDefEq.subst' hΔ W hA⟩
+    cases H with
+    | bot => exact .bot
+    | lam hAint hdty hwf hdom hbody hw hle _ =>
+      refine .lam (ihA hΓ hAA W hAint) hdty
+        ⟨hwf.1, hwf.2.1, hwf.2.2.1, fun e he => TyEq.trans (hwf.2.2.2 e he) hAσ⟩
+        hdom (fun e he => ?_) hw
+        (hle.trans hΔ (TShape.LE.T.2
+          ⟨ShapeFun.LE.refl hwf.2.2.1, hwf.1, hwf.2.1, hAσ, hwf.2.2.2⟩))
+        ⟨u, hA⟩
+      have htm : Δ ⊢ e.tm : A.subst σ :=
+        (hwf.2.2.2 e he).choose_spec.defeqDF (hwf.2.2.1.1 e he).2.1
+      have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ₂.cons e.tm) (A :: Γ) := .cons W hA htm
+      exact ihb ⟨hΓ, _, hA⟩ hAb W' (hbody e he)
+  | forallE A B ihA ihB =>
+    intro Γ σ σ₂ ρ m hΓ hAnn W H
+    obtain ⟨⟨u, hA⟩, ⟨v, hB⟩, hAA, hAB⟩ := hAnn
+    have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
+    have hAσ : Δ ⊢ A.subst σ ≡ A.subst σ₂ : .sort u := IsDefEq.subst' hΔ W hA
+    have hBσ : A.subst σ :: Δ ⊢ B.subst σ.lift ≡ B.subst σ₂.lift : .sort v :=
+      IsDefEq.subst' (Γ₀ := A.subst σ :: Δ) ⟨hΔ, _, hAσ.hasType.1⟩
+        (W.lift hA hAσ.hasType.1) hB
+    cases H with
+    | bot => exact .bot
+    | forallE hAint hdty hwf hlab hdom hbody hw hle _ _ =>
+      refine .forallE (ihA hΓ hAA W hAint) hdty
+        ⟨⟨u, hAσ.hasType.2⟩, ⟨v, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩, hwf.2.2⟩
+        (fun e he => ?_) hdom (fun e he => ?_) hw
+        (hle.trans hΔ (TShape.LE.T.2
+          ⟨⟨⟨u, hAσ⟩, v, hBσ⟩, .refl hwf.2.2.1, .refl hwf.2.2.2⟩))
+        ⟨u, hA⟩ ⟨v, hB⟩
+      · obtain ⟨_, hty⟩ := hlab e he
+        exact ⟨_, hty.trans' hAσ⟩
+      · obtain ⟨_, hty⟩ := hlab e he
+        have hwe := hwf.2.2.2.1 e he
+        have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ₂.cons e.tm) (A :: Γ) :=
+          .cons W hA (hty.defeqDF hwe.2.1)
+        exact ihB hΓA hAB W' (hbody e he)
+  | sigma A B ihA ihB =>
+    intro Γ σ σ₂ ρ m hΓ hAnn W H
+    obtain ⟨⟨u, hA⟩, ⟨v, hB⟩, hAA, hAB⟩ := hAnn
+    have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
+    have hAσ : Δ ⊢ A.subst σ ≡ A.subst σ₂ : .sort u := IsDefEq.subst' hΔ W hA
+    have hBσ : A.subst σ :: Δ ⊢ B.subst σ.lift ≡ B.subst σ₂.lift : .sort v :=
+      IsDefEq.subst' (Γ₀ := A.subst σ :: Δ) ⟨hΔ, _, hAσ.hasType.1⟩
+        (W.lift hA hAσ.hasType.1) hB
+    cases H with
+    | bot => exact .bot
+    | sigma hAint hdty hwf hlab hdom hbody hw hle _ _ =>
+      refine .sigma (ihA hΓ hAA W hAint) hdty
+        ⟨⟨u, hAσ.hasType.2⟩, ⟨v, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩, hwf.2.2⟩
+        (fun e he => ?_) hdom (fun e he => ?_) hw
+        (hle.trans hΔ (TShape.LE.T.2
+          ⟨⟨⟨u, hAσ⟩, v, hBσ⟩, .refl hwf.2.2.1, .refl hwf.2.2.2⟩))
+        ⟨u, hA⟩ ⟨v, hB⟩
+      · obtain ⟨_, hty⟩ := hlab e he
+        exact ⟨_, hty.trans' hAσ⟩
+      · obtain ⟨_, hty⟩ := hlab e he
+        have hwe := hwf.2.2.2.1 e he
+        have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ₂.cons e.tm) (A :: Γ) :=
+          .cons W hA (hty.defeqDF hwe.2.1)
+        exact ihB hΓA hAB W' (hbody e he)
+  | pair A B a b ihA ihB iha ihb =>
+    intro Γ σ σ₂ ρ m hΓ hAnn W H
+    obtain ⟨⟨u, hA⟩, ⟨v, hB⟩, hat, hAA, hAB, hAa, hAb⟩ := hAnn
+    have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
+    have hAσ : TyEq Δ (A.subst σ) (A.subst σ₂) := ⟨u, IsDefEq.subst' hΔ W hA⟩
+    have haσ : Δ ⊢ a.subst σ ≡ a.subst σ₂ : A.subst σ := IsDefEq.subst' hΔ W hat
+    cases H with
+    | bot => exact .bot
+    | pair hainp hAint hdty hwf hlab hdom hinp hout hbody hty hw hle _ _ =>
+      refine .pair (iha hΓ hAa W hainp) (ihA hΓ hAA W hAint) hdty
+        ⟨hwf.1, hwf.2.1, hwf.2.2.1, fun e he => TyEq.trans (hwf.2.2.2.1 e he) hAσ,
+          TyEq.refl_r hAσ, hwf.2.2.2.2.2⟩
+        (fun e he => ?_) hdom (fun e he => iha hΓ hAa W (hinp e he))
+        (fun e he => ihb hΓ hAb W (hout e he)) (fun e he => ?_) hty hw
+        (hle.trans hΔ (TShape.LE.T.2
+          ⟨Shape.LE.refl hwf.2.2.2.2.2, ShapeFun.LE.refl hwf.2.2.1, hwf.1, hwf.2.1,
+            hAσ, hwf.2.2.2.1⟩))
+        ⟨u, hA⟩ hat
+      · -- the entry's label term names the first component, at the new stage
+        exact (hlab e he).trans
+          ((hwf.2.2.2.1 e.1 (List.mem_map.2 ⟨e, he, rfl⟩)).choose_spec.symm.defeqDF haσ)
+      · have htm : Δ ⊢ e.1.tm : A.subst σ :=
+          (hwf.2.2.2.1 e.1 (List.mem_map.2 ⟨e, he, rfl⟩)).choose_spec.defeqDF
+            (hwf.2.2.1.1 e.1 (List.mem_map.2 ⟨e, he, rfl⟩)).2.1
+        have W' : Ctx.SubstEq Δ (σ.cons e.1.tm) (σ₂.cons e.1.tm) (A :: Γ) :=
+          .cons W hA htm
+        exact ihB hΓA hAB W' (hbody e he)
+  | fst p ih =>
+    intro Γ σ σ₂ ρ m hΓ hAnn W H
+    cases H with
+    | bot => exact .bot
+    | fst hp hw hle => exact .fst (ih hΓ hAnn W hp) hw hle
+  | snd p ih =>
+    intro Γ σ σ₂ ρ m hΓ hAnn W H
+    cases H with
+    | bot => exact .bot
+    | snd hp hev hw hle hty =>
+      have heq := hty.move hΔ W
+      exact .snd (ih hΓ hAnn W hp)
+        (TEvaluates.mono hΔ ⟨heq.hasType.1.isType hΔ, heq⟩
+          (TShape.LE.refl (TShape.WF.T.2 hp.wf.2.2.2.2.2)) hev)
+        hw hle (hty.stage W)
+  | natCase C M a b ihC ihM iha ihb =>
+    intro Γ σ σ₂ ρ m hΓ hAnn W H
+    obtain ⟨hMt, hAC, hAM, hAa, hAb⟩ := hAnn
+    have hΓN : ⊢ (Term.nat :: Γ) := ⟨hΓ, _, .nat⟩
+    have hMσ : Δ ⊢ M.subst σ ≡ M.subst σ₂ : Term.nat := IsDefEq.subst' hΔ W hMt
+    cases H with
+    | bot => exact .bot
+    | natCase_zero hM hz ha _ =>
+      exact .natCase_zero (ihM hΓ hAM W hM) (hMσ.symm.trans hz) (iha hΓ hAa W ha) hMt
+    | natCase_succ hM hwv heq hbody _ =>
+      refine .natCase_succ (ihM hΓ hAM W hM) hwv (hMσ.symm.trans heq) ?_ hMt
+      have W' : Ctx.SubstEq Δ (σ.cons _) (σ₂.cons _) (Term.nat :: Γ) :=
+        .cons W .nat (heq.succ_regular (.inr rfl))
+      exact ihb hΓN hAb W' hbody
+  | Y A b ihA ihb =>
+    intro Γ σ σ₂ ρ m hΓ hAnn W H
+    -- the tower is not structural in the term, so this one case runs on
+    -- the derivation: each level's self-premise is the level below
+    have key : ∀ {Γ₂ : List Term} {t' σ' ρ' m}, Interp Δ Γ₂ t' σ' ρ' m →
+        ∀ {σ₃}, t' = Term.Y A b → ⊢ Γ₂ → (Term.Y A b).Annot Γ₂ →
+          Ctx.SubstEq Δ σ' σ₃ Γ₂ → Interp Δ Γ₂ (Term.Y A b) σ₃ ρ' m := by
+      intro Γ₂ t' σ' ρ' m H
+      induction H with
+      | @Y Γ₂ σ' ρ' m A₂ b₂ x hx hwx hbody _ _ ihx _ =>
+        intro σ₃ ht' hΓ₂ hAnn₂ W₂
+        cases ht'
+        obtain ⟨⟨u, hA⟩, hYt, hAA, hAb⟩ := hAnn₂
+        have hYσ : Δ ⊢ (Term.Y A b).subst σ' ≡ (Term.Y A b).subst σ₃ : A.subst σ' :=
+          IsDefEq.subst' hΔ W₂ hYt
+        have W' : Ctx.SubstEq Δ (σ'.cons ((Term.Y A b).subst σ'))
+            (σ₃.cons ((Term.Y A b).subst σ₃)) (A :: Γ₂) := .cons W₂ hA hYσ
+        exact .Y (ihx rfl hΓ₂ ⟨⟨u, hA⟩, hYt, hAA, hAb⟩ W₂) hwx
+          (ihb ⟨hΓ₂, _, hA⟩ hAb W' hbody) ⟨u, hA⟩ hYt
+      | bot => intro σ₃ _ _ _ _; exact .bot
+      | _ => intro σ₃ ht' _ _ _; simp at ht'
+    exact key H rfl hΓ hAnn W
+  | id r A a b ihA iha ihb =>
+    intro Γ σ σ₂ ρ m hΓ hAnn W H
+    obtain ⟨⟨u, hA⟩, hat, hbt, hAA, hAa, hAb⟩ := hAnn
+    cases H with
+    | bot => exact .bot
+    | id hw hle _ _ _ =>
+      refine .id hw (hle.trans hΔ (TShape.LE.T.2
+        ⟨rfl, ⟨u, IsDefEq.subst' hΔ W hA⟩, IsDefEq.subst' hΔ W hat,
+          IsDefEq.subst' hΔ W hbt⟩)) ⟨u, hA⟩ hat hbt
+  | refl r a ih =>
+    intro Γ σ σ₂ ρ m hΓ hAnn W H
+    cases H with
+    | bot => exact .bot
+    | refl hv hw hle => exact .refl (ih hΓ hAnn W hv) hw hle
+  | tr r A a b C X Hp ihA iha ihb ihC ihX ihH =>
+    intro Γ σ σ₂ ρ m hΓ hAnn W H
+    obtain ⟨⟨u, hA⟩, hat, hbt, hAA, hAa, hAb, hAC, hAX, hAH⟩ := hAnn
+    have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
+    have hbσ : Δ ⊢ b.subst σ ≡ b.subst σ₂ : A.subst σ := IsDefEq.subst' hΔ W hbt
+    have haσ : Δ ⊢ a.subst σ ≡ a.subst σ₂ : A.subst σ := IsDefEq.subst' hΔ W hat
+    have WC : Ctx.SubstEq Δ (σ.cons (b.subst σ)) (σ₂.cons (b.subst σ₂)) (A :: Γ) :=
+      .cons W hA hbσ
+    cases H with
+    | bot => exact .bot
+    | tr hw hle hX ha hb hAint hwv hvA hC hcb hm' hH heq _ _ _ =>
+      refine .tr hw hle (ihX hΓ hAX W hX) (iha hΓ hAa W ha) (ihb hΓ hAb W hb)
+        (ihA hΓ hAA W hAint) hwv hvA (ihC hΓA hAC WC hC) hcb hm'
+        (fun hr => ihH hΓ hAH W (hH hr)) ?_ ⟨u, hA⟩ hat hbt
+      have h1 : Δ ⊢ a.subst σ₂ ≡ b.subst σ₂ : A.subst σ :=
+        (haσ.symm.trans heq).trans hbσ
+      exact ((IsDefEq.subst' hΔ W hA)).defeqDF h1
+
 theorem Interp.weak_iff {Δ Γ Γ' : List Term} {t σ' ρ ρ' m l} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
     (hAnn : t.Annot Γ) (WΓ : Ctx.Lift' l Γ Γ') (hd : Ctx.SubstEq Δ σ' σ' Γ')
     (hρ : ∀ i, ρ i = ρ' (Lift.liftVar l i)) :

@@ -12,23 +12,26 @@ models are separate roots.
 open DomainSemantics
 
 /-!
-Five `sorry`s remain in the whole development, and this board says
+Three `sorry`s remain in the whole development, and this board says
 which theorems they reach:
 
-* `IsDefEq.stage` (`Presheaf.lean`) — stage invariance.  **Everything
-  below that is not clean is clean but for this**: `dir` uses it at the
-  graphs' cross pairs, and `sound` through `dir` and
-  `sound_graph_lookup`.
-* `Interp.unweak` and `Interp.to_substTerm` (`Interp.lean`) — the two
-  typing-indexed inductions the stage-invariant clauses ask for.  Each
-  clause now carries the premises that make it stage-invariant, so
-  these two can be proved by induction on the *typing*; until they are,
-  they are what `substTerm` and `inst` reach.
+* `Interp.to_substTerm` (`Interp.lean`) — the analytic half of
+  substitution in the term, and the one place a clause premise has to be
+  rebuilt in a *smaller* context.  Every premise but one comes back from
+  `Term.Annot`; the exception is `app`'s and `snd`'s label link, which
+  says the shape's label types the query.  Rebuilding it at `Γ` from its
+  `Γ'` form needs the two to be types of the same term, i.e. uniqueness
+  of types — which is downstream of soundness, which needs this lemma.
+  It is what `Interp.inst` reaches, and `inst` is what the computation
+  rules of `IsDefEq.sound` reach.
 * `eta`, `fst_snd` (`IsDefEq.sound`) — the §5.3 decision.
 * `LR.adequacy`'s `r = false` transport (`Adequacy.lean`, the old
   model) — false for that model, and `LE_Interp.tr_stuck` is the
   witness; it is guarded on the other root, since the two models cannot
-  be imported together. -/
+  be imported together.
+
+**Stage invariance and strengthening are theorems** (`Interp.stage`,
+`Interp.unweak`), and `IsDefEq.dir` is clean. -/
 
 -- **The subject join**: two compatible shapes at one type join there.
 /-- info: 'DomainSemantics.TShape.HasType.join' depends on axioms: [propext, Quot.sound] -/
@@ -38,8 +41,18 @@ which theorems they reach:
 /-- info: 'DomainSemantics.sound_join' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in #print axioms sound_join
 
+-- **Strengthening**: an interpretation moves into a smaller context, the
+-- clauses' premises coming back from the term's annotations.
+/-- info: 'DomainSemantics.Interp.unweak' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms Interp.unweak
+
+-- **Stage invariance**: the labels move with the stage, each clause
+-- carrying what its own need.
+/-- info: 'DomainSemantics.Interp.stage' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms Interp.stage
+
 -- **Substitution in the term**, both directions.  `to_substTerm` is the
--- induction still open, so both reach it.
+-- half still open, so both reach it.
 /-- info: 'DomainSemantics.Interp.substTerm' depends on axioms: [propext, sorryAx, Quot.sound] -/
 #guard_msgs in #print axioms Interp.substTerm
 
@@ -51,11 +64,11 @@ which theorems they reach:
 /-- info: 'DomainSemantics.Interp.tr_bot_of_ne' depends on axioms: [propext] -/
 #guard_msgs in #print axioms Interp.tr_bot_of_ne
 
--- **Directedness** — every case proved, `stage` the only axiom reached.
-/-- info: 'DomainSemantics.IsDefEq.dir' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+-- **Directedness** — every case proved, and nothing left under it.
+/-- info: 'DomainSemantics.IsDefEq.dir' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IsDefEq.dir
 
--- **Soundness** of the labelled model: `stage`, `eta`, `fst_snd`.
+-- **Soundness** of the labelled model: `to_substTerm`, `eta`, `fst_snd`.
 /-- info: 'DomainSemantics.IsDefEq.sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IsDefEq.sound
 

@@ -547,8 +547,8 @@ for each label, by `IsDefEq.subst'`. -/
 theorem IsDefEq.stage {Γ : List Term} {t t' A : Term} (hΓ : ⊢ Γ)
     (H : Γ ⊢ t ≡ t' : A) {Δ : List Term} {σ σ' : Subst} (hΔ : ⊢ Δ)
     (W : Ctx.SubstEq Δ σ σ' Γ) {ρ m} :
-    Interp Δ Γ t σ ρ m → Interp Δ Γ t σ' ρ m := by
-  sorry
+    Interp Δ Γ t σ ρ m → Interp Δ Γ t σ' ρ m :=
+  Interp.stage hΔ hΓ H.annot.1 W
 
 /-! ## Directedness
 
