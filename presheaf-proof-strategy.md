@@ -474,22 +474,50 @@ so assuming uniqueness here assumes a consequence of what is being
 proved.  As scaffolding it is fine — nothing below the model depends on
 it, and every other lemma is now unconditional — but it cannot stay.
 
-What would break the circle, and what would not:
+### 3.1d What the original does here, and where we left it
 
-1. **Record the argument's type in the term** (`app A B f a`, as the
-   other repo's intrinsically typed syntax does).  Then the clause's
-   premise is `TyEq Δ A (A₀[σ])` for an `A₀` the *syntax* fixes, and on
-   the `Γ'` side it is `A₀[θ]`, fixed too; `to_substTerm` has nothing to
-   bridge.  This changes the object language, so it is a decision.
-2. **Indexing `Interp` by a type is not enough.**  The app clause's
-   conclusion index is `B₀.inst a`; the domain `A₀` does not occur in it,
-   so the sub-derivation's Π-type stays existential and `to_substTerm`
-   still has to invent `Γ`-level data.  The clause's own docstring says
-   why: *the argument's type is not recorded by `Term.app`*.
-3. **A syntactic proof of uniqueness** — one that does not route through
-   Π inversion — discharges it with no change to the model.
-4. Leaving it is the conditional result: soundness and the inversions,
-   *given* uniqueness.
+Read against `/project/presheaf-semantics-lean`.  The object language
+there is **extrinsic too** — raw `Term`s and a typing judgement
+(`Syntax/Extrinsic.lean`, `Syntax/Typing.lean`), the same as ours; what
+is categorical is the *ambient*, not the syntax.  (An earlier note in
+this file said "intrinsically typed syntax".  That was wrong.)  Lining
+the two up:
+
+| there | here |
+|---|---|
+| `Ctx := Quotient RawCtx.homRel` (`Syntax/Intrinsic.lean`): a stage is a morphism, i.e. a typed substitution **modulo defeq** | a stage is a raw `Subst`; invariance under `Ctx.SubstEq` is the theorem `Interp.stage` |
+| `rawInterpret` is a **function** on raw terms, each clause taking `⨆ h : {u // Γ ⊢ A : sort u}, …` over the typings it needs | `Interp` is a relation, and those typings are clause *premises*; `Term.Annot` is the bookkeeping that recovers them structurally |
+| an application's query is `sourceQuery Γ a` — the **set of all typings of `a`** — and `application F X Q` looks up at `Tm.presheaf.map σ '' Q`, so the query transports as the image of a set | the query is the λ-shape's own label, plus a premise tying it to `a`'s type |
+| `HasSubstitution Γ t` is a **field of `RawTermProperties`**, proved inside the main induction alongside `HasIdeality` (our `SoundDir`), `HasEquality` (our `SoundEq`) and `HasFixedness` | `Interp.substTerm`/`inst` are standalone lemmas, proved before soundness |
+| `HasSubstitution.app` (`Soundness/StructuralRules.lean`) takes **`HasFixedness Γ f (Π A B)`** — ⟦f⟧ is a value of the Π-type — and `outputAtom_rawPi_fixed_support` turns it into: a non-`⊥` output responds only at a label that is a genuine point of the domain, so the two query sets agree (`rawApplication_subst_query_eq`) | nothing semantic is available, so the label had to be tied syntactically — and that is the step that needs uniqueness |
+| `Unique.lean` derives `IsDefEq.type_unique` **from** `Inversion.lean` | we assume it *upstream* of inversion |
+
+**So the hole is one divergence, and it is ours: we hoisted the
+substitution lemma out of the soundness induction.**  The original never
+has to recognise a shape's label syntactically, because at every use of
+substitution it already knows the function's value is Π-fixed.  We have
+that ingredient — `Interp.lam_label_ty` is exactly
+`outputAtom_rawPi_fixed_support`, and it gives `TyEq Δ A' (A[σ])` — but
+only from `SoundTy Γ f (Π A B)`, which lives in the soundness induction.
+
+**The fix, in their shape:** give `IsDefEq.sound` a third component, a
+`SoundSubst Γ t` (their `HasSubstitution`), proved in the same induction
+as `SoundEq`/`SoundTy`; the `app` and `snd` cases of its proof get the
+label link from `lam_label_ty`/`pair_label_ty` applied to the IH's
+`SoundTy`, and the computation rules use the *subterms'* `SoundSubst`
+instead of a global `Interp.inst`.  Then `IsDefEq.uniq` is not needed at
+all, and uniqueness comes out downstream, where their `Unique.lean` has
+it.
+
+Two things that would *not* work, recorded so they are not retried:
+
+* **Annotating `Term.app`** with its domain.  It would pin the label, but
+  it changes the object language, and the original shows it is
+  unnecessary.
+* **Indexing `Interp` by a type.**  The app clause's index would be
+  `B₀.inst a`, in which the domain does not occur, so the function's
+  Π-type stays existential and `to_substTerm` still has to invent
+  `Γ`-level data.
 
 ### 3.2 `IsDefEq.dir`, per former
 

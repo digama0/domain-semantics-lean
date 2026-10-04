@@ -27,10 +27,17 @@ Why it is true, and why it is a `sorry` here:
   nothing below depends on the labelled model, and the model is not being
   used to prove it.
 
-Discharging it means either re-proving `HasType.uniq`'s inversions
-syntactically, or annotating `Term.app` with its domain, after which the
-`app` clause's label is pinned by the syntax and `Stable.transfers` needs
-no uniqueness at all (§3.1c of `presheaf-proof-strategy.md`).
+**It should not be assumed at all**, and the original proof does not.
+There (`/project/presheaf-semantics-lean`) substitution is a field of
+`RawTermProperties`, proved inside the soundness induction, and its `app`
+case consumes `HasFixedness Γ f (Π A B)`: the function's *value* is a
+value of the Π-type, which forces every non-`⊥` response of its graph to
+sit at a genuine point of the domain (`outputAtom_rawPi_fixed_support`).
+That is the link, and it is semantic, not syntactic.  Here the same
+ingredient is `Interp.lam_label_ty`, which needs `SoundTy Γ f (Π A B)` —
+available only inside `IsDefEq.sound`.  Hoisting `to_substTerm` out of
+that induction is what made this assumption necessary; putting it back
+removes it.  §3.1d of `presheaf-proof-strategy.md`.
 -/
 
 namespace DomainSemantics
