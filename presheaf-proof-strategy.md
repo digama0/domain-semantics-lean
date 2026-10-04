@@ -451,21 +451,45 @@ needs `A` and the image of `a`'s own `Γ`-type to be the same type, i.e.
 **uniqueness of types at the stage**, which this development proves *from*
 soundness, which needs `inst`, which needs this lemma.
 
-The statement is true; the gap is stratification.  It is isolated as
-`Stable.transfers` (`Interp.lean`), and the ways out are:
+`Stable.transfers` is now a *theorem*, proved from that: the clause's own
+premise at the identity stage says the label types the query in `Δ`, the
+argument's typing in `Γ` pushed along `θ` and `σ` says its own type does
+too, uniqueness identifies them, and the equation transports.  `Annot`
+records what an `app`'s argument and a `snd`'s first projection are typed
+at, which `IsDefEq.annot` gets from `appDF`'s and `sndDF`'s own premises.
 
-1. **Intrinsic typing of the application.**  If the term carried its
-   domain (`app A B F a`, as the other repo's intrinsically typed syntax
-   does), the premise would read `TyEq Δ A (A₀[σ])` for an `A₀` fixed by
-   the *syntax*, and `A₀[θ]` on the `Γ'` side would be fixed too — the
-   premise then transports in both directions, with nothing to bridge.
-   This is a change to `Term`, so it is a decision, not a refactor.
-2. **Uniqueness earlier.**  `Consequences.lean` has `HasType.uniq`, but
-   it rests on `Adequacy.lean`'s inversions, i.e. on the old model — the
-   one `LE_Interp.tr_stuck` shows is wrong.  Re-basing that proof on a
-   *syntactic* argument would discharge the link directly.
-3. **Live with it**: `Stable.transfers` is one `sorry` with a precise
-   statement, and everything above it is proved.
+So the whole assumption is now `IsDefEq.uniq` (`Uniq.lean`): **a term has
+at most one type, up to definitional equality.**
+
+**And that is circular, which is the finding.**  Uniqueness is true of
+this theory, and its proof is formalised here — `HasType.uniq` in
+`Consequences.lean`, over a bundled structural typing judgement.  But
+that proof's only external inputs are the `sort` and Π inversions, and Π
+inversion is what the labelled model exists to prove.  On this root the
+chain is
+
+    uniq → Stable.transfers → to_substTerm → inst → sound → inversions → uniq
+
+so assuming uniqueness here assumes a consequence of what is being
+proved.  As scaffolding it is fine — nothing below the model depends on
+it, and every other lemma is now unconditional — but it cannot stay.
+
+What would break the circle, and what would not:
+
+1. **Record the argument's type in the term** (`app A B f a`, as the
+   other repo's intrinsically typed syntax does).  Then the clause's
+   premise is `TyEq Δ A (A₀[σ])` for an `A₀` the *syntax* fixes, and on
+   the `Γ'` side it is `A₀[θ]`, fixed too; `to_substTerm` has nothing to
+   bridge.  This changes the object language, so it is a decision.
+2. **Indexing `Interp` by a type is not enough.**  The app clause's
+   conclusion index is `B₀.inst a`; the domain `A₀` does not occur in it,
+   so the sub-derivation's Π-type stays existential and `to_substTerm`
+   still has to invent `Γ`-level data.  The clause's own docstring says
+   why: *the argument's type is not recorded by `Term.app`*.
+3. **A syntactic proof of uniqueness** — one that does not route through
+   Π inversion — discharges it with no change to the model.
+4. Leaving it is the conditional result: soundness and the inversions,
+   *given* uniqueness.
 
 ### 3.2 `IsDefEq.dir`, per former
 
