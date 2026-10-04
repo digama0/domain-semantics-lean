@@ -36,7 +36,7 @@ or state, and it is the whole difference between the two developments.
 | `IsDirected` conclusion `∃ c ∈ L, a ≤ c ∧ b ≤ c` | `sound_dir_of_ub`: common WF upper bound in `⟦t⟧` | done; it is *his* statement, `Compat ∧ join` is master's derived form |
 | `Compatible.of_common_upper` | `TShape.Compat.of_common_upper` | done |
 | morphism `σ : Γ₁ ⟶ Γ` of the quotient category | `⊢ Δ` and `Δ ⊢ σ : Γ` carried as hypotheses | done (the `Stage`) |
-| equality of morphisms mod defeq (free) | `Interp.stage` | **restate as `IsDefEq.stage`** (§3.1): needs the term typed |
+| equality of morphisms mod defeq (free) | `Interp.stage` | **done** (§3.1b–c): structural in the term, each clause carrying what moves its own label; `IsDefEq.stage` is it, fed `H.annot.1` |
 | functoriality in the stage (free) | `Interp.subst` | done (naturality) |
 | `Ty`/`Tm` quotients: labels equal mod defeq | `LabelEq`, `PiLabelEq`, `IdLabelEq` in `LE`/`Compat` | done |
 | `Ctx.extension` is *not* quotiented: `A::Γ` vs `A'::Γ` need `contextConversion` + `HasRenaming` | `Interp.ctx` (the context index is phantom) | done, free |
@@ -45,14 +45,14 @@ or state, and it is the whole difference between the two developments.
 | `SourceAdmissible.push` at `rawExtend ⟦A⟧ X` | `Adm.cons` at a *typed* slot; the binder rules' `hdom` premise supplies it | done for the binder congruences |
 | `rawExtend_isDirected` + idempotent (free) | `SoundJoin` | **avoidable for Π/λ** (§2.3), **needed for `tr`** (§4.7) |
 | `normalizedBodyAction`: body evaluated at `rawExtend ⟦A⟧ x` | binder rules evaluate the body at the entry input `e.inp`, and demand `HasType e.inp d` | see η, §4.5: this is where the choice bites |
-| `application_piOperator_fixed`: a Π-fixed function's lookup depends only on the normalised argument | no counterpart yet | **needed by η** (§4.5) |
+| `application_piOperator_fixed`: a Π-fixed function's lookup depends only on the normalised argument | its *support* half is `Interp.lam_label_ty` (§3.1d); the *normalisation* half has no counterpart | the support half is used; normalisation is **still needed by η** (§4.5) |
 | `IsIdealValued` (body action directed at *every* input) | `SoundDir (A::Γ) B` at every WF slot | follows once `SoundDir` takes `Valuation.WF` |
 | `PiReady Γ A B` stored in the *type's* `RawTermProperties` | `SoundDir Γ A`, `SoundDir (A::Γ) B` from the typing of the binder | see η: recovering `A`'s typing from `Γ ⊢ e : Π A B` is the issue |
 | `HasFixedness Γ t A` | `SoundTy Γ t A` (`InterpTyped`) | as master |
 | `HasEquality` | `SoundEq` | as master |
-| `HasSubstitution` / `HasRenaming` | `Interp.substTerm` (∃ρ' form), `Interp.weak'`/`unweak` | `weak'` done; `substTerm`, `unweak` sorried (§3.3, §3.4) |
+| `HasSubstitution` / `HasRenaming`, **fields of `RawTermProperties` proved inside the main induction** | `Interp.substTerm` (∃ρ' form), `Interp.weak'`/`unweak`, as *standalone* lemmas before soundness | all three proved, but hoisting them out of the induction is what left the one hole (§3.1d) |
 | `SingleSubstitution.variable_eq` | `Interp.bvar_iff` | done |
-| `sourceQuery a` (sup over all typings of the argument) | the `app` rule names the type `A` in `Δ`, one lookup | **wrong as stated** (§5.5b): naming `A` does not remove the obstruction, it relocates it |
+| `sourceQuery a` (sup over all typings of the argument), transported as the **image of a set** | the `app` rule names the type `A` in `Δ`, one lookup | **wrong as stated** (§5.5b): naming `A` does not remove the obstruction, it relocates it — and §3.1d is where the relocated one surfaced |
 | `rawExtend ⟦C[b/]⟧ ⟦x⟧` as the value of `tr` | master's `tr` constructor with two `HasType` premises | as master; §4.7 |
 | `regular` field of `RawJudgment` | — | he never uses it; drop |
 | `IsCode r` separate from inhabitation | `HasType · (sort r)` | done, cumulative |
@@ -106,6 +106,15 @@ Inversion.lean                                                                  
 Each line uses only the lines above it.  In particular `IsDefEq.sound`'s
 cases call `IsDefEq.dir` and `Interp.inst` as lemmas, at the typing
 derivations the rule's premises supply; they never re-prove directedness.
+
+**This layering is where the one remaining assumption comes from** (§3.1d).
+The original layers `dir` this way too — `HasIdeality` is a field of its
+bundle, but its `app` case takes the function's fixedness — and it does
+*not* layer substitution: `HasSubstitution` is a field of
+`RawTermProperties`, proved in the same induction, and its `app` case
+consumes that fixedness.  Putting `Interp.substTerm` below `sound`
+deprives its `app` case of the only thing that pins the label, and the
+syntactic substitute for it is uniqueness of types.
 
 ### 2.2 Definitions to keep
 
@@ -300,21 +309,28 @@ So the choice is between three repairs, and it is a design decision:
       `stage` at later stages, and take the admissible-stage version as
       a conclusion of `sound`.  `Shape.Compat`'s quantification over
       later stages is what forces it.
-  (c) **Quotient the labels**, as the other repo does: its `Ctx` has
-      typed substitutions *modulo defeq* as morphisms, so two
-      definitionally equal stages are one morphism and stage invariance
-      is not a theorem at all.  Its syntax is intrinsically typed, which
-      is (a) taken to its conclusion.
+  (c) **Quotient the labels**, as the other repo does: its `Ctx` is
+      literally `Quotient RawCtx.homRel`, with typed substitutions
+      *modulo defeq* as morphisms, so two definitionally equal stages are
+      one morphism and stage invariance is not a theorem at all.  Its
+      *syntax* is raw and extrinsic, like ours (§3.1d); what is
+      quotiented is the ambient category, and the typing data its
+      interpretation needs is taken as a supremum over typing
+      derivations, clause by clause.
 
-(a) is the smallest step that unblocks everything, and it is where (c)
-starts: interpret typed terms, and let the clause say what the label is.
+(a) is the smallest step that unblocks everything.  **Taken** (§3.1b),
+and §3.1c–d say what it cost.
 
 #### 3.1a What "the other repo's path without the quotient" costs
 
 Both (a) and (c) were tried on paper, and the measurement is this.
 
-**The quotient is not the obstacle; the *intrinsic typing* is.**  Two
-repairs suggest themselves, and each dies on a different lemma:
+**The quotient is not the obstacle; where the substitution lemma sits
+is.**  (The heading this paragraph used to carry — "the intrinsic typing
+is" — was wrong twice over: that development's syntax is extrinsic, and
+the thing doing the work is the bundle, not the syntax.  See the end of
+this section and §3.1d.)  Two repairs suggest themselves, and each dies
+on a different lemma:
 
 * **Close `Interp` under stage equality**, i.e. add the constructor
 
@@ -344,12 +360,25 @@ repairs suggest themselves, and each dies on a different lemma:
   Strengthening is exactly the kind of lemma this development exists to
   avoid assuming.
 
-The other repo has neither problem because its syntax is *intrinsically
-typed*: a term carries its context, so `unweak` is not a lemma one
-states, and the typing premises are not premises at all.  So "the other
-repo's path without the quotient" is, in the end, **intrinsic typing** —
-the quotient is a convenience on top of it, and the part that does the
-work here is that every label comes with its typing.
+**Why the other repo has neither problem** — and the answer is not
+intrinsic typing, which an earlier draft of this paragraph claimed.  Its
+terms are raw (`Syntax/Extrinsic.lean`), and the typings its clauses need
+appear as `⨆ h : {u // Γ ⊢ A : sort u}, …` inside the defining equations
+of `rawInterpret`, which is our clause premises by another route.  The
+two real differences are:
+
+* its interpretation is a **function**, so renaming and substitution are
+  *equations* (`⟦t[θ]⟧ = ⟦t⟧ ∘ θ`) rather than two inversions of a
+  relation.  `HasRenaming` is literally `HasSubstitution` specialised
+  (`HasRenaming.of_substitution`), and there is no `unweak` to state
+  because an equation runs both ways;
+* those equations are **fields of `RawTermProperties`**, proved in the
+  soundness induction, so their `app` case can consume `HasFixedness`.
+
+So the strengthening problem is an artefact of stating substitution as a
+relation-inversion *below* the induction, not of extrinsic syntax.
+`Interp.unweak` is nevertheless provable, indexed by `Term.Annot`
+(§3.1c); what is not is the label link, §3.1d.
 
 #### 3.1b The plan: stage-invariant clauses, and typed inductions
 
@@ -521,8 +550,9 @@ Two things that would *not* work, recorded so they are not retried:
 
 ### 3.2 `IsDefEq.dir`, per former
 
-**Status: every case is proved except `tr`.**  What follows is the
-original sketch, annotated where the proof went differently.
+**Status: complete and axiom-clean** — every case including `tr`, and
+nothing under it (`Status.lean`).  What follows is the original sketch,
+annotated where the proof went differently.
 
 The proof is `sound_dir_of_ub` in every case; what varies is the upper
 bound.  Throughout, `hρ : Valuation.WF Δ ρ`.
@@ -648,8 +678,10 @@ theorem Interp.inst (hΔ : ⊢ Δ) (ha : SoundDir Γ a) (W : Δ ⊢ σ : Γ) (h�
 `i+1`; then master's `inst` proof verbatim (`ρ'` coerced to `ρ.push (ρ' 0)`
 by `mono_val`).
 
-**Both are proved** (`Interp.lean`), and the plan above is what the proof
-does, with three refinements.  `→` is an induction on the **term**, not
+**Both are proved** (`Interp.lean`) **except for one link**, §3.1d: the
+analytic direction's `app` and `snd` cases cannot rebuild the clause's
+label premise in the smaller context, and the stand-in is `IsDefEq.uniq`.
+The plan above is what the proof does, with three refinements.  `→` is an induction on the **term**, not
 on the derivation: `(bvar i)[θ]` is `θ i`, which has no head to invert,
 and that case is where the valuation is built (slot `i` holds the
 approximant, every other slot `⊥`).  The merge is factored out —
@@ -661,12 +693,22 @@ valuation comes back with the binder's own slot in front, which
 on the tower, since its clause is recursive in its own term.  `SoundDir Γ a` is available at every use site from
 `IsDefEq.dir` on the rule's typing of `a`.
 
-### 3.4 `Interp.unweak`
+### 3.4 `Interp.unweak` — **done**
 
 Master's `weak'_iff.1`: `generalize` the renamed term and case on the
 original.  Nothing presheaf-specific: the stage is `σ'.lift_l l` on one
 side and `σ'` on the other, and labels are `A[σ'.lift_l l] =
 (A.lift' l)[σ']` by `subst_lift'`.  Used by η (§4.5) and both `Y` rules.
+
+With the typed clauses this stopped being that, and §3.1a called it
+impossible: the premises are typings, and typings do not strengthen.  The
+way through is to index the induction by `Term.Annot` rather than by a
+typing — the annotations' typings are what the clauses need, `Annot` is
+syntax-directed so it decomposes without inversion, and `IsDefEq.annot`
+supplies it for every term in a derivation.  The `app` and `snd` label
+premises come back by `Stable.unweak`, which is where `Stable`'s
+quantification over later stages earns its keep: the stages a smaller
+context admits extend to the larger one's (`Ctx.SubstEq.extend`).
 
 ### 3.5 `Adm.subst`
 
@@ -687,7 +729,9 @@ With `dir` separate, `IsDefEq.sound` concludes `SoundEq Γ t t' ∧ SoundTy Γ
 t A` — master's two conclusions, his `equal` and `fixed`.  His `left`,
 `right`, `type` are `RawTermProperties`, i.e. `ideal`+`subst`+`ready`; the
 first is `dir`, the second is `Interp.substTerm`, the third dissolves
-(§4.5).  Each case below says what it needs from the IHs, from `dir`, and
+(§4.5).  **His `subst` is a field of that bundle and ours is not**, which
+is the divergence §3.1d traces: the fix is to make `SoundSubst` a third
+conclusion here.  Each case below says what it needs from the IHs, from `dir`, and
 from the lemmas of §3, and where the originals' moves land.
 
 Conventions in the case proofs: the stage is `(Δ, σ)` with `hΔ`, `W`, and
@@ -1986,6 +2030,17 @@ options, of which the last is ours alone:
    values carry syntax, which is also what makes the inversion theorems of
    §6 corollaries of soundness; it is the only one that keeps §2.1 intact.
 
+**How it turned out.**  (4) is built and it delivered what it promised:
+`IsDefEq.dir` is complete and axiom-clean, `app` included, with no typing
+input.  What it did not cover is `stage`, which needs the *term* half of
+the query to move — and that took the clause premise of §3.1b, i.e. (a)
+of §3.1, i.e. the obstruction relocated once more.  §3.1d is where it
+came to rest: the premise is rebuildable in every direction but one, and
+the original rebuilds nothing because it never hoisted the substitution
+lemma out of the induction.  So of the four options here, (1) — make the
+substitution half mutual with `sound`, which is what both originals do —
+is the one still owed.
+
 ### 5.6 Summary of statement changes
 
 | where | change | why | |
@@ -1993,19 +2048,24 @@ options, of which the last is ours alone:
 | `SoundDir` | `Adm` → `Valuation.WF`; upper-bound conclusion; separate lemma `IsDefEq.dir` by induction on typing | §2.3 | **done** |
 | `IsDefEq.sound` | two conclusions, `SoundEq ∧ SoundTy` | §2.3 | **done** |
 | `Interp.forallE/sigma/lam`, `Interp.tr` | `+ HasType d type` resp. `+ HasType cb type` | §2.4, §4.7 | **done** |
-| `Interp.stage` → `IsDefEq.stage` | indexed by a typing derivation | §3.1 | **done** (stated) |
-| `Interp.subst_iff` → `Interp.substTerm` | directedness of the `θ i` as a hypothesis (`Interp.Dir`) | §3.3 | **done** (stated) |
-| `Interp.inst` | takes `Interp.Dir` of the substituted term | §3.3 | **done** (stated) |
+| `Interp.stage` → `IsDefEq.stage` | `Interp.stage`, structural in the term with `Term.Annot` | §3.1b–c | **done** (proved) |
+| every label-forming clause | carries what makes it stage-invariant: the annotations' typings, and `Stable` at `app`/`snd` | §3.1b | **done** |
+| `Term.Annot`, `IsDefEq.annot` | syntax-directed "the annotations are typed", for the inductions that cannot use a typing | §3.1c | **done** |
+| `Interp.unweak` | indexed by `Term.Annot`, not by a typing | §3.4 | **done** (proved) |
+| `Interp.subst_iff` → `Interp.substTerm` | directedness of the `θ i` as a hypothesis (`Interp.Dir`) | §3.3 | **done** modulo §3.1d |
+| `Interp.inst` | takes `Interp.Dir` of the substituted term | §3.3 | **done** modulo §3.1d |
+| `IsDefEq.uniq` | **assumed** (`Uniq.lean`), for `Stable.transfers` alone | §3.1d | open — remove by making `SoundSubst` a conclusion of `sound` |
 | `Adm.subst` | delete | §3.5 | **done** |
 | `ShapeFun.LE` | lookup coverage, carrying `WF` of both graphs | §5.2 | **done** |
 | `ShapeFun.Eval.lower` | drop the `WF` side condition (`Shape.LE.wf`) | §5.2 | **done** |
 | `Shape.LE` | `WF` of the lower bound at `pair`/`lam`; `Shape.LE.wf` | §5.2 | **done** |
-| `Shape.HasType.mono_l` | false at `lam` | §5.5 | open |
+| `Shape.HasType.mono_l` | false at `lam` | §5.5 | superseded: the level-indexed relation is deleted |
 | `TShape.HasType` | one inductive over `TShape`, every clause pinning its subject's shape | §5.5a | **done** (old kept as `HasTypeOld`) |
-| `TShape.HasType.mono_l` | all clauses but `forallE`/`sigma`; those need `Q'` | §5.5a | open, one step |
+| `TShape.HasType.mono_l` | every clause, `forallE`/`sigma` by `mono_l_sort` | §5.5a | **done** |
 | `Shape.HasType.lift` | preservation split off `lift_iff` | §5.5 | **done** |
 | `InterpTyped` at Π (and Σ) types | witness carries lookup-form `HasDom` | §4.5(a), §5.1(a) | open |
-| `SoundJoin` | keep, upper-bound form; prove per former alongside `sound` | §5.1 | **done** (kept) |
+| `SoundJoin` | `sound_join`, from the shape-level `TShape.HasType.join` | §5.1 | **done** (proved outright) |
+| `IsDefEq.dir` | complete, `tr` included | §3.2 | **done**, axiom-clean |
 
 `Interp.Dir Δ Γ t σ ρ` is the one-stage form of directedness, introduced
 so that `substTerm`/`inst` can take it as a hypothesis; `SoundDir` is its
