@@ -2697,6 +2697,137 @@ theorem Interp.pair_label_ty {Γ Γ₀ Δ : List Term} {p A B : Term} {σ ρ}
         TShape.LE.sigma_decomp hΔ hle hwSg hwf (TEvaluates.refl hwf.2.2.2)
       exact hdom.trans hSg.1
 
+/-- **Saturation at a second projection.**  The Σ twin of
+`sound_app_dom`: the pair's own saturation gives a pair-approximant
+whose entries' outputs are hereditarily typed at the codomain read
+there, and the projection is a lookup in that graph. -/
+theorem sound_snd_dom {Γ : List Term} {A B p : Term} {u v : Bool}
+    (hPB : B.Pinned (A :: Γ))
+    (hΓ : ⊢ Γ) (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v)
+    (hfst : Γ ⊢ .fst p : A)
+    (hAty : SoundTy Γ A (.sort u)) (hfdom : SoundDom Γ (.fst p) A)
+    (hpty : SoundTy Γ p (.sigma A B)) (hpdom : SoundDom Γ p (.sigma A B))
+    (hBfty : SoundTy Γ (B.inst (.fst p)) (.sort v))
+    (hfdir : SoundDir Γ (.fst p)) (hBdir : SoundDir (A :: Γ) B) :
+    SoundDom Γ (.snd p) (B.inst (.fst p)) := by
+  have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
+  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+  have hwρ := hAdm.wf
+  have hAσ : Δ ⊢ A.subst σ : .sort u := hA.subst hΔ W
+  have hfσ : Δ ⊢ (Term.fst p).subst σ : A.subst σ := hfst.subst hΔ W
+  cases hm with
+  | bot => exact ⟨TShape.bot, TShape.bot, .bot, TShape.bot_le' rfl, .bot,
+      TShape.Dom.bot (.bot (.bot .sort))⟩
+  | @snd _ _ _ _ _ n A₀ x g y hp hev hw hle hst =>
+    -- saturate the pair
+    obtain ⟨P', S, hP', hPle, hS, hPdom⟩ := hpdom hΔ W hAdm hp
+    have hSsg : S.IsSigma := by
+      rcases (show S.2 = Shape.bot ∨ S.IsSigma from by
+          cases hS with
+          | bot => exact .inl rfl
+          | sigma _ _ _ _ _ _ _ hles _ _ => exact TShape.isSigma_or_bot_of_le hles trivial)
+        with hb | h
+      · exact absurd (TShape.le_bot hΔ (TShape.HasType.bot_r hΔ hb hPdom.hasType) hPle)
+          (by simp [Shape.bot])
+      · exact h
+    cases hPdom with
+    | base hnb _ => exact absurd hSsg.isBinder hnb
+    | pi _ _ _ _ => exact absurd hSsg (TShape.IsPi.not_sigma trivial)
+    | @sg nS A' B' dS fS _ cs hty hent hfstd hin hevc hout =>
+      cases hty with
+      | bot hb => exact absurd (TShape.le_bot hΔ rfl hPle) (by simp [Shape.bot])
+      | refl hwv hleid hAty' =>
+        exact absurd hleid (by
+          intro h
+          obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
+          exact absurd h2 (fun x => x))
+      | @pair nP _ _ A₀' x' G _ _ _ _ G₀ hd hfo hwP hwSg hxd hwG₀ hgG hG₀ev hG₀ty hlabP =>
+        cases hS with
+        | @sigma _ _ _ _ nc gc dc _ _ hAint hdty hwfc hlabc hdomc hbodyc hwmc hleSg =>
+          obtain ⟨hSgLab, _, hcovc⟩ :=
+            TShape.LE.sigma_decomp hΔ hleSg hwSg hwfc (TEvaluates.refl hwfc.2.2.2)
+          -- the saturated pair's first component is an approximant of `fst p`
+          have hx'w : TShape.WF Δ (Shape.T x') := hP'.wf.2.2.2.2.2
+          have hx'I : Interp Δ Γ (.fst p) σ ρ (Shape.T x') :=
+            .fst hP' hx'w (TShape.LE.refl hx'w)
+          -- a lookup in the code's codomain graph, at the canonical query,
+          -- is an approximant of `B[fst p]`
+          have toI : ∀ {c : TShape},
+              TEvaluates Δ fS (A.subst σ) ((Term.fst p).subst σ) (Shape.T x') c →
+              Interp Δ Γ (B.inst (.fst p)) σ ρ c := by
+            intro c hc
+            refine (Interp.inst (A := A) (b := B) hΔ hΓ hA hfst hB hPB W hAdm
+              (Subst.Saturates.one hΔ hΓ W hAdm hAty.isTypeAt hfdom)
+              (hfdir hΔ W hwρ) hwρ).2 ⟨Shape.T x', ?_, hx'I⟩
+            rw [Subst.one_comp]
+            exact sound_graph_lookup hΓA hA hB hΔ W hbodyc hx'w hBdir hwρ hfσ
+              (TyEq.refl hAσ) (TEvaluates.trans hΔ hcovc hc)
+          -- the pair's own lookup is covered by the saturated one, at the
+          -- saturated label and first component
+          have hA₀ : TyEq Δ A₀ (A.subst σ) := Interp.pair_label_ty hΔ W hAdm hpty hp
+          have hA₀' : TyEq Δ A₀' (A.subst σ) := Interp.pair_label_ty hΔ W hAdm hpty hP'
+          obtain ⟨_, hxle, hcovG⟩ :=
+            TShape.LE.pair_decomp hΔ hPle hp.wf hwP (TEvaluates.refl hwP.2.2.1)
+          have hevG : TEvaluates Δ G A₀' ((Term.fst p).subst σ) (Shape.T x') y :=
+            TEvaluates.mono hΔ ⟨hA₀.trans hA₀'.symm, hA₀.symm.choose_spec.defeqDF hfσ⟩ hxle
+              (TEvaluates.trans hΔ hcovG hev)
+          have hwout : ∀ e ∈ G, TShape.WF Δ e.out.T := fun e he =>
+            TShape.WF.T.2 (hwP.2.2.1.1 e he).2.2.2
+          -- every value of that lookup is below one that is hereditarily typed
+          have key : ∀ {w : TShape},
+              TEvaluates Δ G A₀' ((Term.fst p).subst σ) (Shape.T x') w →
+              ∃ w' c, TEvaluates Δ G A₀' ((Term.fst p).subst σ) (Shape.T x') w' ∧
+                TShape.LE Δ w w' ∧ Interp Δ Γ (B.inst (.fst p)) σ ρ c ∧
+                TShape.Dom Δ c w' := by
+            intro w hw'
+            induction hw' with
+            | bot =>
+              exact ⟨TShape.bot, TShape.bot, .bot, TShape.LE.refl trivial, .bot,
+                TShape.Dom.bot (.bot (.bot .sort))⟩
+            | @entry q hq hlabq hinq =>
+              obtain ⟨pc, hpc, hpceq⟩ : ∃ pc ∈ cs,
+                  pc.1 = ⟨q.ty, q.tm, q.inp.T, q.out.T⟩ := by
+                have : (⟨q.ty, q.tm, q.inp.T, q.out.T⟩ : Entry TShape) ∈
+                    (Shape.T (n := nP+1) (ShapeS.pair A₀' x' G)).entries :=
+                  List.mem_map_of_mem
+                    (f := fun e => (⟨e.ty, e.tm, e.inp.T, e.out.T⟩ : Entry TShape)) hq
+                rw [hent, List.mem_map] at this
+                obtain ⟨pc, hpc, heq⟩ := this
+                exact ⟨pc, hpc, heq⟩
+              have hcode := hevc pc hpc
+              have hdomq := hout pc hpc
+              rw [hpceq] at hcode hdomq
+              refine ⟨q.out.T, pc.2, .entry q hq hlabq hinq, TShape.LE.refl
+                (TShape.WF.T.2 (hwP.2.2.1.1 q hq).2.2.2), ?_, hdomq⟩
+              refine toI (TEvaluates.mono hΔ ?_ hinq hcode)
+              exact ⟨TyEq.trans hlabq.1 hA₀', hlabq.2⟩
+            | lower hle' _ ih =>
+              obtain ⟨w', c, hw'', hlew, hIc, hdc⟩ := ih
+              exact ⟨w', c, hw'', TShape.LE.trans hΔ hle' hlew, hIc, hdc⟩
+            | @join w₁ w₂ hcj hv₁ hv₂ ih₁ ih₂ =>
+              obtain ⟨w₁', c₁, hv₁', hle₁, hI₁, hd₁⟩ := ih₁
+              obtain ⟨w₂', c₂, hv₂', hle₂, hI₂, hd₂⟩ := ih₂
+              have hcw : TShape.Compat Δ w₁' w₂' :=
+                TEvaluates.compat hΔ hwP.2.2.1.2 hx'w hv₁' hv₂'
+              obtain ⟨c, hwc, hIc, hlc₁, hlc₂⟩ :=
+                dir_inst (b := B) hA hfst hB hPB hΔ W hAdm hΓ hAty hfdom
+                  hfdir hBdir hI₁ hI₂
+              have hcty := hBfty.isType hΔ W hAdm hIc
+              refine ⟨w₁'.join w₂', c, .join hcw hv₁' hv₂',
+                TShape.join_le hΔ (TShape.LE.trans hΔ hle₁
+                  (TShape.le_join hΔ (TEvaluates.wf hΔ hwout hv₁')
+                    (TEvaluates.wf hΔ hwout hv₂') hcw).1) ?_, hIc, ?_⟩
+              · exact TShape.LE.trans hΔ hle₂
+                  (TShape.le_join hΔ (TEvaluates.wf hΔ hwout hv₁')
+                    (TEvaluates.wf hΔ hwout hv₂') hcw).2
+              · exact TShape.Dom.join hΔ hcw (TShape.Dom.mono_r hΔ hd₁ hlc₁ hcty)
+                  (TShape.Dom.mono_r hΔ hd₂ hlc₂ hcty)
+          obtain ⟨y', c, hy', hyle, hIc, hdc⟩ := key hevG
+          have hwy' := TEvaluates.wf hΔ hwout hy'
+          exact ⟨y', c, .snd hP' hy' hwy' (TShape.LE.refl hwy')
+              (hst.retype (hA₀.trans hA₀'.symm)),
+            TShape.LE.trans hΔ hle hyle, hIc, hdc⟩
+
 /-- The Σ twin: `Term.Pinned`'s `snd` condition, from the pair's typing. -/
 theorem PinSnd.of_sound {Γ : List Term} {A B p : Term}
     (hp : SoundTy Γ p (.sigma A B)) (hfst : Γ ⊢ Term.fst p : A) : PinSnd Γ p := by
