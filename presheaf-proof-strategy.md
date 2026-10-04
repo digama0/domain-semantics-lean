@@ -1130,6 +1130,53 @@ elementary.  Two ways to have it:
 which is precisely the "his hypothesis, our construction" pattern, and it
 keeps `IsDefEq.sound` as one induction.  Recommended.
 
+#### 4.5f Typed generators: tried, and why it is not the way out
+
+With `Term.Pinned` discharged (§3.1f), η and `fst_snd` are the only
+`sorry`s, and η ← is the one obstruction: `Interp.lam`'s `hdom` demands
+*typed* entry inputs, and nothing types the inputs of an arbitrary
+approximant of `e`.  §5.3 names two ways out; this section rules out a
+third that looks cheaper, so it is not tried again.
+
+**The idea.**  `HasType.lam` certifies a graph `g` by a generator `g₀`
+(§5.5).  Lower closure forbids `HasDom` on `g` — `mono_l` shrinks `g` to
+any graph it covers, whose inputs are arbitrary — but the generator is
+existential and *fixed* under shrinking, so `HasDom` can be put on `g₀`:
+
+```lean
+(∀ e ∈ g₀, HasType Δ e.1.inp.T d.T) →
+```
+
+**It costs nothing.**  Implemented and built green: `mono_r` moves the
+inputs along `forallE_decomp`'s `d ≤ d'` (the Π order is *covariant* in
+the domain) by `mono_r` on the inputs; `lift_subject`, `lower_subject`
+and `subst` carry it entrywise; `join` concatenates, both sides being
+typed at the same `d` because the clause pins the Π (`join_gen_inp`,
+three lines after `join_gen_ty`); and the one producer, `sound_lam_ty`,
+has it for free, since there the generator **is** the λ's own graph and
+the typing is the `Interp.lam` clause's own `hdom`.
+
+**And it does not help.**  η ← needs, for each entry `q` of the
+approximant's graph `g`, a typed `x₀ ≤ q.inp` at which the lookup *in
+`g`* already gives `q.out` — then `g'' := {(q.ty, q.tm, x₀, q.out)}` has
+typed inputs, bodies by the `app` clause, and covers `g`.  The typed
+generator gives the right `x₀` (the join of the generator entries that
+fire at `q.inp`, typed by `HasType.join`), but it gives the lookup in
+`g₀`, and `g₀` only *covers* `g` — the converse coverage is what would
+transfer it.  Demanding mutual coverage forces `g₀ = g` (take the graph
+as its own generator, `TEvaluates.refl`), and then the typed-input
+premise is `HasDom` on the graph again, which `mono_l` breaks.
+
+So the obstruction is stable: **under lower closure, typing cannot
+deliver a typed input for an arbitrary λ-approximant.**  The remaining
+routes are the two §5.3 already names — master's (give up lower closure,
+`HasDom` in the clause) and intgrah's (a truncation `rawExtend ⟦A⟧ x` on
+shapes, with the lookup invariant that makes an untyped input carry no
+more than its typed part) — plus the option of removing η (and
+`fst_snd`) from `IsDefEq`, since soundness is an induction over the rules
+and cannot simply skip one.  The experiment is reverted; none of it is in
+the tree.
+
 ### 4.6 `proofIrrel`, `unit_eta`, `star`
 
 Done or routine: `sound_of_bot`, `sound_of_bot_at`, `Interp.eq_bot_of_prop`
