@@ -3151,9 +3151,15 @@ theorem sound_natCase_ty {Γ : List Term} {C M a b : Term} {v : Bool} (hΓ : ⊢
     rw [Subst.one_comp] at hCy
     have hCy' : Interp Δ (Term.nat :: Γ) C (σ.cons ((Term.succ (.bvar 0)).subst (σ.cons t)))
         (ρ.push y) c := by
-      have h := Interp.unweak (Δ := Δ) hΓN hC (Γ' := Term.nat :: Term.nat :: Γ)
+      have h := Interp.unweak (Δ := Δ) hΔ hΓN hC.annot.1 (Γ' := Term.nat :: Term.nat :: Γ)
         (l := .cons (.skip .refl)) (ρ := ρ.push y)
-        (.cons (.skip .refl)) (fun i => by cases i <;> rfl) hCy
+        (.cons (.skip .refl))
+        (show Ctx.SubstEq Δ ((σ.cons t).cons ((Term.succ (.bvar 0)).subst (σ.cons t)))
+            ((σ.cons t).cons ((Term.succ (.bvar 0)).subst (σ.cons t)))
+            (Term.nat :: Term.nat :: Γ) from
+          .cons Wcons .nat
+            (by simpa using IsDefEq.subst hΔ Wcons (IsDefEq.succDF (.bvar .zero .nat))))
+        (fun i => by cases i <;> rfl) hCy
       rwa [← Subst.lift_l_cons, ← Subst.tail_eq_lift_l] at h
     -- `succ #0` at this stage is `succ t`, and the slot is below `succ w`
     have hyle : TShape.LE Δ y (Shape.T (n := n+1) (ShapeS.succ w)) := by
@@ -3199,8 +3205,8 @@ theorem sound_Y_ty_aux {Δ : List Term} (hΔ : ⊢ Δ) {Γ₀ Γ : List Term} {t
     have hAdm' : Adm Δ Γ₀ (A :: Γ') (σ'.cons ((Term.Y A b).subst σ')) (ρ'.push _) :=
       .cons hAdm (fun _ hb => ihA.isType hΔ W hAdm hb) hcx hwx htyx
     obtain ⟨c, hc, hct⟩ := ihb.approx hΔ WY hAdm' hbody
-    exact ⟨c, Interp.unweak (Δ := Δ) hΓ hA (Γ' := A :: Γ') (l := .skip .refl)
-      (.skip .refl) (fun i => rfl) hc, hct⟩
+    exact ⟨c, Interp.unweak (Δ := Δ) hΔ hΓ hA.annot.1 (Γ' := A :: Γ') (l := .skip .refl)
+      (.skip .refl) WY (fun i => rfl) hc, hct⟩
   | bot => exact fun _ _ _ _ _ _ _ _ => ⟨TShape.bot, .bot, .bot (.bot .sort)⟩
   | _ => intro A b u hne; cases hne
 

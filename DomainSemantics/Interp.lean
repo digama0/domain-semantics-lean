@@ -1,3 +1,5 @@
+import DomainSemantics.Annot
+import DomainSemantics.Regular
 import DomainSemantics.HasType
 
 /-! # The interpretation relation
@@ -1069,15 +1071,231 @@ the small context, and the induction runs on that — the same shape as
 
 Master proves the raw version by casing on the term at each step; here
 each case of the *typing* supplies the premises the clause needs. -/
-theorem Interp.unweak {Δ Γ : List Term} {t T : Term} (hΓ : ⊢ Γ) (ht : Γ ⊢ t : T) :
-    ∀ {Γ' l σ' ρ ρ' m}, Ctx.Lift' l Γ Γ' → (∀ i, ρ i = ρ' (Lift.liftVar l i)) →
+theorem Interp.unweak {Δ : List Term} (hΔ : ⊢ Δ) :
+    ∀ {t : Term} {Γ Γ' : List Term} {l σ' ρ ρ' m}, ⊢ Γ → t.Annot Γ →
+      Ctx.Lift' l Γ Γ' → Ctx.SubstEq Δ σ' σ' Γ' → (∀ i, ρ i = ρ' (Lift.liftVar l i)) →
       Interp Δ Γ' (t.lift' l) σ' ρ' m → Interp Δ Γ t (σ'.lift_l l) ρ m := by
-  sorry
+  intro t
+  induction t with
+  | bvar i =>
+    intro Γ Γ' l σ' ρ ρ' m _ _ _ _ hρ H
+    cases H with
+    | bot => exact .bot
+    | bvar hw hle => exact .bvar hw (hρ _ ▸ hle)
+  | sort u =>
+    intro Γ Γ' l σ' ρ ρ' m _ _ _ _ _ H
+    cases H with
+    | bot => exact .bot
+    | sort hw hle => exact .sort hw hle
+  | unit r =>
+    intro Γ Γ' l σ' ρ ρ' m _ _ _ _ _ H
+    cases H with
+    | bot => exact .bot
+    | unit hw hle => exact .unit hw hle
+  | star r =>
+    intro Γ Γ' l σ' ρ ρ' m _ _ _ _ _ H
+    cases H with | bot => exact .bot
+  | nat =>
+    intro Γ Γ' l σ' ρ ρ' m _ _ _ _ _ H
+    cases H with
+    | bot => exact .bot
+    | nat hw hle => exact .nat hw hle
+  | zero =>
+    intro Γ Γ' l σ' ρ ρ' m _ _ _ _ _ H
+    cases H with
+    | bot => exact .bot
+    | zero hw hle => exact .zero hw hle
+  | succ N ih =>
+    intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
+    cases H with
+    | bot => exact .bot
+    | succ hv hw hle => exact .succ (ih hΓ hAnn WΓ hd hρ hv) hw hle
+  | app F a ihF iha =>
+    intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
+    obtain ⟨hAF, hAa⟩ := hAnn
+    cases H with
+    | bot => exact .bot
+    | app hF hx hev hw hle hty =>
+      rw [subst_lift'] at hev
+      exact .app (ihF hΓ hAF WΓ hd hρ hF) (iha hΓ hAa WΓ hd hρ hx) hev hw hle
+        (hty.unweak WΓ hd)
+  | lam A b ihA ihb =>
+    intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
+    obtain ⟨⟨u, hA⟩, hAA, hAb⟩ := hAnn
+    cases H with
+    | bot => exact .bot
+    | lam hAint hdty hwf hdom hbody hw hle _ =>
+      simp only [subst_lift'] at hwf hle
+      have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
+      refine .lam (ihA hΓ hAA WΓ hd hρ hAint) hdty hwf hdom (fun e he => ?_) hw hle ⟨u, hA⟩
+      have htm : Δ ⊢ e.tm : (A.lift' l).subst σ' := by
+        rw [subst_lift']
+        exact (hwf.2.2.2 e he).choose_spec.defeqDF (hwf.2.2.1.1 e he).2.1
+      have hd' : Ctx.SubstEq Δ (σ'.cons e.tm) (σ'.cons e.tm) (A.lift' l :: Γ') :=
+        .cons hd (hA.weak' WΓ) htm
+      rw [Subst.lift_l_cons]
+      exact ihb hΓA hAb WΓ.cons hd' (fun i => by cases i <;> simp_all [Valuation.push])
+        (hbody e he)
+  | forallE A B ihA ihB =>
+    intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
+    obtain ⟨⟨u, hA⟩, ⟨v, hB⟩, hAA, hAB⟩ := hAnn
+    cases H with
+    | bot => exact .bot
+    | forallE hAint hdty hwf hlab hdom hbody hw hle _ _ =>
+      simp only [subst_lift', ← Subst.lift_l_lift] at hwf hle
+      have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
+      refine .forallE (ihA hΓ hAA WΓ hd hρ hAint) hdty hwf ?_ hdom (fun e he => ?_) hw hle
+        ⟨u, hA⟩ ⟨v, hB⟩
+      · intro e he
+        have := hlab e he; rwa [subst_lift'] at this
+      · have htm : Δ ⊢ e.tm : (A.lift' l).subst σ' :=
+          ((hlab e he).choose_spec).defeqDF (hwf.2.2.2.1 e he).2.1
+        have hd' : Ctx.SubstEq Δ (σ'.cons e.tm) (σ'.cons e.tm) (A.lift' l :: Γ') :=
+          .cons hd (hA.weak' WΓ) htm
+        rw [Subst.lift_l_cons]
+        exact ihB hΓA hAB WΓ.cons hd' (fun i => by cases i <;> simp_all [Valuation.push])
+          (hbody e he)
+  | sigma A B ihA ihB =>
+    intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
+    obtain ⟨⟨u, hA⟩, ⟨v, hB⟩, hAA, hAB⟩ := hAnn
+    cases H with
+    | bot => exact .bot
+    | sigma hAint hdty hwf hlab hdom hbody hw hle _ _ =>
+      simp only [subst_lift', ← Subst.lift_l_lift] at hwf hle
+      have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
+      refine .sigma (ihA hΓ hAA WΓ hd hρ hAint) hdty hwf ?_ hdom (fun e he => ?_) hw hle
+        ⟨u, hA⟩ ⟨v, hB⟩
+      · intro e he
+        have := hlab e he; rwa [subst_lift'] at this
+      · have htm : Δ ⊢ e.tm : (A.lift' l).subst σ' :=
+          ((hlab e he).choose_spec).defeqDF (hwf.2.2.2.1 e he).2.1
+        have hd' : Ctx.SubstEq Δ (σ'.cons e.tm) (σ'.cons e.tm) (A.lift' l :: Γ') :=
+          .cons hd (hA.weak' WΓ) htm
+        rw [Subst.lift_l_cons]
+        exact ihB hΓA hAB WΓ.cons hd' (fun i => by cases i <;> simp_all [Valuation.push])
+          (hbody e he)
+  | pair A B a b ihA ihB iha ihb =>
+    intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
+    obtain ⟨⟨u, hA⟩, ⟨v, hB⟩, hat, hAA, hAB, hAa, hAb⟩ := hAnn
+    cases H with
+    | bot => exact .bot
+    | pair hainp hAint hdty hwf hlab hdom hinp hout hbody hty hw hle _ _ =>
+      simp only [subst_lift'] at hwf hle
+      refine .pair (iha hΓ hAa WΓ hd hρ hainp) (ihA hΓ hAA WΓ hd hρ hAint) hdty hwf ?_ hdom
+        (fun e he => iha hΓ hAa WΓ hd hρ (hinp e he))
+        (fun e he => ihb hΓ hAb WΓ hd hρ (hout e he)) (fun e he => ?_) hty hw hle
+        ⟨u, hA⟩ hat
+      · intro e he
+        have := hlab e he; rwa [subst_lift'] at this
+      · have htm : Δ ⊢ e.1.tm : (A.lift' l).subst σ' := by
+          rw [subst_lift']
+          exact (hwf.2.2.2.1 e.1 (List.mem_map.2 ⟨e, he, rfl⟩)).choose_spec.defeqDF
+            (hwf.2.2.1.1 e.1 (List.mem_map.2 ⟨e, he, rfl⟩)).2.1
+        have hd' : Ctx.SubstEq Δ (σ'.cons e.1.tm) (σ'.cons e.1.tm) (A.lift' l :: Γ') :=
+          .cons hd (hA.weak' WΓ) htm
+        rw [Subst.lift_l_cons]
+        exact ihB ⟨hΓ, _, hA⟩ hAB WΓ.cons hd'
+          (fun i => by cases i <;> simp_all [Valuation.push]) (hbody e he)
+  | fst p ih =>
+    intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
+    cases H with
+    | bot => exact .bot
+    | fst hp hw hle => exact .fst (ih hΓ hAnn WΓ hd hρ hp) hw hle
+  | snd p ih =>
+    intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
+    cases H with
+    | bot => exact .bot
+    | snd hp hev hw hle hty =>
+      simp only [Term.subst, subst_lift'] at hev
+      exact .snd (ih hΓ hAnn WΓ hd hρ hp) hev hw hle
+        (Stable.unweak (a := Term.fst p) WΓ hd hty)
+  | natCase C M a b ihC ihM iha ihb =>
+    intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
+    obtain ⟨hMt, hAC, hAM, hAa, hAb⟩ := hAnn
+    cases H with
+    | bot => exact .bot
+    | natCase_zero hM hz ha _ =>
+      rw [subst_lift'] at hz
+      exact .natCase_zero (ihM hΓ hAM WΓ hd hρ hM) hz (iha hΓ hAa WΓ hd hρ ha) hMt
+    | natCase_succ hM hwv heq hbody _ =>
+      rw [subst_lift'] at heq
+      refine .natCase_succ (ihM hΓ hAM WΓ hd hρ hM) hwv heq ?_ hMt
+      have hd' : Ctx.SubstEq Δ (σ'.cons _) (σ'.cons _) (Term.nat :: Γ') :=
+        .cons hd .nat (heq.succ_regular (.inr rfl))
+      rw [Subst.lift_l_cons]
+      refine ihb ⟨hΓ, _, .nat⟩ hAb (by simpa using WΓ.cons (A := Term.nat)) hd'
+        (fun i => ?_) (by simpa using hbody)
+      cases i with
+      | zero => rfl
+      | succ i => simp [Valuation.push, hρ i]
+  | Y A b ihA ihb =>
+    intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
+    obtain ⟨⟨u, hA⟩, hYt, hAA, hAb⟩ := hAnn
+    -- the tower is not structural in the term, so this one case runs on
+    -- the derivation: each level's self-premise is the level below
+    have key : ∀ {Γ₂ : List Term} {t' σ₂ ρ₂ m}, Interp Δ Γ₂ t' σ₂ ρ₂ m →
+        ∀ {l ρ}, t' = (Term.Y A b).lift' l → Ctx.Lift' l Γ Γ₂ →
+          Ctx.SubstEq Δ σ₂ σ₂ Γ₂ → (∀ i, ρ i = ρ₂ (Lift.liftVar l i)) →
+          Interp Δ Γ (Term.Y A b) (σ₂.lift_l l) ρ m := by
+      intro Γ₂ t' σ₂ ρ₂ m H
+      induction H with
+      | @Y Γ₂ σ₂ ρ₂ m A₂ b₂ x hx hwx hbody _ _ ihx _ =>
+        intro l ρ ht' WΓ hd hρ
+        cases ht'
+        have hYsub : ((A.lift' l).Y (b.lift' l.cons)).subst σ₂
+            = (Term.Y A b).subst (σ₂.lift_l l) := subst_lift' (e := Term.Y A b)
+        have hd' : Ctx.SubstEq Δ (σ₂.cons ((Term.Y A b).subst (σ₂.lift_l l)))
+            (σ₂.cons ((Term.Y A b).subst (σ₂.lift_l l))) (A.lift' l :: Γ₂) :=
+          .cons hd (hA.weak' WΓ)
+            (hYsub ▸ IsDefEq.subst hΔ hd (hYt.weak' WΓ))
+        refine .Y (ihx rfl WΓ hd hρ) hwx ?_ ⟨u, hA⟩ hYt
+        rw [Subst.lift_l_cons]
+        refine ihb ⟨hΓ, _, hA⟩ hAb WΓ.cons hd' (fun i => ?_) (hYsub ▸ hbody)
+        cases i with
+        | zero => rfl
+        | succ i => simp [Valuation.push, hρ i]
+      | bot => exact fun _ _ _ _ => .bot
+      | _ => intro l ρ ht' _ _ _; simp at ht'
+    exact key H rfl WΓ hd hρ
+  | id r A a b ihA iha ihb =>
+    intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
+    obtain ⟨⟨u, hA⟩, hat, hbt, hAA, hAa, hAb⟩ := hAnn
+    cases H with
+    | bot => exact .bot
+    | id hw hle _ _ _ =>
+      simp only [subst_lift'] at hle
+      exact .id hw hle ⟨u, hA⟩ hat hbt
+  | refl r a ih =>
+    intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
+    cases H with
+    | bot => exact .bot
+    | refl hv hw hle => exact .refl (ih hΓ hAnn WΓ hd hρ hv) hw hle
+  | tr r A a b C X Hp ihA iha ihb ihC ihX ihH =>
+    intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
+    obtain ⟨⟨u, hA⟩, hat, hbt, hAA, hAa, hAb, hAC, hAX, hAH⟩ := hAnn
+    cases H with
+    | bot => exact .bot
+    | tr hw hle hX ha hb hAint hwv hvA hC hcb hm' hH heq _ _ _ =>
+      simp only [subst_lift'] at heq
+      refine .tr hw hle (ihX hΓ hAX WΓ hd hρ hX) (iha hΓ hAa WΓ hd hρ ha)
+        (ihb hΓ hAb WΓ hd hρ hb) (ihA hΓ hAA WΓ hd hρ hAint) hwv hvA ?_ hcb hm'
+        (fun hr => ihH hΓ hAH WΓ hd hρ (hH hr)) heq ⟨u, hA⟩ hat hbt
+      have hd' : Ctx.SubstEq Δ (σ'.cons (b.subst (σ'.lift_l l)))
+          (σ'.cons (b.subst (σ'.lift_l l))) (A.lift' l :: Γ') :=
+        .cons hd (hA.weak' WΓ)
+          (by simpa [subst_lift'] using IsDefEq.subst hΔ hd (hbt.weak' WΓ))
+      rw [Subst.lift_l_cons]
+      refine ihC ⟨hΓ, _, hA⟩ hAC WΓ.cons hd' (fun i => ?_)
+        (by simpa [subst_lift'] using hC)
+      cases i with
+      | zero => rfl
+      | succ i => simp [Valuation.push, hρ i]
 
-theorem Interp.weak_iff {Δ Γ Γ' : List Term} {t T σ' ρ ρ' m l} (hΓ : ⊢ Γ)
-    (ht : Γ ⊢ t : T) (WΓ : Ctx.Lift' l Γ Γ') (hρ : ∀ i, ρ i = ρ' (Lift.liftVar l i)) :
+theorem Interp.weak_iff {Δ Γ Γ' : List Term} {t σ' ρ ρ' m l} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
+    (hAnn : t.Annot Γ) (WΓ : Ctx.Lift' l Γ Γ') (hd : Ctx.SubstEq Δ σ' σ' Γ')
+    (hρ : ∀ i, ρ i = ρ' (Lift.liftVar l i)) :
     Interp Δ Γ' (t.lift' l) σ' ρ' m ↔ Interp Δ Γ t (Subst.lift_l l σ') ρ m :=
-  ⟨fun H => Interp.unweak hΓ ht WΓ hρ H, fun H => H.weak' hΓ WΓ hρ⟩
+  ⟨fun H => Interp.unweak hΔ hΓ hAnn WΓ hd hρ H, fun H => H.weak' hΓ WΓ hρ⟩
 
 /-- Directedness of a term's approximants **at one stage**: any two have a
 well-formed upper bound that is again an approximant.
@@ -1181,12 +1399,13 @@ theorem Interp.Dir.bvar {Δ Γ : List Term} {i σ ρ} (hρ : TShape.WF Δ (ρ i)
 
 /-- Directedness survives weakening: an approximant of `t↑` at an extended
 stage is one of `t` at the old one, and back (`Interp.weak_iff`). -/
-theorem Interp.Dir.weak {Δ Γ Γ' : List Term} {t T σ ρ x e} (hΓ : ⊢ Γ) (ht : Γ ⊢ t : T)
-    (WΓ : Ctx.Lift' (.skip .refl) Γ Γ') (h : Interp.Dir Δ Γ t σ ρ) :
+theorem Interp.Dir.weak {Δ Γ Γ' : List Term} {t σ ρ x e} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
+    (hAnn : t.Annot Γ) (WΓ : Ctx.Lift' (.skip .refl) Γ Γ')
+    (hd : Ctx.SubstEq Δ (σ.cons e) (σ.cons e) Γ') (h : Interp.Dir Δ Γ t σ ρ) :
     Interp.Dir Δ Γ' t.lift (σ.cons e) (ρ.push x) := by
   intro m₁ m₂ h₁ h₂
   have hiff : ∀ {m}, Interp Δ Γ' t.lift (σ.cons e) (ρ.push x) m ↔
-      Interp Δ Γ t σ ρ m := fun {_} => Interp.weak_iff hΓ ht WΓ (fun _ => rfl)
+      Interp Δ Γ t σ ρ m := fun {_} => Interp.weak_iff hΔ hΓ hAnn WΓ hd (fun _ => rfl)
   obtain ⟨s, hws, hs, hs₁, hs₂⟩ := h (hiff.1 h₁) (hiff.1 h₂)
   exact ⟨s, hws, hiff.2 hs, hs₁, hs₂⟩
 
@@ -1234,47 +1453,42 @@ The alternative would be a lemma saying an interpretation ignores the
 slots past the end of its context; this is the same fact, in the form
 the callers can hand over. -/
 def Subst.Good (Γ' : List Term) (θ : Subst) : Prop :=
-  ∀ i, (∃ T, Γ' ⊢ θ i : T) ∨ (∃ j, θ i = .bvar j)
+  ∀ i, (θ i).Annot Γ'
 
 theorem Subst.Good.lift {Γ' : List Term} {θ : Subst} {A : Term} (h : Subst.Good Γ' θ) :
     Subst.Good (A :: Γ') θ.lift := by
   intro i
   cases i with
-  | zero => exact .inr ⟨0, rfl⟩
+  | zero => exact trivial
   | succ i =>
-    match h i with
-    | .inl ⟨T, hT⟩ => exact .inl ⟨T.lift, hT.weak' (Ctx.Lift'.skip (A := A) .refl)⟩
-    | .inr ⟨j, hj⟩ => exact .inr ⟨j+1, by simp [Subst.lift, hj, Term.lift]⟩
+    have := (h i).weak' (Ctx.Lift'.skip (A := A) .refl)
+    exact this
 
-theorem Subst.Good.one {Γ' : List Term} {a T : Term} (ha : Γ' ⊢ a : T) :
+theorem Subst.Good.one {Γ' : List Term} {a : Term} (ha : a.Annot Γ') :
     Subst.Good Γ' (Subst.one a) := by
   intro i
   cases i with
-  | zero => exact .inl ⟨T, ha⟩
-  | succ i => exact .inr ⟨i, rfl⟩
+  | zero => exact ha
+  | succ i => exact trivial
 
-/-- Strengthening at one such slot: typed slots go by `Interp.unweak`,
-variables by hand — both sides of `Interp.bvar` say the same thing. -/
-theorem Interp.unweak_slot {Δ Γ' Γ'' : List Term} {s : Term} (hΓ' : ⊢ Γ')
-    (WΓ : Ctx.Lift' (.skip .refl) Γ' Γ'')
-    (hs : (∃ T, Γ' ⊢ s : T) ∨ (∃ j, s = .bvar j))
-    {σ e ρ x m} (H : Interp Δ Γ'' s.lift (σ.cons e) (ρ.push x) m) :
-    Interp Δ Γ' s σ ρ m := by
-  match hs with
-  | .inl ⟨T, hT⟩ => exact Interp.unweak hΓ' hT WΓ (fun _ => rfl) H
-  | .inr ⟨j, hj⟩ =>
-    subst hj
-    exact .bvar H.wf (by simpa using Interp.le_bvar (i := j+1) H)
+/-- Strengthening at one slot, which is all the merges need: the slot is
+well-annotated, so `Interp.unweak` applies at `.skip .refl`. -/
+theorem Interp.unweak_slot {Δ Γ' Γ'' : List Term} {s : Term} (hΔ : ⊢ Δ) (hΓ' : ⊢ Γ')
+    (WΓ : Ctx.Lift' (.skip .refl) Γ' Γ'') (hs : s.Annot Γ')
+    {σ e ρ x m} (hd : Ctx.SubstEq Δ (σ.cons e) (σ.cons e) Γ'')
+    (H : Interp Δ Γ'' s.lift (σ.cons e) (ρ.push x) m) :
+    Interp Δ Γ' s σ ρ m :=
+  Interp.unweak hΔ hΓ' hs WΓ hd (fun _ => rfl) H
 
 /-- Directedness at a good slot, weakened. -/
-theorem Interp.Dir.weak_slot {Δ Γ' Γ'' : List Term} {s : Term} (hΓ' : ⊢ Γ')
-    (WΓ : Ctx.Lift' (.skip .refl) Γ' Γ'')
-    (hs : (∃ T, Γ' ⊢ s : T) ∨ (∃ j, s = .bvar j))
-    {σ e ρ x} (h : Interp.Dir Δ Γ' s σ ρ) :
+theorem Interp.Dir.weak_slot {Δ Γ' Γ'' : List Term} {s : Term} (hΔ : ⊢ Δ) (hΓ' : ⊢ Γ')
+    (WΓ : Ctx.Lift' (.skip .refl) Γ' Γ'') (hs : s.Annot Γ')
+    {σ e ρ x} (hd : Ctx.SubstEq Δ (σ.cons e) (σ.cons e) Γ'')
+    (h : Interp.Dir Δ Γ' s σ ρ) :
     Interp.Dir Δ Γ'' s.lift (σ.cons e) (ρ.push x) := by
   intro m₁ m₂ h₁ h₂
   have hiff : ∀ {m}, Interp Δ Γ'' s.lift (σ.cons e) (ρ.push x) m ↔ Interp Δ Γ' s σ ρ m :=
-    fun {_} => ⟨Interp.unweak_slot hΓ' WΓ hs, fun H => H.weak' hΓ' WΓ (fun _ => rfl)⟩
+    fun {_} => ⟨Interp.unweak_slot hΔ hΓ' WΓ hs hd, fun H => H.weak' hΓ' WΓ (fun _ => rfl)⟩
   obtain ⟨s', hws, hs', hs₁, hs₂⟩ := h (hiff.1 h₁) (hiff.1 h₂)
   exact ⟨s', hws, hiff.2 hs', hs₁, hs₂⟩
 
@@ -1287,6 +1501,7 @@ theorem Interp.body_merge {Δ Γ Γ' Γ'' : List Term} {α : Type} {b : Term} {�
     (hΓ' : ⊢ Γ') (hgood : Subst.Good Γ' θ) (WΓ : Ctx.Lift' (.skip .refl) Γ' Γ'')
     (hθ : ∀ i, Interp.Dir Δ Γ' (θ i) σ ρ)
     {l : List α} {tm : α → Term} {inp out : α → TShape}
+    (hdcons : ∀ e ∈ l, Ctx.SubstEq Δ (σ.cons (tm e)) (σ.cons (tm e)) Γ'')
     (hwf : ∀ e ∈ l, TShape.WF Δ (inp e))
     (ih : ∀ {Γ₂ Γ₂' : List Term} {θ₂ σ₂ ρ₂ m₂}, (∀ i, Interp.Dir Δ Γ₂' (θ₂ i) σ₂ ρ₂) →
       Interp Δ Γ₂' (b.subst θ₂) σ₂ ρ₂ m₂ →
@@ -1300,7 +1515,7 @@ theorem Interp.body_merge {Δ Γ Γ' Γ'' : List Term} {α : Type} {b : Term} {�
     intro e he i
     cases i with
     | zero => exact Interp.Dir.bvar (ρ := ρ.push (inp e)) (i := 0) (hwf e he)
-    | succ i => exact Interp.Dir.weak_slot hΓ' WΓ (hgood i) (hθ i)
+    | succ i => exact Interp.Dir.weak_slot hΔ hΓ' WΓ (hgood i) (hdcons e he) (hθ i)
   -- one valuation per element, by the induction hypothesis
   obtain ⟨ps, hps, hall⟩ := List.exists_pairs (β := Valuation)
     (P := fun e ρ'' => Interp Δ Γ b ((θ.lift).comp (σ.cons (tm e))) ρ'' (out e) ∧
@@ -1311,7 +1526,9 @@ theorem Interp.body_merge {Δ Γ Γ' Γ'' : List Term} {α : Type} {b : Term} {�
       Valuation.Approx Δ Γ' θ σ ρ ρ'' := by
     intro ρ'' hρ''
     obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hρ''
-    exact fun i => Interp.unweak_slot hΓ' WΓ (hgood i) ((hall p hp).2 (i+1))
+    exact fun i =>
+      Interp.unweak_slot hΔ hΓ' WΓ (hgood i) (hdcons p.1 (hps ▸ List.mem_map.2 ⟨p, hp, rfl⟩))
+        ((hall p hp).2 (i+1))
   obtain ⟨hAj, hles⟩ := Valuation.Approx.foldr hΔ hθ htail
   refine ⟨_, hAj, fun e he => ?_⟩
   -- the element's own valuation is below the fold, slot by slot
@@ -1407,7 +1624,7 @@ theorem Interp.inst {B : Term} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ) (hA : Γ ⊢ A : .s
     ∃ x, Interp Δ (A :: Γ) b ((Subst.one a).comp σ) (ρ.push x) m ∧ Interp Δ Γ a σ ρ x :=
   -- at `θ = one a`: slot `0` holds the argument's approximant and slot
   -- `i+1` the valuation's own, and `Subst.Good` holds for just that reason
-  have hgood : Subst.Good Γ (Subst.one a) := Subst.Good.one hat
+  have hgood : Subst.Good Γ (Subst.one a) := Subst.Good.one hat.annot.1
   have Wθ : Ctx.SubstEq Γ (Subst.one a) (Subst.one a) (A :: Γ) := by
     refine .cons ?_ hA ?_
     · simpa [Subst.one] using Ctx.SubstEq.id hΓ
