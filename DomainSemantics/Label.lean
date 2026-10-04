@@ -116,3 +116,101 @@ theorem subst (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
   | ⟨⟨u, h1⟩, h2, h3⟩ => ⟨⟨u, h1.subst hΘ W⟩, h2.subst hΘ W, h3.subst hΘ W⟩
 
 end IdLabelEq
+
+/-- **A query term is stable at a label.**  Reading the term at the stage
+and at any later stage out of `Γ` gives two terms equal *at the label*, and
+this stays true under any substitution of the ambient context.
+
+This is what an `app` or `snd` clause carries in place of "the argument has
+type `A₀` in `Γ`, and the label is `A₀` at the stage".  The two are
+interderivable where the argument's typing is at hand (`Stable.of_typed`),
+but only this one survives a move to a *smaller* context: strengthening a
+typing out of `Γ'` is not available in this syntax, while the stages a
+smaller context admits extend to ones the larger context admits
+(`Ctx.SubstEq.extend`).  The quantification over later ambient
+substitutions is the same device `Shape.Compat` uses, and for the same
+reason: a property of a stage has to be stable under the stage moving. -/
+def Stable (Δ Γ : List Term) (σ : Subst) (a A : Term) : Prop :=
+  ∀ ⦃Θ τ σ₂⦄, ⊢ Θ → Ctx.SubstEq Θ τ τ Δ → Ctx.SubstEq Θ (σ.comp τ) σ₂ Γ →
+    Θ ⊢ a.subst (σ.comp τ) ≡ a.subst σ₂ : A.subst τ
+
+namespace Stable
+
+/-- The usual way to get one: the term is typed in `Γ`, and the label is
+that type at the stage. -/
+theorem of_typed (ha : Γ ⊢ a : A₀) (hTy : TyEq Δ A (A₀.subst σ)) :
+    Stable Δ Γ σ a A := by
+  intro Θ τ σ₂ hΘ V W
+  have hT : TyEq Θ (A.subst τ) (A₀.subst (σ.comp τ)) := by
+    have := TyEq.subst hΘ V hTy; rwa [subst_subst] at this
+  exact hT.choose_spec.symm.defeqDF (IsDefEq.subst' hΘ W ha)
+
+/-- What the clauses use it for: the query term moves with the stage. -/
+theorem move (hΔ : ⊢ Δ) (H : Stable Δ Γ σ a A) (W : Ctx.SubstEq Δ σ σ₂ Γ) :
+    Δ ⊢ a.subst σ ≡ a.subst σ₂ : A := by
+  have h := H hΔ (Ctx.SubstEq.id hΔ) (σ₂ := σ₂) (by rwa [Subst.comp_id])
+  rwa [Subst.comp_id, subst_id] at h
+
+/-- The label moves by a `TyEq`. -/
+theorem retype (hTy : TyEq Δ A A') (H : Stable Δ Γ σ a A) : Stable Δ Γ σ a A' :=
+  fun _ _ _ hΘ V W => (TyEq.subst hΘ V hTy).choose_spec.defeqDF (H hΘ V W)
+
+/-- Along a substitution of the ambient context — immediate, since that is
+what the definition quantifies over. -/
+theorem subst (hΘ : ⊢ Θ) (V : Ctx.SubstEq Θ τ₀ τ₀ Δ) (H : Stable Δ Γ σ a A) :
+    Stable Θ Γ (σ.comp τ₀) a (A.subst τ₀) := by
+  intro Ξ τ σ₂ hΞ V' W
+  rw [Subst.comp_assoc] at W
+  have h := H hΞ (Ctx.SubstEq.comp' hΞ V' V) W
+  rw [Subst.comp_assoc, subst_subst]
+  exact h
+
+/-- To a definitionally equal context. -/
+theorem ctx (W₀ : Ctx.SubstEq Γ' Subst.id Subst.id Γ) (H : Stable Δ Γ σ a A) :
+    Stable Δ Γ' σ a A := by
+  intro Θ τ σ₂ hΘ V W
+  have hW := Ctx.SubstEq.comp' hΘ W W₀
+  rw [Subst.id_comp, Subst.id_comp] at hW
+  exact H hΘ V hW
+
+/-- At a later stage. -/
+theorem stage (W₀ : Ctx.SubstEq Δ σ σ₂ Γ) (H : Stable Δ Γ σ a A) :
+    Stable Δ Γ σ₂ a A := by
+  intro Θ τ σ₃ hΘ V W
+  have hmid : Ctx.SubstEq Θ (σ.comp τ) (σ₂.comp τ) Γ := Ctx.SubstEq.comp' hΘ V W₀
+  exact (H hΘ V hmid).symm.trans (H hΘ V (hmid.trans hΘ W))
+
+/-- Into a larger context, the term lifted along it. -/
+theorem weak' (hΓ : ⊢ Γ) (WΓ : Ctx.Lift' l Γ Γ')
+    (H : Stable Δ Γ (σ'.lift_l l) a A) : Stable Δ Γ' σ' (a.lift' l) A := by
+  intro Θ τ σ₂ hΘ V W
+  have hW := Ctx.SubstEq.lift_l WΓ hΓ W
+  rw [Subst.lift_l_comp] at hW
+  simp only [subst_lift', Subst.lift_l_comp]
+  exact H hΘ V hW
+
+/-- And back down, which is the point: the label is a statement about the
+ambient context, and the stages the smaller context admits are the larger
+one's, restricted. -/
+theorem unweak (WΓ : Ctx.Lift' l Γ Γ') (hd : Ctx.SubstEq Δ σ' σ' Γ')
+    (H : Stable Δ Γ' σ' (a.lift' l) A) : Stable Δ Γ (σ'.lift_l l) a A := by
+  intro Θ τ σ₂ hΘ V W
+  rw [← Subst.lift_l_comp] at W
+  obtain ⟨σ₂', W', rfl⟩ := Ctx.SubstEq.extend WΓ (Ctx.SubstEq.comp hΘ V hd) W
+  have h := H hΘ V W'
+  rw [subst_lift', subst_lift'] at h
+  rw [← Subst.lift_l_comp]
+  exact h
+
+/-- Under a substitution of the term's own context. -/
+theorem substTerm (Wθ : Ctx.SubstEq Γ' θ θ Γ) (H : Stable Δ Γ (θ.comp σ) a A) :
+    Stable Δ Γ' σ (a.subst θ) A := by
+  intro Θ τ σ₂ hΘ V W
+  have hW : Ctx.SubstEq Θ ((θ.comp σ).comp τ) (θ.comp σ₂) Γ := by
+    rw [Subst.comp_assoc]; exact Ctx.SubstEq.comp' hΘ W Wθ
+  have h := H hΘ V hW
+  rw [Subst.comp_assoc] at h
+  simp only [subst_subst]
+  exact h
+
+end Stable

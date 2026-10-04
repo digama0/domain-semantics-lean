@@ -35,9 +35,6 @@ does that work). -/
 
 namespace DomainSemantics
 
-@[simp] theorem Subst.id_comp {σ : Subst} : Subst.id.comp σ = σ := by
-  funext i; rfl
-
 /-- The stage an instantiation is read at: `(one a).comp σ` is `σ`
 extended by `a[σ]`. -/
 theorem Subst.one_comp {a : Term} {σ : Subst} :
@@ -92,28 +89,29 @@ theorem Adm.wf {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) : V
 
 /-- Weakening the stage by one slot: `A` at `σ.tail` under `ρ` is
 `A.lift` at `σ` under `ρ.push x`.  `Interp.weak'` at `Lift.refl.skip`. -/
-theorem Interp.weak_one {Δ Γ Γ' : List Term} {A : Term} {σ ρ x m}
+theorem Interp.weak_one {Δ Γ Γ' : List Term} {A : Term} {σ ρ x m} (hΓ : ⊢ Γ)
     (WΓ : Ctx.Lift' Lift.refl.skip Γ Γ')
     (H : Interp Δ Γ A σ.tail ρ m) : Interp Δ Γ' A.lift σ (ρ.push x) m :=
-  Interp.weak' (l := Lift.refl.skip) (Subst.tail_eq_lift_l ▸ H) WΓ (fun _ => rfl)
+  Interp.weak' (l := Lift.refl.skip) hΓ (Subst.tail_eq_lift_l ▸ H) WΓ (fun _ => rfl)
 
 /-- The slot a variable reads is typed at an approximant of its type.
 This is the content of `Adm` that `SoundTy`'s `bvar` case needs, and the
 reason `Adm` is an inductive rather than a predicate on slots: the type of
 slot `i` lives in the context *below* it, so the statement has to be
 weakened back up one binder at a time. -/
-theorem Adm.lookup {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) :
+theorem Adm.lookup {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) (hΓ : ⊢ Γ) :
     ∀ {i A}, Lookup Γ i A → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.HasType Δ (ρ i) a := by
   induction h with
   -- below the base context every slot is `⊥`, which is typed at `⊥`
   | nil => exact fun _ => ⟨TShape.bot, .bot, TShape.HasType.bot_bot rfl⟩
   | cons _ _ ha _ hxa ih =>
+    obtain ⟨hΓ', _, _⟩ := hΓ
     intro i A' hl
     cases hl with
-    | zero => exact ⟨_, Interp.weak_one (.skip .refl) ha, hxa⟩
+    | zero => exact ⟨_, Interp.weak_one hΓ' (.skip .refl) ha, hxa⟩
     | succ hl =>
-      obtain ⟨b, hb, hty⟩ := ih hl
-      exact ⟨b, Interp.weak_one (.skip .refl) hb, hty⟩
+      obtain ⟨b, hb, hty⟩ := ih hΓ' hl
+      exact ⟨b, Interp.weak_one hΓ' (.skip .refl) hb, hty⟩
 
 /-! ## What soundness says
 
@@ -1640,9 +1638,8 @@ theorem dir_app {Γ : List Term} {F a : Term}
       have hc := TEvaluates.compat hΔ hwg.2 hwx hev₁' hev₂'
       have hwy := TShape.WF.join hΔ hc (TEvaluates.wf hΔ hout hev₁')
         (TEvaluates.wf hΔ hout hev₂')
-      obtain ⟨A₀, hat, hTy⟩ := hty₁
       refine ⟨_, hwy, .app hz hx (.join hc hev₁' hev₂') hwy (TShape.LE.refl hwy)
-          ⟨A₀, hat, TyEq.trans (TyEq.symm (TShape.LE.lam_dom hz₁)) hTy⟩,
+          (hty₁.retype (TShape.LE.lam_dom hz₁)),
         hle₁.trans hΔ ?_, hle₂.trans hΔ ?_⟩
       · exact (TShape.le_join hΔ (TEvaluates.wf hΔ hout hev₁')
           (TEvaluates.wf hΔ hout hev₂') hc).1
@@ -1728,9 +1725,8 @@ theorem dir_snd {Γ : List Term} {p : Term} (h : SoundDir Γ p) : SoundDir Γ (.
       have hc := TEvaluates.compat hΔ hwz.2.2.1.2 (TShape.WF.T.2 hwz.2.2.2.2.2) hev₁' hev₂'
       have hwy := TShape.WF.join hΔ hc (TEvaluates.wf hΔ hout hev₁')
         (TEvaluates.wf hΔ hout hev₂')
-      obtain ⟨A₁, hft, hTy⟩ := hty₁
       exact ⟨_, hwy, .snd hz (.join hc hev₁' hev₂') hwy (TShape.LE.refl hwy)
-          ⟨A₁, hft, TyEq.trans (TyEq.symm (TShape.LE.pair_dom hz₁)) hTy⟩,
+          (hty₁.retype (TShape.LE.pair_dom hz₁)),
         hle₁.trans hΔ (TShape.le_join hΔ (TEvaluates.wf hΔ hout hev₁')
           (TEvaluates.wf hΔ hout hev₂') hc).1,
         hle₂.trans hΔ (TShape.le_join hΔ (TEvaluates.wf hΔ hout hev₁')
@@ -1844,7 +1840,7 @@ theorem sound_pair_snd {Γ : List Term} {A B a b : Term} {u v : Bool}
         (.entry ⟨A.subst σ, a.subst σ, x.2.lift k, s.lift k⟩ (.head _)
           ⟨TyEq.refl hAσ, IsDefEq.subst hΔ W hfst.symm⟩ (TShape.LE.refl hwx)) h.wf
         (TShape.LE.le_lift (m := ⟨n, s⟩) hΔ hkn h.wf)
-        ⟨A, hfst.hasType.1, TyEq.refl hAσ⟩
+        (Stable.of_typed hfst.hasType.1 (TyEq.refl hAσ))
       all_goals
         intro e₀ he₀
         cases he₀ with
@@ -2273,7 +2269,7 @@ theorem sound_app_eq_of {Γ : List Term} {A B f f' a a' : Term}
   | app hF hx hev hw hle hty =>
     have hA₁ := Interp.lam_label_ty hΔ W hAdm hfty hF
     refine .app ((ihf hΔ W hAdm).1 hF) ((iha hΔ W hAdm).1 hx) ?_ hw hle
-      ⟨A, haa'.hasType.2, hA₁⟩
+      (Stable.of_typed haa'.hasType.2 hA₁)
     exact TEvaluates.mono hΔ
       ⟨hA₁.refl_l, hA₁.choose_spec.symm.defeqDF (haa'.subst hΔ W)⟩
       (TShape.LE.refl hx.wf) hev
@@ -2423,7 +2419,7 @@ theorem sound_snd_eq_of {Γ : List Term} {A B p p' : Term} {u v : Bool}
   | snd hp hev hw hle hty =>
     have hA₀ := Interp.pair_label_ty hΔ W hAdm hpty hp
     refine .snd ((ihp hΔ W hAdm).1 hp) ?_ hw hle
-      ⟨A, (IsDefEq.fstDF hA hB hpp').hasType.2, hA₀⟩
+      (Stable.of_typed (IsDefEq.fstDF hA hB hpp').hasType.2 hA₀)
     exact TEvaluates.mono hΔ
       ⟨hA₀.refl_l, hA₀.choose_spec.symm.defeqDF
         ((IsDefEq.fstDF hA hB hpp').subst hΔ W)⟩
@@ -2965,7 +2961,8 @@ theorem sound_beta {Γ : List Term} {A B e e' : Term} {u : Bool}
       exact .app hlam (Interp.lift hΔ hkx hx)
         (.entry ⟨A.subst σ, e'.subst σ, x.2.lift k, s.lift k⟩ (.head _)
           (LabelEq.refl hAσ he'σ) (TShape.LE.refl hwx)) h.wf
-        (TShape.LE.le_lift (m := ⟨n, s⟩) hΔ hkn h.wf) ⟨A, he', TyEq.refl hAσ⟩
+        (TShape.LE.le_lift (m := ⟨n, s⟩) hΔ hkn h.wf)
+        (Stable.of_typed he' (TyEq.refl hAσ))
 
 /-! ## The remaining computation rules
 
@@ -3844,7 +3841,7 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   | @bvar _ _ _ _ hl hA _ =>
     refine ⟨SoundEq.refl, .bvar hl hA, ?_⟩
     intro Δ Γ₀ σ ρ hΔ W hAdm m hm
-    obtain ⟨a, ha, hty⟩ := hAdm.lookup hl
+    obtain ⟨a, ha, hty⟩ := hAdm.lookup hΓ hl
     refine ⟨a, ha, TShape.HasType.mono_l hΔ hty ?_⟩
     cases hm with
     | bot => exact TShape.bot_le' rfl

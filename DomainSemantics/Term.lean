@@ -229,6 +229,20 @@ theorem Subst.cons_comp {sig tau : Subst} {e : Term} :
 theorem subst_subst {e : Term} : (e.subst σ).subst σ' = subst e (.comp σ σ') := by
   induction e generalizing σ σ' <;> simp! [*, Subst.comp, Subst.comp_lift]
 
+@[simp] theorem Subst.id_comp {σ : Subst} : Subst.id.comp σ = σ := by
+  funext i; rfl
+
+@[simp] theorem Subst.comp_id {σ : Subst} : σ.comp Subst.id = σ := by
+  funext i; exact subst_id
+
+theorem Subst.comp_assoc {σ τ υ : Subst} : (σ.comp τ).comp υ = σ.comp (τ.comp υ) := by
+  funext i; exact subst_subst
+
+/-- Re-indexing the domain commutes with post-composition. -/
+theorem Subst.lift_l_comp {σ τ : Subst} {l : Lift} :
+    (σ.comp τ).lift_l l = (σ.lift_l l).comp τ := rfl
+
+
 theorem lift_subst {e : Term} : e.lift.subst σ = e.subst σ.tail := by
   rw [lift, subst_lift', ← Subst.tail_eq_lift_l]
 
@@ -1494,6 +1508,83 @@ theorem Ctx.SubstEq.comp {Ξ Θ : List Term} {υ : Subst} (hΞ : ⊢ Ξ)
     refine .cons ih hA ?_
     have h := hhead.subst hΞ V
     rwa [subst_subst] at h
+
+/-- Composition with *both* substitutions varying, which `comp` does not
+cover: there the outer one is fixed. -/
+theorem Ctx.SubstEq.comp' {Ξ Θ : List Term} {υ υ' : Subst} (hΞ : ⊢ Ξ)
+    (V : Ctx.SubstEq Ξ υ υ' Θ) : ∀ {Δ : List Term} {σ σ' : Subst},
+    Ctx.SubstEq Θ σ σ' Δ → Ctx.SubstEq Ξ (σ.comp υ) (σ'.comp υ') Δ := by
+  intro Δ σ σ' W
+  induction W with
+  | nil => exact .nil
+  | cons _ hA hhead ih =>
+    refine .cons ih hA ?_
+    have h := IsDefEq.subst' hΞ V hhead
+    rwa [subst_subst] at h
+
+/-- **Restriction along a context lift**: a stage for the larger context
+restricts to one for the smaller, by re-indexing.  The smaller context's own
+well-formedness is what supplies the annotations' sort derivations, which do
+not come back from the larger context (there is no strengthening here). -/
+theorem Ctx.SubstEq.lift_l {Δ : List Term} {l : Lift} {Γ Γ' : List Term}
+    (WΓ : Ctx.Lift' l Γ Γ') (hΓ : ⊢ Γ) {σ σ₂ : Subst} (W : Ctx.SubstEq Δ σ σ₂ Γ') :
+    Ctx.SubstEq Δ (σ.lift_l l) (σ₂.lift_l l) Γ := by
+  induction WΓ generalizing σ σ₂ with
+  | refl => exact W
+  | skip _ ih =>
+    cases W with | cons W' _ _ => exact ih hΓ W'
+  | @cons l Γ₀ Γ₀' A _ ih =>
+    obtain ⟨hΓ₀, u, hA⟩ := hΓ
+    cases W with
+    | cons W' _ hhead =>
+      refine .cons (ih hΓ₀ W') hA ?_
+      show _ ⊢ _ ≡ _ : A.subst (Subst.lift_l l σ.tail)
+      exact (subst_lift' (e := A) (ρ := l) (σ := σ.tail)) ▸ hhead
+
+/-- **Extension along a context lift**, the direction `lift_l` does not give:
+a stage for the smaller context extends to one for the larger, by keeping the
+larger stage on the entries the lift drops.  Those entries' equations are
+reflexivity, which is why the extension needs the larger stage to be a stage
+at all. -/
+theorem Ctx.SubstEq.extend {Δ : List Term} {l : Lift} {Γ Γ' : List Term}
+    (WΓ : Ctx.Lift' l Γ Γ') {σ σ₂ : Subst} (Wd : Ctx.SubstEq Δ σ σ Γ')
+    (W : Ctx.SubstEq Δ (σ.lift_l l) σ₂ Γ) :
+    ∃ σ₂', Ctx.SubstEq Δ σ σ₂' Γ' ∧ σ₂'.lift_l l = σ₂ := by
+  induction WΓ generalizing σ σ₂ with
+  | refl => exact ⟨σ₂, W, rfl⟩
+  | skip _ ih =>
+    cases Wd with
+    | cons Wd' hA hhead =>
+      obtain ⟨σ₂', W', rfl⟩ := ih Wd' W
+      exact ⟨σ₂'.cons σ.head, .cons W' hA hhead, rfl⟩
+  | @cons l Γ₀ Γ₀' A _ ih =>
+    cases Wd with
+    | cons Wd' hA' _ =>
+      cases W with
+      | cons W' hA hhead =>
+        obtain ⟨σ₂', W'', hσ⟩ := ih Wd' W'
+        refine ⟨σ₂'.cons σ₂.head, .cons W'' hA' ?_, ?_⟩
+        · show _ ⊢ _ ≡ _ : (A.lift' l).subst σ.tail
+          exact (subst_lift' (e := A) (ρ := l) (σ := σ.tail)).symm ▸ hhead
+        · funext i
+          cases i with
+          | zero => rfl
+          | succ i => exact congrFun hσ i
+
+/-- Transitivity: the middle stage's annotations are the left one's up to
+the equation the two share. -/
+theorem Ctx.SubstEq.trans {Δ : List Term} (hΔ : ⊢ Δ) :
+    ∀ {Γ : List Term} {σ₁ σ₂ σ₃ : Subst}, Ctx.SubstEq Δ σ₁ σ₂ Γ →
+      Ctx.SubstEq Δ σ₂ σ₃ Γ → Ctx.SubstEq Δ σ₁ σ₃ Γ := by
+  intro Γ σ₁ σ₂ σ₃ W₁
+  induction W₁ generalizing σ₃ with
+  | nil => exact fun _ => .nil
+  | @cons _ _ _ A _ W₁' hA hhead ih =>
+    intro W₂
+    cases W₂ with
+    | cons W₂' _ hhead₂ =>
+      refine .cons (ih W₂') hA (hhead.trans ?_)
+      exact (IsDefEq.subst' hΔ W₁' hA).symm.defeqDF hhead₂
 
 /-- Substitution at position 0 (single-variable instantiation), derived from
 the general `IsDefEq.subst` lemma using

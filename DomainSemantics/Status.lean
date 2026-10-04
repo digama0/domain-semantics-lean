@@ -52,7 +52,7 @@ which theorems they reach:
 #guard_msgs in #print axioms Interp.tr_bot_of_ne
 
 -- **Directedness** — every case proved, `stage` the only axiom reached.
-/-- info: 'DomainSemantics.IsDefEq.dir' depends on axioms: [propext, sorryAx, Quot.sound] -/
+/-- info: 'DomainSemantics.IsDefEq.dir' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IsDefEq.dir
 
 -- **Soundness** of the labelled model: `stage`, `eta`, `fst_snd`.
