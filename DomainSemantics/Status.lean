@@ -12,10 +12,18 @@ models are separate roots.
 open DomainSemantics
 
 /-!
-Two `sorry`s remain in the whole development, and this board says
+Three `sorry`s remain in the whole development, and this board says
 which theorems they reach:
 
-* `eta`, `fst_snd` (`IsDefEq.sound`) — the §5.3 decision.
+* `IsDefEq.soundDom` — **saturation**: every approximant of a well-typed
+  term is below a *hereditarily* typed one.  This is the original's
+  `HasFixedness` (`rawExtend ⟦A⟧ ⟦t⟧ = ⟦t⟧`) read through "ideal = set of
+  approximants", and it is what the slot discipline runs on: `Adm` and
+  the six clauses that create a slot now ask for `TShape.Dom`, their
+  `SourceAdmissible`.  §4.5g.
+* `eta`, `fst_snd` (`IsDefEq.sound`) — what the slot discipline is *for*;
+  with saturation in hand η ← reads its typed inputs off the dominating
+  approximant.
 * `LR.adequacy`'s `r = false` transport (`Adequacy.lean`, the old
   model) — false for that model, and `LE_Interp.tr_stuck` is the
   witness; it is guarded on the other root, since the two models cannot
@@ -68,7 +76,13 @@ info: 'DomainSemantics.IsDefEq.pinned' depends on axioms: [propext, sorryAx, Cla
 /-- info: 'DomainSemantics.Interp.tr_bot_of_ne' depends on axioms: [propext] -/
 #guard_msgs in #print axioms Interp.tr_bot_of_ne
 
--- **Directedness** — every case proved, and nothing left under it.
+-- **Saturation**, the assumption the slot discipline runs on.
+/-- info: 'DomainSemantics.IsDefEq.soundDom' depends on axioms: [propext, sorryAx] -/
+#guard_msgs in #print axioms IsDefEq.soundDom
+
+-- **Directedness** — every case proved, and nothing left under it: `dir`
+-- never instantiates, and the joined slot it builds is hereditarily
+-- typed by `TShape.Dom.join`, so it needs no saturation.
 /-- info: 'DomainSemantics.IsDefEq.dir' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IsDefEq.dir
 
