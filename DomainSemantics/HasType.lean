@@ -2069,3 +2069,104 @@ theorem TShape.HasType.proofIrrel {Δ : List Term} (hΔ : ⊢ Δ) {x a : TShape}
       have hout : e.out = Shape.bot := TEvaluates.eq_bot hΔ hbot' (hg e (.head _))
       exact absurd (show Shape.IsBot e.out by rw [hout]; cases n <;> trivial)
         (hwg.2.1 e (.head _))
+
+/-! ## Hereditarily typed shapes
+
+`Interp.lam` puts an entry's input in the body's slot, and `Adm` asks
+that a slot be typed.  η needs more: that the *inputs of that input* are
+typed too, one binder down, because that is where an arbitrary
+approximant enters.  `Shape.Dom` is that condition, by structural
+recursion on the code — the original's `HasDom`, hereditary, and
+deliberately **not** downward closed (a graph covered by one with typed
+inputs may fire at an input with nothing typed below it; the form that is
+downward closed is the saturating one, `SoundDom`, §4.5g). -/
+
+/-- The graph a shape carries, if it carries one: a λ's or a pair's. -/
+def Shape.graph {n} : Shape (n+1) → List (Entry (Shape n))
+  | .lam _ g => g
+  | .pair _ _ g => g
+  | _ => []
+
+/-- Those entries' inputs, as `TShape`s: the only places an arbitrary
+shape reaches a slot, so where `Shape.Dom` looks. -/
+def TShape.inputs : TShape → List TShape
+  | ⟨0, _⟩ => []
+  | ⟨_+1, s⟩ => s.graph.map (fun e => e.inp.T)
+
+/-- **Hereditarily typed at a code.** -/
+def Shape.Dom (Δ : List Term) : ∀ {m}, Shape m → TShape → Prop
+  | 0, c, x => TShape.HasType Δ x (Shape.T (n := 0) c)
+  | m+1, .forallE A B d f, x =>
+    TShape.HasType Δ x (Shape.T (n := m+1) (.forallE A B d f)) ∧
+      ∀ y ∈ x.inputs, Shape.Dom Δ d y
+  | m+1, .sigma A B d f, x =>
+    TShape.HasType Δ x (Shape.T (n := m+1) (.sigma A B d f)) ∧
+      ∀ y ∈ x.inputs, Shape.Dom Δ d y
+  | m+1, c, x => TShape.HasType Δ x (Shape.T (n := m+1) c)
+
+@[simp] theorem TShape.inputs_subst {x : TShape} {τ : Subst} :
+    (x.subst τ).inputs = x.inputs.map (·.subst τ) := by
+  obtain ⟨n, s⟩ := x
+  cases n with
+  | zero => cases s <;> rfl
+  | succ n =>
+    cases s <;>
+      simp [TShape.inputs, TShape.subst, Shape.graph, Shape.subst, ShapeFun.subst,
+        List.map_map, Function.comp_def, Shape.T]
+
+/-- The same at a code remembered with its level. -/
+def TShape.Dom (Δ : List Term) (d x : TShape) : Prop := Shape.Dom Δ d.2 x
+
+theorem TShape.Dom.hasType {Δ : List Term} {d x : TShape} (h : TShape.Dom Δ d x) :
+    TShape.HasType Δ x d := by
+  obtain ⟨m, c⟩ := d
+  cases m with
+  | zero => exact h
+  | succ m => cases c <;> first | exact h | exact h.1
+
+/-- `Dom` transports along a typed substitution, like `HasType`. -/
+theorem Shape.Dom.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) : ∀ {m} {c : Shape m} {x : TShape},
+    Shape.Dom Δ c x → Shape.Dom Θ (c.subst τ) (x.subst τ) := by
+  intro m
+  induction m with
+  | zero =>
+    intro c x h
+    cases c <;> exact TShape.HasType.subst hΘ W h
+  | succ m ih =>
+    intro c x h
+    match c with
+    | .forallE A B d f =>
+      refine ⟨by simpa [Shape.subst] using TShape.HasType.subst hΘ W h.1, ?_⟩
+      intro y hy
+      simp only [TShape.inputs_subst, List.mem_map] at hy
+      obtain ⟨y₀, hy₀, rfl⟩ := hy
+      exact ih (h.2 y₀ hy₀)
+    | .sigma A B d f =>
+      refine ⟨by simpa [Shape.subst] using TShape.HasType.subst hΘ W h.1, ?_⟩
+      intro y hy
+      simp only [TShape.inputs_subst, List.mem_map] at hy
+      obtain ⟨y₀, hy₀, rfl⟩ := hy
+      exact ih (h.2 y₀ hy₀)
+    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+    | .lam _ _ | .pair _ _ _ =>
+      exact TShape.HasType.subst hΘ W h
+
+theorem TShape.Dom.subst {Δ Θ : List Term} {τ : Subst} {d x : TShape} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) (h : TShape.Dom Δ d x) :
+    TShape.Dom Θ (d.subst τ) (x.subst τ) := Shape.Dom.subst hΘ W h
+
+/-- `⊥` is hereditarily typed wherever it is typed: it carries no graph. -/
+theorem TShape.Dom.bot {Δ : List Term} {d : TShape} {n}
+    (h : TShape.HasType Δ (Shape.T (n := n) .bot) d) :
+    TShape.Dom Δ d (Shape.T (n := n) .bot) := by
+  obtain ⟨m, c⟩ := d
+  have hin : (Shape.T (n := n) Shape.bot).inputs = [] := by
+    cases n <;> rfl
+  cases m with
+  | zero => exact h
+  | succ m =>
+    match c with
+    | .forallE .. | .sigma .. => exact ⟨h, by rw [hin]; exact fun _ h => absurd h (by simp)⟩
+    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+    | .lam _ _ | .pair _ _ _ => exact h
