@@ -1492,6 +1492,24 @@ Two conclusions for us.
 into an approximant of the codomain there.  The `SoundEq` half of `sndDF`
 and the `pair_snd` β-rule go through with it.
 
+**Where it stands after η.**  η went through on the slot discipline
+alone (§4.5g): saturation hands ← a λ-approximant with hereditarily
+typed inputs, and → needs nothing new.  `fst_snd` does **not** follow the
+same way, and the reason is this section's: to rebuild `pair A B (fst p)
+(snd p)` above a pair-approximant `pair A₀ x g` of `p`, every entry of
+`g` must be at the canonical label — `Interp.pair` demands
+`Δ ⊢ e.tm ≡ (fst p)[σ] : e.ty` — and an off-label entry cannot be
+dropped, since dropping it loses the coverage.  So Σ's η needs
+
+> a pair-approximant of a Σ-typed term is below one all of whose entries
+> are at the first projection
+
+which is "off-section is `⊥`" (point 2 above) in approximant form: a
+*third* conclusion of the same kind as `SoundDom`, about labels rather
+than inputs.  `Shape.Dom`'s Σ clause cannot carry it, since a shape
+cannot name `fst p`.  Worth doing straight after `SoundDom`, by the same
+method.
+
 ### 4.7b The dominator: resolved by (β)
 
 *Superseded.*  This section recorded the obstruction as it stood with the
