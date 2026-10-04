@@ -2352,6 +2352,145 @@ theorem Interp.lam_entry_ty {Γ Γ₀ Δ : List Term} {f A B : Term} {σ ρ}
   ((hf.wf : Shape.WF (n := n+1) Δ (ShapeS.lam A' g)).2.2.2 e he).trans
     (Interp.lam_label_ty hΔ W hAdm hty hf)
 
+/-- **Saturation at an application.**  The function's own saturation
+gives a λ-approximant whose entries' *outputs* are hereditarily typed at
+the codomain read there — `Dom`'s second Π condition, and the reason it
+is there — so the lookup's value is below one that is, the `lower` rule
+being why this is up to the order and the `join` rule why the codes have
+to join (`SoundJoin`, `dir_inst`). -/
+theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
+    (hPB : B.Pinned (A :: Γ))
+    (hΓ : ⊢ Γ) (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v) (ha : Γ ⊢ a : A)
+    (hAty : SoundTy Γ A (.sort u)) (hadom : SoundDom Γ a A)
+    (hfty : SoundTy Γ f (.forallE A B)) (hfdom : SoundDom Γ f (.forallE A B))
+    (hBaty : SoundTy Γ (B.inst a) (.sort v))
+    (hadir : SoundDir Γ a) (hBdir : SoundDir (A :: Γ) B) :
+    SoundDom Γ (.app f a) (B.inst a) := by
+  have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
+  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+  have hwρ := hAdm.wf
+  have hAσ : Δ ⊢ A.subst σ : .sort u := hA.subst hΔ W
+  have haσ : Δ ⊢ a.subst σ : A.subst σ := ha.subst hΔ W
+  cases hm with
+  | bot => exact ⟨TShape.bot, TShape.bot, .bot, TShape.bot_le' rfl, .bot,
+      TShape.Dom.bot (.bot (.bot .sort))⟩
+  | @app _ _ _ _ _ _ n g x y A₁ hF hx hev hw hle hst =>
+    -- saturate the function
+    obtain ⟨F', P, hF', hFle, hP, hFdom⟩ := hfdom hΔ W hAdm hF
+    -- its code is a Π-shape: `F'` dominates a λ-shape, so neither is `⊥`
+    have hPpi : P.IsPi := by
+      rcases (show P.2 = Shape.bot ∨ P.IsPi from by
+          cases hP with
+          | bot => exact .inl rfl
+          | forallE _ _ _ _ _ _ _ hlep _ _ => exact TShape.isPi_or_bot_of_le hlep trivial)
+        with hb | h
+      · exact absurd (TShape.le_bot hΔ (TShape.HasType.bot_r hΔ hb hFdom.hasType) hFle)
+          (by simp [Shape.bot])
+      · exact h
+    cases hFdom with
+    | base hnb _ => exact absurd hPpi.isBinder hnb
+    | sg _ _ _ _ _ _ => exact absurd trivial hPpi.not_sigma
+    | @pi nP A' B' dP fP _ cs hty hent hin hevc hout =>
+      -- the saturated function is a λ-shape, and the code's codomain
+      -- graph is covered by the canonical one
+      cases hty with
+      | bot hb =>
+        exact absurd (TShape.le_bot hΔ rfl hFle) (by simp [Shape.bot])
+      | refl hwv hleid hAty' =>
+        exact absurd hleid (by
+          intro h
+          obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
+          exact absurd h2 (fun x => x))
+      | @lam nF _ _ A'' G _ _ _ _ G₀ hd hfo hwG hwPi hwG₀ hgG hG₀ev hG₀ty hlabG =>
+        cases hP with
+        | @forallE _ _ _ _ nc gc dc _ _ hAint hdty hwfc hlabc hdomc hbodyc hwmc hlePi =>
+          obtain ⟨hPiLab, _, hcovc⟩ :=
+            TShape.LE.forallE_decomp hΔ hlePi hwPi hwfc (TEvaluates.refl hwfc.2.2.2)
+          -- the λ-shape's label is the domain
+          have hA₁ : TyEq Δ A₁ (A.subst σ) :=
+            Interp.lam_label_ty hΔ W hAdm hfty hF
+          -- a lookup in the code's codomain graph, at the canonical query,
+          -- is an approximant of `B[a]`
+          have toI : ∀ {c : TShape},
+              TEvaluates Δ fP (A.subst σ) (a.subst σ) x c →
+              Interp Δ Γ (B.inst a) σ ρ c := by
+            intro c hc
+            refine (Interp.inst (A := A) (b := B) hΔ hΓ hA ha hB hPB W hAdm
+              (Subst.Saturates.one hΔ hΓ W hAdm hAty.isTypeAt hadom)
+              (hadir hΔ W hwρ) hwρ).2 ⟨x, ?_, hx⟩
+            rw [Subst.one_comp]
+            exact sound_graph_lookup hΓA hA hB hΔ W hbodyc hx.wf hBdir hwρ haσ
+              (TyEq.refl hAσ) (TEvaluates.trans hΔ hcovc hc)
+          -- the λ-shape's own lookup is covered by the saturated one
+          have hcovG : ∀ e ∈ g, TEvaluates Δ G e.ty e.tm e.inp.T e.out.T :=
+            TShape.LE.lam_decomp hΔ hFle hF.wf hwG (TEvaluates.refl hwG.2.2.1)
+          have hevG : TEvaluates Δ G A₁ (a.subst σ) x y :=
+            TEvaluates.trans hΔ hcovG hev
+          -- every value of that lookup is below one that is hereditarily
+          -- typed, and still a value of it
+          have hwout : ∀ e ∈ G, TShape.WF Δ e.out.T := fun e he =>
+            TShape.WF.T.2 (hwG.2.2.1.1 e he).2.2.2
+          have key : ∀ {w : TShape}, TEvaluates Δ G A₁ (a.subst σ) x w →
+              ∃ w' c, TEvaluates Δ G A₁ (a.subst σ) x w' ∧ TShape.LE Δ w w' ∧
+                Interp Δ Γ (B.inst a) σ ρ c ∧ TShape.Dom Δ c w' := by
+            intro w hw'
+            induction hw' with
+            | bot =>
+              exact ⟨TShape.bot, TShape.bot, .bot, TShape.LE.refl trivial, .bot,
+                TShape.Dom.bot (.bot (.bot .sort))⟩
+            | @entry q hq hlabq hinq =>
+              -- the entry's output is `Dom` at its code, which is an
+              -- approximant of `B[a]` once moved to the canonical query
+              obtain ⟨pc, hpc, hpceq⟩ : ∃ pc ∈ cs,
+                  pc.1 = ⟨q.ty, q.tm, q.inp.T, q.out.T⟩ := by
+                have : (⟨q.ty, q.tm, q.inp.T, q.out.T⟩ : Entry TShape) ∈
+                    (Shape.T (n := nF+1) (ShapeS.lam A'' G)).entries :=
+                  List.mem_map_of_mem
+                    (f := fun e => (⟨e.ty, e.tm, e.inp.T, e.out.T⟩ : Entry TShape)) hq
+                rw [hent, List.mem_map] at this
+                obtain ⟨pc, hpc, heq⟩ := this
+                exact ⟨pc, hpc, heq⟩
+              have hcode := hevc pc hpc
+              have hdomq := hout pc hpc
+              rw [hpceq] at hcode hdomq
+              refine ⟨q.out.T, pc.2, .entry q hq hlabq hinq, TShape.LE.refl
+                (TShape.WF.T.2 (hwG.2.2.1.1 q hq).2.2.2), ?_, hdomq⟩
+              refine toI (TEvaluates.mono hΔ ?_ hinq hcode)
+              exact ⟨TyEq.trans hlabq.1 hA₁, hlabq.2⟩
+            | lower hle' _ ih =>
+              obtain ⟨w', c, hw'', hlew, hIc, hdc⟩ := ih
+              exact ⟨w', c, hw'', TShape.LE.trans hΔ hle' hlew, hIc, hdc⟩
+            | @join w₁ w₂ hcj hv₁ hv₂ ih₁ ih₂ =>
+              obtain ⟨w₁', c₁, hv₁', hle₁, hI₁, hd₁⟩ := ih₁
+              obtain ⟨w₂', c₂, hv₂', hle₂, hI₂, hd₂⟩ := ih₂
+              -- the two values join, being lookups in one coherent graph
+              have hcw : TShape.Compat Δ w₁' w₂' :=
+                TEvaluates.compat hΔ hwG.2.2.1.2 hx.wf hv₁' hv₂'
+              -- and so do their codes, inside `B[a]`'s extension
+              obtain ⟨c, hwc, hIc, hlc₁, hlc₂⟩ :=
+                dir_inst (b := B) hA ha hB hPB hΔ W hAdm hΓ hAty hadom
+                  hadir hBdir hI₁ hI₂
+              have hcty := hBaty.isType hΔ W hAdm hIc
+              refine ⟨w₁'.join w₂', c, .join hcw hv₁' hv₂',
+                TShape.join_le hΔ (TShape.LE.trans hΔ hle₁
+                  (TShape.le_join hΔ (TEvaluates.wf hΔ hwout hv₁')
+                    (TEvaluates.wf hΔ hwout hv₂') hcw).1) ?_, hIc, ?_⟩
+              · exact TShape.LE.trans hΔ hle₂
+                  (TShape.le_join hΔ (TEvaluates.wf hΔ hwout hv₁')
+                    (TEvaluates.wf hΔ hwout hv₂') hcw).2
+              · exact TShape.Dom.join hΔ hcw (TShape.Dom.mono_r hΔ hd₁ hlc₁ hcty)
+                  (TShape.Dom.mono_r hΔ hd₂ hlc₂ hcty)
+          obtain ⟨y', c, hy', hyle, hIc, hdc⟩ := key hevG
+          -- the saturated function's own label, which the clause reads at
+          have hA'' : TyEq Δ A₁ A'' :=
+            hA₁.trans (Interp.lam_label_ty hΔ W hAdm hfty hF').symm
+          have hwy' := TEvaluates.wf hΔ hwout hy'
+          exact ⟨y', c,
+            .app hF' hx
+              (TEvaluates.label ⟨hA'', hA₁.symm.choose_spec.defeqDF haσ⟩ hy') hwy'
+              (TShape.LE.refl hwy') (hst.retype hA''),
+            TShape.LE.trans hΔ hle hyle, hIc, hdc⟩
+
 /-- The `SoundEq` half of `appDF`: the same shape is read out of the same
 graph, at a query whose term has moved along `a ≡ a'`.  The query's *type*
 is the λ-shape's label, so the equation has to be transported there, and
