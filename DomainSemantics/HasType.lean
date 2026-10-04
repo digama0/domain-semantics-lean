@@ -2772,3 +2772,131 @@ theorem TShape.not_binder_of_le {Δ : List Term} {a c : TShape} (h : TShape.LE �
       | .sigma .., .pair .. | .sigma .., .forallE .. => exact absurd h2 (fun x => x)
       | .bot, _ | .sort _, _ | .unit _, _ | .nat, _ | .zero, _ | .succ _, _
       | .refl _, _ | .id .., _ | .lam _ _, _ | .pair _ _ _, _ => exact hb
+
+/-- The two binder codes, separately: a Π-shape and a Σ-shape. -/
+def TShape.IsPi : TShape → Prop
+  | ⟨0, _⟩ => False
+  | ⟨_+1, .forallE ..⟩ => True
+  | ⟨_+1, _⟩ => False
+
+def TShape.IsSigma : TShape → Prop
+  | ⟨0, _⟩ => False
+  | ⟨_+1, .sigma ..⟩ => True
+  | ⟨_+1, _⟩ => False
+
+theorem TShape.IsPi.not_sigma {p : TShape} (h : p.IsPi) : ¬ p.IsSigma := by
+  obtain ⟨n, s⟩ := p
+  cases n with
+  | zero => exact absurd h (fun x => x)
+  | succ n => cases s <;> first | exact fun x => x | exact absurd h (fun x => x)
+
+theorem TShape.IsPi.not_bot {p : TShape} (h : p.IsPi) : p.2 ≠ Shape.bot := by
+  obtain ⟨n, s⟩ := p
+  cases n with
+  | zero => exact absurd h (fun x => x)
+  | succ n =>
+    cases s <;> first | exact absurd h (fun x => x) | exact (by simp [Shape.bot])
+
+theorem TShape.IsSigma.not_bot {p : TShape} (h : p.IsSigma) : p.2 ≠ Shape.bot := by
+  obtain ⟨n, s⟩ := p
+  cases n with
+  | zero => exact absurd h (fun x => x)
+  | succ n =>
+    cases s <;> first | exact absurd h (fun x => x) | exact (by simp [Shape.bot])
+
+theorem TShape.IsPi.isBinder {p : TShape} (h : p.IsPi) : p.IsBinder := by
+  obtain ⟨n, s⟩ := p
+  cases n with
+  | zero => exact h
+  | succ n => cases s <;> first | exact h | exact trivial
+
+theorem TShape.IsSigma.isBinder {p : TShape} (h : p.IsSigma) : p.IsBinder := by
+  obtain ⟨n, s⟩ := p
+  cases n with
+  | zero => exact h
+  | succ n => cases s <;> first | exact h | exact trivial
+
+/-- Below a Π-shape there are only `⊥` and Π-shapes: the order pins the
+head, which is what lets an approximant of a Π type be analysed. -/
+theorem TShape.isPi_or_bot_of_le {Δ : List Term} {p q : TShape} (h : TShape.LE Δ p q)
+    (hq : q.IsPi) : p.2 = Shape.bot ∨ p.IsPi := by
+  obtain ⟨n, s⟩ := p
+  obtain ⟨k, s'⟩ := q
+  cases k with
+  | zero => exact absurd hq (fun x => x)
+  | succ k =>
+    match s' with
+    | .forallE .. =>
+      obtain ⟨M, hkM, hnM, h2⟩ := TShape.LE.at_succ h
+      cases n with
+      | zero =>
+        match s with
+        | .bot => exact .inl rfl
+        | .sort _ => exact absurd h2 (fun x => x)
+      | succ n =>
+        match s with
+        | .bot => exact .inl rfl
+        | .forallE .. => exact .inr trivial
+        | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+        | .lam _ _ | .sigma .. | .pair _ _ _ => exact absurd h2 (fun x => x)
+    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+    | .lam _ _ | .sigma .. | .pair _ _ _ => exact absurd hq (fun x => x)
+
+/-- **The level-free lookup, read back at the graph's own level**:
+`ShapeFun.Eval.toT`'s converse, up to the order.  A `TEvaluates` value is
+below one the level-indexed lookup reaches, which is all an order
+comparison between λ-shapes needs, since `Eval` is closed under `lower`.
+The `join` case is where the graph's coherence comes in
+(`ShapeFun.Eval.compat`). -/
+theorem TEvaluates.toEval {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term}
+    {x : Shape n} (hwf : ShapeFun.WF Δ (Shape.WF Δ) f) (hx : Shape.WF Δ x) :
+    ∀ {c : TShape}, TEvaluates Δ f A a x.T c →
+      ∃ c' : Shape n, TShape.LE Δ c c'.T ∧ ShapeFun.Eval Δ (Shape.LE Δ) f A a x c' := by
+  intro c h
+  induction h with
+  | bot => exact ⟨.bot, TShape.bot_le' rfl, .bot⟩
+  | entry e he hlab hin =>
+    refine ⟨e.out, TShape.LE.refl (TShape.WF.T.2 (hwf.1 e he).2.2.2), ?_⟩
+    exact .entry e he hlab (TShape.LE.T.1 hin)
+  | lower hle _ ih =>
+    obtain ⟨c', hc', hev⟩ := ih
+    exact ⟨c', TShape.LE.trans hΔ hle hc', hev⟩
+  | join hc _ _ ih₁ ih₂ =>
+    obtain ⟨c₁, hc₁, hev₁⟩ := ih₁
+    obtain ⟨c₂, hc₂, hev₂⟩ := ih₂
+    have hw₁ := ShapeFun.Eval.wf hΔ (fun e he => (hwf.1 e he).2.2.2) hev₁
+    have hw₂ := ShapeFun.Eval.wf hΔ (fun e he => (hwf.1 e he).2.2.2) hev₂
+    have hcc : Shape.Compat Δ c₁ c₂ :=
+      ShapeFun.Eval.compat hΔ hwf.2 hx.coherent hev₁ hev₂
+    obtain ⟨hj₁, hj₂⟩ := Shape.le_join hΔ hw₁ hw₂ hcc
+    exact ⟨c₁.join c₂,
+      TShape.join_le hΔ (TShape.LE.trans hΔ hc₁ (TShape.LE.T.2 hj₁))
+        (TShape.LE.trans hΔ hc₂ (TShape.LE.T.2 hj₂)),
+      .join hcc hev₁ hev₂⟩
+
+/-- A shape that dominates a λ-shape is one: the order pins the head
+upward too. -/
+def TShape.IsLam : TShape → Prop
+  | ⟨0, _⟩ => False
+  | ⟨_+1, .lam ..⟩ => True
+  | ⟨_+1, _⟩ => False
+
+theorem TShape.isLam_of_le {Δ : List Term} {x y : TShape} (h : TShape.LE Δ x y)
+    (hx : x.IsLam) : y.IsLam := by
+  obtain ⟨n, s⟩ := x
+  obtain ⟨k, s'⟩ := y
+  cases n with
+  | zero => exact absurd hx (fun x => x)
+  | succ n =>
+    match s with
+    | .lam _ _ =>
+      obtain ⟨M, hkM, hnM, h2⟩ := TShape.LE.src_succ h
+      cases k with
+      | zero => cases s' <;> exact absurd h2 (fun x => x)
+      | succ k =>
+        match s' with
+        | .lam _ _ => exact trivial
+        | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+        | .forallE .. | .sigma .. | .pair _ _ _ => exact absurd h2 (fun x => x)
+    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+    | .forallE .. | .sigma .. | .pair _ _ _ => exact absurd hx (fun x => x)

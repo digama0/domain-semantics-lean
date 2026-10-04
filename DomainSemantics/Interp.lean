@@ -2802,3 +2802,20 @@ whose transport only goes up. -/
 theorem Interp.lift {Δ Γ : List Term} {t σ ρ} {m : TShape} (hΔ : ⊢ Δ) {k}
     (hk : m.1 ≤ k) (H : Interp Δ Γ t σ ρ m) : Interp Δ Γ t σ ρ (m.lift k) :=
   H.mono hΔ (TShape.WF.lift hk H.wf) (TShape.LE.lift_le hΔ hk H.wf)
+
+/-- Directedness over a list: finitely many approximants of one term have
+one above them all.  `Interp.Dir.join` iterated, with `⊥` at the empty
+list — what η needs, since the expansion's graph is finite. -/
+theorem Interp.Dir.list {Δ Γ : List Term} {t σ ρ} (hΔ : ⊢ Δ) (h : Interp.Dir Δ Γ t σ ρ)
+    {α : Type} {ms : α → TShape} : ∀ (l : List α), (∀ a ∈ l, Interp Δ Γ t σ ρ (ms a)) →
+      ∃ s, TShape.WF Δ s ∧ Interp Δ Γ t σ ρ s ∧ ∀ a ∈ l, TShape.LE Δ (ms a) s
+  | [], _ => ⟨TShape.bot, trivial, .bot, fun _ h => absurd h (by simp)⟩
+  | a :: l, hl => by
+    obtain ⟨s, hws, hs, hle⟩ := Interp.Dir.list hΔ h l (fun b hb => hl b (.tail _ hb))
+    have ha := hl a (.head _)
+    obtain ⟨hc, hj⟩ := h.join hΔ ha hs
+    obtain ⟨hla, hls⟩ := TShape.le_join hΔ ha.wf hws hc
+    refine ⟨_, TShape.WF.join hΔ hc ha.wf hws, hj, fun b hb => ?_⟩
+    cases hb with
+    | head => exact hla
+    | tail _ hb => exact TShape.LE.trans hΔ (hle b hb) hls

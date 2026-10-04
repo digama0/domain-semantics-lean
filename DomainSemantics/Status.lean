@@ -12,7 +12,7 @@ models are separate roots.
 open DomainSemantics
 
 /-!
-Three `sorry`s remain in the whole development, and this board says
+Two `sorry`s remain in the whole development, and this board says
 which theorems they reach:
 
 * `IsDefEq.soundDom` — **saturation**: every approximant of a well-typed
@@ -21,9 +21,14 @@ which theorems they reach:
   approximants", and it is what the slot discipline runs on: `Adm` and
   the six clauses that create a slot now ask for `TShape.Dom`, their
   `SourceAdmissible`.  §4.5g.
-* `eta`, `fst_snd` (`IsDefEq.sound`) — what the slot discipline is *for*;
-  with saturation in hand η ← reads its typed inputs off the dominating
-  approximant.
+* `fst_snd` (`IsDefEq.sound`) — the Σ twin of η, still to do.
+
+**η is proved** (`sound_eta_of`, `sound_eta_to`), which is what the slot
+discipline was for: ← reads its typed inputs off the dominating
+approximant saturation supplies, and → collects the bodies' function
+approximants, bounds them by one (`Interp.Dir.list`) and compares by
+lookup coverage (§5.2), `TEvaluates.toEval` bridging back to the
+level-indexed order.
 * `LR.adequacy`'s `r = false` transport (`Adequacy.lean`, the old
   model) — false for that model, and `LE_Interp.tr_stuck` is the
   witness; it is guarded on the other root, since the two models cannot
