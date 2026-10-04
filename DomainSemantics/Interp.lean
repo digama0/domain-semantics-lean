@@ -2050,6 +2050,110 @@ theorem Subst.Saturates.lift {Δ Γ₀ Γ Γ' : List Term} {A : Term} {θ σ ρ 
     exact Adm.cons hAdm hΓ
       (fun _ hb => hAty hΔ (Ctx.SubstEq.comp hΔ Wσ Wθ) hAdm hb) hdI' hwy hyd
 
+/-! ### Weakening the clause conditions
+
+These restrict along a context lift, and what restricts with them is the
+*stage*: `Ctx.SubstEq.lift_l` for the substitution and `Adm.unlift` for
+the valuation.  Only `sound_natCase_ty` needs them, for the motive it
+reads one context deeper. -/
+
+/-- Admissibility restricts along a context lift.  A variable of the
+smaller context is one of the bigger (`Lookup.weak'`) and its type is the
+same term lifted, so `Interp.unweak` moves that type's approximant down —
+which is exactly the data `Adm` keeps. -/
+theorem Adm.unlift {Δ Γ₀ Γ Γ' : List Term} {l σ ρ} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
+    (WΓ : Ctx.Lift' l Γ Γ') (W : Ctx.SubstEq Δ σ σ Γ') (h : Adm Δ Γ₀ Γ' σ ρ) :
+    Adm Δ Γ₀ Γ (σ.lift_l l) (fun i => ρ (Lift.liftVar l i)) := by
+  refine ⟨fun i => h.wf _, fun {i A} hlk => ?_⟩
+  obtain ⟨a, ha, hty⟩ := h.2 (hlk.weak' WΓ)
+  exact ⟨a, Interp.unweak hΔ hΓ (Ctx.WF.lookup hΓ hlk).choose_spec.annot.1 WΓ W
+    (fun _ => rfl) ha, hty⟩
+
+theorem IsTypeAt.weak' {Γ Γ' : List Term} {l : Lift} {A : Term} (hΓ : ⊢ Γ)
+    (hA : A.Annot Γ) (WΓ : Ctx.Lift' l Γ Γ') (h : IsTypeAt Γ A) :
+    IsTypeAt Γ' (A.lift' l) := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm c hc
+  exact h hΔ (Ctx.SubstEq.lift_l WΓ hΓ W) (Adm.unlift hΔ hΓ WΓ W hAdm)
+    (Interp.unweak hΔ hΓ hA WΓ W (fun _ => rfl) hc)
+
+theorem TypedAt.weak' {Γ Γ' : List Term} {l : Lift} {t A : Term} (hΓ : ⊢ Γ)
+    (ht : t.Annot Γ) (WΓ : Ctx.Lift' l Γ Γ') (h : TypedAt Γ t A) :
+    TypedAt Γ' (t.lift' l) (A.lift' l) := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+  obtain ⟨a, ha, hty⟩ := h hΔ (Ctx.SubstEq.lift_l WΓ hΓ W) (Adm.unlift hΔ hΓ WΓ W hAdm)
+    (Interp.unweak hΔ hΓ ht WΓ W (fun _ => rfl) hm)
+  exact ⟨a, Interp.weak' hΓ ha WΓ (fun _ => rfl), hty⟩
+
+theorem PinApp.weak' {Γ Γ' : List Term} {l : Lift} {F a : Term} (hΓ : ⊢ Γ)
+    (hF : F.Annot Γ) (WΓ : Ctx.Lift' l Γ Γ') (h : PinApp Γ F a) :
+    PinApp Γ' (F.lift' l) (a.lift' l) := by
+  intro Δ Γ₀ σ ρ n A g hΔ W hAdm hf
+  exact Stable.weak' hΓ WΓ
+    (h hΔ (Ctx.SubstEq.lift_l WΓ hΓ W) (Adm.unlift hΔ hΓ WΓ W hAdm)
+      (Interp.unweak hΔ hΓ hF WΓ W (fun _ => rfl) hf))
+
+theorem PinSnd.weak' {Γ Γ' : List Term} {l : Lift} {p : Term} (hΓ : ⊢ Γ)
+    (hp : p.Annot Γ) (WΓ : Ctx.Lift' l Γ Γ') (h : PinSnd Γ p) :
+    PinSnd Γ' (p.lift' l) := by
+  intro Δ Γ₀ σ ρ n A x g hΔ W hAdm hf
+  exact Stable.weak' (a := Term.fst p) hΓ WΓ
+    (h hΔ (Ctx.SubstEq.lift_l WΓ hΓ W) (Adm.unlift hΔ hΓ WΓ W hAdm)
+      (Interp.unweak hΔ hΓ hp WΓ W (fun _ => rfl) hf))
+
+theorem Term.Pinned.weak' : ∀ {t : Term} {Γ Γ' : List Term} {l : Lift}, ⊢ Γ →
+    t.Annot Γ → Ctx.Lift' l Γ Γ' → t.Pinned Γ → (t.lift' l).Pinned Γ' := by
+  intro t
+  induction t with
+  | bvar | sort | unit | star | nat | zero => exact fun _ _ _ _ => trivial
+  | succ _ ih => exact fun hΓ hA W h => ih hΓ hA W h
+  | fst _ ih | refl _ _ ih => exact fun hΓ hA W h => ih hΓ hA W h
+  | app _ _ ihF iha =>
+    rintro Γ Γ' l hΓ ⟨_, hAF, hAa⟩ W ⟨hp, hF, ha⟩
+    exact ⟨hp.weak' hΓ hAF W, ihF hΓ hAF W hF, iha hΓ hAa W ha⟩
+  | snd _ ih =>
+    rintro Γ Γ' l hΓ ⟨_, hAp⟩ W ⟨hp, hpp⟩
+    exact ⟨hp.weak' hΓ hAp W, ih hΓ hAp W hpp⟩
+  | lam A b ihA ihb =>
+    rintro Γ Γ' l hΓ ⟨⟨u, hA⟩, hAA, hAb⟩ W ⟨hty, hPA, hPb⟩
+    have hΓA : ⊢ (A :: Γ) := ⟨hΓ, u, hA⟩
+    exact ⟨hty.weak' hΓ hAA W, ihA hΓ hAA W hPA, ihb hΓA hAb W.cons hPb⟩
+  | forallE A B ihA ihB =>
+    rintro Γ Γ' l hΓ ⟨⟨u, hA⟩, _, hAA, hAB⟩ W ⟨hty, hPA, hPB⟩
+    have hΓA : ⊢ (A :: Γ) := ⟨hΓ, u, hA⟩
+    exact ⟨hty.weak' hΓ hAA W, ihA hΓ hAA W hPA, ihB hΓA hAB W.cons hPB⟩
+  | sigma A B ihA ihB =>
+    rintro Γ Γ' l hΓ ⟨⟨u, hA⟩, _, hAA, hAB⟩ W ⟨hty, hPA, hPB⟩
+    have hΓA : ⊢ (A :: Γ) := ⟨hΓ, u, hA⟩
+    exact ⟨hty.weak' hΓ hAA W, ihA hΓ hAA W hPA, ihB hΓA hAB W.cons hPB⟩
+  | pair A B a b ihA ihB iha ihb =>
+    rintro Γ Γ' l hΓ ⟨⟨u, hA⟩, _, _, hAA, hAB, hAa, hAb⟩ W ⟨hty, hPA, hPB, hPa, hPb⟩
+    have hΓA : ⊢ (A :: Γ) := ⟨hΓ, u, hA⟩
+    exact ⟨hty.weak' hΓ hAA W, ihA hΓ hAA W hPA, ihB hΓA hAB W.cons hPB,
+      iha hΓ hAa W hPa, ihb hΓ hAb W hPb⟩
+  | natCase C M a b ihC ihM iha ihb =>
+    rintro Γ Γ' l hΓ ⟨_, hAC, hAM, hAa, hAb⟩ W ⟨hM, hPC, hPM, hPa, hPb⟩
+    have hΓN : ⊢ (Term.nat :: Γ) := ⟨hΓ, _, .nat⟩
+    have WN : Ctx.Lift' l.cons (Term.nat :: Γ) (Term.nat :: Γ') := by
+      simpa using W.cons (A := Term.nat)
+    have hM' : TypedAt Γ' (M.lift' l) Term.nat := TypedAt.weak' hΓ hAM W hM
+    exact ⟨hM', ihC hΓN hAC WN hPC, ihM hΓ hAM W hPM,
+      iha hΓ hAa W hPa, ihb hΓN hAb WN hPb⟩
+  | Y A b ihA ihb =>
+    rintro Γ Γ' l hΓ ⟨⟨u, hA⟩, hYtm, hAA, hAb⟩ W ⟨hty, hYt, hPA, hPb⟩
+    have hΓA : ⊢ (A :: Γ) := ⟨hΓ, u, hA⟩
+    have hYt' : TypedAt Γ' (Term.Y (A.lift' l) (b.lift' l.cons)) (A.lift' l) :=
+      TypedAt.weak' (t := Term.Y A b) hΓ ⟨⟨u, hA⟩, hYtm, hAA, hAb⟩ W hYt
+    exact ⟨hty.weak' hΓ hAA W, hYt', ihA hΓ hAA W hPA, ihb hΓA hAb W.cons hPb⟩
+  | id r A a b ihA iha ihb =>
+    rintro Γ Γ' l hΓ ⟨_, _, _, hAA, hAa, hAb⟩ W ⟨hPA, hPa, hPb⟩
+    exact ⟨ihA hΓ hAA W hPA, iha hΓ hAa W hPa, ihb hΓ hAb W hPb⟩
+  | tr r A a b C X Hp ihA iha ihb ihC ihX ihH =>
+    rintro Γ Γ' l hΓ ⟨⟨u, hA⟩, _, _, hAA, hAa, hAb, hAC, hAX, hAH⟩ W
+      ⟨hty, hPA, hPa, hPb, hPC, hPX, hPH⟩
+    have hΓA : ⊢ (A :: Γ) := ⟨hΓ, u, hA⟩
+    exact ⟨hty.weak' hΓ hAA W, ihA hΓ hAA W hPA, iha hΓ hAa W hPa, ihb hΓ hAb W hPb,
+      ihC hΓA hAC W.cons hPC, ihX hΓ hAX W hPX, ihH hΓ hAH W hPH⟩
+
 /-- **Substitution in the term, the analytic direction.**  An approximant
 of `t[θ]` is an approximant of `t` at the composed stage, under *some*
 valuation whose slots approximate the `θ i`.

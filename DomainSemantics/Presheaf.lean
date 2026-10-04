@@ -3197,7 +3197,7 @@ theorem sound_natCase_ty {Γ : List Term} {C M a b : Term} {v : Bool} (hΓ : ⊢
     obtain ⟨c, hc, hct⟩ := ihb.approx hΔ Wcons hAdm' hmb
     obtain ⟨y, hCy, hsy⟩ := (Interp.inst (A := Term.nat) (b := C.lift' (.cons (.skip .refl)))
       hΔ hΓN .nat (.succDF (.bvar .zero .nat)) hClift
-      (IsDefEq.pinned ⟨hΓN, _, .nat⟩ hClift) Wcons hAdm'
+      (Term.Pinned.weak' hΓN hC.annot.1 (.cons (.skip .refl)) hPC) Wcons hAdm'
       (Subst.Saturates.one hΔ hΓN Wcons hAdm' IsTypeAt.nat TypedAt.succ_bvar0)
       (dir_succ (dir_bvar (Γ := Term.nat :: Γ)) hΔ Wcons (Valuation.WF.push hwρ hwv'))
       (Valuation.WF.push hwρ hwv')).1 hc
