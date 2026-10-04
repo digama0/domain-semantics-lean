@@ -598,6 +598,44 @@ Two things that would *not* work, recorded so they are not retried:
   Π-type stays existential and `to_substTerm` still has to invent
   `Γ`-level data.
 
+#### 3.1e The single-substitution route, worked out
+
+`Interp.inst` is the only consumer of the substitution lemma, and it uses
+`θ = Subst.one a`; `to_substTerm`'s own recursion lifts that under each
+binder.  So **every `θ` that ever arises is `one a` lifted `k` times**,
+and both `Term.Pinned` and `to_substTerm` may be restricted to that
+class (which also subsumes their `Subst.Good` and `Ctx.SubstEq`
+hypotheses).  That is the original's `SingleSubstitution`, which is
+likewise only ever used at one.
+
+What the restriction buys: for such a `θ`, every valuation approximating
+it is **bounded by a canonical one** — `ρ` with an approximant `x` of `a`
+inserted at depth `k` — because every other slot is a variable, and an
+approximant of a variable is below that variable's slot.  So a finite
+family of θ-approximating valuations joins inside the family, with the
+join taken at the `a`-slot alone (`SoundDir a`), and the admissibility
+obligation never cascades.
+
+* **Depth 0 is proved**: `Valuation.Approx.canon_one` (`Presheaf.lean`).
+  No join and no growth — slot `0` is already an approximant of `a`, so
+  `SoundTy a A` types it where it stands, and `A` lives *below* the
+  substituted variable, so its own approximant does not move.
+  `Interp.inst_adm` is `inst`'s forward direction with that
+  admissibility, which is what a subterm's `SoundTy` has to be read at.
+* **Depth `k+1`** adds one obligation: the context type `B` above the
+  substitution has its approximant on the source side, and `Adm` wants it
+  on the `Γ` side.  Transporting it returns another θ-approximating
+  valuation, which is absorbed by joining at the `a`-slot — and *that*
+  growth does not cascade: enlarging the `a`-slot leaves every other slot
+  alone, so their typings stand, and their type-approximants survive by
+  `Interp.mono_val`.  One round suffices.
+
+One interaction to settle first: `Term.Pinned.weak'` precomposes `θ` with
+a lift, which leaves the class.  Its only use is the lifted motive in
+`sound_natCase_ty`, and that motive is itself read at a single
+substitution (`one (succ #0)`), so the fix is probably to derive its
+`Pinned` directly rather than by weakening.
+
 ### 3.2 `IsDefEq.dir`, per former
 
 **Status: complete and axiom-clean** — every case including `tr`, and
