@@ -1934,6 +1934,55 @@ theorem sound_pair_snd {Γ : List Term} {A B a b : Term} {u v : Bool}
                rw [← Subst.one_comp]; exact hbody)
             | exact hty.lift_subject hΔ hkn
 
+/-- **Saturation at a first projection.**  The pair's own saturation
+puts its first component in `Dom`'s Σ clause, and the projection reads
+exactly that component. -/
+theorem sound_fst_dom {Γ : List Term} {A B p : Term}
+    (hpdom : SoundDom Γ p (.sigma A B)) : SoundDom Γ (.fst p) A := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+  cases hm with
+  | bot =>
+    exact ⟨TShape.bot, TShape.bot, .bot, TShape.bot_le' rfl, .bot,
+      TShape.Dom.bot (.bot (.bot .sort))⟩
+  | @fst _ _ _ _ _ n A₀ x g hp hw hle =>
+    obtain ⟨P', S, hP', hPle, hS, hPdom⟩ := hpdom hΔ W hAdm hp
+    -- the code is a Σ-shape, since `P'` dominates a pair
+    have hSsg : S.IsSigma := by
+      rcases (show S.2 = Shape.bot ∨ S.IsSigma from by
+          cases hS with
+          | bot => exact .inl rfl
+          | sigma _ _ _ _ _ _ _ hles _ _ => exact TShape.isSigma_or_bot_of_le hles trivial)
+        with hb | h
+      · exact absurd (TShape.le_bot hΔ (TShape.HasType.bot_r hΔ hb hPdom.hasType) hPle)
+          (by simp [Shape.bot])
+      · exact h
+    cases hPdom with
+    | base hnb _ => exact absurd hSsg.isBinder hnb
+    | pi _ _ _ _ => exact absurd hSsg (TShape.IsPi.not_sigma trivial)
+    | @sg nS A' B' dS fS _ cs hty hent hfst hin hevc hout =>
+      -- `P'` is a pair-shape; its first component is the projection's
+      -- value, and `Dom`'s Σ clause has it
+      cases hty with
+      | bot hb => exact absurd (TShape.le_bot hΔ rfl hPle) (by simp [Shape.bot])
+      | refl hwv hleid hAty' =>
+        exact absurd hleid (by
+          intro h
+          obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
+          exact absurd h2 (fun x => x))
+      | @pair nP _ _ A₀' x' G _ _ _ _ G₀ hd hfo hwP hwSg hxd hwG₀ hgG hG₀ev hG₀ty hlabP =>
+        obtain ⟨_, hxle, _⟩ := TShape.LE.pair_decomp hΔ hPle hp.wf hwP
+          (TEvaluates.refl hwP.2.2.1)
+        refine ⟨Shape.T x', dS.T, .fst hP' (TShape.WF.T.2 hwP.2.2.2.2.2)
+            (TShape.LE.refl (TShape.WF.T.2 hwP.2.2.2.2.2)),
+          TShape.LE.trans hΔ hle hxle, ?_, ?_⟩
+        · -- the domain is an approximant of `A`
+          cases hS with
+          | @sigma _ _ _ _ nc gc dc _ _ hAint hdty hwfc hlabc hdomc hbodyc hwmc hleSg =>
+            obtain ⟨_, hdle, _⟩ :=
+              TShape.LE.sigma_decomp hΔ hleSg hwSg hwfc (TEvaluates.refl hwfc.2.2.2)
+            exact Interp.mono hΔ (TShape.HasType.wf hd).1 hdle hAint
+        · exact hfst _ (by simp [TShape.fstPart])
+
 /-- Soundness for `fstDF`. -/
 theorem sound_fst {Γ : List Term} {A B p p' : Term} {u v : Bool}
     (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v)

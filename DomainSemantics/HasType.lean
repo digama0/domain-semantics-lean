@@ -2900,3 +2900,35 @@ theorem TShape.isLam_of_le {Δ : List Term} {x y : TShape} (h : TShape.LE Δ x y
         | .forallE .. | .sigma .. | .pair _ _ _ => exact absurd h2 (fun x => x)
     | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
     | .forallE .. | .sigma .. | .pair _ _ _ => exact absurd hx (fun x => x)
+
+/-- The Σ twin of `TShape.isPi_or_bot_of_le`. -/
+theorem TShape.isSigma_or_bot_of_le {Δ : List Term} {p q : TShape} (h : TShape.LE Δ p q)
+    (hq : q.IsSigma) : p.2 = Shape.bot ∨ p.IsSigma := by
+  obtain ⟨n, s⟩ := p
+  obtain ⟨k, s'⟩ := q
+  cases k with
+  | zero => exact absurd hq (fun x => x)
+  | succ k =>
+    match s' with
+    | .sigma .. =>
+      obtain ⟨M, hkM, hnM, h2⟩ := TShape.LE.at_succ h
+      cases n with
+      | zero =>
+        match s with
+        | .bot => exact .inl rfl
+        | .sort _ => exact absurd h2 (fun x => x)
+      | succ n =>
+        match s with
+        | .bot => exact .inl rfl
+        | .sigma .. => exact .inr trivial
+        | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+        | .lam _ _ | .forallE .. | .pair _ _ _ => exact absurd h2 (fun x => x)
+    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+    | .lam _ _ | .forallE .. | .pair _ _ _ => exact absurd hq (fun x => x)
+
+/-- A Σ code is not a Π code. -/
+theorem TShape.IsSigma.not_pi {p : TShape} (h : p.IsSigma) : ¬ p.IsPi := by
+  obtain ⟨n, s⟩ := p
+  cases n with
+  | zero => exact fun x => x
+  | succ n => cases s <;> first | exact fun x => x | exact absurd h (fun x => x)
