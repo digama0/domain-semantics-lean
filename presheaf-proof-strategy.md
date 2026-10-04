@@ -401,23 +401,71 @@ is `Subst.Good Γ' θ` — "every slot is typed in `Γ'` or is a `bvar`" —
 and `Interp.unweak_slot` splits on it: typed slots go by `unweak`,
 variables by hand, since both sides of `Interp.bvar` say `m ≤ ρ j`.
 
-Status (`notes/typed-clauses-wip.patch`, 2600 lines, applies to this
-commit).  **`Interp.lean` compiles**, with two `sorry`s — `unweak` and
-`to_substTerm`, the two typing inductions.  Done there: the clause
-changes, `wf`, `mono`, `mono_val`, `ctx` (defeq contexts, via
-`Ctx.SubstEq.defeqHead` and `id_lift`), `subst`, `weak'` (takes the
-`Ctx.Lift'`), `of_substTerm` (takes a typed `θ`), `Subst.Good` with
-`lift`/`one`, `unweak_slot`, `Dir.weak_slot`, `body_merge`,
-`list_merge`, `substTerm`, `inst`.
+**Status: done.**  The clauses carry their premises, `Presheaf.lean` is
+repaired throughout, and `Interp.stage` is the theorem behind
+`IsDefEq.stage`.  §3.1c records what the premises are and what is left.
 
-`Presheaf.lean` is where the patch stops: about 80 sites still need the
-clause premises supplied or absorbed.  They are mechanical — a `cases`
-pattern grows a name, a constructor application grows an argument, and
-the argument is in scope at every one of them, because the soundness
-proofs carry the rule's premises.  The three sites repaired so far
-(`forallE`/`sigma` congruences, the Π/Σ/λ upper bounds) show the shape:
-`⟨u, hAty⟩ ⟨v, hB⟩` at a construction, `hAt hBt` at an inversion, and
-`Interp.ctx` now takes `Ctx.SubstEq.defeqHead W.wf hAA'`.
+### 3.1c What the stage-invariant clauses cost, and the one link left
+
+**Done, and the shape of the answer.**  The clause premises are what make
+each clause stage-invariant, and they come in two kinds:
+
+* a *typing in `Γ`* for every annotation and subject — `∃ u, Γ ⊢ A : sort
+  u` at `lam`/`forallE`/`sigma`/`pair`/`Y`/`id`/`tr`, `Γ ⊢ a : A` at
+  `pair`, `Γ ⊢ M : nat` at `natCase`, `Γ ⊢ Y A b : A` at `Y`;
+* `Stable Δ Γ σ a A` at `app` and `snd`, which says the shape's *label*
+  types the query, stably: reading the query at the stage and at any
+  later stage out of `Γ` gives two terms equal **at the label**, and that
+  survives any substitution of the ambient context (`Label.lean`).
+
+`Stable` is there because the label is a term of `Δ`, and no typing in
+`Γ` relates it to the argument's type without uniqueness.  It is also
+what makes the premise survive a move to a *smaller* context: the stages
+a smaller context admits extend to ones the larger one admits
+(`Ctx.SubstEq.extend`), where a typing does not strengthen.
+
+With those premises in place:
+
+* **`Interp.stage` is a theorem** — structural induction on the term,
+  `Term.Annot` supplying the annotations' typings, each clause's own
+  premise moving its own label, and `Y` (whose premise is the tower one
+  level down) running on the derivation.  `IsDefEq.stage` is that lemma
+  fed `H.annot.1`, so no call site changed.  **`IsDefEq.dir` is now
+  clean**: no `sorry` under it.
+* **`Interp.unweak` is a theorem** — the strengthening that §3.4 called
+  impossible.  Indexed by `Term.Annot` rather than by a typing, since a
+  typing is exactly what does not strengthen; `Annot` is syntax-directed,
+  so it decomposes without inversion, and `IsDefEq.annot` establishes it
+  for every term in a derivation (the instrumented judgement carries its
+  subterms' sort proofs, and both sides of every computation rule).
+* **`Interp.to_substTerm` is proved for every term former**, down to one
+  lemma.
+
+**The one link.**  `to_substTerm` rebuilds a `Γ`-level clause from its
+`Γ'`-level form, and all but one premise comes back from `Annot`.  The
+exception is `app`'s and `snd`'s: at `Γ'` the premise is `Stable Δ Γ' σ
+(a[θ]) A` and at `Γ` it is `Stable Δ Γ (θ∘σ) a A`.  These differ only in
+which context the later stages come out of, and `Γ`'s are strictly more —
+`Γ'` sees only the stages that factor through `θ`.  To bridge them one
+needs `A` and the image of `a`'s own `Γ`-type to be the same type, i.e.
+**uniqueness of types at the stage**, which this development proves *from*
+soundness, which needs `inst`, which needs this lemma.
+
+The statement is true; the gap is stratification.  It is isolated as
+`Stable.transfers` (`Interp.lean`), and the ways out are:
+
+1. **Intrinsic typing of the application.**  If the term carried its
+   domain (`app A B F a`, as the other repo's intrinsically typed syntax
+   does), the premise would read `TyEq Δ A (A₀[σ])` for an `A₀` fixed by
+   the *syntax*, and `A₀[θ]` on the `Γ'` side would be fixed too — the
+   premise then transports in both directions, with nothing to bridge.
+   This is a change to `Term`, so it is a decision, not a refactor.
+2. **Uniqueness earlier.**  `Consequences.lean` has `HasType.uniq`, but
+   it rests on `Adequacy.lean`'s inversions, i.e. on the old model — the
+   one `LE_Interp.tr_stuck` shows is wrong.  Re-basing that proof on a
+   *syntactic* argument would discharge the link directly.
+3. **Live with it**: `Stable.transfers` is one `sorry` with a precise
+   statement, and everything above it is proved.
 
 ### 3.2 `IsDefEq.dir`, per former
 
