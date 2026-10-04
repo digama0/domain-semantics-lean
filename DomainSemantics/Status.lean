@@ -12,13 +12,18 @@ models are separate roots.
 open DomainSemantics
 
 /-!
-Three `sorry`s remain in the whole development, and this board says
+Five `sorry`s remain in the whole development, and this board says
 which theorems they reach:
 
 * `IsDefEq.stage` (`Presheaf.lean`) — stage invariance.  **Everything
   below that is not clean is clean but for this**: `dir` uses it at the
   graphs' cross pairs, and `sound` through `dir` and
   `sound_graph_lookup`.
+* `Interp.unweak` and `Interp.to_substTerm` (`Interp.lean`) — the two
+  typing-indexed inductions the stage-invariant clauses ask for.  Each
+  clause now carries the premises that make it stage-invariant, so
+  these two can be proved by induction on the *typing*; until they are,
+  they are what `substTerm` and `inst` reach.
 * `eta`, `fst_snd` (`IsDefEq.sound`) — the §5.3 decision.
 * `LR.adequacy`'s `r = false` transport (`Adequacy.lean`, the old
   model) — false for that model, and `LE_Interp.tr_stuck` is the
@@ -33,11 +38,12 @@ which theorems they reach:
 /-- info: 'DomainSemantics.sound_join' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in #print axioms sound_join
 
--- **Substitution in the term**, both directions.
-/-- info: 'DomainSemantics.Interp.substTerm' depends on axioms: [propext, Quot.sound] -/
+-- **Substitution in the term**, both directions.  `to_substTerm` is the
+-- induction still open, so both reach it.
+/-- info: 'DomainSemantics.Interp.substTerm' depends on axioms: [propext, sorryAx, Quot.sound] -/
 #guard_msgs in #print axioms Interp.substTerm
 
-/-- info: 'DomainSemantics.Interp.inst' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'DomainSemantics.Interp.inst' depends on axioms: [propext, sorryAx, Quot.sound] -/
 #guard_msgs in #print axioms Interp.inst
 
 -- **The proof-irrelevant transport**: it computes by K, so a transport

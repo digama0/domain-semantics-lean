@@ -174,7 +174,7 @@ theorem forallE_sigma_inv {Γ : List Term} {s : Bool} {A₀ B₀ A₁ B₁ : Ter
   have ⟨v, hB₀⟩ := H.forallE_cod
   have hprobe : Interp Γ Γ (.forallE A₀ B₀) Subst.id Valuation.nil
       (Shape.T (n := 1) (Shape.piAtom (A₀.subst Subst.id) (B₀.subst Subst.id.lift))) :=
-    Interp.piAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀)
+    Interp.piAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀) hA₀ hB₀
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 hprobe
   rcases Interp.le_sigma h with hb | ⟨n, d, g, hle⟩
   · nomatch hb
@@ -188,7 +188,7 @@ theorem forallE_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term}
   have ⟨v, hB₀⟩ := H.forallE_cod
   have hprobe : Interp Γ Γ (.forallE A₀ B₀) Subst.id Valuation.nil
       (Shape.T (n := 1) (Shape.piAtom (A₀.subst Subst.id) (B₀.subst Subst.id.lift))) :=
-    Interp.piAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀)
+    Interp.piAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀) hA₀ hB₀
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 hprobe
   exact absurd ((TShape.LE.def_mp (Nat.le_refl 1) (Nat.le_refl 1)) (Interp.le_id h))
     (by simp only [Shape.lift_piAtom, Shape.lift_self]; exact id)
@@ -200,7 +200,7 @@ theorem sigma_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term}
   have ⟨v, hB₀⟩ := H.sigma_cod
   have hprobe : Interp Γ Γ (.sigma A₀ B₀) Subst.id Valuation.nil
       (Shape.T (n := 1) (Shape.sigmaAtom (A₀.subst Subst.id) (B₀.subst Subst.id.lift))) :=
-    Interp.sigmaAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀)
+    Interp.sigmaAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀) hA₀ hB₀
   have h := ((IsDefEq.sound hΓ H).1 hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 hprobe
   exact absurd ((TShape.LE.def_mp (Nat.le_refl 1) (Nat.le_refl 1)) (Interp.le_id h))
     (by simp only [Shape.lift_sigmaAtom, Shape.lift_self]; exact id)
