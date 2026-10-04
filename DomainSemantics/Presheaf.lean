@@ -3491,11 +3491,11 @@ theorem dir_tr {Γ : List Term} {r : Bool} {A a b C X H : Term} {u : Bool} (hΓ 
       have hcble := TShape.le_join hΔ hcb₁.wf.1 hcb₂.wf.1 hccb
       -- the transported shape
       have ⟨hcm, hXv⟩ := Interp.Dir.join hΔ (ihX hΔ W hwρ) hX₁ hX₂
-      have hm'ty := TShape.HasType.join hΔ hcm
-        (hm'₁.mono_r hΔ _ hcble.1 hcbty) (hm'₂.mono_r hΔ _ hcble.2 hcbty)
-      have hm'le := TShape.le_join hΔ hm'₁.wf.1 hm'₂.wf.1 hcm
+      have hm'ty := TShape.Dom.join hΔ hcm
+        (TShape.Dom.mono_r hΔ hm'₁ hcble.1 hcbty) (TShape.Dom.mono_r hΔ hm'₂ hcble.2 hcbty)
+      have hm'le := TShape.le_join hΔ hm'₁.hasType.wf.1 hm'₂.hasType.wf.1 hcm
       -- and the proof premise, by `H`'s own directedness
-      have hwm' := TShape.WF.join hΔ hcm hm'₁.wf.1 hm'₂.wf.1
+      have hwm' := TShape.WF.join hΔ hcm hm'₁.hasType.wf.1 hm'₂.hasType.wf.1
       refine ⟨_, hwm', .tr hwm' (TShape.LE.refl hwm')
           hXv hav hbv hAv hwv hty hcbv hcbty hm'ty ?_ heq₁ hAt hat hbt,
         hle₁.trans hΔ hm'le.1, hle₂.trans hΔ hm'le.2⟩
@@ -4157,7 +4157,32 @@ theorem sound_tr_ty {Γ : List Term} {A a b C X H : Term} {r u v : Bool} (hΓ : 
     refine ⟨_, (Interp.inst (A := A) (b := C) hΔ hΓ hA hb hC hPC W hAdm
       (Subst.Saturates.one hΔ hΓ W hAdm ihAty.isTypeAt ihbdom)
       (ihbdir hΔ W hwρ) hwρ).2
-      ⟨_, ?_, hbv⟩, TShape.HasType.mono_l hΔ hm' hle⟩
+      ⟨_, ?_, hbv⟩, TShape.HasType.mono_l hΔ hm'.hasType hle⟩
+    rw [Subst.one_comp]
+    exact hCv
+
+/-- **Saturation at a transport.**  Nothing to do: the clause already
+says the transported value is hereditarily typed at the motive read at
+the slot, which is `rawExtend ⟦C[b]⟧ ⟦X⟧` in the original -- and the
+motive there is an approximant of `C[b]` because the slot approximates
+`b`. -/
+theorem sound_tr_dom {Γ : List Term} {A a b C X H : Term} {r u v : Bool} (hΓ : ⊢ Γ)
+    (hPC : C.Pinned (A :: Γ))
+    (hA : Γ ⊢ A : .sort u) (hb : Γ ⊢ b : A) (hC : A :: Γ ⊢ C : .sort v)
+    (ihAty : SoundTy Γ A (.sort u)) (ihbdom : SoundDom Γ b A)
+    (ihbdir : SoundDir Γ b) :
+    SoundDom Γ (.tr r A a b C X H) (C.inst b) := by
+  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+  have hwρ := hAdm.wf
+  cases hm with
+  | bot => exact ⟨TShape.bot, TShape.bot, .bot, TShape.bot_le' rfl, .bot,
+      TShape.Dom.bot (.bot (.bot .sort))⟩
+  | tr hw hle hX ha hbv hAv hwv hvA hCv hcb hm' hH heq hAt hat hbt =>
+    refine ⟨_, _, .tr hm'.hasType.wf.1 (TShape.LE.refl hm'.hasType.wf.1) hX ha hbv hAv
+        hwv hvA hCv hcb hm' hH heq hAt hat hbt, hle,
+      (Interp.inst (A := A) (b := C) hΔ hΓ hA hb hC hPC W hAdm
+        (Subst.Saturates.one hΔ hΓ W hAdm ihAty.isTypeAt ihbdom)
+        (ihbdir hΔ W hwρ) hwρ).2 ⟨_, ?_, hbv⟩, hm'⟩
     rw [Subst.one_comp]
     exact hCv
 
@@ -4172,7 +4197,7 @@ theorem sound_tr_refl_eq {Γ : List Term} {A a C X : Term} {u v : Bool} {r : Boo
     (hΓ : ⊢ Γ) (hA : Γ ⊢ A : .sort u) (ha : Γ ⊢ a : A) (hC : A :: Γ ⊢ C : .sort v)
     (ihA : SoundTy Γ A (.sort u)) (ihaty : SoundTy Γ a A) (ihadom : SoundDom Γ a A)
     (ihadir : SoundDir Γ a)
-    (ihC : SoundTy (A :: Γ) C (.sort v)) (ihx : SoundTy Γ X (C.inst a)) :
+    (ihC : SoundTy (A :: Γ) C (.sort v)) (ihxdom : SoundDom Γ X (C.inst a)) :
     SoundEq Γ (.tr r A a a C X (.refl r a)) X := by
   intro Δ Γ₀ σ ρ hΔ W hAdm m
   have hwρ := hAdm.wf
@@ -4182,7 +4207,7 @@ theorem sound_tr_refl_eq {Γ : List Term} {A a C X : Term} {u v : Bool} {r : Boo
     | bot => exact .bot
     | tr hw hle hX _ _ _ _ _ _ _ _ _ _ _ _ _ => exact Interp.mono hΔ hw hle hX
   · intro h
-    obtain ⟨c, hc, hct⟩ := ihx.approx hΔ W hAdm h
+    obtain ⟨mX, c, hmX, hmle, hc, hdc⟩ := ihxdom hΔ W hAdm h
     obtain ⟨x₀, hC₀, ha₀⟩ :=
       (Interp.inst (A := A) (b := C) hΔ hΓ hA ha hC hPC W hAdm
         (Subst.Saturates.one hΔ hΓ W hAdm ihA.isTypeAt ihadom)
@@ -4198,8 +4223,8 @@ theorem sound_tr_refl_eq {Γ : List Term} {A a C X : Term} {u v : Bool} {r : Boo
       .cons W hA (ha.subst hΔ W)
     have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons (a.subst σ)) (ρ.push x) :=
       .cons hAdm W.wf (fun _ hd => ihA.isType hΔ W hAdm hd) hvA ha'.wf hdom
-    refine .tr h.wf (TShape.LE.refl h.wf) h ha' ha' hvA ha'.wf hdom hC
-      (ihC.isType hΔ Wa hAdm' hC) hct ?_ (ha.subst hΔ W) ⟨u, hA⟩ ha ha
+    refine .tr h.wf hmle hmX ha' ha' hvA ha'.wf hdom hC
+      (ihC.isType hΔ Wa hAdm' hC) hdc ?_ (ha.subst hΔ W) ⟨u, hA⟩ ha ha
     rintro rfl
     exact .refl ha' ha'.wf (TShape.LE.refl ha'.wf)
 
@@ -5176,7 +5201,7 @@ theorem IsDefEq.sound₄ {Γ : List Term} {t t' A : Term}
   | @tr_refl _ A u a v C X r hA ha hC hx htr ihA iha ihC ihx ihtr =>
     exact ⟨sound_tr_refl_eq (ihC ⟨hΓ, _, hA⟩).2.2.1 hΓ hA ha hC
         (ihA hΓ).2.1 (iha hΓ).2.1 (IsDefEq.soundDom hΓ ha) (IsDefEq.dir hΓ ha).1
-        (ihC ⟨hΓ, _, hA⟩).2.1 (ihx hΓ).2.1,
+        (ihC ⟨hΓ, _, hA⟩).2.1 (IsDefEq.soundDom hΓ hx),
       (ihtr hΓ).2.1, (ihtr hΓ).2.2.1, (ihx hΓ).2.2.1⟩
   -- both sides are typed at a proposition, so both collapse to `⊥`
   | proofIrrel _ _ _ ih₁ ih₂ ih₃ =>

@@ -302,7 +302,7 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
     TShape.Dom Δ vA v →
     Interp Δ (A :: Γ) C (σ.cons (b.subst σ)) (ρ.push v) cb →
     TShape.HasType Δ cb TShape.type →
-    TShape.HasType Δ m' cb →
+    TShape.Dom Δ cb m' →
     (r = true → Interp Δ Γ H σ ρ (Shape.T (n := v.1+1) (ShapeS.refl v.2))) →
     Δ ⊢ a.subst σ ≡ b.subst σ : A.subst σ →
     (∃ u, Γ ⊢ A : .sort u) → (Γ ⊢ a : A) → (Γ ⊢ b : A) →
