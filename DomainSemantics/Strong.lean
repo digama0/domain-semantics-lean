@@ -260,7 +260,8 @@ theorem StrongSound.uniq : ∀ {t : Term} {Γ : List Term} {A B : Term}, ⊢ Γ 
     -- types the slot, and `SoundEq.forallE_cod` moves it to the other codomain
     have hΓA₀ : ⊢ (_ :: Γ) := ⟨hΓ, _, a1.typed⟩
     have hΓA₁ : ⊢ (_ :: Γ) := ⟨hΓ, _, b1.typed⟩
-    exact ⟨SoundEq.inst_cod hΓ a1.typed hB₀ b1.typed hB₁
+    exact ⟨SoundEq.inst_cod (IsDefEq.pinned hΓA₀ hB₀) (IsDefEq.pinned hΓA₁ hB₁)
+        hΓ a1.typed hB₀ b1.typed hB₁
         (IsDefEq.dir hΓA₀ hB₀).1 (IsDefEq.dir hΓA₁ hB₁).1
         a3.sound b3.sound (IsDefEq.dir hΓ a3.sound.typed).1 a1 b1 hs,
       _, IsDefEq.inst_cod hΓ a1.typed a3.sound.typed hcod⟩
@@ -282,7 +283,8 @@ theorem StrongSound.uniq : ∀ {t : Term} {Γ : List Term} {A B : Term}, ⊢ Γ 
     have hfst' := IsDefEq.fstDF b1.typed b2.typed b3.sound.typed
     have hΓA₀ : ⊢ (_ :: Γ) := ⟨hΓ, _, a1.typed⟩
     have hΓA₁ : ⊢ (_ :: Γ) := ⟨hΓ, _, b1.typed⟩
-    exact ⟨SoundEq.inst_cod_sigma hΓ a1.typed a2.typed b1.typed b2.typed
+    exact ⟨SoundEq.inst_cod_sigma (IsDefEq.pinned hΓA₀ a2.typed)
+        (IsDefEq.pinned hΓA₁ b2.typed) hΓ a1.typed a2.typed b1.typed b2.typed
         (IsDefEq.dir hΓA₀ a2.typed).1 (IsDefEq.dir hΓA₁ b2.typed).1
         (sound_fst a1.typed a2.typed SoundEq.refl a3.sound).2
         (sound_fst b1.typed b2.typed SoundEq.refl b3.sound).2

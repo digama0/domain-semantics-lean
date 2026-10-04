@@ -15,13 +15,13 @@ open DomainSemantics
 Three `sorry`s remain in the whole development, and this board says
 which theorems they reach:
 
-* `IsDefEq.uniq` (`Uniq.lean`) — **uniqueness of types**, the one
-  syntactic fact assumed here, with its own file saying why.  It is used
-  once: `Stable.transfers` has to recognise an `app` or `snd` clause's
-  label, in the smaller context, as the image of the argument's own type,
-  and those are two types of one term.  `Interp.to_substTerm` is proved
-  for every term former above it, `Interp.inst` reaches it, and the
-  computation rules of `IsDefEq.sound` reach `inst`.
+* `IsDefEq.pinned` (`Pinned.lean`) — **every well-typed term is
+  pinned**, which is the third conclusion `IsDefEq.sound` is missing: in
+  the original, substitution is a field of `RawTermProperties` and its
+  `app` case consumes the function's `HasFixedness`.  Here `Term.Pinned`
+  gathers that semantic data structurally, `Interp.to_substTerm` and
+  `Interp.inst` consume it and are **axiom-clean**, and what is assumed
+  is only that a typing supplies it.
 * `eta`, `fst_snd` (`IsDefEq.sound`) — the §5.3 decision.
 * `LR.adequacy`'s `r = false` transport (`Adequacy.lean`, the old
   model) — false for that model, and `LE_Interp.tr_stuck` is the
@@ -49,22 +49,19 @@ which theorems they reach:
 /-- info: 'DomainSemantics.Interp.stage' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms Interp.stage
 
--- **Substitution in the term**, both directions.  Every case of the
--- analytic half is proved; what both reach is `Stable.transfers`.
-/-- info: 'DomainSemantics.Interp.substTerm' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+-- **Substitution in the term**, both directions, and **clean**: the
+-- semantic side conditions are hypotheses (`Term.Pinned`), as the
+-- original's are.
+/-- info: 'DomainSemantics.Interp.substTerm' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms Interp.substTerm
 
-/-- info: 'DomainSemantics.Interp.inst' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'DomainSemantics.Interp.inst' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms Interp.inst
 
--- **The one syntactic fact assumed on this root**, and the only `sorry`
--- under the substitution half: a term has at most one type.
-/-- info: 'DomainSemantics.IsDefEq.uniq' depends on axioms: [sorryAx] -/
-#guard_msgs in #print axioms IsDefEq.uniq
-
--- what it is assumed for: the label link, in the smaller context
-/-- info: 'DomainSemantics.Stable.transfers' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms Stable.transfers
+-- **The missing third conclusion of soundness**, and the only `sorry`
+-- under the substitution half.
+/-- info: 'DomainSemantics.IsDefEq.pinned' depends on axioms: [propext, sorryAx] -/
+#guard_msgs in #print axioms IsDefEq.pinned
 
 -- **The proof-irrelevant transport**: it computes by K, so a transport
 -- whose endpoints differ at the stage has no information.
