@@ -41,7 +41,7 @@ or state, and it is the whole difference between the two developments.
 | `Ty`/`Tm` quotients: labels equal mod defeq | `LabelEq`, `PiLabelEq`, `IdLabelEq` in `LE`/`Compat` | done |
 | `Ctx.extension` is *not* quotiented: `A::Γ` vs `A'::Γ` need `contextConversion` + `HasRenaming` | `Interp.ctx` (the context index is phantom) | done, free |
 | `SourceAdmissible`: slot directed, `rawExtend ⟦A⟧ (ρ 0) = ρ 0` | `Adm.cons`: slot WF, typed at an approximant, `⟦A⟧` saturated | done |
-| `SourceAdmissible.pullback` | `Adm.subst` | stated, sorried; **probably not needed** (§3.5) |
+| `SourceAdmissible.pullback` | `Adm.subst` | stated, sorried; **probably not needed** (§3.5).  What *was* needed is `Subst.Saturates` (§3.1e), the original's `SourceAdmissible`+`SingleSubstitution` |
 | `SourceAdmissible.push` at `rawExtend ⟦A⟧ X` | `Adm.cons` at a *typed* slot; the binder rules' `hdom` premise supplies it | done for the binder congruences |
 | `rawExtend_isDirected` + idempotent (free) | `SoundJoin` | **avoidable for Π/λ** (§2.3), **needed for `tr`** (§4.7) |
 | `normalizedBodyAction`: body evaluated at `rawExtend ⟦A⟧ x` | binder rules evaluate the body at the entry input `e.inp`, and demand `HasType e.inp d` | see η, §4.5: this is where the choice bites |
@@ -50,7 +50,7 @@ or state, and it is the whole difference between the two developments.
 | `PiReady Γ A B` stored in the *type's* `RawTermProperties` | `SoundDir Γ A`, `SoundDir (A::Γ) B` from the typing of the binder | see η: recovering `A`'s typing from `Γ ⊢ e : Π A B` is the issue |
 | `HasFixedness Γ t A` | `SoundTy Γ t A` (`InterpTyped`) | as master |
 | `HasEquality` | `SoundEq` | as master |
-| `HasSubstitution` / `HasRenaming`, **fields of `RawTermProperties` proved inside the main induction** | `Interp.substTerm` (∃ρ' form), `Interp.weak'`/`unweak`, as *standalone* lemmas before soundness | all three proved, but hoisting them out of the induction is what left the one hole (§3.1d) |
+| `HasSubstitution` / `HasRenaming`, **fields of `RawTermProperties` proved inside the main induction** | `Interp.substTerm` (∃ρ' form), `Interp.weak'`/`unweak`, as *standalone* lemmas taking the induction's own conclusions (`Term.Pinned`, `Subst.Saturates`) as hypotheses | **done** (§3.1d–f); the data the original keeps in the induction is passed in instead |
 | `SingleSubstitution.variable_eq` | `Interp.bvar_iff` | done |
 | `sourceQuery a` (sup over all typings of the argument), transported as the **image of a set** | the `app` rule names the type `A` in `Δ`, one lookup | **wrong as stated** (§5.5b): naming `A` does not remove the obstruction, it relocates it — and §3.1d is where the relocated one surfaced |
 | `rawExtend ⟦C[b/]⟧ ⟦x⟧` as the value of `tr` | master's `tr` constructor with two `HasType` premises | as master; §4.7 |
@@ -107,14 +107,16 @@ Each line uses only the lines above it.  In particular `IsDefEq.sound`'s
 cases call `IsDefEq.dir` and `Interp.inst` as lemmas, at the typing
 derivations the rule's premises supply; they never re-prove directedness.
 
-**This layering is where the one remaining assumption comes from** (§3.1d).
-The original layers `dir` this way too — `HasIdeality` is a field of its
+**This layering is what the clause conditions pay for** (§3.1d).  The
+original layers `dir` this way too — `HasIdeality` is a field of its
 bundle, but its `app` case takes the function's fixedness — and it does
 *not* layer substitution: `HasSubstitution` is a field of
 `RawTermProperties`, proved in the same induction, and its `app` case
 consumes that fixedness.  Putting `Interp.substTerm` below `sound`
-deprives its `app` case of the only thing that pins the label, and the
-syntactic substitute for it is uniqueness of types.
+deprives its `app` case of the only thing that pins the label; rather
+than move the lemma up, the data is passed down, as `Term.Pinned` and
+`Subst.Saturates` hypotheses that the soundness induction supplies
+(§3.1e–f).  `IsDefEq.dir` needs neither, so it stays independent.
 
 ### 2.2 Definitions to keep
 
@@ -538,55 +540,50 @@ instead of a global `Interp.inst`.  Then `IsDefEq.uniq` is not needed at
 all, and uniqueness comes out downstream, where their `Unique.lean` has
 it.
 
-**Half of that is done.**  Rather than move the whole lemma into the
-induction, the semantic side conditions it needs are now a *hypothesis*
-of it, gathered structurally as `Term.Pinned` (`Interp.lean`):
+**That is now what is there.**  `IsDefEq.sound` proves `SoundEq`,
+`SoundTy` *and* `Term.Pinned` of both sides in one induction (§3.1f), and
+`Interp.to_substTerm` is the standalone lemma that consumes the last of
+these.  `Term.Pinned` (`Interp.lean`) gathers the conditions
+structurally:
 
 | conjunct | what it is | the original |
 |---|---|---|
-| `IsTypeAt Γ A` at every binder | every approximant of the annotation is a type | what rebuilds the extended stage's admissibility |
+| `IsTypeAt Γ A` at every binder | every approximant of the annotation, at an admissible stage, is a type | what rebuilds the extended stage's admissibility |
 | `TypedAt Γ M .nat`, `TypedAt Γ (Y A b) A` | the two binder slots that are not entry inputs | `natCase`'s and `Y`'s own fixedness |
 | `PinApp Γ F a`, `PinSnd Γ p` | a λ- (resp. pair-) shape approximating the subject has its label defeq to the argument's type at the stage | `HasFixedness` + `outputAtom_rawPi_fixed_support` |
 
-`Interp.to_substTerm`, `substTerm` and `inst` take it and are
-**axiom-clean**; `Stable.transfers` and `IsDefEq.uniq` are deleted.  The
-assumption is now `IsDefEq.pinned` (`Pinned.lean`): *every well-typed
-term is pinned* — the third conclusion itself, nothing more.
+Each is one half of a subterm's own `SoundTy`, which is why the induction
+can discharge it; `Stable.transfers` and `IsDefEq.uniq` are deleted, and
+so is the `IsDefEq.pinned` assumption.
 
-**What finishing it still needs**, found by trying (twice): `Pinned`'s conjuncts
-are statements at the *source* stage, and proving them from a subterm's
-`SoundTy` means transporting that `SoundTy` across `θ`, which reads it at
-the stage `θ ∘ σ` under the valuation `to_substTerm` **builds**.  So that
-valuation has to be admissible whenever the source one is, which is a
-condition on `θ` — the original's `SourceAdmissible` and
-`SingleSubstitution` (`Soundness/Admissible.lean`,
-`Soundness/SingleSubstitution.lean`), both of which it carries through
-`HasSubstitution` for exactly this reason.  Translating that pair is the
-next step, and at `inst`'s call sites its hypothesis is free: there
-`θ = one a` and the slot's typing is `SoundTy Γ a A`.
-
-**But it is not a mechanical translation, and this is the third place the
-model's difference from the original shows.**  There the `Γ`-side
-valuation *is* `⟦θ⟧` — an ideal, one object, admissible by construction.
-Here it is an approximant the `∃` picks, and **admissibility is not
-upward closed**: enlarging a valuation breaks its slots' typings, typing
-being a lower set.  So "enlarge the reconstructed valuation until it
-hosts the type-approximants `Adm` wants" does not close — each
+**Getting there went through one real obstacle**, found by trying
+(twice): stated at the *source* stage, as `to_substTerm` consumes them,
+the conditions are unprovable, because transporting a subterm's
+`SoundTy` across `θ` reads it under the valuation `to_substTerm`
+**builds**, and that valuation need not be admissible.  **Admissibility
+is not upward closed**: enlarging a valuation breaks its slots' typings,
+typing being a lower set.  So "enlarge the reconstructed valuation until
+it hosts the type-approximants `Adm` wants" does not close — each
 enlargement needs its new slots typed, and their types are read at a
-bigger valuation again.  This is the same ideal-versus-approximant gap
-as §5.1's join-closure and §5.5's lower-closure, in a third place.
+bigger valuation again.  That is the same ideal-versus-approximant gap as
+§5.1's join-closure and §5.5's lower-closure, in a third place: there the
+`Γ`-side valuation *is* `⟦θ⟧`, an ideal, one object, admissible by
+construction.
 
-Two things came out of the attempt.  `Adm` is now a **predicate on
+What closes it is to state the conditions on the `Γ` side and carry
+`Subst.Saturates` — "every θ-approximating valuation is below an
+admissible one" — which is the original's `SourceAdmissible` /
+`SingleSubstitution` pair, true for the same reason: the only `θ` that
+arises is `one a` lifted.  §3.1e has it.
+
+Two things came out of the attempt and stayed.  `Adm` is a **predicate on
 slots** — every slot well formed, and the slot a variable reads typed at
 an approximant of its type — rather than an inductive indexed by a base
 context.  It says the same of every valuation the inductive admitted
 (`Adm.lookup` *was* that statement), it makes enlargements and joins
-expressible, and it drops a context index from every signature.  And the
-way through looks like the original's own: `SingleSubstitution` is used
-only at a single substitution, and there the `Γ`-side valuation is
-`ρ.push x` with `ρ` already admissible and `x` choosable among `a`'s
-approximants — so the specialised form may close where the general one
-does not.
+expressible, and it drops a context index from every signature.  And
+`Adm.unlift`, its restriction along a context lift, is what gives the
+weakening lemmas back.
 
 Two things that would *not* work, recorded so they are not retried:
 
@@ -598,43 +595,87 @@ Two things that would *not* work, recorded so they are not retried:
   Π-type stays existential and `to_substTerm` still has to invent
   `Γ`-level data.
 
-#### 3.1e The single-substitution route, worked out
+#### 3.1e Saturation: how the clause conditions got discharged — **closed**
 
-`Interp.inst` is the only consumer of the substitution lemma, and it uses
-`θ = Subst.one a`; `to_substTerm`'s own recursion lifts that under each
-binder.  So **every `θ` that ever arises is `one a` lifted `k` times**,
-and both `Term.Pinned` and `to_substTerm` may be restricted to that
-class (which also subsumes their `Subst.Good` and `Ctx.SubstEq`
-hypotheses).  That is the original's `SingleSubstitution`, which is
-likewise only ever used at one.
+The obstacle was that `Term.Pinned`'s conditions were stated on the
+*source* side of the substitution, where `to_substTerm` consumes them —
+"every approximant of `A[θ]` at the source stage is a type" — and nothing
+can prove them there.  Proving one means transporting an approximant back
+to `Γ` and reading the subterm's `SoundTy`, and `SoundTy` is only
+readable at an **admissible** stage, which the transported valuation need
+not be: `Adm` is not upward closed, because typing is a lower set, so
+enlarging a valuation to host the type-approximants `Adm` asks for breaks
+the slots that were already there.
 
-What the restriction buys: for such a `θ`, every valuation approximating
-it is **bounded by a canonical one** — `ρ` with an approximant `x` of `a`
-inserted at depth `k` — because every other slot is a variable, and an
-approximant of a variable is below that variable's slot.  So a finite
-family of θ-approximating valuations joins inside the family, with the
-join taken at the `a`-slot alone (`SoundDir a`), and the admissibility
-obligation never cascades.
+The resolution is to state the conditions where they are *provable* and
+pay for the move once:
 
-* **Depth 0 is proved**: `Valuation.Approx.canon_one` (`Presheaf.lean`).
-  No join and no growth — slot `0` is already an approximant of `a`, so
-  `SoundTy a A` types it where it stands, and `A` lives *below* the
-  substituted variable, so its own approximant does not move.
-  `Interp.inst_adm` is `inst`'s forward direction with that
-  admissibility, which is what a subterm's `SoundTy` has to be read at.
-* **Depth `k+1`** adds one obligation: the context type `B` above the
-  substitution has its approximant on the source side, and `Adm` wants it
-  on the `Γ` side.  Transporting it returns another θ-approximating
-  valuation, which is absorbed by joining at the `a`-slot — and *that*
-  growth does not cascade: enlarging the `a`-slot leaves every other slot
-  alone, so their typings stand, and their type-approximants survive by
-  `Interp.mono_val`.  One round suffices.
+* `IsTypeAt`, `TypedAt`, `PinApp`, `PinSnd` now quantify over stages out
+  of `Γ` alone.  Each is then one half of a subterm's own `SoundTy`:
+  `SoundTy.isTypeAt`, `SoundTy.typedAt`, and (for the two eliminators)
+  `Interp.lam_label_ty` / `Interp.pair_label_ty` followed by
+  `Stable.of_typed` — `PinApp.of_sound`, `PinSnd.of_sound`.
+* What pays for it is
 
-One interaction to settle first: `Term.Pinned.weak'` precomposes `θ` with
-a lift, which leaves the class.  Its only use is the lifted motive in
-`sound_natCase_ty`, and that motive is itself read at a single
-substitution (`one (succ #0)`), so the fix is probably to derive its
-`Pinned` directly rather than by weakening.
+  ```lean
+  def Subst.Saturates (Δ Γ₀ Γ Γ' : List Term) (θ σ : Subst) (ρ : Valuation) : Prop :=
+    ∀ {ρ'}, Valuation.Approx Δ Γ' θ σ ρ ρ' →
+      ∃ ρ'', Valuation.LE Δ ρ' ρ'' ∧ Valuation.Approx Δ Γ' θ σ ρ ρ'' ∧
+        Adm Δ Γ₀ Γ (θ.comp σ) ρ''
+  ```
+
+  — every valuation approximating `θ` is below an admissible one that
+  still approximates it.  `to_substTerm` carries it and applies it at
+  each site where it reads a condition.
+
+`Saturates` is the original's `SourceAdmissible`/`SingleSubstitution`
+pair, and it holds for the same reason: the only `θ` that ever arises is
+`one a` lifted `k` times, since `Interp.inst` is the substitution
+lemma's only consumer and `to_substTerm`'s recursion lifts.  So it is
+proved in two pieces, and the class never has to be named:
+
+* **Base, `Subst.Saturates.one`** (`= Valuation.Approx.canon_one`): at
+  `one a` the canonical valuation is `ρ` with the argument's approximant
+  pushed on.  No join and no growth — slot `0` is already an approximant
+  of `a`, so `TypedAt a A` types it where it stands, and `A` lives
+  *below* the substituted variable, so its own approximant does not move.
+* **Step, `Subst.Saturates.lift`**: under a binder the slot `y` stays put
+  and the tail is saturated by the hypothesis.  The one obligation the
+  binder adds is that the annotation have an approximant typing `y` on
+  the `Γ` side; that witness is another θ-approximating valuation, so it
+  is absorbed by one join and one further saturation, and *that* does not
+  cascade — enlarging those slots leaves `y` alone.
+
+Two consequences worth recording.  `IsDefEq.dir` never instantiates, so
+it never needs `Saturates` and stays independent of soundness.  And the
+weakening lemmas (`Term.Pinned.weak'` and friends), which the `Γ`-side
+statement broke, come back through `Adm.unlift`: admissibility restricts
+along a context lift, since a variable of the smaller context is one of
+the bigger (`Lookup.weak'`) with the same type lifted, so `Interp.unweak`
+moves that type's approximant down.
+
+#### 3.1f `Term.Pinned` is a theorem — **closed**
+
+With the conditions on the `Γ` side, `IsDefEq.sound`'s induction proves
+them.  Its conclusion is now
+
+```lean
+SoundEq Γ t t' ∧ SoundTy Γ t A ∧ t.Pinned Γ ∧ t'.Pinned Γ
+```
+
+and `IsDefEq.pinned` is a projection; `Pinned.lean` is gone.  Both sides,
+because `symm` needs the right-hand one, and both are cheap: at a
+congruence rule every semantic condition is a subterm's `SoundTy` read
+through the bridges above, and at a computation rule nothing is built at
+all — those rules are padded with typings of both sides, so both
+`Pinned`s are IHs.  The primed side goes through `SoundTy.of_eq`, exactly
+as `SoundTy` itself does.
+
+This is the architecture §3.1d describes as the original's: substitution
+and its prerequisites proved in the same induction as soundness, rather
+than hoisted out of it.  The only difference left is bookkeeping — there
+they are fields of one `RawTermProperties`, here three conclusions of one
+theorem plus the standalone `to_substTerm` that consumes them.
 
 ### 3.2 `IsDefEq.dir`, per former
 
@@ -741,12 +782,18 @@ Master's `LE_Interp.subst`, with the stage moving and the directedness of
 the substituted terms as a hypothesis rather than a global lemma:
 
 ```lean
-theorem Interp.substTerm (hΔ : ⊢ Δ) {θ : Subst}
-    (hθ : ∀ i {m₁ m₂}, Interp Δ Γ' (θ i) σ ρ m₁ → Interp Δ Γ' (θ i) σ ρ m₂ →
-      ∃ s, TShape.WF Δ s ∧ Interp Δ Γ' (θ i) σ ρ s ∧ TShape.LE Δ m₁ s ∧ TShape.LE Δ m₂ s) :
+theorem Interp.substTerm (hΔ : ⊢ Δ) (hΓ : ⊢ Γ) (ht : Γ ⊢ t : T) (hPin : t.Pinned Γ)
+    (hΓ' : ⊢ Γ') (hgood : Subst.Good Γ' θ) (Wθ : Ctx.SubstEq Γ' θ θ Γ)
+    (Wσ : Ctx.SubstEq Δ σ σ Γ') (hAdm : Adm Δ Γ₀ Γ' σ ρ)
+    (hSat : Subst.Saturates Δ Γ₀ Γ Γ' θ σ ρ)
+    (hθ : ∀ i, Interp.Dir Δ Γ' (θ i) σ ρ) :
     Interp Δ Γ' (t.subst θ) σ ρ m ↔
       ∃ ρ', Interp Δ Γ t (θ.comp σ) ρ' m ∧ ∀ i, Interp Δ Γ' (θ i) σ ρ (ρ' i)
 ```
+
+(`hPin` is §3.1d's clause conditions, `hSat` §3.1e's saturation; at
+`inst`'s call sites both are discharged, the first by `IsDefEq.pinned`
+and the second by `Subst.Saturates.one`.)
 
 `←` is master's structural rebuild (`weak'` for the binder cases, since
 `ρ'` gains a slot); it needs no `hθ`.  `→` is master's generalised
