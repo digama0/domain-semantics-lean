@@ -284,6 +284,72 @@ theorem SoundTy.isType {Γ : List Term} {A : Term} {u : Bool} (h : SoundTy Γ A 
     {b : TShape} (hb : Interp Δ Γ A σ ρ b) : TShape.HasType Δ b TShape.type :=
   (h.hasType hΔ W hAdm hb).cumul rfl (Bool.le_true' u)
 
+/-! ### The canonical valuation at a single substitution
+
+`Interp.to_substTerm` returns *some* valuation approximating `θ`, and
+`SoundTy` is read at admissible ones — so to use a subterm's `SoundTy`
+after a substitution one needs the returned valuation to be admissible,
+which it need not be (admissibility is not upward closed, §3.1d).
+
+At a **single** substitution it is, and the valuation is canonical: the
+source valuation with the argument's approximant pushed on.  This is the
+depth-0 case of the original's `SingleSubstitution`, and it is the level
+`Interp.inst` itself works at. -/
+
+/-- The valuation `to_substTerm` returns at `Subst.one a` is below the
+canonical `ρ.push (ρ' 0)`, which approximates `one a` and is admissible.
+No join is needed and nothing grows: slot `0` is already an approximant
+of `a`, so `SoundTy a A` types it, and the type `A` lives *below* the
+substituted variable, so its own approximant does not move. -/
+theorem Valuation.Approx.canon_one {Γ Δ : List Term} {A a : Term} {u : Bool} {σ ρ ρ'}
+    (hΔ : ⊢ Δ) (hΓ : ⊢ Γ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ Γ σ ρ)
+    (hAty : SoundTy Γ A (.sort u)) (haty : SoundTy Γ a A)
+    (hρ' : Valuation.Approx Δ Γ (Subst.one a) σ ρ ρ') :
+    Valuation.LE Δ ρ' (ρ.push (ρ' 0)) ∧
+      Valuation.Approx Δ Γ (Subst.one a) σ ρ (ρ.push (ρ' 0)) ∧
+      Adm Δ Γ (A :: Γ) ((Subst.one a).comp σ) (ρ.push (ρ' 0)) := by
+  have hwρ : Valuation.WF Δ ρ := hAdm.wf
+  refine ⟨fun i => ?_, fun i => ?_, ?_⟩
+  · -- below: slot `0` is itself, and slot `i+1` reads `ρ i`
+    cases i with
+    | zero => exact TShape.LE.refl (hρ' 0).wf
+    | succ i => exact Interp.le_bvar (Γ := Γ) (i := i) (σ := σ) (hρ' (i + 1))
+  · -- still approximates `one a`: slot `0` is `a`'s, slot `i+1` is the variable
+    cases i with
+    | zero => exact hρ' 0
+    | succ i => exact .bvar (hwρ i) (TShape.LE.refl (hwρ i))
+  · -- and is admissible, by `SoundTy a A` at the slot it already holds
+    obtain ⟨α, hα, hxα⟩ := haty.approx hΔ W hAdm (hρ' 0)
+    rw [Subst.one_comp]
+    exact Adm.cons hAdm hΓ (fun _ hb => hAty.isType hΔ W hAdm hb) hα (hρ' 0).wf hxα
+
+/-- `Interp.inst`'s forward direction, with the **admissibility** of the
+stage it lands at.  That is what a subterm's `SoundTy` has to be read at
+after the substitution, and `canon_one` is why it holds here: the slot
+the decomposition produces is already an approximant of `a`, so `SoundTy
+a A` types it where it stands.
+
+`Interp.inst` itself cannot say this — `Adm` and `SoundTy` live above
+`Interp.lean` — which is why it is here. -/
+theorem Interp.inst_adm {Γ Δ : List Term} {A a b B : Term} {u : Bool} {σ ρ m}
+    (hΔ : ⊢ Δ) (hΓ : ⊢ Γ) (hA : Γ ⊢ A : .sort u) (hat : Γ ⊢ a : A)
+    (hb : A :: Γ ⊢ b : B) (hPin : b.Pinned (A :: Γ)) (W : Ctx.SubstEq Δ σ σ Γ)
+    (hAdm : Adm Δ Γ Γ σ ρ) (hAty : SoundTy Γ A (.sort u)) (haty : SoundTy Γ a A)
+    (ha : Interp.Dir Δ Γ a σ ρ) (H : Interp Δ Γ (b.inst a) σ ρ m) :
+    ∃ x, Interp Δ (A :: Γ) b ((Subst.one a).comp σ) (ρ.push x) m ∧
+      Interp Δ Γ a σ ρ x ∧
+      Adm Δ Γ (A :: Γ) ((Subst.one a).comp σ) (ρ.push x) := by
+  obtain ⟨x, hbx, hx⟩ :=
+    (Interp.inst hΔ hΓ hA hat hb hPin W hAdm ha hAdm.wf).1 H
+  refine ⟨x, hbx, hx, ?_⟩
+  -- the slot is an approximant of `a`, which is all `canon_one` reads
+  have hρ' : Valuation.Approx Δ Γ (Subst.one a) σ ρ (ρ.push x) := by
+    intro i
+    cases i with
+    | zero => exact hx
+    | succ i => exact .bvar (hAdm.wf i) (TShape.LE.refl (hAdm.wf i))
+  simpa using (Valuation.Approx.canon_one hΔ hΓ W hAdm hAty haty hρ').2.2
+
 /-- The `SoundTy` half of `forallEDF`, in isolation: a Π-type's
 interpretation is typed at its sort.
 
