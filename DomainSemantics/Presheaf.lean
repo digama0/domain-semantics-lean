@@ -312,7 +312,7 @@ theorem sound_forallE_ty {Γ : List Term} {A B : Term} {u v : Bool}
       have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
         .cons W hAty (hty.defeqDF hwe.2.1)
       have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
-        .cons hAdm (fun _ hb => ihA.isType hΔ W hAdm hb) hA hwe.2.2.1 (hdom e he)
+        .cons hAdm W.wf (fun _ hb => ihA.isType hΔ W hAdm hb) hA hwe.2.2.1 (hdom e he)
       exact ihB.hasType hΔ W' hAdm' (hbody e he)
 
 /-- One direction of the `SoundEq` half of `forallEDF`.
@@ -359,7 +359,7 @@ theorem sound_forallE_eq_of {Γ : List Term} {A A' B B' : Term} {u v : Bool}
       have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
         .cons W hAA'.hasType.1 (hty.defeqDF hwe.2.1)
       have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
-        .cons hAdm (fun _ hb => ihAty.isType hΔ W hAdm hb) hA hwe.2.2.1 (hdom e he)
+        .cons hAdm W.wf (fun _ hb => ihAty.isType hΔ W hAdm hb) hA hwe.2.2.1 (hdom e he)
       exact Interp.ctx ((ihB hΔ W' hAdm').1 (hbody e he)) hΓA'
         (Ctx.SubstEq.defeqHead W.wf hAA')
 
@@ -408,7 +408,7 @@ theorem sound_sigma_ty {Γ : List Term} {A B : Term} {u v : Bool}
     have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
       .cons W hAty (hty.defeqDF hwe.2.1)
     have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
-      .cons hAdm (fun _ hb => ihA.isType hΔ W hAdm hb) hA hwe.2.2.1 (hdom e he)
+      .cons hAdm W.wf (fun _ hb => ihA.isType hΔ W hAdm hb) hA hwe.2.2.1 (hdom e he)
     exact ihB.isType hΔ W' hAdm' (hbody e he)
 
 /-- One direction of the `SoundEq` half of `sigmaDF`; see
@@ -441,7 +441,7 @@ theorem sound_sigma_eq_of {Γ : List Term} {A A' B B' : Term} {u v : Bool}
       have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
         .cons W hAA'.hasType.1 (hty.defeqDF hwe.2.1)
       have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
-        .cons hAdm (fun _ hb => ihAty.isType hΔ W hAdm hb) hA hwe.2.2.1 (hdom e he)
+        .cons hAdm W.wf (fun _ hb => ihAty.isType hΔ W hAdm hb) hA hwe.2.2.1 (hdom e he)
       exact Interp.ctx ((ihB hΔ W' hAdm').1 (hbody e he)) hΓA'
         (Ctx.SubstEq.defeqHead W.wf hAA')
 
@@ -1209,7 +1209,7 @@ theorem sound_lam_ty {Γ : List Term} {A B b : Term} {u v : Bool}
       have hwe := hwf.2.2.1.1 e he
       have hty := (hwf.2.2.2 e he).choose_spec
       exact ⟨.cons W hAty (hty.defeqDF hwe.2.1),
-        .cons hAdm (fun _ hc => ihAty.isType hΔ W hAdm hc) hA hwe.2.2.1 (hdom e he)⟩
+        .cons hAdm W.wf (fun _ hc => ihAty.isType hΔ W hAdm hc) hA hwe.2.2.1 (hdom e he)⟩
     -- a code for every entry, collected and brought to one level
     obtain ⟨g₀, hmap, hall⟩ := List.exists_pairs (β := TShape)
       (P := fun e c => Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push e.inp.T) c ∧
@@ -1324,7 +1324,7 @@ theorem sound_lam_eq_of {Γ : List Term} {A A' b b' : Term} {u : Bool}
     have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
       .cons W hAA'.hasType.1 ((hwf.2.2.2 e he).choose_spec.defeqDF hwe.2.1)
     have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
-      .cons hAdm (fun _ hc => ihAty.isType hΔ W hAdm hc) hA hwe.2.2.1 (hdom e he)
+      .cons hAdm W.wf (fun _ hc => ihAty.isType hΔ W hAdm hc) hA hwe.2.2.1 (hdom e he)
     exact Interp.ctx ((ihb hΔ W' hAdm').1 (hbody e he)) ⟨W.wf, _, hAA'.hasType.2⟩
       (Ctx.SubstEq.defeqHead W.wf hAA')
   | bot => exact .bot
@@ -1911,7 +1911,7 @@ theorem sound_pair_ty {Γ : List Term} {A B a b : Term} {u v : Bool}
       have W' : Ctx.SubstEq Δ (σ.cons p.1.tm) (σ.cons p.1.tm) (A :: Γ) :=
         .cons W hAty ((hwp.2.2.2.1 p.1 (hg₀g p hp)).choose_spec.defeqDF hwe.2.1)
       have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons p.1.tm) (ρ.push p.1.inp.T) :=
-        .cons hAdm (fun _ hc' => ihAty.isType hΔ W hAdm hc') hA hwe.2.2.1 (hdom p hp)
+        .cons hAdm W.wf (fun _ hc' => ihAty.isType hΔ W hAdm hc') hA hwe.2.2.1 (hdom p hp)
       exact (ihBty.isType hΔ W' hAdm' (hcode p hp)).lift_subject hΔ (hkc p hp)
     · -- the generator's entries are well formed
       exact ⟨(hwp.2.2.1.1 e he).2.2.1, (hwp.2.2.1.1 e he).2.2.2⟩
@@ -1964,7 +1964,7 @@ theorem sound_pair_eq_of {Γ : List Term} {A A' B B' a a' b b' : Term} {u : Bool
         .cons W hAA'.hasType.1
           ((hwp.2.2.2.1 e.1 (List.mem_map.2 ⟨e, he, rfl⟩)).choose_spec.defeqDF hwe.2.1)
       have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.1.tm) (ρ.push e.1.inp.T) :=
-        .cons hAdm (fun _ hc => ihAty.isType hΔ W hAdm hc) hA hwe.2.2.1 (hdom e he)
+        .cons hAdm W.wf (fun _ hc => ihAty.isType hΔ W hAdm hc) hA hwe.2.2.1 (hdom e he)
       exact Interp.ctx ((ihB hΔ W' hAdm').1 (hcode e he)) ⟨W.wf, _, hAA'.hasType.2⟩
         (Ctx.SubstEq.defeqHead W.wf hAA')
 
@@ -3011,7 +3011,7 @@ theorem sound_natCase_of {Γ : List Term} {C C' M M' a a' b b' : Term}
       (TShape.HasType.isNumeral hΔ (Interp.le_nat hc) hty).pred.hasType
     have Wcons : Ctx.SubstEq Δ (σ.cons t) (σ.cons t) (Term.nat :: Γ) := .cons W .nat ht
     have hAdm' : Adm Δ Γ₀ (Term.nat :: Γ) (σ.cons t) (ρ.push v.T) :=
-      .cons hAdm (fun _ hb => TShape.HasType.mono_l hΔ .nat (Interp.le_nat hb))
+      .cons hAdm W.wf (fun _ hb => TShape.HasType.mono_l hΔ .nat (Interp.le_nat hb))
         Interp.nat' (TShape.WF.T.2 hwv) hvnat
     exact .natCase_succ ((ihM hΔ W hAdm).1 hM) hwv
       (((hMM'.subst hΔ W).symm).trans heq)
@@ -3079,7 +3079,7 @@ theorem sound_natCase_ty {Γ : List Term} {C M a b : Term} {v : Bool} (hΓ : ⊢
       (TShape.HasType.isNumeral hΔ (Interp.le_nat hcM) htyM).pred.hasType
     have hwv' : TShape.WF Δ w.T := TShape.WF.T.2 hwv
     have hAdm' : Adm Δ Γ₀ (Term.nat :: Γ) (σ.cons t) (ρ.push w.T) :=
-      .cons hAdm (fun _ hb => TShape.HasType.mono_l hΔ .nat (Interp.le_nat hb))
+      .cons hAdm W.wf (fun _ hb => TShape.HasType.mono_l hΔ .nat (Interp.le_nat hb))
         Interp.nat' hwv' hvnat
     -- the body's type, unfolded one `inst` and one weakening
     obtain ⟨c, hc, hct⟩ := ihb.approx hΔ Wcons hAdm' hmb
@@ -3143,7 +3143,7 @@ theorem sound_Y_ty_aux {Δ : List Term} (hΔ : ⊢ Δ) {Γ₀ Γ : List Term} {t
     have WY : Ctx.SubstEq Δ (σ'.cons ((Term.Y A b).subst σ'))
         (σ'.cons ((Term.Y A b).subst σ')) (A :: Γ') := .cons W hA (hY.subst hΔ W)
     have hAdm' : Adm Δ Γ₀ (A :: Γ') (σ'.cons ((Term.Y A b).subst σ')) (ρ'.push _) :=
-      .cons hAdm (fun _ hb => ihA.isType hΔ W hAdm hb) hcx hwx htyx
+      .cons hAdm W.wf (fun _ hb => ihA.isType hΔ W hAdm hb) hcx hwx htyx
     obtain ⟨c, hc, hct⟩ := ihb.approx hΔ WY hAdm' hbody
     exact ⟨c, Interp.unweak (Δ := Δ) hΔ hΓ hA.annot.1 (Γ' := A :: Γ') (l := .skip .refl)
       (.skip .refl) WY (fun i => rfl) hc, hct⟩
@@ -3183,7 +3183,7 @@ theorem sound_Y_eq_aux {Δ : List Term} (hΔ : ⊢ Δ) {Γ₀ Γ : List Term} {t
         (σ'.cons ((Term.Y A b).subst σ')) (A :: Γ') :=
       .cons W hAA'.hasType.1 (hY.subst hΔ W)
     have hAdm' : Adm Δ Γ₀ (A :: Γ') (σ'.cons ((Term.Y A b).subst σ')) (ρ'.push _) :=
-      .cons hAdm (fun _ hb => ihA.isType hΔ W hAdm hb) hcx hwx htyx
+      .cons hAdm W.wf (fun _ hb => ihA.isType hΔ W hAdm hb) hcx hwx htyx
     -- the body, at the other side and at the other stage
     have hbody' := (ihbeq hΔ WY hAdm').1 hbody
     have W' : Ctx.SubstEq Δ (σ'.cons ((Term.Y A b).subst σ'))
@@ -3239,7 +3239,7 @@ theorem sound_tr_eq_of {Γ : List Term} {A A' a a' b b' C C' X X' H H' : Term}
     have WC : Ctx.SubstEq Δ (σ.cons (b.subst σ)) (σ.cons (b.subst σ)) (A :: Γ) :=
       .cons W hAA'.hasType.1 (hbb'.hasType.1.subst hΔ W)
     have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons (b.subst σ)) (ρ.push _) :=
-      .cons hAdm (fun _ hc => ihA.isType hΔ W hAdm hc) hA hwv hvA
+      .cons hAdm W.wf (fun _ hc => ihA.isType hΔ W hAdm hc) hA hwv hvA
     have WC' : Ctx.SubstEq Δ (σ.cons (b.subst σ)) (σ.cons (b'.subst σ)) (A' :: Γ) :=
       .cons W hAA'.hasType.2 ((hAA'.subst hΔ W).defeqDF (hbb'.subst hΔ W))
     refine .tr hw hle ((ihXeq hΔ W hAdm).1 hX) ((ihaeq hΔ W hAdm).1 ha)
@@ -3316,7 +3316,7 @@ theorem sound_tr_refl_eq {Γ : List Term} {A a C X : Term} {u v : Bool} {r : Boo
     have Wa : Ctx.SubstEq Δ (σ.cons (a.subst σ)) (σ.cons (a.subst σ)) (A :: Γ) :=
       .cons W hA (ha.subst hΔ W)
     have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons (a.subst σ)) (ρ.push x₀) :=
-      .cons hAdm (fun _ hd => ihA.isType hΔ W hAdm hd) hvA ha₀.wf htyx₀
+      .cons hAdm W.wf (fun _ hd => ihA.isType hΔ W hAdm hd) hvA ha₀.wf htyx₀
     refine .tr h.wf (TShape.LE.refl h.wf) h ha₀ ha₀ hvA ha₀.wf htyx₀ hC₀
       (ihC.isType hΔ Wa hAdm' hC₀) hct ?_ (ha.subst hΔ W) ⟨u, hA⟩ ha ha
     rintro rfl
