@@ -538,6 +538,33 @@ instead of a global `Interp.inst`.  Then `IsDefEq.uniq` is not needed at
 all, and uniqueness comes out downstream, where their `Unique.lean` has
 it.
 
+**Half of that is done.**  Rather than move the whole lemma into the
+induction, the semantic side conditions it needs are now a *hypothesis*
+of it, gathered structurally as `Term.Pinned` (`Interp.lean`):
+
+| conjunct | what it is | the original |
+|---|---|---|
+| `IsTypeAt Γ A` at every binder | every approximant of the annotation is a type | what rebuilds the extended stage's admissibility |
+| `TypedAt Γ M .nat`, `TypedAt Γ (Y A b) A` | the two binder slots that are not entry inputs | `natCase`'s and `Y`'s own fixedness |
+| `PinApp Γ F a`, `PinSnd Γ p` | a λ- (resp. pair-) shape approximating the subject has its label defeq to the argument's type at the stage | `HasFixedness` + `outputAtom_rawPi_fixed_support` |
+
+`Interp.to_substTerm`, `substTerm` and `inst` take it and are
+**axiom-clean**; `Stable.transfers` and `IsDefEq.uniq` are deleted.  The
+assumption is now `IsDefEq.pinned` (`Pinned.lean`): *every well-typed
+term is pinned* — the third conclusion itself, nothing more.
+
+**What finishing it still needs**, found by trying: `Pinned`'s conjuncts
+are statements at the *source* stage, and proving them from a subterm's
+`SoundTy` means transporting that `SoundTy` across `θ`, which reads it at
+the stage `θ ∘ σ` under the valuation `to_substTerm` **builds**.  So that
+valuation has to be admissible whenever the source one is, which is a
+condition on `θ` — the original's `SourceAdmissible` and
+`SingleSubstitution` (`Soundness/Admissible.lean`,
+`Soundness/SingleSubstitution.lean`), both of which it carries through
+`HasSubstitution` for exactly this reason.  Translating that pair is the
+next step, and at `inst`'s call sites its hypothesis is free: there
+`θ = one a` and the slot's typing is `SoundTy Γ a A`.
+
 Two things that would *not* work, recorded so they are not retried:
 
 * **Annotating `Term.app`** with its domain.  It would pin the label, but
