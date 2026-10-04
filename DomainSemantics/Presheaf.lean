@@ -1280,13 +1280,13 @@ family, their inputs join there, and the family's directedness puts both
 values under one shape — the argument of `sound_lam_ub`'s cross pairs,
 with the *codomain* in place of the body.  It is what makes the Π-shape
 built below well formed. -/
-theorem graph_coherent {Γ Δ : List Term} {A B : Term} {σ ρ} {u v : Bool}
-    (hΓ : ⊢ Γ) (hAty : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v)
+theorem graph_coherent {Γ Δ : List Term} {A C t : Term} {σ ρ} {u : Bool}
+    (hΓ : ⊢ Γ) (hAty : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ t : C)
     (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hwρ : Valuation.WF Δ ρ)
-    (ihBdir : SoundDir (A :: Γ) B) {k} {f : ShapeFun k}
+    (ihBdir : SoundDir (A :: Γ) t) {k} {f : ShapeFun k}
     (hent : ∀ e ∈ f, Shape.WF Δ e.inp)
     (hlab : ∀ e ∈ f, TyEq Δ e.ty (A.subst σ))
-    (hbody : ∀ e ∈ f, Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push e.inp.T) e.out.T) :
+    (hbody : ∀ e ∈ f, Interp Δ (A :: Γ) t (σ.cons e.tm) (ρ.push e.inp.T) e.out.T) :
     ShapeFun.Compat Shape.Compat Δ f f := by
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hAty⟩
   intro e he e' he' Θ τ hΘ Wτ hlabq hin
@@ -1316,6 +1316,158 @@ theorem graph_coherent {Γ Δ : List Term} {A B : Term} {σ ρ} {u v : Bool}
     (Interp.mono_val hΘ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρτ, hjx₂⟩) hb₂)
   exact TShape.Compat.T.1 (TShape.Compat.of_common_upper hΘ (by assumption) hs₁ hs₂)
 
+/-- Each entry of a λ-approximant is an admissible stage: its label is
+typed at the domain, and the slot it opens is hereditarily typed there
+because `Interp.lam` demands that. -/
+theorem lam_stage {Γ Γ₀ Δ : List Term} {A : Term} {u : Bool} {σ ρ}
+    (hAty : Γ ⊢ A : .sort u) (ihAty : SoundTy Γ A (.sort u))
+    (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
+    {n} {g : ShapeFun n} {d : TShape} (hA : Interp Δ Γ A σ ρ d)
+    (hwf : Shape.WF (n := n+1) Δ (.lam (A.subst σ) g))
+    (hdom : ∀ e ∈ g, TShape.Dom Δ d e.inp.T) :
+    ∀ e ∈ g, Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) ∧
+      Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push e.inp.T) := by
+  intro e he
+  have hwe := hwf.2.2.1.1 e he
+  have hty := (hwf.2.2.2 e he).choose_spec
+  exact ⟨.cons W hAty (hty.defeqDF hwe.2.1),
+    .cons hAdm W.wf (fun _ hc => ihAty.isType hΔ W hAdm hc) hA hwe.2.2.1 (hdom e he)⟩
+
+/-- **The Π-approximant read off a λ-approximant.**  Given a code for
+every entry's body, this is the Π-shape whose domain is the λ's own
+domain slot and whose codomain graph has one entry per code: it
+interprets `Π A B`, it types the λ-shape, and its graph looks up each
+entry's code.  `sound_lam_ty` instantiates the codes with the body's
+*typing* and `sound_lam_dom` with the body's *saturation*, which is the
+only difference between the two. -/
+theorem lam_pi_code {Γ Γ₀ Δ : List Term} {A B : Term} {u v : Bool} {σ ρ}
+    (hΓ : ⊢ Γ) (hAty : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v)
+    (ihAty : SoundTy Γ A (.sort u)) (ihBty : SoundTy (A :: Γ) B (.sort v))
+    (ihBdir : SoundDir (A :: Γ) B)
+    (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
+    {n} {g : ShapeFun n} {d : TShape}
+    (hA : Interp Δ Γ A σ ρ d) (hd : TShape.HasType Δ d TShape.type)
+    (hwf : Shape.WF (n := n+1) Δ (.lam (A.subst σ) g))
+    (hdom : ∀ e ∈ g, TShape.Dom Δ d e.inp.T)
+    {Q : Entry (Shape n) → TShape → Prop}
+    (hQmono : ∀ {e : Entry (Shape n)} {c c' : TShape}, TShape.LE Δ c c' →
+      TShape.HasType Δ c' TShape.type → Q e c → Q e c')
+    (hcodes : ∀ e ∈ g, ∃ c, Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push e.inp.T) c ∧
+      TShape.HasType Δ e.out.T c ∧ Q e c) :
+    ∃ (k : Nat) (dk : Shape k) (f : ShapeFun k),
+      Interp Δ Γ (.forallE A B) σ ρ
+        (Shape.T (n := k+1) (.forallE (A.subst σ) (B.subst σ.lift) dk f)) ∧
+      TShape.HasType Δ (Shape.T (n := n+1) (.lam (A.subst σ) g))
+        (Shape.T (n := k+1) (.forallE (A.subst σ) (B.subst σ.lift) dk f)) ∧
+      TShape.HasType Δ (Shape.T dk) TShape.type ∧
+      (∀ e ∈ g, TShape.Dom Δ (Shape.T dk) e.inp.T) ∧
+      (∀ e ∈ g, ∃ c, TEvaluates Δ f e.ty e.tm e.inp.T c ∧
+        TShape.HasType Δ c TShape.type ∧ Q e c) := by
+  have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hAty⟩
+  have hwρ := hAdm.wf
+  have hstage := lam_stage hAty ihAty hΔ W hAdm hA hwf hdom
+  -- the codes, collected and brought to one level
+  obtain ⟨g₀, hmap, hall⟩ := List.exists_pairs (β := TShape) hcodes
+  obtain ⟨k, hkn, hkd, hkc⟩ : ∃ k, n ≤ k ∧ d.1 ≤ k ∧ ∀ p ∈ g₀, (Prod.snd p : TShape).1 ≤ k :=
+    ⟨levelMax (fun p => (Prod.snd p : TShape).1) (max n d.1) g₀,
+      Nat.le_trans (Nat.le_max_left ..) le_levelMax,
+      Nat.le_trans (Nat.le_max_right ..) le_levelMax,
+      fun p hp => mem_le_levelMax (f := fun p => (Prod.snd p : TShape).1) hp⟩
+  -- the codomain graph, one entry per entry of the λ's
+  obtain ⟨f, hf⟩ : ∃ f : ShapeFun k, ∀ e, e ∈ f ↔ ∃ p ∈ g₀,
+      e = ⟨p.1.ty, p.1.tm, p.1.inp.lift k, (Prod.snd p : TShape).2.lift k⟩ :=
+    ⟨g₀.map fun p => ⟨p.1.ty, p.1.tm, p.1.inp.lift k, (Prod.snd p : TShape).2.lift k⟩,
+      fun e => by simp [List.mem_map, eq_comm]⟩
+  have hg₀g : ∀ p ∈ g₀, p.1 ∈ g := fun p hp => hmap ▸ List.mem_map.2 ⟨p, hp, rfl⟩
+  have hpwf : ∀ p ∈ g₀, TShape.WF Δ (Prod.snd p : TShape) := fun p hp => (hall p hp).1.wf
+  have hdty : TShape.HasType Δ (Shape.T (d.2.lift k)) TShape.type :=
+    hd.lift_subject hΔ hkd
+  have hdle : TShape.LE Δ d (Shape.T (d.2.lift k)) :=
+    TShape.LE.le_lift hΔ (m := d) hkd hd.wf.1
+  -- the Π-shape's premises, entry by entry
+  have hfent : ∀ e ∈ f, (∃ u, Δ ⊢ e.ty : .sort u) ∧ Δ ⊢ e.tm : e.ty ∧
+      Shape.WF Δ e.inp ∧ Shape.WF Δ e.out := by
+    intro e he
+    obtain ⟨p, hp, rfl⟩ := (hf e).1 he
+    have hwe := hwf.2.2.1.1 p.1 (hg₀g p hp)
+    exact ⟨hwe.1, hwe.2.1, (Shape.lift_wf hkn).2 hwe.2.2.1,
+      (Shape.lift_wf (hkc p hp)).2 (hpwf p hp)⟩
+  have hflab : ∀ e ∈ f, TyEq Δ e.ty (A.subst σ) := by
+    intro e he
+    obtain ⟨p, hp, rfl⟩ := (hf e).1 he
+    exact hwf.2.2.2 p.1 (hg₀g p hp)
+  have hfdom : ∀ e ∈ f, TShape.Dom Δ (Shape.T (d.2.lift k)) e.inp.T := by
+    intro e he
+    obtain ⟨p, hp, rfl⟩ := (hf e).1 he
+    exact TShape.Dom.mono_r hΔ
+      (TShape.Dom.lift_subject hΔ (hdom p.1 (hg₀g p hp)) hkn) hdle hdty
+  have hfbody : ∀ e ∈ f,
+      Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push e.inp.T) e.out.T := by
+    intro e he
+    obtain ⟨p, hp, rfl⟩ := (hf e).1 he
+    have hwe := hwf.2.2.1.1 p.1 (hg₀g p hp)
+    refine Interp.mono hΔ ((Shape.lift_wf (hkc p hp)).2 (hpwf p hp))
+      (TShape.LE.lift_le hΔ (m := (Prod.snd p : TShape)) (hkc p hp) (hpwf p hp)) ?_
+    exact Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ,
+      TShape.LE.le_lift hΔ (m := p.1.inp.T) hkn hwe.2.2.1⟩) (hall p hp).1
+  -- so the Π-shape is well formed and interprets `Π A B`
+  have hAσ : Δ ⊢ A.subst σ : .sort u := hAty.subst hΔ W
+  have hΔA : ⊢ (A.subst σ :: Δ) := ⟨hΔ, _, hAσ⟩
+  have hwfPi : Shape.WF (n := k+1) Δ
+      (.forallE (A.subst σ) (B.subst σ.lift) (d.2.lift k) f) :=
+    ⟨⟨u, hAσ⟩, ⟨v, hB.subst hΔA (W.lift hAty hAσ)⟩,
+      (Shape.lift_wf hkd).2 hd.wf.1,
+      fun e he => hfent e he,
+      graph_coherent hΓ hAty hB hΔ W hwρ ihBdir (fun e he => (hfent e he).2.2.1)
+        hflab hfbody⟩
+  have hPi : Interp Δ Γ (.forallE A B) σ ρ
+      (Shape.T (n := k+1) (.forallE (A.subst σ) (B.subst σ.lift) (d.2.lift k) f)) :=
+    .forallE (Interp.mono hΔ ((Shape.lift_wf hkd).2 hd.wf.1)
+        (TShape.LE.lift_le hΔ (m := d) hkd hd.wf.1) hA)
+      hdty hwfPi (fun e he => (hflab e he).imp fun _ h => h) hfdom hfbody
+      hwfPi (TShape.LE.refl hwfPi) ⟨u, hAty⟩ ⟨v, hB⟩
+  -- the typing codes are the Π-entries, so the λ-shape is typed by it
+  have hcty : ∀ p ∈ g₀, TShape.HasType Δ (Shape.T ((Prod.snd p : TShape).2.lift k))
+      TShape.type := by
+    intro p hp
+    exact (ihBty.isType hΔ (hstage p.1 (hg₀g p hp)).1 (hstage p.1 (hg₀g p hp)).2
+      (hall p hp).1).lift_subject hΔ (hkc p hp)
+  -- each code is looked up in the Π's graph at its own entry
+  have hlook : ∀ p ∈ g₀, TEvaluates Δ f p.1.ty p.1.tm p.1.inp.T
+      (Shape.T ((Prod.snd p : TShape).2.lift k)) := by
+    intro p hp
+    refine TEvaluates.entry _ ((hf _).2 ⟨p, hp, rfl⟩)
+      ⟨TyEq.refl_l (hwf.2.2.2 p.1 (hg₀g p hp)),
+        (hwf.2.2.1.1 p.1 (hg₀g p hp)).2.1⟩ ?_
+    exact TShape.LE.lift_le hΔ (m := p.1.inp.T) hkn (hwf.2.2.1.1 p.1 (hg₀g p hp)).2.2.1
+  refine ⟨k, d.2.lift k, f, hPi, TShape.HasType.lam (g₀ := g₀)
+    hdty (fun e he => ?_) hwf hwfPi (fun e he => ?_) (fun e he => ?_)
+    (fun p hp => ?_) (fun p hp => (hall p hp).2.1) (TyEq.refl hAσ),
+    hdty, fun e he => ?_, fun e he => ?_⟩
+  · -- the Π-entries are types
+    obtain ⟨p, hp, rfl⟩ := (hf e).1 he
+    exact hcty p hp
+  · -- the generator's entries are well formed
+    rw [hmap] at he
+    exact ⟨(hwf.2.2.1.1 e he).2.2.1, (hwf.2.2.1.1 e he).2.2.2⟩
+  · -- every entry of `g` is covered by the generator, namely by itself
+    rw [hmap]
+    exact TEvaluates.refl hwf.2.2.1 e he
+  · -- and each generator code is the Π-entry built from it
+    exact TEvaluates.lower
+      (TShape.LE.le_lift hΔ (m := (Prod.snd p : TShape)) (hkc p hp) (hpwf p hp))
+      (hlook p hp)
+  · -- the inputs are hereditarily typed at the lifted domain
+    exact TShape.Dom.mono_r hΔ (hdom e he) hdle hdty
+  · -- and the code of each entry is looked up at it
+    obtain ⟨p, hp, rfl⟩ : ∃ p ∈ g₀, p.1 = e := by
+      rw [← hmap, List.mem_map] at he
+      obtain ⟨p, hp, heq⟩ := he
+      exact ⟨p, hp, heq⟩
+    exact ⟨_, hlook p hp, hcty p hp,
+      hQmono (TShape.LE.le_lift hΔ (m := (Prod.snd p : TShape)) (hkc p hp) (hpwf p hp))
+        (hcty p hp) (hall p hp).2.2⟩
+
 /-- **The type of a λ.**
 
 Master's `sound_lam` merges two codomain graphs with `join'` at an
@@ -1336,106 +1488,172 @@ theorem sound_lam_ty {Γ : List Term} {A B b : Term} {u v : Bool}
     (ihAty : SoundTy Γ A (.sort u)) (ihBty : SoundTy (A :: Γ) B (.sort v))
     (ihbty : SoundTy (A :: Γ) b B) (ihBdir : SoundDir (A :: Γ) B) :
     SoundTy Γ (.lam A b) (.forallE A B) := by
-  have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hAty⟩
   refine ⟨hlam, ?_⟩
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
-  have hwρ := hAdm.wf
   cases hm with
   | bot => exact ⟨TShape.bot, .bot, .bot (.bot .sort)⟩
   | @lam _ _ _ _ n g d _ _ hA hd hwf hdom hbody hw hle =>
-    -- every entry's stage is admissible: its label is typed at the domain
-    have hstage : ∀ e ∈ g, Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) ∧
-        Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push e.inp.T) := by
-      intro e he
-      have hwe := hwf.2.2.1.1 e he
-      have hty := (hwf.2.2.2 e he).choose_spec
-      exact ⟨.cons W hAty (hty.defeqDF hwe.2.1),
-        .cons hAdm W.wf (fun _ hc => ihAty.isType hΔ W hAdm hc) hA hwe.2.2.1 (hdom e he)⟩
-    -- a code for every entry, collected and brought to one level
-    obtain ⟨g₀, hmap, hall⟩ := List.exists_pairs (β := TShape)
-      (P := fun e c => Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push e.inp.T) c ∧
-        TShape.HasType Δ e.out.T c)
-      (fun e he => ihbty.approx hΔ (hstage e he).1 (hstage e he).2 (hbody e he))
-    obtain ⟨k, hkn, hkd, hkc⟩ : ∃ k, n ≤ k ∧ d.1 ≤ k ∧ ∀ p ∈ g₀, (Prod.snd p : TShape).1 ≤ k :=
-      ⟨levelMax (fun p => (Prod.snd p : TShape).1) (max n d.1) g₀,
-        Nat.le_trans (Nat.le_max_left ..) le_levelMax,
-        Nat.le_trans (Nat.le_max_right ..) le_levelMax,
-        fun p hp => mem_le_levelMax (f := fun p => (Prod.snd p : TShape).1) hp⟩
-    -- the codomain graph, one entry per entry of the λ's
-    obtain ⟨f, hf⟩ : ∃ f : ShapeFun k, ∀ e, e ∈ f ↔ ∃ p ∈ g₀,
-        e = ⟨p.1.ty, p.1.tm, p.1.inp.lift k, (Prod.snd p : TShape).2.lift k⟩ :=
-      ⟨g₀.map fun p => ⟨p.1.ty, p.1.tm, p.1.inp.lift k, (Prod.snd p : TShape).2.lift k⟩,
+    have hstage := lam_stage hAty ihAty hΔ W hAdm hA hwf hdom
+    obtain ⟨k, dk, f, hPi, hty, _⟩ :=
+      lam_pi_code (Q := fun _ _ => True) hΓ hAty hB ihAty ihBty ihBdir hΔ W hAdm hA hd
+        hwf hdom (fun _ _ _ => trivial) (fun e he => by
+          obtain ⟨c, hc, hct⟩ :=
+            ihbty.approx hΔ (hstage e he).1 (hstage e he).2 (hbody e he)
+          exact ⟨c, hc, hct, trivial⟩)
+    exact ⟨_, hPi, TShape.HasType.mono_l hΔ hty hle⟩
+
+/-- **Saturation at a λ.**  The body's own saturation enlarges every
+entry's output to a hereditarily typed one -- the enlarged graph is
+still a λ-approximant, by the same coherence argument (`graph_coherent`)
+that `Interp.lam` wanted in the first place -- and then the codomain
+codes of `lam_pi_code` are exactly the codes `Dom` asks for. -/
+theorem sound_lam_dom {Γ : List Term} {A B b : Term} {u v : Bool}
+    (hΓ : ⊢ Γ) (hAty : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v)
+    (hb : A :: Γ ⊢ b : B)
+    (ihAty : SoundTy Γ A (.sort u)) (ihBty : SoundTy (A :: Γ) B (.sort v))
+    (ihbdom : SoundDom (A :: Γ) b B) (ihbdir : SoundDir (A :: Γ) b)
+    (ihBdir : SoundDir (A :: Γ) B) :
+    SoundDom Γ (.lam A b) (.forallE A B) := by
+  have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hAty⟩
+  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+  have hwρ := hAdm.wf
+  cases hm with
+  | bot => exact ⟨TShape.bot, TShape.bot, .bot, TShape.bot_le' rfl, .bot,
+      TShape.Dom.bot (.bot (.bot .sort))⟩
+  | @lam _ _ _ _ n g d _ _ hA hd hwf hdom hbody hw hle hAt =>
+    have hstage := lam_stage hAty ihAty hΔ W hAdm hA hwf hdom
+    -- saturate every body, and bring the enlarged outputs to one level
+    obtain ⟨gs, hmap, hall⟩ := List.exists_pairs (β := TShape × TShape)
+      (P := fun (e : Entry (Shape n)) (p : TShape × TShape) =>
+        Interp Δ (A :: Γ) b (σ.cons e.tm) (ρ.push e.inp.T) p.1 ∧
+        TShape.LE Δ e.out.T p.1 ∧
+        Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push e.inp.T) p.2 ∧ TShape.Dom Δ p.2 p.1)
+      (fun e he => by
+        obtain ⟨m', c, hm', hle', hc, hdc⟩ :=
+          ihbdom hΔ (hstage e he).1 (hstage e he).2 (hbody e he)
+        exact ⟨(m', c), hm', hle', hc, hdc⟩)
+    -- the enlarged graph, at one level
+    obtain ⟨k, hkn, hkc⟩ : ∃ k, n ≤ k ∧ ∀ p ∈ gs, ((Prod.snd p).1 : TShape).1 ≤ k :=
+      ⟨levelMax (fun p => ((Prod.snd p).1 : TShape).1) n gs, le_levelMax,
+        fun p hp => mem_le_levelMax (f := fun p => ((Prod.snd p).1 : TShape).1) hp⟩
+    obtain ⟨g', hg'⟩ : ∃ g' : ShapeFun k, ∀ e, e ∈ g' ↔ ∃ p ∈ gs,
+        e = ⟨p.1.ty, p.1.tm, p.1.inp.lift k, ((Prod.snd p).1 : TShape).2.lift k⟩ :=
+      ⟨gs.map fun p => ⟨p.1.ty, p.1.tm, p.1.inp.lift k, ((Prod.snd p).1 : TShape).2.lift k⟩,
         fun e => by simp [List.mem_map, eq_comm]⟩
-    -- each pair's first component is an entry of `g`
-    have hg₀g : ∀ p ∈ g₀, p.1 ∈ g := fun p hp => hmap ▸ List.mem_map.2 ⟨p, hp, rfl⟩
-    have hpwf : ∀ p ∈ g₀, TShape.WF Δ (Prod.snd p : TShape) := fun p hp => (hall p hp).1.wf
-    have hdty : TShape.HasType Δ (Shape.T (d.2.lift k)) TShape.type :=
-      hd.lift_subject hΔ hkd
-    have hdle : TShape.LE Δ d (Shape.T (d.2.lift k)) :=
-      TShape.LE.le_lift hΔ (m := d) hkd hd.wf.1
-    -- the Π-shape's premises, entry by entry
-    have hfent : ∀ e ∈ f, (∃ u, Δ ⊢ e.ty : .sort u) ∧ Δ ⊢ e.tm : e.ty ∧
+    have hgsg : ∀ p ∈ gs, p.1 ∈ g := fun p hp => hmap ▸ List.mem_map.2 ⟨p, hp, rfl⟩
+    have hswf : ∀ p ∈ gs, TShape.WF Δ ((Prod.snd p).1 : TShape) :=
+      fun p hp => (hall p hp).1.wf
+    -- its entries are well formed, and still carry information
+    have hent' : ∀ e ∈ g', (∃ u, Δ ⊢ e.ty : .sort u) ∧ Δ ⊢ e.tm : e.ty ∧
         Shape.WF Δ e.inp ∧ Shape.WF Δ e.out := by
       intro e he
-      obtain ⟨p, hp, rfl⟩ := (hf e).1 he
-      have hwe := hwf.2.2.1.1 p.1 (hg₀g p hp)
+      obtain ⟨p, hp, rfl⟩ := (hg' e).1 he
+      have hwe := hwf.2.2.1.1 p.1 (hgsg p hp)
       exact ⟨hwe.1, hwe.2.1, (Shape.lift_wf hkn).2 hwe.2.2.1,
-        (Shape.lift_wf (hkc p hp)).2 (hpwf p hp)⟩
-    have hflab : ∀ e ∈ f, TyEq Δ e.ty (A.subst σ) := by
+        (Shape.lift_wf (hkc p hp)).2 (hswf p hp)⟩
+    have hlab' : ∀ e ∈ g', TyEq Δ e.ty (A.subst σ) := by
       intro e he
-      obtain ⟨p, hp, rfl⟩ := (hf e).1 he
-      exact hwf.2.2.2 p.1 (hg₀g p hp)
-    have hfdom : ∀ e ∈ f, TShape.Dom Δ (Shape.T (d.2.lift k)) e.inp.T := by
+      obtain ⟨p, hp, rfl⟩ := (hg' e).1 he
+      exact hwf.2.2.2 p.1 (hgsg p hp)
+    have hbody' : ∀ e ∈ g',
+        Interp Δ (A :: Γ) b (σ.cons e.tm) (ρ.push e.inp.T) e.out.T := by
       intro e he
-      obtain ⟨p, hp, rfl⟩ := (hf e).1 he
-      exact TShape.Dom.mono_r hΔ
-        (TShape.Dom.lift_subject hΔ (hdom p.1 (hg₀g p hp)) hkn) hdle hdty
-    have hfbody : ∀ e ∈ f,
-        Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push e.inp.T) e.out.T := by
-      intro e he
-      obtain ⟨p, hp, rfl⟩ := (hf e).1 he
-      have hwe := hwf.2.2.1.1 p.1 (hg₀g p hp)
-      refine Interp.mono hΔ ((Shape.lift_wf (hkc p hp)).2 (hpwf p hp))
-        (TShape.LE.lift_le hΔ (m := (Prod.snd p : TShape)) (hkc p hp) (hpwf p hp)) ?_
+      obtain ⟨p, hp, rfl⟩ := (hg' e).1 he
+      have hwe := hwf.2.2.1.1 p.1 (hgsg p hp)
+      refine Interp.mono hΔ ((Shape.lift_wf (hkc p hp)).2 (hswf p hp))
+        (TShape.LE.lift_le hΔ (m := ((Prod.snd p).1 : TShape)) (hkc p hp) (hswf p hp)) ?_
       exact Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ,
         TShape.LE.le_lift hΔ (m := p.1.inp.T) hkn hwe.2.2.1⟩) (hall p hp).1
-    -- so the Π-shape is well formed and interprets `Π A B`
-    have hAσ : Δ ⊢ A.subst σ : .sort u := hAty.subst hΔ W
-    have hΔA : ⊢ (A.subst σ :: Δ) := ⟨hΔ, _, hAσ⟩
-    have hwfPi : Shape.WF (n := k+1) Δ
-        (.forallE (A.subst σ) (B.subst σ.lift) (d.2.lift k) f) :=
-      ⟨⟨u, hAσ⟩, ⟨v, hB.subst hΔA (W.lift hAty hAσ)⟩,
-        (Shape.lift_wf hkd).2 hd.wf.1,
-        fun e he => hfent e he,
-        graph_coherent hΓ hAty hB hΔ W hwρ ihBdir (fun e he => (hfent e he).2.2.1)
-          hflab hfbody⟩
-    have hPi : Interp Δ Γ (.forallE A B) σ ρ
-        (Shape.T (n := k+1) (.forallE (A.subst σ) (B.subst σ.lift) (d.2.lift k) f)) :=
-      .forallE (Interp.mono hΔ ((Shape.lift_wf hkd).2 hd.wf.1)
-          (TShape.LE.lift_le hΔ (m := d) hkd hd.wf.1) hA)
-        hdty hwfPi (fun e he => (hflab e he).imp fun _ h => h) hfdom hfbody
-        hwfPi (TShape.LE.refl hwfPi) ⟨u, hAty⟩ ⟨v, hB⟩
-    -- and it types the λ-shape, with the λ's own graph as the generator
-    refine ⟨_, hPi, TShape.HasType.mono_l hΔ (TShape.HasType.lam (g₀ := g₀)
-      hdty (fun e he => ?_) hwf hwfPi (fun e he => ?_) (fun e he => ?_)
-      (fun p hp => ?_) (fun p hp => (hall p hp).2) (TyEq.refl hAσ)) hle⟩
-    · -- the Π-entries are types
-      obtain ⟨p, hp, rfl⟩ := (hf e).1 he
-      exact (ihBty.isType hΔ (hstage p.1 (hg₀g p hp)).1 (hstage p.1 (hg₀g p hp)).2
-        (hall p hp).1).lift_subject hΔ (hkc p hp)
-    · -- the generator's entries are well formed
-      rw [hmap] at he
-      exact ⟨(hwf.2.2.1.1 e he).2.2.1, (hwf.2.2.1.1 e he).2.2.2⟩
-    · -- every entry of `g` is covered by the generator, namely by itself
-      rw [hmap]
-      exact TEvaluates.refl hwf.2.2.1 e he
-    · -- and each generator code is the Π-entry built from it
-      refine TEvaluates.lower
-        (TShape.LE.le_lift hΔ (m := (Prod.snd p : TShape)) (hkc p hp) (hpwf p hp)) ?_
-      refine TEvaluates.entry _ ((hf _).2 ⟨p, hp, rfl⟩)
-        ⟨TyEq.refl_l (hwf.2.2.2 p.1 (hg₀g p hp)),
-          (hwf.2.2.1.1 p.1 (hg₀g p hp)).2.1⟩ ?_
-      exact TShape.LE.lift_le hΔ (m := p.1.inp.T) hkn (hwf.2.2.1.1 p.1 (hg₀g p hp)).2.2.1
+    have hnotbot : ∀ e ∈ g', ¬ e.out.IsBot := by
+      intro e he
+      obtain ⟨p, hp, rfl⟩ := (hg' e).1 he
+      intro hbot
+      refine hwf.2.1 p.1 (hgsg p hp) ?_
+      have : ((Prod.snd p).1 : TShape).2 = Shape.bot :=
+        (hswf p hp).eq_bot_of_isBot ((Shape.lift_isBot (hkc p hp)).1 hbot)
+      have hbb : p.1.out = Shape.bot := TShape.le_bot hΔ this (hall p hp).2.1
+      exact hbb ▸ Shape.isBot_bot
+    have hwf' : Shape.WF (n := k+1) Δ (.lam (A.subst σ) g') := by
+      refine ⟨?_, hnotbot, ⟨hent', graph_coherent hΓ hAty hb hΔ W hwρ ihbdir
+        (fun e he => (hent' e he).2.2.1) hlab' hbody'⟩, hlab'⟩
+      intro hnil
+      refine hwf.1 ?_
+      rw [← hmap]
+      have : gs = [] := by
+        cases hgs : gs with
+        | nil => rfl
+        | cons q qs =>
+          exact absurd ((hg' _).2 ⟨q, by simp [hgs], rfl⟩) (by simp [hnil])
+      simp [this]
+    -- the enlarged λ-shape is still an approximant of the λ
+    have hlamI : Interp Δ Γ (.lam A b) σ ρ (Shape.T (n := k+1) (.lam (A.subst σ) g')) := by
+      refine .lam hA hd hwf' (fun e he => ?_) hbody' (TShape.WF.T.2 hwf')
+        (TShape.LE.refl (TShape.WF.T.2 hwf')) hAt
+      obtain ⟨p, hp, rfl⟩ := (hg' e).1 he
+      exact TShape.Dom.lift_subject hΔ (hdom p.1 (hgsg p hp)) hkn
+    -- and it dominates the given one: same entries, bigger outputs
+    have hlamle : TShape.LE Δ (Shape.T (n := n+1) (.lam (A.subst σ) g))
+        (Shape.T (n := k+1) (.lam (A.subst σ) g')) := by
+      refine (TShape.LE.def hΔ (k := k+1) (Nat.succ_le_succ hkn) (Nat.le_refl _)).2 ?_
+      show Shape.LE Δ (.lam (A.subst σ) (ShapeFun.lift (Shape.lift k) g))
+        (.lam (A.subst σ) (ShapeFun.lift (Shape.lift k) g'))
+      rw [show ShapeFun.lift (Shape.lift k) g' = g' from by
+        simp [ShapeFun.lift, Shape.lift_self]]
+      have hwfl : Shape.WF (n := k+1) Δ (.lam (A.subst σ) (ShapeFun.lift (Shape.lift k) g)) :=
+        (Shape.lift_wf (Nat.succ_le_succ hkn)).2 hwf
+      refine ⟨⟨fun e he => ?_, hwfl.2.2.1, hwf'.2.2.1⟩, hwfl.1, hwfl.2.1,
+        ⟨u, hAty.subst hΔ W⟩, hwfl.2.2.2⟩
+      -- every lifted entry is covered by its enlarged copy
+      obtain ⟨q, hq, rfl⟩ := ShapeFun.mem_lift.1 he
+      obtain ⟨p, hp, rfl⟩ : ∃ p ∈ gs, p.1 = q := by
+        rw [← hmap, List.mem_map] at hq
+        obtain ⟨p, hp, heq⟩ := hq
+        exact ⟨p, hp, heq⟩
+      refine ShapeFun.Eval.lower
+        (TShape.LE.def_mp (a := p.1.out.T) (b := ((Prod.snd p).1 : TShape))
+          hkn (hkc p hp) (hall p hp).2.1) ?_
+      exact ShapeFun.Eval.entry _ ((hg' _).2 ⟨p, hp, rfl⟩)
+        ⟨TyEq.refl_l (hwf.2.2.2 p.1 (hgsg p hp)), (hwf.2.2.1.1 p.1 (hgsg p hp)).2.1⟩
+        (Shape.LE.refl ((Shape.lift_wf hkn).2 (hwf.2.2.1.1 p.1 (hgsg p hp)).2.2.1))
+    -- the Π-approximant, with the saturation's codes
+    obtain ⟨kP, dP, f, hPi, hty, hdtyP, hinP, hcodes⟩ :=
+      lam_pi_code (Q := fun e c => TShape.Dom Δ c e.out.T)
+        hΓ hAty hB ihAty ihBty ihBdir hΔ W hAdm hA hd hwf'
+        (fun e he => by
+          obtain ⟨p, hp, rfl⟩ := (hg' e).1 he
+          exact TShape.Dom.lift_subject hΔ (hdom p.1 (hgsg p hp)) hkn)
+        (fun hle' hty' hQ => TShape.Dom.mono_r hΔ hQ hle' hty')
+        (fun e he => by
+          obtain ⟨p, hp, rfl⟩ := (hg' e).1 he
+          refine ⟨(Prod.snd p).2, ?_, ?_, ?_⟩
+          · exact Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ,
+              TShape.LE.le_lift hΔ (m := p.1.inp.T) hkn
+                (hwf.2.2.1.1 p.1 (hgsg p hp)).2.2.1⟩) (hall p hp).2.2.1
+          · exact TShape.HasType.mono_l hΔ (hall p hp).2.2.2.hasType
+              (TShape.LE.lift_le hΔ (m := ((Prod.snd p).1 : TShape)) (hkc p hp)
+                (hswf p hp))
+          · exact TShape.Dom.lift_subject hΔ (hall p hp).2.2.2 (hkc p hp))
+    -- and the codes, entry by entry, are what `Dom` asks for
+    obtain ⟨cs₀, hcsmap, hcsall⟩ := List.exists_pairs (β := TShape)
+      (P := fun (e : Entry (Shape k)) (c : TShape) =>
+        TEvaluates Δ f e.ty e.tm e.inp.T c ∧ TShape.Dom Δ c e.out.T)
+      (fun e he => by
+        obtain ⟨c, hc, _, hdc⟩ := hcodes e he
+        exact ⟨c, hc, hdc⟩)
+    have hcsg : ∀ p ∈ cs₀, p.1 ∈ g' := fun p hp => hcsmap ▸ List.mem_map.2 ⟨p, hp, rfl⟩
+    refine ⟨Shape.T (n := k+1) (.lam (A.subst σ) g'), _, hlamI,
+      TShape.LE.trans hΔ hle hlamle, hPi,
+      .pi (cs := cs₀.map (fun p => ((⟨p.1.ty, p.1.tm, p.1.inp.T, p.1.out.T⟩ : Entry TShape),
+        p.2))) hty ?_ (fun p hp => ?_) (fun p hp => ?_) (fun p hp => ?_)⟩
+    · show g'.map (fun e => (⟨e.ty, e.tm, e.inp.T, e.out.T⟩ : Entry TShape)) = _
+      rw [← hcsmap]
+      simp [List.map_map, Function.comp_def]
+    · obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
+      exact hinP q.1 (hcsg q hq)
+    · obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
+      exact (hcsall q hq).1
+    · obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
+      exact (hcsall q hq).2
 
 /-- One direction of the `SoundEq` half of `lamDF`.
 
