@@ -12,16 +12,9 @@ models are separate roots.
 open DomainSemantics
 
 /-!
-Three `sorry`s remain in the whole development, and this board says
+Two `sorry`s remain in the whole development, and this board says
 which theorems they reach:
 
-* `IsDefEq.pinned` (`Pinned.lean`) — **every well-typed term is
-  pinned**, which is the third conclusion `IsDefEq.sound` is missing: in
-  the original, substitution is a field of `RawTermProperties` and its
-  `app` case consumes the function's `HasFixedness`.  Here `Term.Pinned`
-  gathers that semantic data structurally, `Interp.to_substTerm` and
-  `Interp.inst` consume it and are **axiom-clean**, and what is assumed
-  is only that a typing supplies it.
 * `eta`, `fst_snd` (`IsDefEq.sound`) — the §5.3 decision.
 * `LR.adequacy`'s `r = false` transport (`Adequacy.lean`, the old
   model) — false for that model, and `LE_Interp.tr_stuck` is the
@@ -29,7 +22,10 @@ which theorems they reach:
   be imported together.
 
 **Stage invariance and strengthening are theorems** (`Interp.stage`,
-`Interp.unweak`), and `IsDefEq.dir` is clean. -/
+`Interp.unweak`), `IsDefEq.dir` is clean, and so is the substitution
+half: `Interp.to_substTerm` reads its clause conditions off `Term.Pinned`
+and the saturation hypothesis, both of which the soundness induction now
+supplies (`Subst.Saturates.one`, `IsDefEq.pinned`). -/
 
 -- **The subject join**: two compatible shapes at one type join there.
 /-- info: 'DomainSemantics.TShape.HasType.join' depends on axioms: [propext, Quot.sound] -/
@@ -58,9 +54,13 @@ which theorems they reach:
 /-- info: 'DomainSemantics.Interp.inst' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms Interp.inst
 
--- **The missing third conclusion of soundness**, and the only `sorry`
--- under the substitution half.
-/-- info: 'DomainSemantics.IsDefEq.pinned' depends on axioms: [propext, sorryAx] -/
+-- **The third conclusion of soundness**: every well-typed term is
+-- pinned, so `to_substTerm`'s clause conditions are a theorem.  What it
+-- still reaches is only `eta` and `fst_snd`, through the induction it
+-- now shares with the other two conclusions.
+/--
+info: 'DomainSemantics.IsDefEq.pinned' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+-/
 #guard_msgs in #print axioms IsDefEq.pinned
 
 -- **The proof-irrelevant transport**: it computes by K, so a transport
