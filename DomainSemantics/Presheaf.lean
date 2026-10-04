@@ -3992,6 +3992,23 @@ theorem and_pinned {Γ : List Term} {t t' A : Term}
     SoundEq Γ t t' ∧ SoundTy Γ t A ∧ t.Pinned Γ ∧ t'.Pinned Γ :=
   ⟨h.1, h.2, hp, hp'⟩
 
+/-- What one derivation yields.  A record rather than a tuple: the
+conclusions have grown from two to six, and each addition would
+otherwise renumber every projection in the file. -/
+structure Sound (Γ : List Term) (t t' A : Term) : Prop where
+  /-- The two sides have the same approximants. -/
+  eq : SoundEq Γ t t'
+  /-- Every approximant is typed at one of `A`. -/
+  ty : SoundTy Γ t A
+  /-- The clause conditions `Interp.to_substTerm` reads (§3.1d). -/
+  pin : t.Pinned Γ
+  /-- And for the right-hand side, which `symm` needs. -/
+  pin' : t'.Pinned Γ
+  /-- Saturation: every approximant is below a hereditarily typed one. -/
+  dom : SoundDom Γ t A
+  /-- And again for the right-hand side. -/
+  dom' : SoundDom Γ t' A
+
 /-- **Saturation, assumed.**  Every approximant of a well-typed term is
 below one that is hereditarily typed — the original's `HasFixedness`
 (`rawExtend ⟦A⟧ ⟦t⟧ = ⟦t⟧`), read through "ideal = set of approximants".
@@ -4007,7 +4024,9 @@ theorem IsDefEq.soundDom {Γ : List Term} {t A : Term} (hΓ : ⊢ Γ) (ht : Γ �
     SoundDom Γ t A := by
   sorry
 
-theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
+/-- The four conclusions proved by the induction itself.  `Sound` adds
+saturation on top, which is where the remaining work is (§4.5g). -/
+theorem IsDefEq.sound₄ {Γ : List Term} {t t' A : Term}
     (hΓ : ⊢ Γ) (H : Γ ⊢ t ≡ t' : A) :
     SoundEq Γ t t' ∧ SoundTy Γ t A ∧ t.Pinned Γ ∧ t'.Pinned Γ := by
   induction H with
@@ -4254,9 +4273,17 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
           exact Interp.eq_bot_of_prop (ih₁ hΓ).2.1 (ih₃ hΓ).2.1 hΔ W hAdm h))
       (ih₂ hΓ).2.2.1 (ih₃ hΓ).2.2.1
 
+/-- Soundness, with saturation: `IsDefEq.sound₄`'s four conclusions and
+the two `SoundDom`s, which are still assumed (`IsDefEq.soundDom`). -/
+theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
+    (hΓ : ⊢ Γ) (H : Γ ⊢ t ≡ t' : A) : Sound Γ t t' A :=
+  have h := IsDefEq.sound₄ hΓ H
+  ⟨h.1, h.2.1, h.2.2.1, h.2.2.2, IsDefEq.soundDom hΓ H.hasType.1,
+    IsDefEq.soundDom hΓ H.hasType.2⟩
+
 /-- **Every well-typed term is pinned.**  This was the development's last
-assumption; it is now the third conclusion of the induction above, which
-is where the original proves its `HasFixedness` too -- a field of
-`RawTermProperties`, alongside substitution. -/
+assumption before saturation; it is the third conclusion of the induction
+above, which is where the original proves its `HasFixedness` too -- a
+field of `RawTermProperties`, alongside substitution. -/
 theorem IsDefEq.pinned {Γ : List Term} {t T : Term} (hΓ : ⊢ Γ) (ht : Γ ⊢ t : T) :
-    t.Pinned Γ := (IsDefEq.sound hΓ ht).2.2.1
+    t.Pinned Γ := (IsDefEq.sound hΓ ht).pin
