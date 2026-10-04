@@ -1226,26 +1226,69 @@ Three further things the source settles:
   `decode : TShape → TShape → TShape` should be structural recursion on
   the code, which is much cheaper.
 
-**What the translation needs, then** (three pieces, in order):
+**Their typing is a projection, and that is the device we lack.**  There
+is no `HasType` there because `x : a` is `p_a x = x`: each code `a` names
+an idempotent, *deflationary* operator on values (`natIdeal_le : natIdeal
+X ≤ X`, `natIdeal_idempotent`; `universeIdeal r X` is `X` filtered by
+`IsCode`; `decode (pi label A B) = piOperator A B`, the arrow retraction
+`F ↦ λX. Q (F (P X))`).  For the base codes the projection is a *filter*
+by a downward-closed condition on points, which is exactly our
+lower-closed `HasType` — so downward closure and η are not in tension,
+as the two sides of that `iff` make clear.  At Π the projection does more
+than filter: it **renormalises**, replacing an entry's output by the
+value at the projected input.  That is the content we do not have.
 
-1. `Shape.decode d x` — "`x` read at the code `d`" — by recursion on the
-   code, with `HasType Δ (decode d x) d`, `decode d x = x` for `x` typed
-   at `d`, monotone in `x`, and stable under substitution and lifting.
-2. `Interp.lam` (and `pair`) reads the body at `decode d e.inp`, and
-   `hdom` **goes away**: admissibility of the extended stage is then free,
-   since a decoded shape is typed by construction.  `beta` cancels the
-   normalisation with the argument's own typedness (`SoundTy a A`), which
-   is what master's `HasFixedness a A` is for there.
-3. `SoundTy` gains decode-closure of the approximant set — their
-   `HasFixedness`, i.e. the saturation statement in approximant form —
-   proved per rule in the same induction.  η then reads `e`'s own
-   approximant back out at the decoded input, with no typed input ever
-   constructed.
+**Why it cannot be a function on our shapes.**  Renormalising needs the
+*lookup* at the projected input, i.e. a join of the outputs that fire
+there — total on their ideals, **partial** on our shapes (`Shape.join`
+wants `Compat`).  So the projection has to be relational here:
 
-Step 2 touches every proof that reads the λ clause, so this is the
-largest single change left in the development; steps 1 and 3 are
-additive.  It is, however, the faithful translation, and it keeps
-everything §5.5 bought.
+```lean
+-- by structural recursion on the code `d`
+Shape.Fixed Δ d x
+  | .nat, .sort, .unit, .id, ⊥  => TShape.HasType Δ x d      -- filters
+  | .forallE A B d₀ f           => ∀ q ∈ g, ∃ x₀, Fixed Δ d₀ x₀ ∧ x₀ ≤ q.inp ∧
+                                     TEvaluates g q.ty q.tm x₀ q.out ∧ …   -- renormalises
+```
+
+no joins, and the existential stands in for `p_A q.inp`.
+
+**`Fixed` is not downward closed, and must not be used as if it were.**
+A graph covered by a `Fixed` one can have an entry whose input is below
+nothing typed that still fires.  Their fixedness is a statement about the
+whole *ideal*, and the ideal is our *set of approximants* — so the right
+form here is the saturating one:
+
+```lean
+SoundFix Γ t A :=  -- their `HasFixedness`, in approximant form
+  at every admissible stage, every approximant of `t` is below a `Fixed`
+  approximant of `t` (at an approximant of `A`)
+```
+
+which *is* downward closed by construction, and is a fourth conclusion of
+`IsDefEq.sound` alongside `SoundEq`, `SoundTy` and `Term.Pinned`.
+
+**What the translation needs, then:**
+
+1. `Shape.Fixed Δ d x`, by recursion on the code, with the base cases
+   `HasType` and the Π/Σ cases renormalising as above.
+2. `SoundFix` as the fourth conclusion of soundness.
+3. η ← then reads the typed input off the `Fixed` dominator: its entries'
+   outputs are already achieved at inputs that are `Fixed` at the domain,
+   so the η-expansion's graph has the typed inputs `Interp.lam` demands,
+   and it covers the original approximant.
+4. The one non-additive part: `Interp.lam`'s `hdom` and `Adm`'s slot
+   condition must ask for `Fixed`, not merely `HasType` — otherwise the
+   `bvar` case of (2) has nothing to say about a slot.  Producers of
+   λ-shapes then have to supply `Fixed` inputs, which (2) gives them
+   (`beta` picks its input from `SoundTy e' A`, and would pick it from
+   `SoundFix e' A` instead).
+
+That is the whole of the original's η, with the projection turned from a
+function on ideals into a predicate on shapes.  Step 4 is a premise
+change rather than a reinterpretation of the λ clause, so it is smaller
+than normalising the body would be, but it is still the part that
+touches every producer.
 
 ### 4.6 `proofIrrel`, `unit_eta`, `star`
 
