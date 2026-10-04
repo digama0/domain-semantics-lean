@@ -31,7 +31,7 @@ def Term.Annot : Term → List Term → Prop
   | .sort _, _ => True
   | .unit _, _ => True
   | .star _, _ => True
-  | .app f a, Γ => f.Annot Γ ∧ a.Annot Γ
+  | .app f a, Γ => (∃ A₀, Γ ⊢ a : A₀) ∧ f.Annot Γ ∧ a.Annot Γ
   | .lam A b, Γ => (∃ u, Γ ⊢ A : .sort u) ∧ A.Annot Γ ∧ b.Annot (A :: Γ)
   | .forallE A B, Γ =>
     (∃ u, Γ ⊢ A : .sort u) ∧ (∃ v, A :: Γ ⊢ B : .sort v) ∧ A.Annot Γ ∧ B.Annot (A :: Γ)
@@ -41,7 +41,7 @@ def Term.Annot : Term → List Term → Prop
     (∃ u, Γ ⊢ A : .sort u) ∧ (∃ v, A :: Γ ⊢ B : .sort v) ∧ (Γ ⊢ a : A) ∧
       A.Annot Γ ∧ B.Annot (A :: Γ) ∧ a.Annot Γ ∧ b.Annot Γ
   | .fst p, Γ => p.Annot Γ
-  | .snd p, Γ => p.Annot Γ
+  | .snd p, Γ => (∃ A₀, Γ ⊢ Term.fst p : A₀) ∧ p.Annot Γ
   | .nat, _ => True
   | .zero, _ => True
   | .succ n, Γ => n.Annot Γ
@@ -69,7 +69,8 @@ theorem IsDefEq.annot {Γ : List Term} {e1 e2 T : Term} (H : Γ ⊢ e1 ≡ e2 : 
   | trans _ _ ih₁ ih₂ => exact ⟨ih₁.1, ih₂.2⟩
   | trans' _ _ ih₁ ih₂ => exact ⟨ih₁.1, ih₂.2⟩
   | defeqDF _ _ _ ih => exact ih
-  | appDF _ _ _ _ _ _ _ ihf iha => exact ⟨⟨ihf.1, iha.1⟩, ihf.2, iha.2⟩
+  | appDF _ _ _ haa' _ _ _ ihf iha =>
+    exact ⟨⟨⟨_, haa'.hasType.1⟩, ihf.1, iha.1⟩, ⟨_, haa'.hasType.2⟩, ihf.2, iha.2⟩
   | lamDF hAA' _ _ _ _ ihA _ ihb ihb' _ =>
     exact ⟨⟨⟨_, hAA'.hasType.1⟩, ihA.1, ihb.1⟩, ⟨_, hAA'.hasType.2⟩, ihA.2, ihb'.2⟩
   | forallEDF hAA' hB hB' ihA ihb ihb' =>
@@ -84,7 +85,9 @@ theorem IsDefEq.annot {Γ : List Term} {e1 e2 T : Term} (H : Γ ⊢ e1 ≡ e2 : 
     exact ⟨⟨_, hAA'.hasType.2⟩, ⟨_, hB'.hasType.2⟩, hAA'.defeqDF haa'.hasType.2,
       ihA.2, ihB'.2, iha.2, ihb.2⟩
   | fstDF _ _ _ _ _ ihp => exact ⟨ihp.1, ihp.2⟩
-  | sndDF _ _ _ _ _ _ ihp _ => exact ⟨ihp.1, ihp.2⟩
+  | @sndDF _ A u B v p p' hA hB hpp' _ _ _ ihp _ =>
+    exact ⟨⟨⟨A, IsDefEq.fstDF hA hB hpp'.hasType.1⟩, ihp.1⟩,
+      ⟨A, IsDefEq.fstDF hA hB hpp'.hasType.2⟩, ihp.2⟩
   | succDF _ ih => exact ⟨ih.1, ih.2⟩
   | natCaseDF _ hMM' _ _ _ ihC ihM iha ihb _ =>
     exact ⟨⟨hMM'.hasType.1, ihC.1, ihM.1, iha.1, ihb.1⟩,
@@ -105,7 +108,7 @@ theorem IsDefEq.annot {Γ : List Term} {e1 e2 T : Term} (H : Γ ⊢ e1 ≡ e2 : 
       ⟨_, hAA'.hasType.2⟩, hAA'.defeqDF haa'.hasType.2, hAA'.defeqDF hbb'.hasType.2,
       ihA.2, iha.2, ihb.2, ihC'.2, ihx.2, ihh.2⟩
   -- the computation rules: both sides are typing premises
-  | beta _ _ _ _ _ _ _ _ ihl ihr => exact ⟨ihl.1, ihr.1⟩
+  | beta _ _ he' _ _ _ _ _ ihl ihr => exact ⟨ihl.1, ihr.1⟩
   | eta _ _ ih₁ ih₂ => exact ⟨ih₂.1, ih₁.1⟩
   | unit_eta _ ih => exact ⟨trivial, ih.1⟩
   | pair_fst _ _ _ _ _ _ _ iha _ ihl => exact ⟨ihl.1, iha.1⟩
@@ -124,8 +127,13 @@ theorem Term.Annot.weak' : ∀ {t : Term} {Γ Γ' : List Term} {l : Lift},
   induction t with
   | bvar | sort | unit | star | nat | zero => exact fun _ _ => trivial
   | succ _ ih => exact fun W h => ih W h
-  | app _ _ ihf iha => exact fun W h => ⟨ihf W h.1, iha W h.2⟩
-  | fst _ ih | snd _ ih | refl _ _ ih => exact fun W h => ih W h
+  | app _ a ihf iha =>
+    rintro Γ Γ' l W ⟨⟨A₀, hat⟩, hAf, hAa⟩
+    exact ⟨⟨A₀.lift' l, hat.weak' W⟩, ihf W hAf, iha W hAa⟩
+  | fst _ ih | refl _ _ ih => exact fun W h => ih W h
+  | snd p ih =>
+    rintro Γ Γ' l W ⟨⟨A₀, hft⟩, hAp⟩
+    exact ⟨⟨A₀.lift' l, by simpa using hft.weak' W⟩, ih W hAp⟩
   | lam A b ihA ihb =>
     rintro Γ Γ' l W ⟨⟨u, hA⟩, hAA, hAb⟩
     exact ⟨⟨u, hA.weak' W⟩, ihA W hAA, ihb W.cons hAb⟩

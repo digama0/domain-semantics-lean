@@ -1,4 +1,5 @@
 import DomainSemantics.Annot
+import DomainSemantics.Uniq
 import DomainSemantics.Regular
 import DomainSemantics.HasType
 
@@ -1112,7 +1113,7 @@ theorem Interp.unweak {Δ : List Term} (hΔ : ⊢ Δ) :
     | succ hv hw hle => exact .succ (ih hΓ hAnn WΓ hd hρ hv) hw hle
   | app F a ihF iha =>
     intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
-    obtain ⟨hAF, hAa⟩ := hAnn
+    obtain ⟨hat, hAF, hAa⟩ := hAnn
     cases H with
     | bot => exact .bot
     | app hF hx hev hw hle hty =>
@@ -1203,11 +1204,12 @@ theorem Interp.unweak {Δ : List Term} (hΔ : ⊢ Δ) :
     | fst hp hw hle => exact .fst (ih hΓ hAnn WΓ hd hρ hp) hw hle
   | snd p ih =>
     intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
+    obtain ⟨hft, hAp⟩ := hAnn
     cases H with
     | bot => exact .bot
     | snd hp hev hw hle hty =>
       simp only [Term.subst, subst_lift'] at hev
-      exact .snd (ih hΓ hAnn WΓ hd hρ hp) hev hw hle
+      exact .snd (ih hΓ hAp WΓ hd hρ hp) hev hw hle
         (Stable.unweak (a := Term.fst p) WΓ hd hty)
   | natCase C M a b ihC ihM iha ihb =>
     intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
@@ -1348,7 +1350,7 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
     | succ hv hw hle => exact .succ (ih hΓ hAnn W hv) hw hle
   | app F a ihF iha =>
     intro Γ σ σ₂ ρ m hΓ hAnn W H
-    obtain ⟨hAF, hAa⟩ := hAnn
+    obtain ⟨hat, hAF, hAa⟩ := hAnn
     cases H with
     | bot => exact .bot
     | app hF hx hev hw hle hty =>
@@ -1455,11 +1457,12 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
     | fst hp hw hle => exact .fst (ih hΓ hAnn W hp) hw hle
   | snd p ih =>
     intro Γ σ σ₂ ρ m hΓ hAnn W H
+    obtain ⟨hft, hAp⟩ := hAnn
     cases H with
     | bot => exact .bot
     | snd hp hev hw hle hty =>
       have heq := hty.move hΔ W
-      exact .snd (ih hΓ hAnn W hp)
+      exact .snd (ih hΓ hAp W hp)
         (TEvaluates.mono hΔ ⟨heq.hasType.1.isType hΔ, heq⟩
           (TShape.LE.refl (TShape.WF.T.2 hp.wf.2.2.2.2.2)) hev)
         hw hle (hty.stage W)
@@ -1824,22 +1827,24 @@ Bridging them is uniqueness of types at the stage: `A` and the image of
 uniqueness *from* soundness, and soundness needs this lemma, so the gap
 is a stratification problem rather than a hole in the model -- the
 statement is true, and §3.1c of the strategy note records the ways out. -/
-theorem Stable.transfers {Δ Γ Γ' : List Term} {θ σ : Subst} {a A : Term}
-    (hΔ : ⊢ Δ) (Wθ : Ctx.SubstEq Γ' θ θ Γ) (hAnn : a.Annot Γ)
-    (H : Stable Δ Γ' σ (a.subst θ) A) : Stable Δ Γ (θ.comp σ) a A := by
-  sorry
+theorem Stable.transfers {Δ Γ Γ' : List Term} {θ σ : Subst} {a A T : Term}
+    (hΔ : ⊢ Δ) (hΓ' : ⊢ Γ') (Wθ : Ctx.SubstEq Γ' θ θ Γ) (Wσ : Ctx.SubstEq Δ σ σ Γ')
+    (ha : Γ ⊢ a : T) (H : Stable Δ Γ' σ (a.subst θ) A) :
+    Stable Δ Γ (θ.comp σ) a A := by
+  intro Θ τ σ₂ hΘ V W₂
+  -- the label types the query, at the stage: `H` at the identity
+  have hq : Δ ⊢ (a.subst θ).subst σ : A := by
+    have h := H hΔ (Ctx.SubstEq.id hΔ) (σ₂ := σ) (by rwa [Subst.comp_id])
+    rwa [Subst.comp_id, subst_id] at h
+  -- and so does the image of the argument's own type: two types, one term
+  have huq : TyEq Δ A ((T.subst θ).subst σ) :=
+    IsDefEq.uniq hΔ hq ((ha.subst hΓ' Wθ).subst hΔ Wσ)
+  have hTy : TyEq Θ (A.subst τ) (T.subst ((θ.comp σ).comp τ)) := by
+    have h := TyEq.subst hΘ V huq
+    rw [subst_subst, subst_subst] at h
+    rwa [Subst.comp_assoc]
+  exact hTy.choose_spec.symm.defeqDF (IsDefEq.subst' hΘ W₂ ha)
 
-/-- **Substitution in the term, the analytic direction.**  An approximant
-of `t[θ]` is an approximant of `t` at the composed stage, under *some*
-valuation whose slots approximate the `θ i`.
-
-With the clauses typed this is a statement about a **well-annotated** `t`:
-the interpretation it builds is of `t` in `Γ`, so every clause needs `Γ`'s
-typings, and `Term.Annot` is what has them — the same move as
-`Interp.unweak`, and for the same reason.  The `bvar` case is where the
-valuation is built (slot `i` holds the approximant, every other slot `⊥`),
-the merges are `Valuation.Approx.foldr` through `body_merge`/`list_merge`
-under binders, and `Y` runs on the tower. -/
 theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
     ∀ {t : Term} {Γ Γ' : List Term} {θ σ ρ m}, ⊢ Γ → t.Annot Γ → ⊢ Γ' →
       Subst.Good Γ' θ → Ctx.SubstEq Γ' θ θ Γ → Ctx.SubstEq Δ σ σ Γ' →
@@ -1887,7 +1892,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
       exact ⟨ρ', .succ hv' hw hle, hA⟩
   | app F a ihF iha =>
     intro Γ Γ' θ σ ρ m hΓ hAnn hΓ' hgood Wθ Wσ hθ H
-    obtain ⟨hAF, hAa⟩ := hAnn
+    obtain ⟨⟨T, hat⟩, hAF, hAa⟩ := hAnn
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
     | app hF hx hev hw hle hty =>
@@ -1896,7 +1901,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
       obtain ⟨hAj, hl₁, hl₂⟩ := Valuation.Approx.join hΔ hθ hA₁ hA₂
       rw [subst_subst] at hev
       exact ⟨_, .app (Interp.mono_val hΔ hl₁ hF') (Interp.mono_val hΔ hl₂ hx') hev hw hle
-        (Stable.transfers hΔ Wθ hAa hty), hAj⟩
+        (Stable.transfers hΔ hΓ' Wθ Wσ hat hty), hAj⟩
   | fst p ih =>
     intro Γ Γ' θ σ ρ m hΓ hAnn hΓ' hgood Wθ Wσ hθ H
     cases H with
@@ -1906,13 +1911,14 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
       exact ⟨ρ', .fst hp' hw hle, hA⟩
   | snd p ih =>
     intro Γ Γ' θ σ ρ m hΓ hAnn hΓ' hgood Wθ Wσ hθ H
+    obtain ⟨⟨T, hft⟩, hAp⟩ := hAnn
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
     | snd hp hev hw hle hty =>
-      obtain ⟨ρ', hp', hA⟩ := ih hΓ hAnn hΓ' hgood Wθ Wσ hθ hp
+      obtain ⟨ρ', hp', hA⟩ := ih hΓ hAp hΓ' hgood Wθ Wσ hθ hp
       simp only [Term.subst, subst_subst] at hev
       exact ⟨ρ', .snd hp' hev hw hle
-        (Stable.transfers (a := Term.fst p) hΔ Wθ hAnn hty), hA⟩
+        (Stable.transfers (a := Term.fst p) hΔ hΓ' Wθ Wσ hft hty), hA⟩
   | refl r a ih =>
     intro Γ Γ' θ σ ρ m hΓ hAnn hΓ' hgood Wθ Wσ hθ H
     cases H with

@@ -15,15 +15,13 @@ open DomainSemantics
 Three `sorry`s remain in the whole development, and this board says
 which theorems they reach:
 
-* `Stable.transfers` (`Interp.lean`) — the one place a clause premise
-  has to be rebuilt in a *smaller* context.  `Interp.to_substTerm` is
-  otherwise proved, case by case: every premise comes back from
-  `Term.Annot` except `app`'s and `snd`'s label link, which says the
-  shape's label types the query.  Rebuilding that at `Γ` from its `Γ'`
-  form needs the two to be types of the same term, i.e. uniqueness of
-  types — downstream of soundness, which needs this lemma.  It is what
-  `Interp.inst` reaches, and `inst` is what the computation rules of
-  `IsDefEq.sound` reach.
+* `IsDefEq.uniq` (`Uniq.lean`) — **uniqueness of types**, the one
+  syntactic fact assumed here, with its own file saying why.  It is used
+  once: `Stable.transfers` has to recognise an `app` or `snd` clause's
+  label, in the smaller context, as the image of the argument's own type,
+  and those are two types of one term.  `Interp.to_substTerm` is proved
+  for every term former above it, `Interp.inst` reaches it, and the
+  computation rules of `IsDefEq.sound` reach `inst`.
 * `eta`, `fst_snd` (`IsDefEq.sound`) — the §5.3 decision.
 * `LR.adequacy`'s `r = false` transport (`Adequacy.lean`, the old
   model) — false for that model, and `LE_Interp.tr_stuck` is the
@@ -59,9 +57,13 @@ which theorems they reach:
 /-- info: 'DomainSemantics.Interp.inst' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms Interp.inst
 
--- **The one link the smaller context cannot rebuild**, and the only
--- `sorry` under the substitution half.
-/-- info: 'DomainSemantics.Stable.transfers' depends on axioms: [sorryAx] -/
+-- **The one syntactic fact assumed on this root**, and the only `sorry`
+-- under the substitution half: a term has at most one type.
+/-- info: 'DomainSemantics.IsDefEq.uniq' depends on axioms: [sorryAx] -/
+#guard_msgs in #print axioms IsDefEq.uniq
+
+-- what it is assumed for: the label link, in the smaller context
+/-- info: 'DomainSemantics.Stable.transfers' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms Stable.transfers
 
 -- **The proof-irrelevant transport**: it computes by K, so a transport
