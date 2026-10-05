@@ -1648,6 +1648,81 @@ That is a second discipline the size of the first (predicate, API,
 is what Σ's η costs.  Dropping the graph from Σ-values does not pay any
 of it.
 
+**The transport claim in the paragraph above is wrong**, and §4.7d is
+what replaces it.
+
+#### 4.7d Why canonicity does not transport: three locked doors
+
+The labelled-shape surgery of this branch (`sigma-no-graph`) carried out
+the premise of §4.7c: value shapes now carry their type labels
+(`lam A B g`, `pair A B x g`), `Shape.tyOf` reads the type a value
+names, and `Shape.Canon` is the hereditary condition "every entry label
+names this value's own first projection".  `Canon.defeq`, `Canon.subst`
+and `Canon.lift` are **proved** (`HasType.lean`).  The discipline then
+fails at one specific place, and the failure is not an accident of the
+formulation: every formulation fails at the same place, for one of three
+reasons.
+
+`Canon` must be closed under the join — saturation reads lookup values,
+and a lookup value is a join of entry outputs.  Joining two canonical
+values at one subject needs their *nested* label data related:
+
+* **Type-indexed** (`Canon Δ T t x`, conditions read off `T = Σ A B`):
+  joins are free (both sides read the same `A`, `B`), but the soundness
+  induction's conversion rule needs `Canon Δ T t x → TyEq Δ T T' →
+  Canon Δ T' t x`, which for `T = Σ A B`, `T' = Σ A' B'` **is Σ
+  injectivity**.
+* **Label-indexed** (conditions read off the value's own labels, this
+  branch): conversion is free, but the join of two pair shapes needs
+  `TyEq Δ (B.inst e.tm) (B'.inst e.tm)` for the right-hand entries, and
+  `Compat` compares only the *domain* labels.  Comparing codomains too
+  makes `HasType.mono_l` false (a smaller shape's codomain label is
+  arbitrary), and tying them in `HasType` needs the comparison — the two
+  requirements are each other's premise.  Deriving the equation from the
+  two typings instead **is Σ injectivity** again.
+* **Typing-quantified** (`Canon Δ t x` with `∀ A B, Δ ⊢ t : Σ A B → …`
+  inside): joins and conversion are both free, but the transport along
+  `Δ ⊢ t ≡ t' : T` must move the hypothesis `Δ ⊢ t' : Σ A B` back to
+  `t`, i.e. relate `T` and `Σ A B` — **type uniqueness**.
+* **Code-indexed** (the `Dom` pattern, conditions read off a Σ-*code*'s
+  labels): joins and conversion are free (defeq types have the *same*
+  approximants), and the nested equations need the code's label to agree
+  with its sub-codes' labels.  That coherence is a sound `WF` conjunct
+  for codes — `Shape.LE` already compares `PiLabelEq` there — but it
+  cannot be *established*: a code for `app F x` (a type family) is a
+  lookup in a λ-value's graph, and `Interp.lam`'s codomain label is
+  free, because `Term.lam A e` does not carry the codomain.  Forcing it
+  is impossible for the same reason; `Term.pair A B a b` *does* carry
+  both, which is why the Σ half has no analogous problem.
+
+So the three doors are **Σ/Π injectivity**, **type uniqueness**, and
+**syntactic determinism of the codomain label**, and all three are
+locked before soundness: `Inversion.lean` derives injectivity from
+`IsDefEq.sound`, `Consequences.lean`'s `HasType.uniq` derives uniqueness
+from injectivity, and the λ label is not in the term.  Inside the
+soundness induction only the *subderivations*' soundness is available,
+and the equations that need inverting are derived facts, not
+subderivations.
+
+What this costs is exactly `fst_snd`, and nothing else: η for Π,
+saturation, and the other 40-odd rules are proved.  The ways out, in
+the order I would try them:
+
+1. **Prove injectivity (or uniqueness) syntactically**, by a
+   parallel-reduction/Church-Rosser argument on the instrumented terms,
+   as a standalone development.  Everything else here is then ready:
+   with uniqueness, the typing-quantified `Canon` above closes
+   `fst_snd` with no further model surgery.
+2. **A second, coarser model** whose soundness is easy (no labels, so
+   `fst_snd` is free), used only to derive injectivity, then cited by
+   this one.  This is the usual stratification and is what the
+   `logrel`/`total` work would give.
+3. **Carry the codomain label on `Term.lam`** (a change to the object
+   syntax, not to the model), which unlocks the code-indexed door: the
+   `WF` coherence becomes establishable, and canonicity becomes a third
+   discipline of the `Dom` kind with a transport that needs no
+   inversion.
+
 ### 4.7b The dominator: resolved by (β)
 
 *Superseded.*  This section recorded the obstruction as it stood with the
