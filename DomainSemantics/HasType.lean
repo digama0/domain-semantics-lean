@@ -2112,6 +2112,98 @@ def Shape.graph {n} : Shape (n+1) → List (Entry (Shape n))
   | .pair _ _ g => g
   | _ => []
 
+/-- **Canonically labelled, as the value of a term of a type.**
+
+`Dom` says a value is hereditarily *typed*; this says it is hereditarily
+*labelled by its own projections*, which is what Σ's η needs and what
+`Dom` cannot carry (§4.7c): a pair-approximant of `p` must answer at
+`p.fst`, or `p.snd` reads nothing from it and the η-expansion cannot be
+rebuilt above it.
+
+Unlike `Dom` this is a recursion on the shape, and it carries the
+*type* as well as the term — which is the whole point.  Moving the
+subject along a definitional equality needs `t.fst ≡ t'.fst`, a
+congruence, and a congruence needs the type; a shape cannot recover the
+type its code stands for, but at this level the type is at hand.  The
+two transports (`Canon.defeq` in the term, `Canon.ty` in the type) are
+the lemmas that make the discipline usable. -/
+def Shape.Canon (Δ : List Term) : ∀ {n}, Term → Term → Shape n → Prop
+  | 0, _, _, _ => True
+  | _+1, T, t, .pair _ x g =>
+    ∃ A B u v, (Δ ⊢ A : .sort u) ∧ (A :: Δ ⊢ B : .sort v) ∧ TyEq Δ T (Term.sigma A B) ∧
+      (∀ e ∈ g, Δ ⊢ e.tm ≡ Term.fst t : A) ∧
+      Canon Δ A (Term.fst t) x ∧
+      ∀ e ∈ g, Canon Δ (B.inst (Term.fst t)) (Term.snd t) e.out
+  | _+1, T, t, .lam _ g =>
+    ∃ A B u v, (Δ ⊢ A : .sort u) ∧ (A :: Δ ⊢ B : .sort v) ∧ TyEq Δ T (Term.forallE A B) ∧
+      ∀ e ∈ g, (Δ ⊢ e.tm : A) ∧ Canon Δ A e.tm e.inp ∧
+        Canon Δ (B.inst e.tm) (Term.app t e.tm) e.out
+  | _+1, _, _, _ => True
+
+/-- At the total level. -/
+def TShape.Canon (Δ : List Term) (T t : Term) (x : TShape) : Prop :=
+  Shape.Canon Δ T t x.2
+
+@[simp] theorem TShape.Canon.T {Δ : List Term} {T t : Term} {n} {s : Shape n} :
+    TShape.Canon Δ T t (Shape.T s) ↔ Shape.Canon Δ T t s := Iff.rfl
+
+@[simp] theorem Shape.Canon.bot {Δ : List Term} {T t : Term} {n} :
+    Shape.Canon Δ T t (Shape.bot (n := n)) := by
+  cases n <;> trivial
+
+@[simp] theorem TShape.Canon.bot' {Δ : List Term} {T t : Term} {n} :
+    TShape.Canon Δ T t (Shape.T (Shape.bot (n := n))) := Shape.Canon.bot
+
+/-- **Canonicity moves with the type.** -/
+theorem Shape.Canon.ty {Δ : List Term} {T T' : Term} (h : TyEq Δ T T') :
+    ∀ {n} {t : Term} {x : Shape n}, Shape.Canon Δ T t x → Shape.Canon Δ T' t x := by
+  intro n
+  cases n with
+  | zero => exact fun _ => trivial
+  | succ n =>
+    intro t x hx
+    match x, hx with
+    | .pair _ _ _, ⟨A, B, u, v, hA, hB, hT, hlab, hfst, hout⟩ =>
+      exact ⟨A, B, u, v, hA, hB, h.symm.trans hT, hlab, hfst, hout⟩
+    | .lam _ _, ⟨A, B, u, v, hA, hB, hT, hall⟩ =>
+      exact ⟨A, B, u, v, hA, hB, h.symm.trans hT, hall⟩
+    | .bot, _ | .sort _, _ | .unit _, _ | .nat, _ | .zero, _ | .succ _, _ | .refl _, _
+    | .id _ _ _ _, _ | .forallE .., _ | .sigma .., _ => trivial
+
+/-- **And with the term**, which is the point of carrying the type: the
+projections' congruences are available here, and only here. -/
+theorem Shape.Canon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
+    ∀ {n} {T t t' : Term} {x : Shape n},
+      Shape.Canon Δ T t x → (Δ ⊢ t ≡ t' : T) → Shape.Canon Δ T t' x := by
+  intro n
+  induction n with
+  | zero => exact fun _ _ => trivial
+  | succ n ih =>
+    intro T t t' x hx he
+    match x, hx with
+    | .pair _ x₀ g, ⟨A, B, u, v, hA, hB, hT, hlab, hfst, hout⟩ =>
+      have heS : Δ ⊢ t ≡ t' : Term.sigma A B := hT.choose_spec.defeqDF he
+      have hf : Δ ⊢ Term.fst t ≡ Term.fst t' : A := IsDefEq.fstDF hA hB heS
+      -- the codomain moves with the first projection, so the outputs'
+      -- *type* moves too
+      have hBf0 : Δ ⊢ B.inst (Term.fst t) ≡ B.inst (Term.fst t') : Term.sort v := by
+        have := IsDefEq.subst' hΔ (show Ctx.SubstEq Δ (Subst.one (Term.fst t))
+            (Subst.one (Term.fst t')) (A :: Δ) from
+          .cons (Ctx.SubstEq.id hΔ) hA (by simpa using hf)) hB
+        simpa [Term.inst] using this
+      have hBf : TyEq Δ (B.inst (Term.fst t)) (B.inst (Term.fst t')) := ⟨v, hBf0⟩
+      refine ⟨A, B, u, v, hA, hB, hT, fun e hge => (hlab e hge).trans hf, ih hfst hf,
+        fun e hge =>
+          Shape.Canon.ty hBf (ih (hout e hge) (IsDefEq.sndDF hA hB heS hBf0))⟩
+    | .lam _ g, ⟨A, B, u, v, hA, hB, hT, hall⟩ =>
+      have heP : Δ ⊢ t ≡ t' : Term.forallE A B := hT.choose_spec.defeqDF he
+      refine ⟨A, B, u, v, hA, hB, hT, fun e hge => ⟨(hall e hge).1, (hall e hge).2.1,
+        ih (hall e hge).2.2 ?_⟩⟩
+      exact IsDefEq.appDF hA hB heP (hall e hge).1
+        (IsDefEq.inst0 hΔ (hall e hge).1 hB)
+    | .bot, _ | .sort _, _ | .unit _, _ | .nat, _ | .zero, _ | .succ _, _ | .refl _, _
+    | .id _ _ _ _, _ | .forallE .., _ | .sigma .., _ => trivial
+
 /-- A shape's entries, levels forgotten. -/
 def TShape.entries : TShape → List (Entry TShape)
   | ⟨0, _⟩ => []
