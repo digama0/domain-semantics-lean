@@ -4766,7 +4766,7 @@ because `P`'s *name* is `fst p`.  So the expansion's pair is rebuilt on
 theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢ Γ)
     (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v) (hp : Γ ⊢ p : .sigma A B)
     (hPB : B.Pinned (A :: Γ))
-    (ihAty : SoundTy Γ A (.sort u))
+    (hAtype : IsTypeAt Γ A)
     (ihpty : SoundTy Γ p (.sigma A B)) (ihpdom : SoundDom Γ p (.sigma A B))
     (ihfdom : SoundDom Γ (.fst p) A) (ihfdir : SoundDir Γ (.fst p))
     (ihBdir : SoundDir (A :: Γ) B)
@@ -4848,6 +4848,68 @@ theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢
           refine TShape.LE.trans hΔ hle (TShape.LE.T.2
             (show Shape.LE (n := nP+1) Δ (ShapeS.pair ..) (ShapeS.pair ..) from
               ⟨Shape.LE.refl hwP.2.2.2.1, Shape.LE.refl hwP.2.2.2.2, hwP.1, hAlab, hname⟩))
+
+/-- Building a `TShape.LE` between two pair shapes at different levels. -/
+theorem TShape.LE.pair_mk {Δ : List Term} {n k} {A B a A' B' a' : Term}
+    {x y : Shape n} {x' y' : Shape k} (hΔ : ⊢ Δ)
+    (hx : TShape.LE Δ (Shape.T x) (Shape.T x')) (hy : TShape.LE Δ (Shape.T y) (Shape.T y'))
+    (hnd : ¬ (x.IsBot ∧ y.IsBot)) (hA : TyEq Δ A A') (ha : Δ ⊢ a ≡ a' : A) :
+    TShape.LE Δ (Shape.T (n := n+1) (ShapeS.pair A B a x y))
+      (Shape.T (n := k+1) (ShapeS.pair A' B' a' x' y')) := by
+  refine (TShape.LE.def hΔ (Nat.succ_le_succ (Nat.le_max_left n k))
+    (Nat.succ_le_succ (Nat.le_max_right n k))).2 ?_
+  refine ⟨(TShape.LE.def hΔ (Nat.le_max_left n k) (Nat.le_max_right n k)).1 hx,
+    (TShape.LE.def hΔ (Nat.le_max_left n k) (Nat.le_max_right n k)).1 hy, ?_, hA, ha⟩
+  exact fun hb => hnd ⟨(Shape.lift_isBot (Nat.le_max_left n k)).1 hb.1,
+    (Shape.lift_isBot (Nat.le_max_left n k)).1 hb.2⟩
+
+/-- **Σ's η, the easy direction**: an approximant of `⟨fst p, snd p⟩` is
+one of `p`.  With the graph gone this is true, where with it it was not
+(§4.7e): the expansion's pair has no inputs to promise a second
+component at, so its two components are approximants of the projections
+and nothing more.  Each comes from a pair-approximant of `p`; one
+directedness step puts both under a single one, whose name is `fst p`
+by canonicity, and the order then compares. -/
+theorem sound_fst_snd_to {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢ Γ)
+    (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v) (hp : Γ ⊢ p : .sigma A B)
+    (ihpty : SoundTy Γ p (.sigma A B)) (ihpdir : SoundDir Γ p)
+    {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
+    (hcanon : PairCanon Δ Γ σ ρ p)
+    {m : TShape} (hm : Interp Δ Γ (.pair A B (.fst p) (.snd p)) σ ρ m) :
+    Interp Δ Γ p σ ρ m := by
+  have hwρ := hAdm.wf
+  have hfst : Γ ⊢ .fst p : A := .fstDF hA hB hp
+  cases hm with
+  | bot => exact .bot
+  | @pair _ _ _ _ n x y _ _ _ _ _ _ _ hx hy _ _ _ hwf _ _ hw hle _ _ =>
+    -- the two components come from two pair-approximants of `p`
+    cases hx with
+    | bot =>
+      cases hy with
+      | bot => exact absurd ⟨Shape.isBot_bot, Shape.isBot_bot⟩ hwf.1
+      | snd hP₂ hlab₂ hw₂ hle₂ hst₂ =>
+        refine Interp.mono hΔ hw (TShape.LE.trans hΔ hle ?_) hP₂
+        have hAP := Interp.pair_label_ty hΔ W hAdm ihpty hP₂
+        exact TShape.LE.pair_mk hΔ (TShape.bot_le' rfl) hle₂ hwf.1 (TyEq.symm hAP)
+          (hAP.choose_spec.defeqDF (hcanon hP₂).symm)
+    | fst hP₁ hwx hlex =>
+      cases hy with
+      | bot =>
+        refine Interp.mono hΔ hw (TShape.LE.trans hΔ hle ?_) hP₁
+        have hAP := Interp.pair_label_ty hΔ W hAdm ihpty hP₁
+        exact TShape.LE.pair_mk hΔ hlex (TShape.bot_le' rfl) hwf.1 (TyEq.symm hAP)
+          (hAP.choose_spec.defeqDF (hcanon hP₁).symm)
+      | snd hP₂ hlab₂ hwy hley hst₂ =>
+        -- one pair-approximant above both
+        obtain ⟨P, hwP, hP, hleP₁, hleP₂⟩ := ihpdir hΔ W hwρ hP₁ hP₂
+        obtain ⟨k, A', B', a', x', y', rfl⟩ := TShape.LE.pair_ub hleP₁
+        obtain ⟨_, _, hx₁, _⟩ := TShape.LE.pair_decomp hΔ hleP₁
+        obtain ⟨_, _, _, hy₂⟩ := TShape.LE.pair_decomp hΔ hleP₂
+        refine Interp.mono hΔ hw (TShape.LE.trans hΔ hle ?_) hP
+        have hAP := Interp.pair_label_ty hΔ W hAdm ihpty hP
+        exact TShape.LE.pair_mk hΔ (TShape.LE.trans hΔ hlex hx₁)
+          (TShape.LE.trans hΔ hley hy₂) hwf.1 (TyEq.symm hAP)
+          (hAP.choose_spec.defeqDF (hcanon hP).symm)
 
 /-- The four conclusions proved by the induction itself.  `Sound` adds
 saturation on top, which is where the remaining work is (§4.5g). -/
@@ -5025,7 +5087,26 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
       (IsDefEq.dir hΓ ha).1 (IsDefEq.dir hΓ hb).1
     exact ⟨he, SoundTy.of_eq (.symm (.pair_snd hA hB ha hb hsnd)) he.symm (ihb hΓ).ty,
       (ihlhs hΓ).pin, (ihb hΓ).pin, (ihlhs hΓ).dom⟩
-  | fst_snd => sorry
+  | @fst_snd Γ p A B hp hpair ihp ihpair =>
+    -- both directions of Σ's η, against the one condition the model does
+    -- not yet give: a pair-approximant's name is the subject's own first
+    -- projection (§4.7a, `PairCanon`)
+    obtain ⟨hAty, hpA, hpB, hpa, hpb⟩ := (ihpair hΓ).pin
+    have hSg := (hp.isType hΓ).choose_spec
+    obtain ⟨u, hA⟩ := IsDefEq.sigma_dom hSg
+    obtain ⟨v, hB⟩ := IsDefEq.sigma_cod hSg
+    have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
+    have he : SoundEq Γ (.pair A B (.fst p) (.snd p)) p := by
+      intro Δ Γ₀ σ ρ hΔ W hAdm m
+      -- the one condition the model does not yet give: a pair-approximant's
+      -- name is the subject's own first projection (§4.7a)
+      have hcanon : PairCanon Δ Γ σ ρ p := sorry
+      exact ⟨sound_fst_snd_to hΓ hA hB hp (ihp hΓ).ty (IsDefEq.dir hΓ hp).1 hΔ W hAdm
+          hcanon,
+        sound_fst_snd_of hΓ hA hB hp hpB hAty (ihp hΓ).ty (ihp hΓ).dom
+          (sound_fst_dom (ihp hΓ).dom) (IsDefEq.dir hΓ (.fstDF hA hB hp)).1
+          (IsDefEq.dir hΓA hB).1 hΔ W hAdm hcanon⟩
+    exact ⟨he, (ihpair hΓ).ty, (ihpair hΓ).pin, (ihp hΓ).pin, (ihpair hΓ).dom⟩
   | nat =>
     exact and_pinned_filter (sound_atom .nat Interp.le_nat Interp.sort' .nat)
       trivial trivial (fun ha => TShape.not_binder_of_le (Interp.le_sort ha) (fun h => h))
