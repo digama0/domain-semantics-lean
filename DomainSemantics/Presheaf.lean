@@ -2216,136 +2216,107 @@ theorem pair_sigma_code {Γ Γ₀ Δ : List Term} {A B a : Term} {u v : Bool} {�
     (ihAty : SoundTy Γ A (.sort u)) (ihAdir : SoundDir Γ A) (ihaty : SoundTy Γ a A)
     (ihBty : SoundTy (A :: Γ) B (.sort v)) (ihBdir : SoundDir (A :: Γ) B)
     (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
-    {n} {x : Shape n} {g₀ : List (Entry (Shape n) × TShape)} {d : TShape} {Bd : Term}
+    {n} {x y : Shape n} {d c : TShape} {Bd : Term}
     (ha : Interp Δ Γ a σ ρ (Shape.T x)) (hA : Interp Δ Γ A σ ρ d)
     (hd : TShape.HasType Δ d TShape.type) (hdx : TShape.Dom Δ d (Shape.T x))
-    (hwp : Shape.WF (n := n+1) Δ (.pair (A.subst σ) Bd x (g₀.map (·.1))))
-    (hdom : ∀ e ∈ g₀, TShape.Dom Δ d e.1.inp.T)
-    (hcode : ∀ e ∈ g₀, Interp Δ (A :: Γ) B (σ.cons e.1.tm) (ρ.push e.1.inp.T) e.2)
-    (hcty : ∀ e ∈ g₀, TShape.Dom Δ e.2 e.1.out.T) :
+    (hwp : Shape.WF (n := n+1) Δ (.pair (A.subst σ) Bd (a.subst σ) x y))
+    (hcode : Interp Δ (A :: Γ) B (σ.cons (a.subst σ)) (ρ.push (Shape.T x)) c)
+    (hcty : TShape.Dom Δ c (Shape.T y)) :
     ∃ (k : Nat) (dk : Shape k) (f : ShapeFun k),
       Interp Δ Γ (.sigma A B) σ ρ
         (Shape.T (n := k+1) (.sigma (A.subst σ) (B.subst σ.lift) dk f)) ∧
-      TShape.HasType Δ (Shape.T (n := n+1) (.pair (A.subst σ) Bd x (g₀.map (·.1))))
+      TShape.HasType Δ (Shape.T (n := n+1) (.pair (A.subst σ) Bd (a.subst σ) x y))
         (Shape.T (n := k+1) (.sigma (A.subst σ) (B.subst σ.lift) dk f)) ∧
       TShape.HasType Δ (Shape.T dk) TShape.type ∧
       TShape.Dom Δ (Shape.T dk) (Shape.T x) ∧
-      (∀ e ∈ g₀, TShape.Dom Δ (Shape.T dk) e.1.inp.T) ∧
-      (∀ e ∈ g₀, ∃ c, TEvaluates Δ f e.1.ty e.1.tm e.1.inp.T c ∧
-        TShape.HasType Δ c TShape.type ∧ TShape.Dom Δ c e.1.out.T) := by
+      ∃ cc, TEvaluates Δ f (A.subst σ) (a.subst σ) (Shape.T x) cc ∧
+        TShape.HasType Δ cc TShape.type ∧ TShape.Dom Δ cc (Shape.T y) := by
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hAty⟩
   have hwρ := hAdm.wf
-  -- every entry's stage is admissible
-  have hstage : ∀ p ∈ g₀, Ctx.SubstEq Δ (σ.cons p.1.tm) (σ.cons p.1.tm) (A :: Γ) ∧
-      Adm Δ Γ₀ (A :: Γ) (σ.cons p.1.tm) (ρ.push p.1.inp.T) := by
-    intro p hp
-    have hwe := hwp.2.2.1.1 p.1 (List.mem_map.2 ⟨p, hp, rfl⟩)
-    exact ⟨.cons W hAty ((hwp.2.2.2.1 p.1 (List.mem_map.2 ⟨p, hp, rfl⟩)).choose_spec.defeqDF
-        hwe.2.1),
-      .cons hAdm W.wf (fun _ hc' => ihAty.isType hΔ W hAdm hc') hA hwe.2.2.1 (hdom p hp)⟩
+  have hAσ : Δ ⊢ A.subst σ : .sort u := hAty.subst hΔ W
+  have hΔA : ⊢ (A.subst σ :: Δ) := ⟨hΔ, _, hAσ⟩
+  -- the pair's own stage is admissible
+  have hstage : Ctx.SubstEq Δ (σ.cons (a.subst σ)) (σ.cons (a.subst σ)) (A :: Γ) ∧
+      Adm Δ Γ₀ (A :: Γ) (σ.cons (a.subst σ)) (ρ.push (Shape.T x)) :=
+    ⟨.cons W hAty hwp.2.1,
+      .cons hAdm W.wf (fun _ hc' => ihAty.isType hΔ W hAdm hc') hA
+        (TShape.WF.T.2 hwp.2.2.2.1) hdx⟩
   -- the first component, typed at a domain shape joined with the clause's
-  obtain ⟨c, hc, hxc⟩ := ihaty.approx hΔ W hAdm ha
-  obtain ⟨hcd, hdj⟩ := (ihAdir hΔ W hwρ).join hΔ hA hc
-  have hdjty : TShape.HasType Δ (d.join c) TShape.type :=
-    TShape.HasType.join_sort' hΔ rfl hd (ihAty.isType hΔ W hAdm hc) hcd
-  obtain ⟨hled, hlec⟩ := TShape.le_join hΔ hA.wf hc.wf hcd
-  -- one level for the codes, the joined domain and the graph
-  obtain ⟨k, hkn, hkd, hkc⟩ : ∃ k, n ≤ k ∧ (d.join c).1 ≤ k ∧
-      ∀ p ∈ g₀, (Prod.snd p : TShape).1 ≤ k :=
-    ⟨levelMax (fun p => (Prod.snd p : TShape).1) (max n (d.join c).1) g₀,
-      Nat.le_trans (Nat.le_max_left ..) le_levelMax,
-      Nat.le_trans (Nat.le_max_right ..) le_levelMax,
-      fun p hp => mem_le_levelMax (f := fun p => (Prod.snd p : TShape).1) hp⟩
-  obtain ⟨f, hf⟩ : ∃ f : ShapeFun k, ∀ e, e ∈ f ↔ ∃ p ∈ g₀,
-      e = ⟨p.1.ty, p.1.tm, p.1.inp.lift k, (Prod.snd p : TShape).2.lift k⟩ :=
-    ⟨g₀.map fun p => ⟨p.1.ty, p.1.tm, p.1.inp.lift k, (Prod.snd p : TShape).2.lift k⟩,
-      fun e => by simp [List.mem_map, eq_comm]⟩
-  have hg₀g : ∀ p ∈ g₀, p.1 ∈ g₀.map (·.1) := fun p hp => List.mem_map.2 ⟨p, hp, rfl⟩
-  have hpwf : ∀ p ∈ g₀, TShape.WF Δ (Prod.snd p : TShape) := fun p hp => (hcode p hp).wf
-  have hdty : TShape.HasType Δ (Shape.T ((d.join c).2.lift k)) TShape.type :=
+  obtain ⟨c₀, hc₀, hxc⟩ := ihaty.approx hΔ W hAdm ha
+  obtain ⟨hcd, hdj⟩ := (ihAdir hΔ W hwρ).join hΔ hA hc₀
+  have hdjty : TShape.HasType Δ (d.join c₀) TShape.type :=
+    TShape.HasType.join_sort' hΔ rfl hd (ihAty.isType hΔ W hAdm hc₀) hcd
+  obtain ⟨hled, hlec⟩ := TShape.le_join hΔ hA.wf hc₀.wf hcd
+  -- one level for the code, the joined domain and the single entry
+  obtain ⟨k, hkn, hkd, hkc⟩ : ∃ k, n ≤ k ∧ (d.join c₀).1 ≤ k ∧ c.1 ≤ k :=
+    ⟨max n (max (d.join c₀).1 c.1), Nat.le_max_left .., 
+      Nat.le_trans (Nat.le_max_left ..) (Nat.le_max_right ..),
+      Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_right ..)⟩
+  have hcwf : Shape.WF Δ c.2 := hcode.wf
+  -- the Σ-code's graph: the pair's own name, first component and code
+  let f : ShapeFun k := [⟨A.subst σ, a.subst σ, x.lift k, c.2.lift k⟩]
+  have hfmem : ∀ e ∈ f, e = (⟨A.subst σ, a.subst σ, x.lift k, c.2.lift k⟩ :
+      Entry (Shape k)) := by
+    intro e he
+    simpa [f] using he
+  have hdty : TShape.HasType Δ (Shape.T ((d.join c₀).2.lift k)) TShape.type :=
     hdjty.lift_subject hΔ hkd
-  have hdle : TShape.LE Δ (d.join c) (Shape.T ((d.join c).2.lift k)) :=
-    TShape.LE.le_lift hΔ (m := d.join c) hkd hdjty.wf.1
-  -- the Σ-shape's premises, entry by entry
+  have hdle : TShape.LE Δ (d.join c₀) (Shape.T ((d.join c₀).2.lift k)) :=
+    TShape.LE.le_lift hΔ (m := d.join c₀) hkd hdjty.wf.1
+  have hcodety : TShape.HasType Δ c TShape.type :=
+    ihBty.isType hΔ hstage.1 hstage.2 hcode
+  have hcodety' : TShape.HasType Δ (Shape.T (c.2.lift k)) TShape.type :=
+    hcodety.lift_subject hΔ hkc
   have hfent : ∀ e ∈ f, (∃ u, Δ ⊢ e.ty : .sort u) ∧ Δ ⊢ e.tm : e.ty ∧
       Shape.WF Δ e.inp ∧ Shape.WF Δ e.out := by
     intro e he
-    obtain ⟨p, hp, rfl⟩ := (hf e).1 he
-    have hwe := hwp.2.2.1.1 p.1 (hg₀g p hp)
-    exact ⟨hwe.1, hwe.2.1, (Shape.lift_wf hkn).2 hwe.2.2.1,
-      (Shape.lift_wf (hkc p hp)).2 (hpwf p hp)⟩
+    rw [hfmem e he]
+    exact ⟨⟨u, hAσ⟩, hwp.2.1, (Shape.lift_wf hkn).2 hwp.2.2.2.1,
+      (Shape.lift_wf hkc).2 hcwf⟩
   have hflab : ∀ e ∈ f, TyEq Δ e.ty (A.subst σ) := by
+    intro e he; rw [hfmem e he]; exact TyEq.refl hAσ
+  have hfdom : ∀ e ∈ f, TShape.Dom Δ (Shape.T ((d.join c₀).2.lift k)) e.inp.T := by
     intro e he
-    obtain ⟨p, hp, rfl⟩ := (hf e).1 he
-    exact hwp.2.2.2.1 p.1 (hg₀g p hp)
-  have hfdom : ∀ e ∈ f, TShape.Dom Δ (Shape.T ((d.join c).2.lift k)) e.inp.T := by
-    intro e he
-    obtain ⟨p, hp, rfl⟩ := (hf e).1 he
+    rw [hfmem e he]
     exact TShape.Dom.mono_r hΔ
-      (TShape.Dom.lift_subject hΔ (TShape.Dom.mono_r hΔ (hdom p hp) hled hdjty) hkn)
-      hdle hdty
+      (TShape.Dom.lift_subject hΔ (TShape.Dom.mono_r hΔ hdx hled hdjty) hkn) hdle hdty
   have hfbody : ∀ e ∈ f,
       Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push e.inp.T) e.out.T := by
     intro e he
-    obtain ⟨p, hp, rfl⟩ := (hf e).1 he
-    have hwe := hwp.2.2.1.1 p.1 (hg₀g p hp)
-    refine Interp.mono hΔ ((Shape.lift_wf (hkc p hp)).2 (hpwf p hp))
-      (TShape.LE.lift_le hΔ (m := (Prod.snd p : TShape)) (hkc p hp) (hpwf p hp)) ?_
+    rw [hfmem e he]
+    refine Interp.mono hΔ ((Shape.lift_wf hkc).2 hcwf)
+      (TShape.LE.lift_le hΔ (m := c) hkc hcwf) ?_
     exact Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ,
-      TShape.LE.le_lift hΔ (m := p.1.inp.T) hkn hwe.2.2.1⟩) (hcode p hp)
-  have hAσ : Δ ⊢ A.subst σ : .sort u := hAty.subst hΔ W
-  have hΔA : ⊢ (A.subst σ :: Δ) := ⟨hΔ, _, hAσ⟩
+      TShape.LE.le_lift hΔ (m := Shape.T x) hkn (TShape.WF.T.2 hwp.2.2.2.1)⟩) hcode
   have hwfSg : Shape.WF (n := k+1) Δ
-      (.sigma (A.subst σ) (B.subst σ.lift) ((d.join c).2.lift k) f) :=
+      (.sigma (A.subst σ) (B.subst σ.lift) ((d.join c₀).2.lift k) f) :=
     ⟨⟨u, hAσ⟩, ⟨v, hB.subst hΔA (W.lift hAty hAσ)⟩,
       (Shape.lift_wf hkd).2 hdjty.wf.1,
       fun e he => hfent e he,
       graph_coherent hΓ hAty hB hΔ W hwρ ihBdir (fun e he => (hfent e he).2.2.1)
         hflab hfbody⟩
   have hSg : Interp Δ Γ (.sigma A B) σ ρ
-      (Shape.T (n := k+1) (.sigma (A.subst σ) (B.subst σ.lift) ((d.join c).2.lift k) f)) :=
+      (Shape.T (n := k+1) (.sigma (A.subst σ) (B.subst σ.lift) ((d.join c₀).2.lift k) f)) :=
     .sigma (Interp.mono hΔ ((Shape.lift_wf hkd).2 hdjty.wf.1)
-        (TShape.LE.lift_le hΔ (m := d.join c) hkd hdjty.wf.1) hdj)
+        (TShape.LE.lift_le hΔ (m := d.join c₀) hkd hdjty.wf.1) hdj)
       hdty hwfSg (fun e he => (hflab e he).imp fun _ h => h) hfdom hfbody
       hwfSg (TShape.LE.refl hwfSg) ⟨u, hAty⟩ ⟨v, hB⟩
-  -- each code is looked up in the Σ's graph, at its own entry
-  have hlook : ∀ p ∈ g₀, TEvaluates Δ f p.1.ty p.1.tm p.1.inp.T
-      (Shape.T ((Prod.snd p : TShape).2.lift k)) := by
-    intro p hp
-    refine TEvaluates.entry _ ((hf _).2 ⟨p, hp, rfl⟩)
-      ⟨TyEq.refl_l (hwp.2.2.2.1 p.1 (hg₀g p hp)),
-        (hwp.2.2.1.1 p.1 (hg₀g p hp)).2.1⟩ ?_
-    exact TShape.LE.lift_le hΔ (m := p.1.inp.T) hkn (hwp.2.2.1.1 p.1 (hg₀g p hp)).2.2.1
-  -- and it types the pair-shape, with the clause's own generator
-  refine ⟨k, (d.join c).2.lift k, f, hSg, TShape.HasType.pair (g₀ := g₀)
-      hdty (fun e he => ?_) hwp hwfSg
+  -- the code is the lookup at the pair's own name and first component
+  have hlook : TEvaluates Δ f (A.subst σ) (a.subst σ) (Shape.T x)
+      (Shape.T (c.2.lift k)) :=
+    TEvaluates.entry _ (List.mem_cons_self) ⟨TyEq.refl hAσ, hwp.2.1⟩
+      (TShape.LE.lift_le hΔ (m := Shape.T x) hkn (TShape.WF.T.2 hwp.2.2.2.1))
+  refine ⟨k, (d.join c₀).2.lift k, f, hSg,
+    TShape.HasType.pair hdty (fun e he => by rw [hfmem e he]; exact hcodety') hwp hwfSg
       (TShape.HasType.mono_r hΔ (TShape.HasType.mono_r hΔ hxc _ hlec hdjty) _ hdle hdty)
-      (fun e he => ?_) (fun e he => ?_) (fun p hp => ?_)
-      (fun p hp => (hcty p hp).hasType) (TyEq.refl hAσ),
+      (TShape.LE.refl (TShape.WF.T.2 hwp.2.2.2.1)) hlook
+      (TShape.HasType.mono_r hΔ (TShape.Dom.hasType hcty) _
+        (TShape.LE.le_lift hΔ (m := c) hkc hcwf) hcodety')
+      (TyEq.refl hAσ),
     hdty,
     TShape.Dom.mono_r hΔ (TShape.Dom.mono_r hΔ hdx hled hdjty) hdle hdty,
-    fun e he => TShape.Dom.mono_r hΔ
-      (TShape.Dom.mono_r hΔ (hdom e he) hled hdjty) hdle hdty,
-    fun p hp => ⟨_, hlook p hp,
-      (ihBty.isType hΔ (hstage p hp).1 (hstage p hp).2 (hcode p hp)).lift_subject hΔ
-        (hkc p hp),
-      TShape.Dom.mono_r hΔ (hcty p hp)
-        (TShape.LE.le_lift hΔ (m := (Prod.snd p : TShape)) (hkc p hp) (hpwf p hp))
-        ((ihBty.isType hΔ (hstage p hp).1 (hstage p hp).2 (hcode p hp)).lift_subject hΔ
-          (hkc p hp))⟩⟩
-  · -- the Σ-entries are types
-    obtain ⟨p, hp, rfl⟩ := (hf e).1 he
-    exact (ihBty.isType hΔ (hstage p hp).1 (hstage p hp).2
-      (hcode p hp)).lift_subject hΔ (hkc p hp)
-  · -- the generator's entries are well formed
-    exact ⟨(hwp.2.2.1.1 e he).2.2.1, (hwp.2.2.1.1 e he).2.2.2⟩
-  · -- every entry is covered by itself
-    exact TEvaluates.refl hwp.2.2.1 e he
-  · -- and each code is the Σ-entry built from it
-    exact TEvaluates.lower
-      (TShape.LE.le_lift hΔ (m := (Prod.snd p : TShape)) (hkc p hp) (hpwf p hp))
-      (hlook p hp)
-
+    _, hlook, hcodety',
+    TShape.Dom.mono_r hΔ hcty (TShape.LE.le_lift hΔ (m := c) hkc hcwf) hcodety'⟩
 
 /-- **The type of a pair**, the Σ mirror of `sound_lam_ty` — and shorter,
 because `Interp.pair` already carries the codes: a pair's graph is
@@ -2364,10 +2335,10 @@ theorem sound_pair_ty {Γ : List Term} {A B a b : Term} {u v : Bool}
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
   cases hm with
   | bot => exact ⟨TShape.bot, .bot, .bot (.bot .sort)⟩
-  | @pair _ _ _ _ n x g₀ d _ _ _ _ _ ha hA hd hdx hwp hlab hdom hinp _ hcode hcty hw hle =>
+  | pair ha hb hA hd hdx hwp hcode hcty hw hle =>
     obtain ⟨k, dk, f, hSg, hty, _⟩ :=
       pair_sigma_code hΓ hAty hB ihAty ihAdir ihaty ihBty ihBdir hΔ W hAdm
-        ha hA hd hdx hwp hdom hcode hcty
+        ha hA hd hdx hwp hcode hcty
     exact ⟨_, hSg, TShape.HasType.mono_l hΔ hty hle⟩
 
 /-- **Saturation at a pair.**  The clause's codes are the Σ-shape's, and
@@ -2383,37 +2354,18 @@ theorem sound_pair_dom {Γ : List Term} {A B a b : Term} {u v : Bool}
   cases hm with
   | bot => exact ⟨TShape.bot, TShape.bot, .bot, TShape.bot_le' rfl, .bot,
       TShape.Dom.bot (.bot (.bot .sort))⟩
-  | @pair _ _ _ _ n x g₀ d _ _ _ _ Bd ha hA hd hdx hwp hlab hdom hinp hout hcode hcty hw hle =>
-    obtain ⟨k, dk, f, hSg, hty, hdty, hdfst, hdinp, hcodes⟩ :=
+  | @pair _ _ _ _ n x y d c _ _ _ _ Bd ha hb hA hd hdx hwp hcode hcty hw hle =>
+    obtain ⟨k, dk, f, hSg, hty, hdty, hdfst, cc, hlook, hccty, hccdom⟩ :=
       pair_sigma_code hΓ hAty hB ihAty ihAdir ihaty ihBty ihBdir hΔ W hAdm
-        ha hA hd hdx hwp hdom hcode hcty
-    -- the codes, as the list `Dom` wants them
-    obtain ⟨cs₀, hcsmap, hcsall⟩ := List.exists_pairs (β := TShape)
-      (P := fun (e : Entry (Shape n) × TShape) (c : TShape) =>
-        TEvaluates Δ f e.1.ty e.1.tm e.1.inp.T c ∧ TShape.Dom Δ c e.1.out.T)
-      (fun e he => by
-        obtain ⟨c, hc, _, hdc⟩ := hcodes e he
-        exact ⟨c, hc, hdc⟩)
-    have hcsg : ∀ p ∈ cs₀, p.1 ∈ g₀ := fun p hp => hcsmap ▸ List.mem_map.2 ⟨p, hp, rfl⟩
-    refine ⟨Shape.T (n := n+1) (.pair (A.subst σ) Bd x (g₀.map (·.1))), _,
-      .pair ha hA hd hdx hwp hlab hdom hinp hout hcode hcty
+        ha hA hd hdx hwp hcode hcty
+    exact ⟨Shape.T (n := n+1) (ShapeS.pair (A.subst σ) Bd (a.subst σ) x y), _,
+      .pair ha hb hA hd hdx hwp hcode hcty
         (TShape.WF.T.2 hwp) (TShape.LE.refl (TShape.WF.T.2 hwp)) ‹_› ‹_›,
       hle, hSg,
-      .sg (cs := cs₀.map (fun p => ((⟨p.1.1.ty, p.1.1.tm, p.1.1.inp.T, p.1.1.out.T⟩ :
-          Entry TShape), p.2))) hty ?_ ?_ (fun p hp => ?_) (fun p hp => ?_)
-        (fun p hp => ?_)⟩
-    · show (g₀.map (·.1)).map (fun e => (⟨e.ty, e.tm, e.inp.T, e.out.T⟩ : Entry TShape)) = _
-      rw [← hcsmap]
-      simp [List.map_map, Function.comp_def]
-    · intro y hy
-      rw [show y = Shape.T x from by simpa [TShape.fstPart] using hy]
-      exact hdfst
-    · obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
-      exact hdinp q.1 (hcsg q hq)
-    · obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
-      exact (hcsall q hq).1
-    · obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
-      exact (hcsall q hq).2
+      .sg (ps := some (a.subst σ, Shape.T x, Shape.T y)) (c := cc) hty rfl
+        (fun p hp => by cases hp; exact hdfst)
+        (fun p hp => by cases hp; exact hlook)
+        (fun p hp => by cases hp; exact hccdom)⟩
 
 /-- One direction of the `SoundEq` half of `pairDF`.  A pair-shape's only
 label is its domain, and its entries' label terms name the *first
@@ -2421,8 +2373,9 @@ component*, so the two things that move are that label (up to `TyEq`, as
 at λ) and those terms (along `a ≡ a'`, at the entry's own type).  The
 codomain's values do not move at all: their stage is the entry's label
 term, which is unchanged. -/
-theorem sound_pair_eq_of {Γ : List Term} {A A' B B' a a' b b' : Term} {u : Bool}
+theorem sound_pair_eq_of {Γ : List Term} {A A' B B' a a' b b' : Term} {u v : Bool}
     (hAA' : Γ ⊢ A ≡ A' : .sort u) (haa' : Γ ⊢ a ≡ a' : A)
+    (hB'ty : A' :: Γ ⊢ B' ≡ B' : .sort v)
     (ihA : SoundEq Γ A A') (ihAty : SoundTy Γ A (.sort u))
     (iha : SoundEq Γ a a') (ihb : SoundEq Γ b b') (ihB : SoundEq (A :: Γ) B B')
     {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
@@ -2432,43 +2385,45 @@ theorem sound_pair_eq_of {Γ : List Term} {A A' B B' a a' b b' : Term} {u : Bool
   have haσ : Δ ⊢ a.subst σ ≡ a'.subst σ : A.subst σ := haa'.subst hΔ W
   cases H with
   | bot => exact .bot
-  | @pair _ _ _ _ n x g₀ d _ _ _ _ Bd ha hA hd hdx hwp hlab hdom hinp hout hcode hcty hw hle
-      hAt hat =>
-    have hwp' : Shape.WF (n := n+1) Δ (ShapeS.pair (A'.subst σ) Bd x (g₀.map (·.1))) :=
-      ⟨hwp.1, hwp.2.1, hwp.2.2.1,
-        fun e he => TyEq.trans (hwp.2.2.2.1 e he) hAσ,
-        TyEq.refl_r hAσ, hwp.2.2.2.2.2⟩
-    refine .pair ((iha hΔ W hAdm).1 ha) ((ihA hΔ W hAdm).1 hA) hd hdx hwp'
-      (fun e he => ?_) hdom (fun e he => (iha hΔ W hAdm).1 (hinp e he))
-      (fun e he => (ihb hΔ W hAdm).1 (hout e he)) (fun e he => ?_) hcty hw
-      (hle.trans hΔ (TShape.LE.T.2
-        ⟨Shape.LE.refl hwp.2.2.2.2.2, ShapeFun.LE.refl hwp.2.2.1, hwp.1, hwp.2.1,
-          hAσ, hwp.2.2.2.1⟩))
-      ⟨u, hAA'.hasType.2⟩ (hAA'.defeqDF (haa'.hasType.2))
-    · -- the entry's label term names the new first component
-      exact (hlab e he).trans
-        (((hwp.2.2.2.1 e.1 (List.mem_map.2 ⟨e, he, rfl⟩)).choose_spec).symm.defeqDF haσ)
-    · -- the codomain's value, at the entry's own stage
-      have hwe := hwp.2.2.1.1 e.1 (List.mem_map.2 ⟨e, he, rfl⟩)
-      have W' : Ctx.SubstEq Δ (σ.cons e.1.tm) (σ.cons e.1.tm) (A :: Γ) :=
-        .cons W hAA'.hasType.1
-          ((hwp.2.2.2.1 e.1 (List.mem_map.2 ⟨e, he, rfl⟩)).choose_spec.defeqDF hwe.2.1)
-      have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.1.tm) (ρ.push e.1.inp.T) :=
-        .cons hAdm W.wf (fun _ hc => ihAty.isType hΔ W hAdm hc) hA hwe.2.2.1 (hdom e he)
-      exact Interp.ctx ((ihB hΔ W' hAdm').1 (hcode e he)) ⟨W.wf, _, hAA'.hasType.2⟩
+  | @pair _ _ _ _ n x y d c _ _ _ _ Bd ha hb hA hd hdx hwp hcode hcty hw hle hAt hat =>
+    have hwp' : Shape.WF (n := n+1) Δ
+        (ShapeS.pair (A'.subst σ) Bd (a'.subst σ) x y) :=
+      ⟨hwp.1, hAσ.choose_spec.defeqDF (haσ.symm.trans haσ), TyEq.refl_r hAσ,
+        hwp.2.2.2.1, hwp.2.2.2.2⟩
+    have W' : Ctx.SubstEq Δ (σ.cons (a.subst σ)) (σ.cons (a.subst σ)) (A :: Γ) :=
+      .cons W hAA'.hasType.1 hwp.2.1
+    have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons (a.subst σ)) (ρ.push (Shape.T x)) :=
+      .cons hAdm W.wf (fun _ hc => ihAty.isType hΔ W hAdm hc) hA
+        (TShape.WF.T.2 hwp.2.2.2.1) hdx
+    -- the codomain's value, at the pair's own name moved along `a ≡ a'`
+    have hcode' : Interp Δ (A' :: Γ) B' (σ.cons (a.subst σ)) (ρ.push (Shape.T x)) c :=
+      Interp.ctx ((ihB hΔ W' hAdm').1 hcode)
+        (show ⊢ (A' :: Γ) from ⟨W.wf, _, hAA'.hasType.2⟩)
         (Ctx.SubstEq.defeqHead W.wf hAA')
+    have hcode'' : Interp Δ (A' :: Γ) B' (σ.cons (a'.subst σ)) (ρ.push (Shape.T x)) c :=
+      IsDefEq.stage (show ⊢ (A' :: Γ) from ⟨W.wf, _, hAA'.hasType.2⟩) hB'ty hΔ
+        (Ctx.SubstEq.cons (σ := σ.cons (a.subst σ)) (σ' := σ.cons (a'.subst σ)) W
+          hAA'.hasType.2 (hAσ.choose_spec.defeqDF haσ)) hcode'
+    exact .pair ((iha hΔ W hAdm).1 ha) ((ihb hΔ W hAdm).1 hb) ((ihA hΔ W hAdm).1 hA)
+      hd hdx hwp' hcode'' hcty hw
+      (hle.trans hΔ (TShape.LE.T.2 (show Shape.LE (n := n+1) Δ (ShapeS.pair ..)
+        (ShapeS.pair ..) from
+        ⟨Shape.LE.refl hwp.2.2.2.1, Shape.LE.refl hwp.2.2.2.2, hwp.1, hAσ, haσ⟩)))
+      ⟨u, hAA'.hasType.2⟩ (hAA'.defeqDF (haa'.hasType.2))
 
 /-- The `SoundEq` half of `pairDF`. -/
-theorem sound_pair_eq {Γ : List Term} {A A' B B' a a' b b' : Term} {u : Bool}
+theorem sound_pair_eq {Γ : List Term} {A A' B B' a a' b b' : Term} {u v : Bool}
     (hAA' : Γ ⊢ A ≡ A' : .sort u) (haa' : Γ ⊢ a ≡ a' : A)
+    (hBty : A :: Γ ⊢ B ≡ B : .sort v) (hB'ty : A' :: Γ ⊢ B' ≡ B' : .sort v)
     (ihA : SoundEq Γ A A') (ihAty : SoundTy Γ A (.sort u))
     (iha : SoundEq Γ a a') (ihb : SoundEq Γ b b')
     (ihB : SoundEq (A :: Γ) B B') (ihB' : SoundEq (A' :: Γ) B B') :
     SoundEq Γ (.pair A B a b) (.pair A' B' a' b') := by
   intro Δ Γ₀ σ ρ hΔ W hAdm m
-  exact ⟨sound_pair_eq_of hAA' haa' ihA ihAty iha ihb ihB hΔ W hAdm,
-    sound_pair_eq_of hAA'.symm (hAA'.defeqDF haa'.symm) ihA.symm
-      (SoundTy.of_eq hAA' ihA ihAty) iha.symm ihb.symm ihB'.symm hΔ W hAdm⟩
+  exact ⟨sound_pair_eq_of hAA' haa' hB'ty ihA ihAty iha ihb ihB hΔ W hAdm,
+    sound_pair_eq_of hAA'.symm (hAA'.defeqDF haa'.symm)
+      hBty
+      ihA.symm (SoundTy.of_eq hAA' ihA ihAty) iha.symm ihb.symm ihB'.symm hΔ W hAdm⟩
 
 /-! ## The second projection
 
