@@ -1507,8 +1507,43 @@ dropped, since dropping it loses the coverage.  So Σ's η needs
 which is "off-section is `⊥`" (point 2 above) in approximant form: a
 *third* conclusion of the same kind as `SoundDom`, about labels rather
 than inputs.  `Shape.Dom`'s Σ clause cannot carry it, since a shape
-cannot name `fst p`.  Worth doing straight after `SoundDom`, by the same
-method.
+cannot name `fst p`.
+
+**And it cannot be a conclusion of soundness either: as the model
+stands, `fst_snd` is false.**  Saturation is now a theorem, so the
+obstruction can be stated exactly.  Take `Γ = [Σ nat nat]`, `p = #0`,
+`σ = id`, and the slot
+
+```
+ρ 0  =  pair nat x [⟨nat, zero, inp, zero⟩]
+```
+
+— one entry, labelled by the *closed* term `zero` rather than by
+`fst #0`.  This slot is well formed (its output is not `⊥`), it is typed
+at the Σ-code `sigma nat nat d f` whose codomain graph answers `nat` at
+the label `zero`, and it is hereditarily typed there, `nat` being a
+filtering code.  So the valuation is admissible, and `pair nat x […]` is
+an approximant of `p`.  But `Interp.snd` queries at `(fst p)[σ] = fst #0`,
+and `Δ ⊢ zero ≡ fst #0 : nat` is false, so the entry never fires: every
+approximant of `snd p` is `⊥`, every approximant of
+`pair A B (fst p) (snd p)` has an empty graph (`Shape.WF` forbids a `⊥`
+output), and the slot is below none of them — lookup coverage asks the
+`zero`-entry to be answered, and an empty graph answers `⊥`.
+
+So the missing content is not a further conclusion of the induction but
+a further *condition on slots*, hereditary like `Dom` and in the same
+six clauses: **a slot standing for the term `t`, if it is a pair-shape,
+carries only entries labelled `fst t`** (and so on under the pair).
+That is a third discipline of the size of this one.  The alternative,
+and probably the better one, is to take the graph out of the Σ-value:
+a pair's second component does not vary with the label the way a
+function's output varies with its argument — the graph is there only to
+record which label its *typing* was read at.  A Σ-value of the form
+"first component `x`, second component `y`, label `tm`" would make Σ's η
+the mirror of Π's, with the canonical label forced by the single
+constructor, and it is a smaller change than carrying canonicity
+hereditarily through `Adm`.  Either way this is a design decision, and
+it is Mario's.
 
 ### 4.7b The dominator: resolved by (β)
 
