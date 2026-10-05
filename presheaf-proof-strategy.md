@@ -1881,6 +1881,41 @@ The state to resume from: `PairCanon` is the only hole, both η
 directions are proved from it, and the next step is `SigOk` ("a code
 names its type") as a sixth conclusion, then `NameOk` as a seventh.
 
+#### 4.7g The name invariant's λ clause: mono or subst, not both
+
+`Shape.Canon` (`Interp.lean`) is the invariant §4.7f asks for — a code
+names its type, a pair names its first projection, hereditary through
+λ-values — with `Canon.mono` proved.  Adding it to the six slot-creating
+clauses and to `Adm` is where it dies, and the reason is worth keeping:
+
+* read **query-based** (`∀ q, every lookup at q is `Canon` at `app t q`'),
+  it is *downward closed* — the order's coverage is lookup-wise, so a
+  smaller λ's lookups are the bigger one's — but it does **not survive a
+  substitution**: `g.subst τ` is queried at Θ-terms outside the image of
+  `τ`, and the entry that answers has label `e.tm.subst τ ≡ q'`, not
+  `q'`;
+* read **entry-based** (`∀ e ∈ g, Canon (app t e.tm) e.out`), it
+  substitutes — entries map — but is **not downward closed**, since
+  coverage answers a smaller entry with a *join* of outputs sitting at a
+  definitionally equal label.
+
+Both gaps are the same step: the query slides along a definitional
+equality, and the pair conjunct then needs `fst q ≡ fst q'`, i.e.
+`fstDF`, i.e. the subject's Σ-typing — which is exactly what the
+invariant was introduced to supply.  Carrying the type in the invariant
+closes that step and reopens the join (Σ-injectivity, §4.7d); carrying
+the *typing* closes the join and reopens the conversion (type
+uniqueness, which in this calculus reduces to injectivity, which the
+model supplies only after soundness).
+
+So the position is stable under all four readings, and `fst_snd` is
+where the model's own inversion principles are needed before they
+exist.  The ways out are unchanged (§4.7d): prove injectivity
+separately, stratify through a coarser model, or put the codomain on
+`Term.lam` so the labels are term-determined.  The attempt is in the
+history (`05dcd81`, reverted in `be069e8`) with `Shape.Canon` and
+`Canon.mono` kept, since any of those routes starts from them.
+
 ### 4.8 The remaining cases, in one line each
 
 `sigmaDF`, `pairDF`, `fstDF`, `sndDF`: mirror Π/λ/app with the pair's
