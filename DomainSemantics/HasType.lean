@@ -2120,6 +2120,19 @@ def Shape.tyOf : ∀ {n}, Shape n → Option Term
   | _+1, .lam A B _ => some (Term.forallE A B)
   | _+1, _ => none
 
+@[simp] theorem Shape.tyOf_subst {n} {y : Shape n} {τ : Subst} :
+    (y.subst τ).tyOf = y.tyOf.map (·.subst τ) := by
+  cases n with
+  | zero => cases y <;> rfl
+  | succ n => cases y <;> rfl
+
+@[simp] theorem Shape.tyOf_lift : ∀ {n k} {y : Shape n},
+    (y.lift k).tyOf = if k = 0 then none else y.tyOf := by
+  intro n k y
+  cases n with
+  | zero => cases y <;> cases k <;> rfl
+  | succ n => cases k <;> cases y <;> rfl
+
 /-- **Canonically labelled, as the value of a term.**
 
 `Dom` says a value is hereditarily *typed*; this says it is hereditarily
@@ -2215,6 +2228,108 @@ theorem Shape.Canon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       exact ((hco e hge T hT).choose_spec).defeqDF hap
     | .bot, _ | .sort _, _ | .unit _, _ | .nat, _ | .zero, _ | .succ _, _ | .refl _, _
     | .id _ _ _ _, _ | .forallE .., _ | .sigma .., _ => trivial
+
+/-- Canonicity survives a substitution of the stage. -/
+theorem Shape.Canon.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) : ∀ {n} {t : Term} {x : Shape n},
+      Shape.Canon Δ t x → Shape.Canon Θ (t.subst τ) (x.subst τ) := by
+  intro n
+  induction n with
+  | zero => exact fun _ => trivial
+  | succ n ih =>
+    have hback : ∀ {m} {y : Shape m} {T : Term}, T ∈ (y.subst τ).tyOf →
+        ∃ T₀ ∈ y.tyOf, T = T₀.subst τ := by
+      intro m y T hT
+      rw [Shape.tyOf_subst, Option.mem_def, Option.map_eq_some_iff] at hT
+      obtain ⟨T₀, hT₀, rfl⟩ := hT
+      exact ⟨T₀, hT₀, rfl⟩
+    intro t x hx
+    match x, hx with
+    | .pair A B x₀ g, ⟨hlab, hle, hcx, hco, hfst, hout⟩ =>
+      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+      · intro e he
+        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
+        have := IsDefEq.subst hΘ W (hlab e₀ he₀)
+        simpa [Term.subst] using this
+      · intro e he
+        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
+        exact Shape.LE.subst hΘ W (hle e₀ he₀)
+      · intro T hT
+        obtain ⟨T₀, hT₀, rfl⟩ := hback hT
+        exact (hcx T₀ hT₀).subst hΘ W
+      · intro e he T hT
+        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
+        obtain ⟨T₀, hT₀, rfl⟩ := hback hT
+        have := (hco e₀ he₀ T₀ hT₀).subst hΘ W
+        simpa [subst_inst] using this
+      · simpa [Term.subst] using ih hfst
+      · intro e he
+        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
+        simpa [Term.subst] using ih (hout e₀ he₀)
+    | .lam A B g, ⟨htm, hci, hco, hall⟩ =>
+      refine ⟨?_, ?_, ?_, ?_⟩
+      · intro e he
+        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
+        exact IsDefEq.subst hΘ W (htm e₀ he₀)
+      · intro e he T hT
+        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
+        obtain ⟨T₀, hT₀, rfl⟩ := hback hT
+        exact (hci e₀ he₀ T₀ hT₀).subst hΘ W
+      · intro e he T hT
+        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
+        obtain ⟨T₀, hT₀, rfl⟩ := hback hT
+        have := (hco e₀ he₀ T₀ hT₀).subst hΘ W
+        simpa [subst_inst] using this
+      · intro e he
+        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
+        exact ⟨ih (hall e₀ he₀).1, by simpa [Term.subst] using ih (hall e₀ he₀).2⟩
+    | .bot, _ | .sort _, _ | .unit _, _ | .nat, _ | .zero, _ | .succ _, _ | .refl _, _
+    | .id _ _ _ _, _ | .forallE .., _ | .sigma .., _ => trivial
+
+/-- And lifting the subject's level, which only copies its parts. -/
+theorem Shape.Canon.lift {Δ : List Term} : ∀ {n} {t : Term} {x : Shape n} {k}, n ≤ k →
+    Shape.Canon Δ t x → Shape.Canon Δ t (x.lift k) := by
+  intro n
+  induction n with
+  | zero => intro t x k _ _; cases k <;> cases x <;> trivial
+  | succ n ih =>
+    intro t x k hk hx
+    match k, hk with
+    | k+1, hk =>
+      match x, hx with
+      | .pair A B x₀ g, ⟨hlab, hle, hcx, hco, hfst, hout⟩ =>
+        refine ⟨?_, ?_, ?_, ?_, ih (Nat.le_of_succ_le_succ hk) hfst, ?_⟩
+        · intro e he
+          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
+          exact hlab e₀ he₀
+        · intro e he
+          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
+          exact Shape.lift_le (Γ := Δ) (Nat.le_of_succ_le_succ hk) (hle e₀ he₀)
+        · intro T hT
+          exact hcx T (by simp at hT; exact hT.2)
+        · intro e he T hT
+          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
+          exact hco e₀ he₀ T (by simp at hT; exact hT.2)
+        · intro e he
+          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
+          exact ih (Nat.le_of_succ_le_succ hk) (hout e₀ he₀)
+      | .lam A B g, ⟨htm, hci, hco, hall⟩ =>
+        refine ⟨?_, ?_, ?_, ?_⟩
+        · intro e he
+          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
+          exact htm e₀ he₀
+        · intro e he T hT
+          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
+          exact hci e₀ he₀ T (by simp at hT; exact hT.2)
+        · intro e he T hT
+          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
+          exact hco e₀ he₀ T (by simp at hT; exact hT.2)
+        · intro e he
+          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
+          exact ⟨ih (Nat.le_of_succ_le_succ hk) (hall e₀ he₀).1,
+            ih (Nat.le_of_succ_le_succ hk) (hall e₀ he₀).2⟩
+      | .bot, _ | .sort _, _ | .unit _, _ | .nat, _ | .zero, _ | .succ _, _ | .refl _, _
+      | .id _ _ _ _, _ | .forallE .., _ | .sigma .., _ => trivial
 
 /-- A shape's entries, levels forgotten. -/
 def TShape.entries : TShape → List (Entry TShape)
