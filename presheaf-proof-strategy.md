@@ -1747,6 +1747,76 @@ the query's type.  `sndDF` is closed.  The remaining Σ hole is
 value's label names its *own* first projection — and that is still the
 §5.3 decision.
 
+#### 4.7e The other direction is false: a pair's input is not consulted
+
+While proving `sound_fst_snd_of` (the ← direction, `Presheaf.lean`,
+proved against `PairCanon`) I checked the ← /→ split and found that **→
+is false as the model stands** — not blocked, false.  Compare the two
+clauses:
+
+    | lam  …  (∀ e ∈ g,  Interp Δ (A :: Γ) b (σ.cons e.tm) (ρ.push e.inp.T) e.out.T)
+    | pair …  (∀ e ∈ g₀, Interp Δ Γ b σ ρ e.1.out.T)
+
+A λ-entry's input *is* the slot its body reads, so an entry's output is
+justified at exactly that input, and η's expansion — whose body is a
+lookup at the pushed slot — lands on the same input.  A pair-entry's
+input is never read: it only picks the code that types the output
+(`Interp Δ (A :: Γ) B (σ.cons e.1.tm) (ρ.push e.1.inp.T) e.2`).  The
+*order*, though, reads it as a genuine condition: `ShapeFun.LE` honours
+an entry `(ty, tm, inp, out)` only by a lookup **at that same `inp`**.
+So a value may promise a second component conditionally where the
+η-expansion promises it outright.
+
+Concretely, in `Γ = [Σ nat nat]` at the closed stage
+`σ = one (pair nat nat zero zero)`, take the slot
+
+    ρ 0 = pair nat nat zero [⟨nat, fst (pair nat nat zero zero), zero, zero⟩]
+
+— WF (first component `zero`, output not `⊥`), hereditarily typed at the
+Σ-code, and *canonically labelled* in the §4.7a sense, so admissible
+under `Adm` and under any canonicity discipline.  `Adm` asks for nothing
+else: a slot need not be an approximant of a term.  Then
+
+    pair nat nat zero [⟨nat, fst (pair nat nat zero zero), ⊥, zero⟩]
+
+is an approximant of `⟨fst #0, snd #0⟩`: its entry's label is `fst #0`
+at the stage, its input `⊥` is an approximant of `fst #0`, its output
+`zero` is an approximant of `snd #0` (the lookup in `ρ 0` at the pair's
+own first component fires), and the code at `⊥` is `nat`, which types
+`zero`.  It is **not** an approximant of `#0`: the lookup in `ρ 0` at
+input `⊥` does not fire, because that entry wants `zero ≤ ⊥`.
+
+Note what the counterexample does *not* use: no dependency (`B = nat`),
+no exotic valuation, no failure of canonicity.  It is the encoding
+itself.  The tension is exactly §5.5's, seen from the other side:
+
+* the **graph** is what makes typing lower-closed *and* join-closed
+  (§5.1b (β)), because an entry's input names the code that justifies
+  its output;
+* **η** says a pair is its two projections, so the second component's
+  information must not depend on how much of the first you present —
+  i.e. the input must be semantically inert.
+
+The input cannot be both.  A Σ-value with no graph (Mario's "option 2")
+makes η true and `HasType.join` false; the graph makes `HasType.join`
+true and η false.  Ways to break the tie, none of them local:
+
+1. **Input-saturated slots.**  `Adm` is a condition on *one* valuation,
+   not on a downward-closed set, so it may demand that a slot promise
+   each output at every input whose code types it.  Approximant sets
+   stay downward closed (the `bvar` clause is unchanged), and → becomes
+   provable.  The cost: `Subst.Saturates` must *build* such slots, which
+   needs a least typable input to exist — i.e. that the typable inputs
+   of an output are upward closed with a least element.  That is a real
+   question about `HasType`'s behaviour in the code, worth checking
+   before anything else, because it is the cheapest of the three.
+2. **Make the input semantically live**, by interpreting the second
+   component against the entry's input the way `lam` does.  There is no
+   slot for it to read — `pair A B a b` has no binder — so this means
+   changing what a Σ-value is.
+3. **Give up lower-closure of typing** for Σ (master's `InterpTyped`,
+   §5.1b's fallback (δ)): then the graph is unnecessary and η is Π's.
+
 ### 4.8 The remaining cases, in one line each
 
 `sigmaDF`, `pairDF`, `fstDF`, `sndDF`: mirror Π/λ/app with the pair's

@@ -5097,6 +5097,160 @@ theorem sound_eta_to {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
         obtain ⟨q, hq, rfl⟩ := ShapeFun.mem_lift.1 he
         exact hwf.2.2.2 q hq
 
+/-- **The §4.7a label invariant, as a hypothesis.**  A saturated
+pair-approximant of `p` is labelled by `p`'s *own* first projection, and
+its entries' inputs sit below its first component.
+
+This is the one thing Σ's η needs and the model does not give (§4.7d):
+every way of making it a carried invariant reduces, at the join, to Π/Σ
+injectivity, type uniqueness, or a codomain label that `Term.lam` does
+not have.  Stated here so that the rest of `fst_snd` is proved against
+it, and the gap is one named condition rather than a case. -/
+def PairCanon (Δ Γ : List Term) (σ : Subst) (ρ : Valuation) (p : Term) : Prop :=
+  ∀ {n} {A₀ B₀ : Term} {x : Shape n} {g : ShapeFun n},
+    Interp Δ Γ p σ ρ (Shape.T (n := n+1) (ShapeS.pair A₀ B₀ x g)) →
+    ∀ e ∈ g, (Δ ⊢ e.tm ≡ (Term.fst p).subst σ : e.ty) ∧ Shape.LE Δ e.inp x
+
+/-- **Σ's η, the hard direction**: an approximant of `p` is one of
+`⟨fst p, snd p⟩`.  Saturation (§4.7) hands a pair-approximant `P` above
+it; `P`'s first component is an approximant of `fst p` by the `fst`
+clause, and each of its entries is a *lookup* in `P` itself at the query
+`fst p` — which fires exactly because the entry is canonically labelled.
+So the expansion's pair can be rebuilt on `P`'s own components, with no
+new graph, and it dominates what `P` dominated. -/
+theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢ Γ)
+    (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v) (hp : Γ ⊢ p : .sigma A B)
+    (hPB : B.Pinned (A :: Γ))
+    (ihpty : SoundTy Γ p (.sigma A B)) (ihpdom : SoundDom Γ p (.sigma A B))
+    (ihBdir : SoundDir (A :: Γ) B)
+    {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
+    (hcanon : PairCanon Δ Γ σ ρ p)
+    {m : TShape} (hm : Interp Δ Γ p σ ρ m) :
+    Interp Δ Γ (.pair A B (.fst p) (.snd p)) σ ρ m := by
+  have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
+  have hwρ := hAdm.wf
+  have hfst : Γ ⊢ .fst p : A := .fstDF hA hB hp
+  have hfσ : Δ ⊢ (Term.fst p).subst σ : A.subst σ := hfst.subst hΔ W
+  obtain ⟨P, S, hP, hle, hS, hPdom⟩ := ihpdom hΔ W hAdm hm
+  -- `⊥` is an approximant of anything
+  have hbot : m.2 = Shape.bot → Interp Δ Γ (.pair A B (.fst p) (.snd p)) σ ρ m := by
+    intro hb
+    obtain ⟨k, s⟩ := m
+    cases k with
+    | zero => cases s with
+      | bot => exact .bot
+      | sort r => exact absurd hb (by simp [Shape.bot, Shape.sort])
+    | succ k => cases s <;> first | exact .bot | exact absurd hb (by simp [Shape.bot])
+  have hSsg : S.2 = Shape.bot ∨ S.IsSigma := by
+    cases hS with
+    | bot => exact .inl rfl
+    | sigma _ _ _ _ _ _ _ hles _ _ => exact TShape.isSigma_or_bot_of_le hles trivial
+  cases hPdom with
+  | base hnb hty =>
+    rcases hSsg with hb | hsg
+    · exact hbot (TShape.le_bot hΔ (TShape.HasType.bot_r hΔ hb hty) hle)
+    · exact absurd hsg.isBinder hnb
+  | pi _ _ _ _ =>
+    rcases hSsg with hb | hsg
+    · exact absurd hb (TShape.IsPi.not_bot (p := Shape.T _) trivial)
+    · exact absurd hsg (TShape.IsPi.not_sigma trivial)
+  | @sg nS A' B' dS fS _ cs hty hent hfstd hin hevc hout =>
+    cases hty with
+    | bot hb => exact hbot (TShape.le_bot hΔ rfl hle)
+    | refl hwv hleid hAty' =>
+      exact absurd hleid (by
+        intro h
+        obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
+        exact absurd h2 (fun x => x))
+    | @pair nP _ _ A₀ B₀ x g _ _ _ _ G₀ hd hfo hwP hwSg hxd hwG₀ hgG hG₀ev hG₀ty hlabP =>
+      -- the Σ-code, decomposed
+      cases hS with
+      | @sigma _ _ _ _ nc gc dc _ _ hAint hdty hwfc hlabc hdomc hbodyc hwmc hleSg =>
+        obtain ⟨hSgLab, hdle, hcov⟩ :=
+          TShape.LE.sigma_decomp hΔ hleSg hwSg hwfc (TEvaluates.refl hwfc.2.2.2)
+        have hxw : TShape.WF Δ (Shape.T x) := TShape.WF.T.2 hwP.2.2.2.2.2
+        have hAσ : TyEq Δ A₀ (A.subst σ) :=
+          Interp.pair_label_ty hΔ W hAdm ihpty hP
+        -- the first component is an approximant of `fst p`
+        have hxI : Interp Δ Γ (.fst p) σ ρ (Shape.T x) := .fst hP hxw (TShape.LE.refl hxw)
+        -- every entry is canonically labelled, so a lookup at `fst p` fires
+        have hcan := hcanon hP
+        -- each entry's code, read off the saturation's own evidence
+        have hpick : ∀ e ∈ g, ∃ c : TShape,
+            Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push e.inp.T) c ∧
+              TShape.Dom Δ c e.out.T ∧ TShape.Dom Δ dS.T e.inp.T := by
+          intro e he
+          obtain ⟨pc, hpc, hpceq⟩ : ∃ pc ∈ cs, pc.1 = ⟨e.ty, e.tm, e.inp.T, e.out.T⟩ := by
+            have hmem : (⟨e.ty, e.tm, e.inp.T, e.out.T⟩ : Entry TShape) ∈
+                (Shape.T (n := nP+1) (ShapeS.pair A₀ B₀ x g)).entries :=
+              List.mem_map_of_mem (f := fun q =>
+                (⟨q.ty, q.tm, q.inp.T, q.out.T⟩ : Entry TShape)) he
+            rw [hent, List.mem_map] at hmem
+            obtain ⟨pc, hpc, heq⟩ := hmem
+            exact ⟨pc, hpc, heq⟩
+          have hlook : TEvaluates Δ gc e.ty e.tm e.inp.T pc.2 := by
+            have h := TEvaluates.trans hΔ hcov (hevc pc hpc)
+            rw [hpceq] at h; exact h
+          have hety : TyEq Δ e.ty A₀ := hwP.2.2.2.1 e he
+          refine ⟨pc.2, ?_, ?_, ?_⟩
+          · exact sound_graph_lookup hΓA hA hB hΔ W hbodyc
+              (TShape.WF.T.2 (hwP.2.2.1.1 e he).2.2.1) ihBdir hwρ
+              ((hcan e he).1.hasType.1) (hety.trans hAσ) hlook
+          · have h := hout pc hpc; rw [hpceq] at h; exact h
+          · have h := hin pc hpc; rw [hpceq] at h; exact h
+        -- the graph, with a code attached to every entry
+        let g₀ : List (Entry (Shape nP) × TShape) :=
+          g.attach.map (fun e => (e.1, (hpick e.1 e.2).choose))
+        have hg₀map : g₀.map (·.1) = g := by
+          simp [g₀, List.map_map, Function.comp_def]
+        have hg₀mem : ∀ q ∈ g₀, ∃ he : q.1 ∈ g,
+            q.2 = (hpick q.1 he).choose := by
+          intro q hq
+          obtain ⟨e, he, rfl⟩ := List.mem_map.1 hq
+          exact ⟨e.2, rfl⟩
+        have hwp : Shape.WF (n := nP+1) Δ
+            (ShapeS.pair (A.subst σ) B₀ x (g₀.map (·.1))) := by
+          rw [hg₀map]
+          exact ⟨hwP.1, hwP.2.1, hwP.2.2.1,
+            fun e he => (hwP.2.2.2.1 e he).trans hAσ, hAσ.symm.trans hAσ, hwP.2.2.2.2.2⟩
+        have hstable : Stable Δ Γ σ (Term.fst p) A₀ := Stable.of_typed hfst hAσ
+        refine .pair hxI (Interp.mono hΔ (TShape.HasType.wf hd).1 hdle hAint) ?_ ?_
+          hwp ?_ ?_ ?_ ?_ ?_ ?_ hm.wf ?_ ⟨u, hA⟩ hfst
+        · -- the domain code is a type
+          exact TShape.HasType.mono_l hΔ hdty hdle
+        · -- …and the first component is hereditarily typed at it
+          exact hfstd _ (by simp [TShape.fstPart])
+        · -- every entry is labelled by the subject's own first projection
+          intro q hq
+          obtain ⟨he, _⟩ := hg₀mem q hq
+          exact (hcan q.1 he).1
+        · intro q hq
+          obtain ⟨he, _⟩ := hg₀mem q hq
+          exact (hpick q.1 he).choose_spec.2.2
+        · -- the inputs are approximants of `fst p`: they sit below `x`
+          intro q hq
+          obtain ⟨he, _⟩ := hg₀mem q hq
+          exact .fst hP (TShape.WF.T.2 (hwP.2.2.1.1 q.1 he).2.2.1)
+            (TShape.LE.T.2 (hcan q.1 he).2)
+        · -- the outputs are approximants of `snd p`: the lookup fires
+          intro q hq
+          obtain ⟨he, _⟩ := hg₀mem q hq
+          refine .snd hP (.entry q.1 he ⟨hwP.2.2.2.1 q.1 he, (hcan q.1 he).1⟩
+            (TShape.LE.T.2 (hcan q.1 he).2))
+            (TShape.WF.T.2 (hwP.2.2.1.1 q.1 he).2.2.2)
+            (TShape.LE.refl (TShape.WF.T.2 (hwP.2.2.1.1 q.1 he).2.2.2)) hstable
+        · intro q hq
+          obtain ⟨he, hc⟩ := hg₀mem q hq
+          exact hc ▸ (hpick q.1 he).choose_spec.1
+        · intro q hq
+          obtain ⟨he, hc⟩ := hg₀mem q hq
+          exact hc ▸ (hpick q.1 he).choose_spec.2.1
+        · -- and it dominates `m`, the label being definitionally equal
+          rw [hg₀map]
+          refine TShape.LE.trans hΔ hle (TShape.LE.T.2 ?_)
+          exact ⟨Shape.LE.refl hwP.2.2.2.2.2, ShapeFun.LE.refl hwP.2.2.1, hwP.1, hwP.2.1,
+            hAσ, fun e he => hwP.2.2.2.1 e he⟩
+
 /-- The four conclusions proved by the induction itself.  `Sound` adds
 saturation on top, which is where the remaining work is (§4.5g). -/
 theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
