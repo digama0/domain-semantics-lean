@@ -923,22 +923,31 @@ theorem TEvaluates.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
   | join hc _ _ ih₁ ih₂ =>
     exact TShape.join_subst ▸ TEvaluates.join (TShape.Compat.subst hΘ W hc) ih₁ ih₂
 
-/-- Pair-decomposition: the first component back at its own canonical
-level, the label equality, and the graph covered by any bigger one's —
-`lam_decomp` with a first component alongside. -/
-theorem TShape.LE.pair_decomp {Δ : List Term} (hΔ : ⊢ Δ) {j n k} {A A' : Term}
-    {x₂ : Shape j} {g₂ : ShapeFun j} {x : Shape n} {g : ShapeFun n} {f'' : ShapeFun k}
-    (h : TShape.LE Δ (Shape.T (n := j+1) (ShapeS.pair A Bp x₂ g₂))
-      (Shape.T (n := n+1) (ShapeS.pair A' Bp' x g)))
-    (hw : Shape.WF (n := j+1) Δ (.pair A Bp x₂ g₂)) (hw' : Shape.WF (n := n+1) Δ (.pair A' Bp' x g))
-    (hg' : ∀ e ∈ g, TEvaluates Δ f'' e.ty e.tm e.inp.T e.out.T) :
-    TyEq Δ A A' ∧ TShape.LE Δ x₂.T x.T ∧
-      ∀ e ∈ g₂, TEvaluates Δ f'' e.ty e.tm e.inp.T e.out.T := by
+/-- Pair-decomposition: both components back at their own canonical
+level, with the label equalities. -/
+theorem TShape.LE.pair_decomp {Δ : List Term} (hΔ : ⊢ Δ) {j n} {A A' a a' : Term}
+    {x₂ y₂ : Shape j} {x y : Shape n}
+    (h : TShape.LE Δ (Shape.T (n := j+1) (ShapeS.pair A Bp a x₂ y₂))
+      (Shape.T (n := n+1) (ShapeS.pair A' Bp' a' x y))) :
+    TyEq Δ A A' ∧ (Δ ⊢ a ≡ a' : A) ∧ TShape.LE Δ x₂.T x.T ∧ TShape.LE Δ y₂.T y.T := by
   obtain ⟨M, hnM, hjM, h2⟩ := TShape.LE.at_succ h
   have hj : j ≤ M := Nat.le_of_succ_le_succ hjM
-  refine ⟨h2.2.2.2.2.1, (TShape.LE.def hΔ hj hnM).2 h2.1,
-    TEvaluates.of_cover_lift hΔ hj hw.2.2.1 h2.2.1.1
-      (TEvaluates.lift_cover hΔ hnM hw'.2.2.1 hg')⟩
+  exact ⟨h2.2.2.2.1, h2.2.2.2.2, (TShape.LE.def hΔ hj hnM).2 h2.1,
+    (TShape.LE.def hΔ hj hnM).2 h2.2.1⟩
+
+/-- Lifting a shape's level does not move it in the order: the `TShape`
+it names is the same one. -/
+theorem TShape.lift_le_self {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) {x : Shape n}
+    (hw : Shape.WF Δ x) : TShape.LE Δ (Shape.T (Shape.lift k x)) x.T := by
+  refine (TShape.LE.def hΔ (k := max k n) (Nat.le_max_left ..) (Nat.le_max_right ..)).2 ?_
+  rw [Shape.lift_lift h]
+  exact Shape.LE.refl ((Shape.lift_wf (Nat.le_max_right k n)).2 hw)
+
+theorem TShape.self_le_lift {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) {x : Shape n}
+    (hw : Shape.WF Δ x) : TShape.LE Δ x.T (Shape.T (Shape.lift k x)) := by
+  refine (TShape.LE.def hΔ (k := max k n) (Nat.le_max_right ..) (Nat.le_max_left ..)).2 ?_
+  rw [Shape.lift_lift h]
+  exact Shape.LE.refl ((Shape.lift_wf (Nat.le_max_right k n)).2 hw)
 
 /-- Typing, over `TShape`. -/
 inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
@@ -984,19 +993,25 @@ inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
   -- second component is a graph, so each of its entries is typed at the
   -- codomain read at *that entry's own* input, through the same generator
   -- `g₀`; there is no dominating first component, and joins are unions
-  | pair {n n₀ n'} {A₀ B₀ : Term} {x : Shape n} {g : ShapeFun n} {f : ShapeFun n'}
-      {A B : Term} {d : Shape n'} {g₀ : List (Entry (Shape n₀) × TShape)} :
+  -- the second component is typed at the code the Σ's codomain graph
+  -- gives at the pair's own name `a`, read at a **dominator** `xd` of the
+  -- first component.  The dominator is what keeps typing lower-closed
+  -- (§4.7b): shrinking either component keeps the same `xd` and the same
+  -- code.  Join-closure is what it costs, and `sound_join` pays it with
+  -- provenance instead (§5.1b (γ)): two values of *one term* have
+  -- dominators that approximate `fst p`, hence compatible by `dir`
+  | pair {n n'} {A₀ B₀ a : Term} {x y : Shape n} {f : ShapeFun n'}
+      {A B : Term} {d : Shape n'} {xd c : TShape} :
     HasType Δ d.T .type →
     (∀ e ∈ f, HasType Δ e.out.T .type) →
-    Shape.WF (n := n+1) Δ (.pair A₀ B₀ x g) →
+    Shape.WF (n := n+1) Δ (.pair A₀ B₀ a x y) →
     Shape.WF (n := n'+1) Δ (.sigma A B d f) →
     HasType Δ x.T d.T →
-    ShapeFun.WFE Δ (Shape.WF Δ) (g₀.map (·.1)) →
-    (∀ e ∈ g, TEvaluates Δ (g₀.map (·.1)) e.ty e.tm e.inp.T e.out.T) →
-    (∀ e ∈ g₀, TEvaluates Δ f e.1.ty e.1.tm e.1.inp.T e.2) →
-    (∀ e ∈ g₀, HasType Δ e.1.out.T e.2) →
+    TShape.LE Δ x.T xd →
+    TEvaluates Δ f A a xd c →
+    HasType Δ y.T c →
     TyEq Δ A₀ A →
-    HasType Δ (Shape.T (n := n+1) (.pair A₀ B₀ x g)) (Shape.T (n := n'+1) (.sigma A B d f))
+    HasType Δ (Shape.T (n := n+1) (.pair A₀ B₀ a x y)) (Shape.T (n := n'+1) (.sigma A B d f))
   | refl {a n k} {w : Shape n} {A x y : Term} : Shape.WF Δ w →
     TShape.LE Δ (Shape.T (n := k+1) (.id true A x y)) a →
     HasType Δ a .type → HasType Δ (Shape.T (n := n+1) (.refl w)) a
@@ -1015,7 +1030,7 @@ theorem TShape.HasType.isType {Δ : List Term} {m a : TShape}
   | forallE _ _ _ _ _ => exact .sort
   | sigma _ _ _ _ _ => exact .sort
   | lam hd hf _ hwPi _ _ _ _ _ _ _ => exact .forallE hd hf hwPi
-  | pair hd hf _ hwSg _ _ _ _ _ _ _ _ => exact .sigma hd hf hwSg
+  | pair hd hf _ hwSg _ _ _ _ _ => exact .sigma hd hf hwSg
   | refl _ _ hA _ => exact hA
 
 /-- Sorts are injective at every level. -/
@@ -1132,7 +1147,7 @@ theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
         exact .lam hd' hf' hwg hw' hwg₀ hg
           (fun e he => TEvaluates.trans hΔ hcov (hg₀ev e he)) hg₀ty (hdom.trans hPi.1)
       | _ => exact absurd h2 (fun x => x)
-  | pair hd hf hwp hwSg hxd hwg₀ hg hg₀ev hg₀ty hdom _ _ ihxd _ =>
+  | pair hd hf hwp hwSg hxd hxle hev hyty hdom _ _ ihxd ihy =>
     intro a' h hA'
     obtain ⟨k, s⟩ := a'
     obtain ⟨M, hnM, hkM, h2⟩ := TShape.LE.src_succ h
@@ -1144,8 +1159,8 @@ theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
         obtain ⟨hd', hf', hw'⟩ := hA'.sigma_inv rfl
         obtain ⟨hSg, hdd, hcov⟩ :=
           TShape.LE.sigma_decomp hΔ h hwSg hw' (TEvaluates.refl hw'.2.2.2)
-        exact .pair hd' hf' hwp hw' (ihxd d'.T hdd hd') hwg₀ hg
-          (fun e he => TEvaluates.trans hΔ hcov (hg₀ev e he)) hg₀ty (hdom.trans hSg.1)
+        refine .pair hd' hf' hwp hw' (ihxd d'.T hdd hd') hxle ?_ hyty (hdom.trans hSg.1)
+        exact TEvaluates.retype hSg.1 (TEvaluates.trans hΔ hcov hev)
       | _ => exact absurd h2 (fun x => x)
   | refl hw hc _ _ => exact fun _ h hA' => .refl hw (hc.trans hΔ h) hA'
 
@@ -1211,11 +1226,12 @@ theorem TShape.HasType.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShap
     have hn := Nat.le_of_succ_le_succ hk
     exact .lam hd hf ((Shape.lift_wf (Nat.succ_le_succ hn)).2 hwg) hwPi hwg₀
       (TEvaluates.lift_cover hΔ hn hwg.2.2.1 hg) hg₀ev hg₀ty hdom
-  | pair hd hf hwp hwSg hxd hwg₀ hg hg₀ev hg₀ty hdom _ _ ihxd _ =>
+  | pair hd hf hwp hwSg hxd hxle hev hyty hdom _ _ ihxd ihy =>
     intro k hk; obtain ⟨k, rfl⟩ := succ_of hk
     have hn := Nat.le_of_succ_le_succ hk
     exact .pair hd hf ((Shape.lift_wf (Nat.succ_le_succ hn)).2 hwp) hwSg
-      (ihxd hn) hwg₀ (TEvaluates.lift_cover hΔ hn hwp.2.2.1 hg) hg₀ev hg₀ty hdom
+      (ihxd hn) (TShape.LE.trans hΔ (TShape.lift_le_self hΔ hn hwp.2.2.2.1) hxle) hev
+      (ihy hn) hdom
   | refl hw hc hA _ =>
     intro k hk; obtain ⟨k, rfl⟩ := succ_of hk
     exact .refl ((Shape.lift_wf (Nat.le_of_succ_le_succ hk)).2 hw) hc hA
@@ -1290,11 +1306,12 @@ theorem TShape.HasType.lower_subject {Δ : List Term} (hΔ : ⊢ Δ) :
       have hwg' := (Shape.lift_wf (s := Shape.lam A₀ B₀ g) hk).1 hwg
       exact .lam hd hf hwg' hwPi hwg₀
         (TEvaluates.lower_cover hΔ hk' hwg'.2.2.1 hg) hg₀ev hg₀ty hdom
-    | pair A₀ B₀ x g =>
-      cases H with | pair hd hf hwp hwSg hxd hwg₀ hg hg₀ev hg₀ty hdom
-      have hwp' := (Shape.lift_wf (s := ShapeS.pair A₀ B₀ x g) hk).1 hwp
-      exact .pair hd hf hwp' hwSg (ih hk' hxd) hwg₀
-        (TEvaluates.lower_cover hΔ hk' hwp'.2.2.1 hg) hg₀ev hg₀ty hdom
+    | pair A₀ B₀ a x y =>
+      cases H with | pair hd hf hwp hwSg hxd hxle hev hyty hdom
+      have hwp' := (Shape.lift_wf (s := ShapeS.pair A₀ B₀ a x y) hk).1 hwp
+      exact .pair hd hf hwp' hwSg (ih hk' hxd)
+        (TShape.LE.trans hΔ (TShape.self_le_lift hΔ hk' hwp'.2.2.2.1) hxle)
+        hev (ih hk' hyty) hdom
 
 /-- `⊥` is typed at `⊥`, since `⊥` is a type. -/
 theorem TShape.HasType.bot_bot {Δ : List Term} {m : TShape} (h : m.2 = Shape.bot) :
@@ -1382,23 +1399,13 @@ theorem TShape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
       exact TEvaluates.subst hΘ W (hg₀ev p hp)
     · obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
       exact ihg₀ty p hp
-  | @pair _ _ _ _ _ _ _ _ _ _ _ g₀ _ _ hwp hwSg _ hwg₀ hg hg₀ev _ hdom ihd ihf ihxd ihg₀ty =>
+  | pair _ _ hwp hwSg _ hxle hev _ hdom ihd ihf ihxd ihy =>
     simp only [TShape.subst_T] at *
-    refine .pair (g₀ := g₀.map fun p =>
-        (⟨p.1.ty.subst τ, p.1.tm.subst τ, p.1.inp.subst τ, p.1.out.subst τ⟩, p.2.subst τ))
-      ihd (fun e he => ?_) (Shape.WF.subst hΘ W hwp) (Shape.WF.subst hΘ W hwSg)
-      ihxd ?_ (fun e he => ?_) (fun e he => ?_) (fun e he => ?_) (hdom.subst hΘ W)
-    · obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
-      exact ihf e₀ he₀
-    · have := ShapeFun.WFE.subst_of (Δ := Δ) (Shape.WF.subst hΘ W) hwg₀
-      simpa [ShapeFun.subst, List.map_map, Function.comp_def] using this
-    · obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
-      have := TEvaluates.subst hΘ W (hg e₀ he₀)
-      simpa [ShapeFun.subst, List.map_map, Function.comp_def] using this
-    · obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
-      exact TEvaluates.subst hΘ W (hg₀ev p hp)
-    · obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
-      exact ihg₀ty p hp
+    exact .pair ihd (fun e he => by
+        obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
+        exact ihf e₀ he₀)
+      (Shape.WF.subst hΘ W hwp) (Shape.WF.subst hΘ W hwSg) ihxd
+      (TShape.LE.subst hΘ W hxle) (TEvaluates.subst hΘ W hev) ihy (hdom.subst hΘ W)
   | refl hw hc _ ih =>
     simp only [TShape.subst_T] at *
     exact .refl (Shape.WF.subst hΘ W hw) (TShape.LE.subst hΘ W hc) ih
@@ -1675,7 +1682,7 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
         exact .lam hd hf hwg' hwPi hwg₀
           (TShape.LE.lam_decomp hΔ h hwg' hwg hg) hg₀ev hg₀ty (TyEq.trans h2.2.2.2.1 hdom)
       | _ => exact absurd h2 (fun x => x)
-  | pair hd hf hwp hwSg hxd hwg₀ hg hg₀ev hg₀ty hdom _ _ ihxd _ =>
+  | pair hd hf hwp hwSg hxd hxle hev hyty hdom _ _ ihxd ihy =>
     intro m' h
     obtain ⟨j, s⟩ := m'
     obtain ⟨M, _, hjM, h2⟩ := TShape.LE.at_succ h
@@ -1684,11 +1691,14 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
     | succ j =>
       cases s with
       | bot => exact .bot (.sigma hd hf hwSg)
-      | pair A' B' x' g' =>
-        have hwp' : Shape.WF (n := j+1) Δ (.pair A' B' x' g') :=
+      | pair A' B' a' x' y' =>
+        have hwp' : Shape.WF (n := j+1) Δ (.pair A' B' a' x' y') :=
           (Shape.lift_wf hjM).1 (Shape.LE.wf h2)
-        obtain ⟨hA', hx', hcov⟩ := TShape.LE.pair_decomp hΔ h hwp' hwp hg
-        exact .pair hd hf hwp' hwSg (ihxd hx') hwg₀ hcov hg₀ev hg₀ty (hA'.trans hdom)
+        obtain ⟨hA', ha', hx', hy'⟩ := TShape.LE.pair_decomp hΔ h
+        refine .pair hd hf hwp' hwSg (ihxd hx') (TShape.LE.trans hΔ hx' hxle) ?_
+          (ihy hy') (hA'.trans hdom)
+        exact TEvaluates.label ⟨hdom.symm.trans hdom,
+          (hA'.trans hdom).choose_spec.defeqDF ha'.symm⟩ hev
       | _ => exact absurd h2 (fun x => x)
   | refl hw hc hA _ =>
     exact fun {m'} h => by
@@ -1852,95 +1862,6 @@ theorem join_gen_ty {Δ : List Term} (hΔ : ⊢ Δ) {n₀ n₀'}
   match List.mem_append.1 he with
   | .inl h => exact lifted (Nat.le_max_left ..) hty h
   | .inr h => exact lifted (Nat.le_max_right ..) hty' h
-
-/-- **The join of two compatible subjects at one type, at one level** —
-master's `WShape.HasType.join`, and the content of `SoundJoin` (§5.1).
-
-It is provable now that a Σ-value is a first component and a graph
-(§5.1b): two pairs join by joining first components and *appending*
-graphs, each entry keeping the code it was typed at, exactly as two λs
-do.  With the old product pair it was false — §5.5's counterexample — and
-that is what made `SoundJoin` an open problem.
-
-The sort-typed shapes go to `join_sort`, numerals to `IsNumeral.join`,
-and `lam`/`pair` append their graphs and concatenate their generators,
-lifted to a common level. -/
-theorem TShape.HasType.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
-    ∀ {n} {y z : Shape n} {c : TShape}, Shape.Compat Δ y z →
-      TShape.HasType Δ y.T c → TShape.HasType Δ z.T c →
-      TShape.HasType Δ (y.join z).T c := by
-  intro n
-  induction n with
-  | zero =>
-    intro y z c hc hy hz
-    cases y with
-    | bot => exact hz
-    | sort r => cases z <;> exact hy
-  | succ n ih =>
-    intro y z c hc hy hz
-    cases y with
-    | bot => exact hz
-    | sort | unit | nat | zero | id =>
-      cases z <;> first | exact hy | exact absurd hc (fun x => x)
-    | succ v =>
-      cases z with
-      | bot => exact hy
-      | succ v' =>
-        cases hy with | succ hv => cases hz with | succ hv' =>
-        exact .succ (Shape.IsNumeral.join hc hv hv')
-      | _ => exact absurd hc (fun x => x)
-    | forallE A B d f =>
-      cases hy with | forallE hd hf hw =>
-      exact TShape.HasType.join_sort hΔ rfl (.forallE hd hf hw) hz hc
-    | sigma A B d f =>
-      cases hy with | sigma hd hf hw =>
-      exact TShape.HasType.join_sort hΔ rfl (.sigma hd hf hw) hz hc
-    | refl w =>
-      cases z with
-      | bot => exact hy
-      | refl w' =>
-        cases hy with | refl hw hle hA =>
-        cases hz with | refl hw' _ _ =>
-        exact .refl (Shape.WF.join hΔ hc hw hw') hle hA
-      | _ => exact absurd hc (fun x => x)
-    | lam A₀ B₀ g =>
-      cases z with
-      | bot => exact hy
-      | lam A₀' B₀' g' =>
-        cases hy with
-        | @lam _ n₀ n' _ _ _ f A B d g₀ hd hfo hwg hwPi hwg₀ hg hg₀ev hg₀ty hdom =>
-          cases hz with
-          | @lam _ n₀' _ _ _ _ _ _ _ _ g₀' _ _ hwg' _ hwg₀' hg' hg₀ev' hg₀ty' hdom' =>
-            exact .lam hd hfo (Shape.WF.join hΔ hc hwg hwg') hwPi
-              (join_gen_wf hwg₀ hwg₀')
-              (join_gen_cover hΔ hwg₀ hwg₀' hg hg')
-              (join_gen_code hΔ hwg₀ hwg₀' hg₀ev hg₀ev')
-              (join_gen_ty hΔ hg₀ty hg₀ty') hdom
-      | _ => exact absurd hc (fun x => x)
-    | pair A₀ B₀ x g =>
-      cases z with
-      | bot => exact hy
-      | pair A₀' B₀' x' g' =>
-        cases hy with
-        | @pair _ n₀ n' _ _ _ _ f A B d g₀ hd hfo hwp hwSg hxd hwg₀ hg hg₀ev hg₀ty hdom =>
-          cases hz with
-          | @pair _ n₀' _ _ _ _ _ _ _ _ _ g₀' _ _ hwp' _ hxd' hwg₀' hg' hg₀ev' hg₀ty' hdom' =>
-            exact .pair hd hfo (Shape.WF.join hΔ hc hwp hwp') hwSg
-              (ih hc.2.1 hxd hxd')
-              (join_gen_wf hwg₀ hwg₀')
-              (join_gen_cover hΔ hwg₀ hwg₀' hg hg')
-              (join_gen_code hΔ hwg₀ hwg₀' hg₀ev hg₀ev')
-              (join_gen_ty hΔ hg₀ty hg₀ty') hdom
-      | _ => exact absurd hc (fun x => x)
-
-/-- The same at the total level: lift both subjects to the common level
-and join there. -/
-theorem TShape.HasType.join {Δ : List Term} (hΔ : ⊢ Δ) {y z c : TShape}
-    (hc : TShape.Compat Δ y z) (hy : TShape.HasType Δ y c) (hz : TShape.HasType Δ z c) :
-    TShape.HasType Δ (y.join z) c :=
-  TShape.HasType.join_at hΔ
-    ((TShape.Compat.def (Nat.le_max_left ..) (Nat.le_max_right ..)).1 hc)
-    (hy.lift_subject hΔ (Nat.le_max_left ..)) (hz.lift_subject hΔ (Nat.le_max_right ..))
 
 /-- Everything the `TShape` lookup returns is typed at a sort, when the
 graph's outputs are.  `lower` is `mono_l_sort` and `join` is `join_sort'`;
@@ -2110,226 +2031,7 @@ closed; the form that is, `SoundDom`, is the saturating one. -/
 /-- The graph a shape carries, if it carries one: a λ's or a pair's. -/
 def Shape.graph {n} : Shape (n+1) → List (Entry (Shape n))
   | .lam _ _ g => g
-  | .pair _ _ _ g => g
   | _ => []
-
-/-- The type a value shape names, if it names one. -/
-def Shape.tyOf : ∀ {n}, Shape n → Option Term
-  | 0, _ => none
-  | _+1, .pair A B _ _ => some (Term.sigma A B)
-  | _+1, .lam A B _ => some (Term.forallE A B)
-  | _+1, _ => none
-
-@[simp] theorem Shape.tyOf_subst {n} {y : Shape n} {τ : Subst} :
-    (y.subst τ).tyOf = y.tyOf.map (·.subst τ) := by
-  cases n with
-  | zero => cases y <;> rfl
-  | succ n => cases y <;> rfl
-
-@[simp] theorem Shape.tyOf_lift : ∀ {n k} {y : Shape n},
-    (y.lift k).tyOf = if k = 0 then none else y.tyOf := by
-  intro n k y
-  cases n with
-  | zero => cases y <;> cases k <;> rfl
-  | succ n => cases k <;> cases y <;> rfl
-
-/-- **Canonically labelled, as the value of a term.**
-
-`Dom` says a value is hereditarily *typed*; this says it is hereditarily
-*labelled by its own projections*, which is what Σ's η needs and what
-`Dom` cannot carry (§4.7c): a pair-approximant of `p` must answer at
-`p.fst`, or `p.snd` reads nothing from it and the η-expansion cannot be
-rebuilt above it.
-
-A recursion on the shape, reading the types off the shape's own labels —
-which is why value shapes carry them.  Moving the subject along a
-definitional equality turns into equations of its projections, a
-congruence, and a congruence needs the type; the *coherence* conjuncts
-(`tyOf`) are what carry that down the recursion, so the transport
-(`Canon.defeq`) can recurse at all. -/
-def Shape.Canon (Δ : List Term) : ∀ {n}, Term → Shape n → Prop
-  | 0, _, _ => True
-  | _+1, t, .pair A B x g =>
-    (∀ e ∈ g, Δ ⊢ e.tm ≡ Term.fst t : A) ∧
-      (∀ e ∈ g, Shape.LE Δ e.inp x) ∧
-      (∀ T ∈ x.tyOf, TyEq Δ A T) ∧
-      (∀ e ∈ g, ∀ T ∈ e.out.tyOf, TyEq Δ (B.inst e.tm) T) ∧
-      Canon Δ (Term.fst t) x ∧ ∀ e ∈ g, Canon Δ (Term.snd t) e.out
-  | _+1, t, .lam A B g =>
-    (∀ e ∈ g, Δ ⊢ e.tm : A) ∧
-      (∀ e ∈ g, ∀ T ∈ e.inp.tyOf, TyEq Δ A T) ∧
-      (∀ e ∈ g, ∀ T ∈ e.out.tyOf, TyEq Δ (B.inst e.tm) T) ∧
-      ∀ e ∈ g, Canon Δ e.tm e.inp ∧ Canon Δ (Term.app t e.tm) e.out
-  | _+1, _, _ => True
-
-/-- At the total level. -/
-def TShape.Canon (Δ : List Term) (t : Term) (x : TShape) : Prop :=
-  Shape.Canon Δ t x.2
-
-@[simp] theorem TShape.Canon.T {Δ : List Term} {t : Term} {n} {s : Shape n} :
-    TShape.Canon Δ t (Shape.T s) ↔ Shape.Canon Δ t s := Iff.rfl
-
-@[simp] theorem Shape.Canon.bot {Δ : List Term} {t : Term} {n} :
-    Shape.Canon Δ t (Shape.bot (n := n)) := by
-  cases n <;> trivial
-
-@[simp] theorem Shape.tyOf_bot {Δ : List Term} {n} :
-    (Shape.bot (n := n)).tyOf = none := by cases n <;> rfl
-
-/-- **Canonicity moves with the subject**, along a definitional equality
-at the shape's own type.  This is what a shape-level predicate could not
-have (§4.7c): the projections' congruences need the type, and the type is
-now in the shape -- the coherence conjuncts carrying it down the
-recursion. -/
-theorem Shape.Canon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
-    ∀ {n} {t t' : Term} {x : Shape n},
-      Shape.Canon Δ t x → (∀ T ∈ x.tyOf, Δ ⊢ t ≡ t' : T) → Shape.Canon Δ t' x := by
-  intro n
-  induction n with
-  | zero => exact fun _ _ => trivial
-  | succ n ih =>
-    intro t t' x hx he
-    match x, hx with
-    | .pair A B x₀ g, ⟨hlab, hle, hcx, hco, hfst, hout⟩ =>
-      have heS : Δ ⊢ t ≡ t' : Term.sigma A B := he _ rfl
-      have hSg : Δ ⊢ Term.sigma A B ≡ Term.sigma A B : Term.sort _ :=
-        (heS.hasType.1.isType hΔ).choose_spec
-      obtain ⟨u, hA⟩ := IsDefEq.sigma_dom hSg
-      obtain ⟨v, hB⟩ := IsDefEq.sigma_cod hSg
-      have hf : Δ ⊢ Term.fst t ≡ Term.fst t' : A := IsDefEq.fstDF hA hB heS
-      have hBf : Δ ⊢ B.inst (Term.fst t) ≡ B.inst (Term.fst t') : Term.sort v := by
-        have := IsDefEq.subst' hΔ (show Ctx.SubstEq Δ (Subst.one (Term.fst t))
-            (Subst.one (Term.fst t')) (A :: Δ) from
-          .cons (Ctx.SubstEq.id hΔ) hA (by simpa using hf)) hB
-        simpa [Term.inst] using this
-      have hs : Δ ⊢ Term.snd t ≡ Term.snd t' : B.inst (Term.fst t) :=
-        IsDefEq.sndDF hA hB heS hBf
-      refine ⟨fun e hge => (hlab e hge).trans hf, hle, hcx, hco, ih hfst ?_, fun e hge => ?_⟩
-      · intro T hT
-        exact (hcx T hT).choose_spec.defeqDF hf
-      · refine ih (hout e hge) (fun T hT => ?_)
-        -- the output's type is the codomain at the entry's label, which the
-        -- label equation moves to the first projection
-        have hBe : Δ ⊢ B.inst (Term.fst t) ≡ B.inst e.tm : Term.sort v := by
-          have := IsDefEq.subst' hΔ (show Ctx.SubstEq Δ (Subst.one (Term.fst t))
-              (Subst.one e.tm) (A :: Δ) from
-            .cons (Ctx.SubstEq.id hΔ) hA (by simpa using (hlab e hge).symm)) hB
-          simpa [Term.inst] using this
-        exact ((hco e hge T hT).choose_spec).defeqDF (hBe.defeqDF hs)
-    | .lam A B g, ⟨htm, hci, hco, hall⟩ =>
-      have heP : Δ ⊢ t ≡ t' : Term.forallE A B := he _ rfl
-      have hPi : Δ ⊢ Term.forallE A B ≡ Term.forallE A B : Term.sort _ :=
-        (heP.hasType.1.isType hΔ).choose_spec
-      obtain ⟨u, hA⟩ := IsDefEq.forallE_dom hPi
-      obtain ⟨v, hB⟩ := IsDefEq.forallE_cod hPi
-      refine ⟨htm, hci, hco, fun e hge => ⟨(hall e hge).1, ih (hall e hge).2 (fun T hT => ?_)⟩⟩
-      have hap : Δ ⊢ Term.app t e.tm ≡ Term.app t' e.tm : B.inst e.tm :=
-        IsDefEq.appDF hA hB heP (htm e hge) (IsDefEq.inst0 hΔ (htm e hge) hB)
-      exact ((hco e hge T hT).choose_spec).defeqDF hap
-    | .bot, _ | .sort _, _ | .unit _, _ | .nat, _ | .zero, _ | .succ _, _ | .refl _, _
-    | .id _ _ _ _, _ | .forallE .., _ | .sigma .., _ => trivial
-
-/-- Canonicity survives a substitution of the stage. -/
-theorem Shape.Canon.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
-    (W : Ctx.SubstEq Θ τ τ Δ) : ∀ {n} {t : Term} {x : Shape n},
-      Shape.Canon Δ t x → Shape.Canon Θ (t.subst τ) (x.subst τ) := by
-  intro n
-  induction n with
-  | zero => exact fun _ => trivial
-  | succ n ih =>
-    have hback : ∀ {m} {y : Shape m} {T : Term}, T ∈ (y.subst τ).tyOf →
-        ∃ T₀ ∈ y.tyOf, T = T₀.subst τ := by
-      intro m y T hT
-      rw [Shape.tyOf_subst, Option.mem_def, Option.map_eq_some_iff] at hT
-      obtain ⟨T₀, hT₀, rfl⟩ := hT
-      exact ⟨T₀, hT₀, rfl⟩
-    intro t x hx
-    match x, hx with
-    | .pair A B x₀ g, ⟨hlab, hle, hcx, hco, hfst, hout⟩ =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-      · intro e he
-        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
-        have := IsDefEq.subst hΘ W (hlab e₀ he₀)
-        simpa [Term.subst] using this
-      · intro e he
-        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
-        exact Shape.LE.subst hΘ W (hle e₀ he₀)
-      · intro T hT
-        obtain ⟨T₀, hT₀, rfl⟩ := hback hT
-        exact (hcx T₀ hT₀).subst hΘ W
-      · intro e he T hT
-        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
-        obtain ⟨T₀, hT₀, rfl⟩ := hback hT
-        have := (hco e₀ he₀ T₀ hT₀).subst hΘ W
-        simpa [subst_inst] using this
-      · simpa [Term.subst] using ih hfst
-      · intro e he
-        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
-        simpa [Term.subst] using ih (hout e₀ he₀)
-    | .lam A B g, ⟨htm, hci, hco, hall⟩ =>
-      refine ⟨?_, ?_, ?_, ?_⟩
-      · intro e he
-        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
-        exact IsDefEq.subst hΘ W (htm e₀ he₀)
-      · intro e he T hT
-        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
-        obtain ⟨T₀, hT₀, rfl⟩ := hback hT
-        exact (hci e₀ he₀ T₀ hT₀).subst hΘ W
-      · intro e he T hT
-        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
-        obtain ⟨T₀, hT₀, rfl⟩ := hback hT
-        have := (hco e₀ he₀ T₀ hT₀).subst hΘ W
-        simpa [subst_inst] using this
-      · intro e he
-        obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.subst] using he)
-        exact ⟨ih (hall e₀ he₀).1, by simpa [Term.subst] using ih (hall e₀ he₀).2⟩
-    | .bot, _ | .sort _, _ | .unit _, _ | .nat, _ | .zero, _ | .succ _, _ | .refl _, _
-    | .id _ _ _ _, _ | .forallE .., _ | .sigma .., _ => trivial
-
-/-- And lifting the subject's level, which only copies its parts. -/
-theorem Shape.Canon.lift {Δ : List Term} : ∀ {n} {t : Term} {x : Shape n} {k}, n ≤ k →
-    Shape.Canon Δ t x → Shape.Canon Δ t (x.lift k) := by
-  intro n
-  induction n with
-  | zero => intro t x k _ _; cases k <;> cases x <;> trivial
-  | succ n ih =>
-    intro t x k hk hx
-    match k, hk with
-    | k+1, hk =>
-      match x, hx with
-      | .pair A B x₀ g, ⟨hlab, hle, hcx, hco, hfst, hout⟩ =>
-        refine ⟨?_, ?_, ?_, ?_, ih (Nat.le_of_succ_le_succ hk) hfst, ?_⟩
-        · intro e he
-          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
-          exact hlab e₀ he₀
-        · intro e he
-          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
-          exact Shape.lift_le (Γ := Δ) (Nat.le_of_succ_le_succ hk) (hle e₀ he₀)
-        · intro T hT
-          exact hcx T (by simp at hT; exact hT.2)
-        · intro e he T hT
-          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
-          exact hco e₀ he₀ T (by simp at hT; exact hT.2)
-        · intro e he
-          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
-          exact ih (Nat.le_of_succ_le_succ hk) (hout e₀ he₀)
-      | .lam A B g, ⟨htm, hci, hco, hall⟩ =>
-        refine ⟨?_, ?_, ?_, ?_⟩
-        · intro e he
-          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
-          exact htm e₀ he₀
-        · intro e he T hT
-          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
-          exact hci e₀ he₀ T (by simp at hT; exact hT.2)
-        · intro e he T hT
-          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
-          exact hco e₀ he₀ T (by simp at hT; exact hT.2)
-        · intro e he
-          obtain ⟨e₀, he₀, rfl⟩ := List.mem_map.1 (by simpa [ShapeFun.lift] using he)
-          exact ⟨ih (Nat.le_of_succ_le_succ hk) (hall e₀ he₀).1,
-            ih (Nat.le_of_succ_le_succ hk) (hall e₀ he₀).2⟩
-      | .bot, _ | .sort _, _ | .unit _, _ | .nat, _ | .zero, _ | .succ _, _ | .refl _, _
-      | .id _ _ _ _, _ | .forallE .., _ | .sigma .., _ => trivial
 
 /-- A shape's entries, levels forgotten. -/
 def TShape.entries : TShape → List (Entry TShape)
@@ -2340,8 +2042,19 @@ def TShape.entries : TShape → List (Entry TShape)
 everything else), so that `Dom`'s Σ clause can quantify over it. -/
 def TShape.fstPart : TShape → List TShape
   | ⟨0, _⟩ => []
-  | ⟨_+1, .pair _ _ x _⟩ => [x.T]
+  | ⟨_+1, .pair _ _ _ x _⟩ => [x.T]
   | ⟨_+1, _⟩ => []
+
+/-- A pair shape's name and both components, so that `Dom`'s Σ clause can
+quantify over them without an existential (which an inductive premise may
+not have over the relation being defined). -/
+def TShape.pairParts : TShape → Option (Term × TShape × TShape)
+  | ⟨0, _⟩ => none
+  | ⟨_+1, .pair _ _ a x y⟩ => some (a, x.T, y.T)
+  | ⟨_+1, _⟩ => none
+
+@[simp] theorem TShape.pairParts_bot {n} :
+    (Shape.T (n := n) Shape.bot).pairParts = none := by cases n <;> rfl
 
 /-- A code that binds: the two whose decoder does more than filter. -/
 def TShape.IsBinder : TShape → Prop
@@ -2349,6 +2062,13 @@ def TShape.IsBinder : TShape → Prop
   | ⟨_+1, .forallE ..⟩ => True
   | ⟨_+1, .sigma ..⟩ => True
   | ⟨_+1, _⟩ => False
+
+/-- Membership in a mapped `Option`, in the form the `Dom` proofs use. -/
+theorem Option.exists_of_mem_map {α β : Type} {o : Option α} {f : α → β} {b : β}
+    (h : b ∈ o.map f) : ∃ a ∈ o, b = f a := by
+  cases o with
+  | none => exact absurd h (by simp)
+  | some a => exact ⟨a, rfl, by simpa using h.symm⟩
 
 /-- **Hereditarily typed at a code.**
 
@@ -2368,15 +2088,18 @@ inductive TShape.Dom (Δ : List Term) : TShape → TShape → Prop where
     (∀ p ∈ cs, TEvaluates Δ f p.1.ty p.1.tm p.1.inp p.2) →
     (∀ p ∈ cs, Dom Δ p.2 p.1.out) →
     Dom Δ (Shape.T (n := n+1) (ShapeS.forallE A B d f)) x
-  /-- At a Σ, the same, plus the first component. -/
+  /-- At a Σ: the first component hereditarily typed at the domain, the
+  second at the codomain read at the pair's own name and first component.
+  Read at `x` itself, where `HasType` reads a *dominator* of it: that is
+  what keeps `Dom` closed under joins (§4.7e), and `Dom`, unlike
+  `HasType`, is only ever used upward, so it needs no lower-closure. -/
   | sg {n} {A B : Term} {d : Shape n} {f : ShapeFun n} {x : TShape}
-      {cs : List (Entry TShape × TShape)} :
+      {ps : Option (Term × TShape × TShape)} {c : TShape} :
     TShape.HasType Δ x (Shape.T (n := n+1) (ShapeS.sigma A B d f)) →
-    x.entries = cs.map (·.1) →
-    (∀ y ∈ x.fstPart, Dom Δ d.T y) →
-    (∀ p ∈ cs, Dom Δ d.T p.1.inp) →
-    (∀ p ∈ cs, TEvaluates Δ f p.1.ty p.1.tm p.1.inp p.2) →
-    (∀ p ∈ cs, Dom Δ p.2 p.1.out) →
+    x.pairParts = ps →
+    (∀ p ∈ ps, Dom Δ d.T p.2.1) →
+    (∀ p ∈ ps, TEvaluates Δ f A p.1 p.2.1 c) →
+    (∀ p ∈ ps, Dom Δ c p.2.2) →
     Dom Δ (Shape.T (n := n+1) (ShapeS.sigma A B d f)) x
 
 theorem TShape.Dom.hasType {Δ : List Term} {d x : TShape} (h : TShape.Dom Δ d x) :
@@ -2400,9 +2123,9 @@ theorem TShape.Dom.bot {Δ : List Term} {d : TShape} {n}
     | .forallE .. =>
       exact .pi (cs := []) h (by simp) (by simp) (by simp) (by simp)
     | .sigma .. =>
-      exact .sg (cs := []) h (by simp) (by simp) (by simp) (by simp) (by simp)
+      exact .sg (ps := none) (c := TShape.bot) h (by simp) (by simp) (by simp) (by simp)
     | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
-    | .lam _ _ _ | .pair _ _ _ _ => exact .base (fun h => h) h
+    | .lam _ _ _ | .pair _ _ _ _ _ => exact .base (fun h => h) h
 
 /-- The same, for a subject that is `⊥` only up to its level. -/
 theorem TShape.Dom.bot_subject {Δ : List Term} {d x : TShape} (hx : x.2 = Shape.bot)
@@ -2464,24 +2187,21 @@ theorem TShape.Dom.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     · intro p hp
       obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
       exact ihout q hq
-  | @sg n A B d f x cs hty hent _ _ hev _ ihfst ihin ihout =>
-    refine .sg (cs := cs.map fun p =>
-        (⟨p.1.ty.subst τ, p.1.tm.subst τ, p.1.inp.subst τ, p.1.out.subst τ⟩, p.2.subst τ))
-      (by simpa [Shape.subst] using TShape.HasType.subst hΘ W hty) ?_ ?_ ?_ ?_ ?_
-    · simp [TShape.entries_subst, hent, List.map_map, Function.comp_def]
-    · intro y hy
-      rw [TShape.fstPart_subst, List.mem_map] at hy
-      obtain ⟨y₀, hy₀, rfl⟩ := hy
-      exact ihfst y₀ hy₀
+  | @sg n A B d f x ps c hty hps _ hev _ ihx ihy =>
+    refine .sg (ps := ps.map fun p => (p.1.subst τ, p.2.1.subst τ, p.2.2.subst τ))
+      (c := c.subst τ)
+      (by simpa [Shape.subst] using TShape.HasType.subst hΘ W hty) ?_ ?_ ?_ ?_
+    · rw [← hps]; cases x with | mk k s => cases k <;> [skip; cases s] <;>
+        simp [TShape.pairParts, TShape.subst, Shape.subst]
     · intro p hp
-      obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
-      exact ihin q hq
+      obtain ⟨q, hq, rfl⟩ := Option.exists_of_mem_map hp
+      exact ihx q hq
     · intro p hp
-      obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
+      obtain ⟨q, hq, rfl⟩ := Option.exists_of_mem_map hp
       exact TEvaluates.subst hΘ W (hev q hq)
     · intro p hp
-      obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
-      exact ihout q hq
+      obtain ⟨q, hq, rfl⟩ := Option.exists_of_mem_map hp
+      exact ihy q hq
 
 theorem TShape.entries_lift {x : TShape} {k} (hk : x.1 ≤ k + 1) :
     (x.lift (k+1)).entries = x.entries.map
@@ -2501,6 +2221,18 @@ theorem TShape.fstPart_lift {x : TShape} {k} (hk : x.1 ≤ k + 1) :
   | zero => cases s <;> rfl
   | succ n => cases s <;> simp [TShape.fstPart, TShape.lift, Shape.lift, Shape.T]
 
+theorem TShape.pairParts_lift {x : TShape} {k} (hk : x.1 ≤ k + 1) :
+    (x.lift (k+1)).pairParts =
+      x.pairParts.map (fun p => (p.1, p.2.1.lift k, p.2.2.lift k)) := by
+  obtain ⟨n, s⟩ := x
+  cases n with
+  | zero => cases s <;> rfl
+  | succ n => cases s <;> simp [TShape.pairParts, TShape.lift, Shape.lift, Shape.T]
+
+theorem TShape.pairParts_lift_zero {x : TShape} : (x.lift 0).pairParts = none := by
+  obtain ⟨n, s⟩ := x
+  cases n <;> [cases s; skip] <;> rfl
+
 theorem TShape.entries_level {x : TShape} {e : Entry TShape} (he : e ∈ x.entries) :
     e.inp.1 + 1 = x.1 ∧ e.out.1 + 1 = x.1 := by
   obtain ⟨n, s⟩ := x
@@ -2518,7 +2250,20 @@ theorem TShape.fstPart_level {x : TShape} {y : TShape} (hy : y ∈ x.fstPart) :
   | zero => simp [TShape.fstPart] at hy
   | succ n =>
     match s, hy with
-    | .pair _ _ _ _, hy => simp [TShape.fstPart] at hy; subst hy; rfl
+    | .pair _ _ _ _ _, hy => simp [TShape.fstPart] at hy; subst hy; rfl
+
+theorem TShape.pairParts_level {x : TShape} {ps} (hps : x.pairParts = ps)
+    {p} (hp : p ∈ ps) : p.2.1.1 + 1 = x.1 ∧ p.2.2.1 + 1 = x.1 := by
+  obtain ⟨n, s⟩ := x
+  cases n with
+  | zero => subst hps; exact absurd hp (by simp [TShape.pairParts])
+  | succ n =>
+    subst hps
+    match s with
+    | .pair _ _ _ _ _ => simp [TShape.pairParts] at hp; subst hp; exact ⟨rfl, rfl⟩
+    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+    | .lam _ _ _ | .forallE .. | .sigma .. =>
+      exact absurd hp (by simp [TShape.pairParts])
 
 /-- `Dom` survives lifting the subject: its entries lift with it, one
 level down, and a lifted query reads the same codes. -/
@@ -2552,40 +2297,28 @@ theorem TShape.Dom.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {d x : TShape}
         refine ihout q hq ?_
         have := TShape.entries_level (x := x) (e := q.1) (by rw [hent]; exact List.mem_map_of_mem hq)
         omega
-  | @sg n A B d f x cs hty hent hfst hin hev hout ihfst ihin ihout =>
+  | @sg n A B d f x ps c hty hps hx hev hy ihx ihy =>
     intro k hk
     match k, hk with
     | 0, hk =>
-      exact .sg (cs := []) (hty.lift_subject hΔ hk) rfl
-        (fun y hy => absurd hy (by simp [TShape.fstPart, TShape.lift]))
+      exact .sg (ps := none) (c := c) (hty.lift_subject hΔ hk)
+        TShape.pairParts_lift_zero
         (by simp) (by simp) (by simp)
     | k+1, hk =>
-      refine .sg (cs := cs.map fun p =>
-          (⟨p.1.ty, p.1.tm, p.1.inp.lift k, p.1.out.lift k⟩, p.2))
-        (hty.lift_subject hΔ hk) ?_ ?_ ?_ ?_ ?_
-      · simp [TShape.entries_lift hk, hent, List.map_map, Function.comp_def]
-      · intro y hy
-        rw [TShape.fstPart_lift hk, List.mem_map] at hy
-        obtain ⟨y₀, hy₀, rfl⟩ := hy
-        refine ihfst y₀ hy₀ ?_
-        have := TShape.fstPart_level hy₀
-        omega
+      refine .sg (ps := ps.map fun p => (p.1, p.2.1.lift k, p.2.2.lift k)) (c := c)
+        (hty.lift_subject hΔ hk) ?_ ?_ ?_ ?_
+      · rw [← hps, TShape.pairParts_lift hk]
       · intro p hp
-        obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
-        refine ihin q hq ?_
-        have := TShape.entries_level (x := x) (e := q.1) (by rw [hent]; exact List.mem_map_of_mem hq)
-        omega
+        obtain ⟨q, hq, rfl⟩ := Option.exists_of_mem_map hp
+        exact ihx q hq (by have := TShape.pairParts_level hps hq; omega)
       · intro p hp
-        obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
+        obtain ⟨q, hq, rfl⟩ := Option.exists_of_mem_map hp
         refine TEvaluates.mono_inp hΔ ?_ (hev q hq)
-        exact TShape.LE.le_lift hΔ (by
-          have := TShape.entries_level (x := x) (e := q.1) (by rw [hent]; exact List.mem_map_of_mem hq)
-          omega) (TShape.Dom.hasType (hin q hq)).wf.1
+        exact TShape.LE.le_lift hΔ (by have := TShape.pairParts_level hps hq; omega)
+          (TShape.Dom.hasType (hx q hq)).wf.1
       · intro p hp
-        obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
-        refine ihout q hq ?_
-        have := TShape.entries_level (x := x) (e := q.1) (by rw [hent]; exact List.mem_map_of_mem hq)
-        omega
+        obtain ⟨q, hq, rfl⟩ := Option.exists_of_mem_map hp
+        exact ihy q hq (by have := TShape.pairParts_level hps hq; omega)
 
 /-- A code below a binder code is a binder code, or `⊥`: the order pins
 the head.  This is what lets `Dom`'s `base` clause stay disjoint from the
@@ -2606,7 +2339,7 @@ theorem TShape.IsBinder.of_le {Δ : List Term} (hΔ : ⊢ Δ) {d d' : TShape}
         match s' with
         | .forallE .. | .sigma .. => exact absurd h2 (fun x => x)
         | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
-        | .lam _ _ _ | .pair _ _ _ _ => exact absurd hb (fun x => x)
+        | .lam _ _ _ | .pair _ _ _ _ _ => exact absurd hb (fun x => x)
     | succ n =>
       match s, s' with
       | .forallE .., .forallE .. => exact trivial
@@ -2658,8 +2391,8 @@ theorem TShape.Dom.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {d x : TShape}
             (TShape.HasType.wf hty0).2 hw₂ (fun e he => TEvaluates.refl hw₂.2.2.2 e he)
           exact TEvaluates.trans hΔ hcov (hev p hp)
       | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
-      | .lam _ _ _ | .sigma .. | .pair _ _ _ _ => exact absurd h2 (fun x => x)
-  | @sg n A B d f x cs hty0 hent hfst hin hev hout ihfst ihin ihout =>
+      | .lam _ _ _ | .sigma .. | .pair _ _ _ _ _ => exact absurd h2 (fun x => x)
+  | @sg n A B d f x ps c hty0 hps hx hev hy ihx ihy =>
     intro d' hle hty
     obtain ⟨k, s⟩ := d'
     obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hle
@@ -2670,15 +2403,14 @@ theorem TShape.Dom.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {d x : TShape}
       | .sigma A' B' d₂ f₂ =>
         obtain ⟨hd₂, hf₂, hw₂⟩ := hty.sigma_inv rfl
         have hdle := TShape.LE.sigma_dom hΔ hle
-        refine .sg (cs := cs) (TShape.HasType.mono_r hΔ hty0 _ hle hty) hent
-          (fun y hy => ihfst y hy hdle hd₂) (fun p hp => ihin p hp hdle hd₂) ?_
-          (fun p hp => hout p hp)
-        · intro p hp
-          obtain ⟨_, _, hcov⟩ := TShape.LE.sigma_decomp hΔ hle
-            (TShape.HasType.wf hty0).2 hw₂ (fun e he => TEvaluates.refl hw₂.2.2.2 e he)
-          exact TEvaluates.trans hΔ hcov (hev p hp)
+        obtain ⟨hlab, _, hcov⟩ := TShape.LE.sigma_decomp hΔ hle
+          (TShape.HasType.wf hty0).2 hw₂ (fun e he => TEvaluates.refl hw₂.2.2.2 e he)
+        exact .sg (c := c) (TShape.HasType.mono_r hΔ hty0 _ hle hty) hps
+          (fun p hp => ihx p hp hdle hd₂)
+          (fun p hp => TEvaluates.retype hlab.1 (TEvaluates.trans hΔ hcov (hev p hp)))
+          (fun p hp => hy p hp)
       | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
-      | .lam _ _ _ | .forallE .. | .pair _ _ _ _ => exact absurd h2 (fun x => x)
+      | .lam _ _ _ | .forallE .. | .pair _ _ _ _ _ => exact absurd h2 (fun x => x)
 
 /-- At a code that only filters — anything but a Π or a Σ — typing is
 `Dom`. -/
@@ -2694,7 +2426,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .bot, .forallE _ _ _ _ => .inr (.inr rfl)
   | .bot, .lam _ _ _ => .inr (.inr rfl)
   | .bot, .sigma _ _ _ _ => .inr (.inr rfl)
-  | .bot, .pair _ _ _ _ => .inr (.inr rfl)
+  | .bot, .pair _ _ _ _ _ => .inr (.inr rfl)
   | .bot, .nat => .inr (.inr rfl)
   | .bot, .zero => .inr (.inr rfl)
   | .bot, .succ _ => .inr (.inr rfl)
@@ -2706,7 +2438,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .sort _, .forallE _ _ _ _ => .inr (.inl rfl)
   | .sort _, .lam _ _ _ => .inr (.inl rfl)
   | .sort _, .sigma _ _ _ _ => .inr (.inl rfl)
-  | .sort _, .pair _ _ _ _ => .inr (.inl rfl)
+  | .sort _, .pair _ _ _ _ _ => .inr (.inl rfl)
   | .sort _, .nat => .inr (.inl rfl)
   | .sort _, .zero => .inr (.inl rfl)
   | .sort _, .succ _ => .inr (.inl rfl)
@@ -2718,7 +2450,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .unit _, .forallE _ _ _ _ => .inr (.inl rfl)
   | .unit _, .lam _ _ _ => .inr (.inl rfl)
   | .unit _, .sigma _ _ _ _ => .inr (.inl rfl)
-  | .unit _, .pair _ _ _ _ => .inr (.inl rfl)
+  | .unit _, .pair _ _ _ _ _ => .inr (.inl rfl)
   | .unit _, .nat => .inr (.inl rfl)
   | .unit _, .zero => .inr (.inl rfl)
   | .unit _, .succ _ => .inr (.inl rfl)
@@ -2730,7 +2462,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .forallE _ _ _ _, .forallE _ _ _ _ => .inr (.inl rfl)
   | .forallE _ _ _ _, .lam _ _ _ => .inr (.inl rfl)
   | .forallE _ _ _ _, .sigma _ _ _ _ => .inr (.inl rfl)
-  | .forallE _ _ _ _, .pair _ _ _ _ => .inr (.inl rfl)
+  | .forallE _ _ _ _, .pair _ _ _ _ _ => .inr (.inl rfl)
   | .forallE _ _ _ _, .nat => .inr (.inl rfl)
   | .forallE _ _ _ _, .zero => .inr (.inl rfl)
   | .forallE _ _ _ _, .succ _ => .inr (.inl rfl)
@@ -2742,7 +2474,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .lam _ _ _, .forallE _ _ _ _ => .inr (.inl rfl)
   | .lam _ _ _, .lam _ _ _ => .inl rfl
   | .lam _ _ _, .sigma _ _ _ _ => .inr (.inl rfl)
-  | .lam _ _ _, .pair _ _ _ _ => .inr (.inl rfl)
+  | .lam _ _ _, .pair _ _ _ _ _ => .inr (.inl rfl)
   | .lam _ _ _, .nat => .inr (.inl rfl)
   | .lam _ _ _, .zero => .inr (.inl rfl)
   | .lam _ _ _, .succ _ => .inr (.inl rfl)
@@ -2754,31 +2486,31 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .sigma _ _ _ _, .forallE _ _ _ _ => .inr (.inl rfl)
   | .sigma _ _ _ _, .lam _ _ _ => .inr (.inl rfl)
   | .sigma _ _ _ _, .sigma _ _ _ _ => .inr (.inl rfl)
-  | .sigma _ _ _ _, .pair _ _ _ _ => .inr (.inl rfl)
+  | .sigma _ _ _ _, .pair _ _ _ _ _ => .inr (.inl rfl)
   | .sigma _ _ _ _, .nat => .inr (.inl rfl)
   | .sigma _ _ _ _, .zero => .inr (.inl rfl)
   | .sigma _ _ _ _, .succ _ => .inr (.inl rfl)
   | .sigma _ _ _ _, .id _ _ _ _ => .inr (.inl rfl)
   | .sigma _ _ _ _, .refl _ => .inr (.inl rfl)
-  | .pair _ _ _ _, .bot => .inr (.inl rfl)
-  | .pair _ _ _ _, .sort _ => .inr (.inl rfl)
-  | .pair _ _ _ _, .unit _ => .inr (.inl rfl)
-  | .pair _ _ _ _, .forallE _ _ _ _ => .inr (.inl rfl)
-  | .pair _ _ _ _, .lam _ _ _ => .inr (.inl rfl)
-  | .pair _ _ _ _, .sigma _ _ _ _ => .inr (.inl rfl)
-  | .pair _ _ _ _, .pair _ _ _ _ => .inl rfl
-  | .pair _ _ _ _, .nat => .inr (.inl rfl)
-  | .pair _ _ _ _, .zero => .inr (.inl rfl)
-  | .pair _ _ _ _, .succ _ => .inr (.inl rfl)
-  | .pair _ _ _ _, .id _ _ _ _ => .inr (.inl rfl)
-  | .pair _ _ _ _, .refl _ => .inr (.inl rfl)
+  | .pair _ _ _ _ _, .bot => .inr (.inl rfl)
+  | .pair _ _ _ _ _, .sort _ => .inr (.inl rfl)
+  | .pair _ _ _ _ _, .unit _ => .inr (.inl rfl)
+  | .pair _ _ _ _ _, .forallE _ _ _ _ => .inr (.inl rfl)
+  | .pair _ _ _ _ _, .lam _ _ _ => .inr (.inl rfl)
+  | .pair _ _ _ _ _, .sigma _ _ _ _ => .inr (.inl rfl)
+  | .pair _ _ _ _ _, .pair _ _ _ _ _ => .inl rfl
+  | .pair _ _ _ _ _, .nat => .inr (.inl rfl)
+  | .pair _ _ _ _ _, .zero => .inr (.inl rfl)
+  | .pair _ _ _ _ _, .succ _ => .inr (.inl rfl)
+  | .pair _ _ _ _ _, .id _ _ _ _ => .inr (.inl rfl)
+  | .pair _ _ _ _ _, .refl _ => .inr (.inl rfl)
   | .nat, .bot => .inr (.inl rfl)
   | .nat, .sort _ => .inr (.inl rfl)
   | .nat, .unit _ => .inr (.inl rfl)
   | .nat, .forallE _ _ _ _ => .inr (.inl rfl)
   | .nat, .lam _ _ _ => .inr (.inl rfl)
   | .nat, .sigma _ _ _ _ => .inr (.inl rfl)
-  | .nat, .pair _ _ _ _ => .inr (.inl rfl)
+  | .nat, .pair _ _ _ _ _ => .inr (.inl rfl)
   | .nat, .nat => .inr (.inl rfl)
   | .nat, .zero => .inr (.inl rfl)
   | .nat, .succ _ => .inr (.inl rfl)
@@ -2790,7 +2522,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .zero, .forallE _ _ _ _ => .inr (.inl rfl)
   | .zero, .lam _ _ _ => .inr (.inl rfl)
   | .zero, .sigma _ _ _ _ => .inr (.inl rfl)
-  | .zero, .pair _ _ _ _ => .inr (.inl rfl)
+  | .zero, .pair _ _ _ _ _ => .inr (.inl rfl)
   | .zero, .nat => .inr (.inl rfl)
   | .zero, .zero => .inr (.inl rfl)
   | .zero, .succ _ => .inr (.inl rfl)
@@ -2802,7 +2534,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .succ _, .forallE _ _ _ _ => .inr (.inl rfl)
   | .succ _, .lam _ _ _ => .inr (.inl rfl)
   | .succ _, .sigma _ _ _ _ => .inr (.inl rfl)
-  | .succ _, .pair _ _ _ _ => .inr (.inl rfl)
+  | .succ _, .pair _ _ _ _ _ => .inr (.inl rfl)
   | .succ _, .nat => .inr (.inl rfl)
   | .succ _, .zero => .inr (.inl rfl)
   | .succ _, .succ _ => .inr (.inl rfl)
@@ -2814,7 +2546,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .id _ _ _ _, .forallE _ _ _ _ => .inr (.inl rfl)
   | .id _ _ _ _, .lam _ _ _ => .inr (.inl rfl)
   | .id _ _ _ _, .sigma _ _ _ _ => .inr (.inl rfl)
-  | .id _ _ _ _, .pair _ _ _ _ => .inr (.inl rfl)
+  | .id _ _ _ _, .pair _ _ _ _ _ => .inr (.inl rfl)
   | .id _ _ _ _, .nat => .inr (.inl rfl)
   | .id _ _ _ _, .zero => .inr (.inl rfl)
   | .id _ _ _ _, .succ _ => .inr (.inl rfl)
@@ -2826,7 +2558,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .refl _, .forallE _ _ _ _ => .inr (.inl rfl)
   | .refl _, .lam _ _ _ => .inr (.inl rfl)
   | .refl _, .sigma _ _ _ _ => .inr (.inl rfl)
-  | .refl _, .pair _ _ _ _ => .inr (.inl rfl)
+  | .refl _, .pair _ _ _ _ _ => .inr (.inl rfl)
   | .refl _, .nat => .inr (.inl rfl)
   | .refl _, .zero => .inr (.inl rfl)
   | .refl _, .succ _ => .inr (.inl rfl)
@@ -2852,46 +2584,126 @@ theorem TShape.entries_join {n} {x y : Shape (n+1)} :
   rcases Shape.graph_join (x := x) (y := y) with h | h | h <;>
     simp [TShape.entries, h]
 
-theorem TShape.fstPart_join {n} {x y : Shape (n+1)} :
-    (Shape.T (x.join y)).fstPart = (Shape.T x).fstPart ∨
-      (Shape.T (x.join y)).fstPart = (Shape.T y).fstPart ∨
-      ∃ x₀ y₀ : Shape n, (Shape.T x).fstPart = [Shape.T x₀] ∧
-        (Shape.T y).fstPart = [Shape.T y₀] ∧
-        (Shape.T (x.join y)).fstPart = [Shape.T (x₀.join y₀)] := by
-  match x, y with
-  | .bot, y => exact .inr (.inl (by cases y <;> rfl))
-  | .pair _ _ x₀ _, .pair _ _ y₀ _ => exact .inr (.inr ⟨x₀, y₀, rfl, rfl, rfl⟩)
-  | .sort _, y | .unit _, y | .nat, y | .zero, y | .succ _, y | .refl _, y
-  | .id .., y | .forallE .., y | .sigma .., y | .lam _ _ _, y =>
-    exact .inl (by cases y <;> rfl)
-  | .pair _ _ x₀ _, .sort _ | .pair _ _ x₀ _, .unit _ | .pair _ _ x₀ _, .nat
-  | .pair _ _ x₀ _, .zero | .pair _ _ x₀ _, .succ _ | .pair _ _ x₀ _, .refl _
-  | .pair _ _ x₀ _, .id .. | .pair _ _ x₀ _, .forallE .. | .pair _ _ x₀ _, .sigma ..
-  | .pair _ _ x₀ _, .lam _ _ _ | .pair _ _ x₀ _, .bot => exact .inl rfl
+/-- **Inverting `Dom` at a Σ**: the first component is hereditarily typed
+at the domain, and the second at the codomain read at the pair's own name
+and first component. -/
+theorem TShape.Dom.sg_inv {Δ : List Term} {n k} {A B A₀ B₀ a : Term} {d : Shape n}
+    {f : ShapeFun n} {x y : Shape k}
+    (h : TShape.Dom Δ (Shape.T (n := n+1) (ShapeS.sigma A B d f))
+      (Shape.T (n := k+1) (ShapeS.pair A₀ B₀ a x y))) :
+    ∃ c, TShape.Dom Δ d.T x.T ∧ TEvaluates Δ f A a x.T c ∧ TShape.Dom Δ c y.T := by
+  cases h with
+  | base hnb _ => exact absurd trivial hnb
+  | @sg _ _ _ _ _ _ ps c hty hps hx hev hy =>
+    have hps' : ps = some (a, x.T, y.T) := by
+      simpa [TShape.pairParts, Shape.T] using hps.symm
+    subst hps'
+    exact ⟨c, hx _ rfl, hev _ rfl, hy _ rfl⟩
 
-/-- Two compatible shapes with first components have compatible ones. -/
-theorem Shape.Compat.fst_of {Δ : List Term} {n} {y z : Shape (n+1)}
-    (hc : Shape.Compat Δ y z) {y₀ z₀ : Shape n}
-    (hy : (Shape.T y).fstPart = [Shape.T y₀]) (hz : (Shape.T z).fstPart = [Shape.T z₀]) :
-    Shape.Compat Δ y₀ z₀ := by
-  match y, z with
-  | .pair _ _ y₁ _, .pair _ _ z₁ _ =>
-    have h1 : y₁ = y₀ := by
-      have h := hy
-      simp only [TShape.fstPart, Shape.T, List.cons.injEq, and_true] at h
-      exact eq_of_heq (Sigma.mk.inj h).2
-    have h2 : z₁ = z₀ := by
-      have h := hz
-      simp only [TShape.fstPart, Shape.T, List.cons.injEq, and_true] at h
-      exact eq_of_heq (Sigma.mk.inj h).2
-    subst h1; subst h2; exact hc.2.1
-  | .pair .., .bot | .pair .., .sort _ | .pair .., .unit _ | .pair .., .nat
-  | .pair .., .zero | .pair .., .succ _ | .pair .., .refl _ | .pair .., .id ..
-  | .pair .., .forallE .. | .pair .., .sigma .. | .pair .., .lam _ _ _ =>
-    exact absurd hz (by simp [TShape.fstPart])
-  | .bot, _ | .sort _, _ | .unit _, _ | .nat, _ | .zero, _ | .succ _, _ | .refl _, _
-  | .id .., _ | .forallE .., _ | .sigma .., _ | .lam _ _ _, _ =>
-    exact absurd hy (by simp [TShape.fstPart])
+/-- **The join of two compatible subjects at one type, at one level** —
+master's `WShape.HasType.join`, and the content of `SoundJoin` (§5.1).
+
+It is provable now that a Σ-value is a first component and a graph
+(§5.1b): two pairs join by joining first components and *appending*
+graphs, each entry keeping the code it was typed at, exactly as two λs
+do.  With the old product pair it was false — §5.5's counterexample — and
+that is what made `SoundJoin` an open problem.
+
+The sort-typed shapes go to `join_sort`, numerals to `IsNumeral.join`,
+and `lam`/`pair` append their graphs and concatenate their generators,
+lifted to a common level. -/
+theorem TShape.HasType.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
+    ∀ {n} {y z : Shape n} {c : TShape}, Shape.Compat Δ y z →
+      TShape.Dom Δ c y.T → TShape.Dom Δ c z.T →
+      TShape.HasType Δ (y.join z).T c := by
+  intro n
+  induction n with
+  | zero =>
+    intro y z c hc hyD hzD
+    have hy := hyD.hasType; have hz := hzD.hasType
+    cases y with
+    | bot => exact hz
+    | sort r => cases z <;> exact hy
+  | succ n ih =>
+    intro y z c hc hyD hzD
+    have hy := hyD.hasType; have hz := hzD.hasType
+    cases y with
+    | bot => exact hz
+    | sort | unit | nat | zero | id =>
+      cases z <;> first | exact hy | exact absurd hc (fun x => x)
+    | succ v =>
+      cases z with
+      | bot => exact hy
+      | succ v' =>
+        cases hy with | succ hv => cases hz with | succ hv' =>
+        exact .succ (Shape.IsNumeral.join hc hv hv')
+      | _ => exact absurd hc (fun x => x)
+    | forallE A B d f =>
+      cases hy with | forallE hd hf hw =>
+      exact TShape.HasType.join_sort hΔ rfl (.forallE hd hf hw) hz hc
+    | sigma A B d f =>
+      cases hy with | sigma hd hf hw =>
+      exact TShape.HasType.join_sort hΔ rfl (.sigma hd hf hw) hz hc
+    | refl w =>
+      cases z with
+      | bot => exact hy
+      | refl w' =>
+        cases hy with | refl hw hle hA =>
+        cases hz with | refl hw' _ _ =>
+        exact .refl (Shape.WF.join hΔ hc hw hw') hle hA
+      | _ => exact absurd hc (fun x => x)
+    | lam A₀ B₀ g =>
+      cases z with
+      | bot => exact hy
+      | lam A₀' B₀' g' =>
+        cases hy with
+        | @lam _ n₀ n' _ _ _ f A B d g₀ hd hfo hwg hwPi hwg₀ hg hg₀ev hg₀ty hdom =>
+          cases hz with
+          | @lam _ n₀' _ _ _ _ _ _ _ _ g₀' _ _ hwg' _ hwg₀' hg' hg₀ev' hg₀ty' hdom' =>
+            exact .lam hd hfo (Shape.WF.join hΔ hc hwg hwg') hwPi
+              (join_gen_wf hwg₀ hwg₀')
+              (join_gen_cover hΔ hwg₀ hwg₀' hg hg')
+              (join_gen_code hΔ hwg₀ hwg₀' hg₀ev hg₀ev')
+              (join_gen_ty hΔ hg₀ty hg₀ty') hdom
+      | _ => exact absurd hc (fun x => x)
+    | pair A₀ B₀ a x₁ y₁ =>
+      cases z with
+      | bot => exact hy
+      | pair A₀' B₀' a' x₂ y₂ =>
+        cases hy with
+        | @pair _ n' _ _ _ _ _ f A B d _ _ hd hfo hwp hwSg hxd _ _ _ hdom =>
+          cases hz with
+          | @pair _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hwp' _ _ _ _ _ hdom' =>
+            obtain ⟨c₁, hdx₁, hev₁, hdy₁⟩ := hyD.sg_inv
+            obtain ⟨c₂, hdx₂, hev₂, hdy₂⟩ := hzD.sg_inv
+            -- the two codes are lookups at one query once the inputs are
+            -- joined, so they join, and the components' typings move up
+            have hjx := Shape.le_join hΔ hwp.2.2.2.1 hwp'.2.2.2.1 hc.2.2.1
+            have hev₁' := TEvaluates.mono_inp hΔ (TShape.LE.T.2 hjx.1) hev₁
+            have hev₂' := TEvaluates.label ⟨hdom.symm.trans hdom,
+                (hdom.choose_spec.defeqDF hc.2.1).symm⟩
+              (TEvaluates.mono_inp hΔ (TShape.LE.T.2 hjx.2) hev₂)
+            have hcc := TEvaluates.compat hΔ hwSg.2.2.2.2 (TShape.WF.T.2 (Shape.WF.join hΔ hc.2.2.1 hwp.2.2.2.1 hwp'.2.2.2.1)) hev₁' hev₂'
+            refine .pair hd hfo (Shape.WF.join hΔ hc hwp hwp') hwSg
+              (ih hc.2.2.1 hdx₁ hdx₂) (TShape.LE.refl (TShape.WF.T.2
+                (Shape.WF.join hΔ hc hwp hwp').2.2.2.1))
+              (TEvaluates.join hcc hev₁' hev₂') ?_ hdom
+            have hcty := TEvaluates.tHasType (c := TShape.type) hΔ rfl
+              (fun e he => hfo e he) (TEvaluates.join hcc hev₁' hev₂')
+            have hjc := TShape.le_join hΔ (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1 e he).2.2.2) hev₁')
+              (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1 e he).2.2.2) hev₂') hcc
+            exact ih hc.2.2.2 (TShape.Dom.mono_r hΔ hdy₁ hjc.1 hcty)
+              (TShape.Dom.mono_r hΔ hdy₂ hjc.2 hcty)
+      | _ => exact absurd hc (fun x => x)
+
+/-- The same at the total level: lift both subjects to the common level
+and join there. -/
+theorem TShape.HasType.join {Δ : List Term} (hΔ : ⊢ Δ) {y z c : TShape}
+    (hc : TShape.Compat Δ y z) (hy : TShape.Dom Δ c y) (hz : TShape.Dom Δ c z) :
+    TShape.HasType Δ (y.join z) c :=
+  TShape.HasType.join_at hΔ
+    ((TShape.Compat.def (Nat.le_max_left ..) (Nat.le_max_right ..)).1 hc)
+    (hy.lift_subject hΔ (Nat.le_max_left ..)) (hz.lift_subject hΔ (Nat.le_max_right ..))
 
 /-- **`Dom` is closed under the join**, at one level: the joined graph's
 entries are the two graphs' entries, so the generators concatenate.  This
@@ -2910,7 +2722,7 @@ theorem TShape.Dom.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
   | succ n ih =>
     intro y z d hc hy hz
     have hty : TShape.HasType Δ (y.join z).T d :=
-      TShape.HasType.join_at hΔ hc hy.hasType hz.hasType
+      TShape.HasType.join_at hΔ hc hy hz
     cases hy with
     | base hnb _ => exact .base hnb hty
     | @pi _ A B d₀ f _ csy htyy henty hiny hevy houty =>
@@ -2927,31 +2739,60 @@ theorem TShape.Dom.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
                 exacts [houty p hp, houtz p hp])
         · exact .pi (cs := csy) hty (by rw [he, henty]) hiny hevy houty
         · exact .pi (cs := csz) hty (by rw [he, hentz]) hinz hevz houtz
-    | @sg _ A B d₀ f _ csy htyy henty hfsty hiny hevy houty =>
+    | @sg _ A B d₀ f _ psy cy htyy hpsy hxy hevy hyy =>
       cases hz with
       | base hnb _ => exact absurd trivial hnb
-      | @sg _ _ _ _ _ _ csz htyz hentz hfstz hinz hevz houtz =>
-        have hfst : ∀ w ∈ (Shape.T (y.join z)).fstPart, TShape.Dom Δ d₀.T w := by
-          rcases TShape.fstPart_join (x := y) (y := z) with hf | hf | ⟨y₀, z₀, hfy, hfz, hf⟩
-          · rw [hf]; exact hfsty
-          · rw [hf]; exact hfstz
-          · rw [hf]
-            intro w hw
-            rw [List.mem_singleton] at hw
-            subst hw
-            exact ih (Shape.Compat.fst_of hc hfy hfz)
-              (hfsty _ (by rw [hfy]; exact List.mem_singleton_self _))
-              (hfstz _ (by rw [hfz]; exact List.mem_singleton_self _))
-        rcases TShape.entries_join (x := y) (y := z) with he | he | he
-        · exact .sg (cs := csy ++ csz) hty (by rw [he, henty, hentz, List.map_append]) hfst
-            (by intro p hp; rcases List.mem_append.1 hp with hp | hp
-                exacts [hiny p hp, hinz p hp])
-            (by intro p hp; rcases List.mem_append.1 hp with hp | hp
-                exacts [hevy p hp, hevz p hp])
-            (by intro p hp; rcases List.mem_append.1 hp with hp | hp
-                exacts [houty p hp, houtz p hp])
-        · exact .sg (cs := csy) hty (by rw [he, henty]) hfst hiny hevy houty
-        · exact .sg (cs := csz) hty (by rw [he, hentz]) hfst hinz hevz houtz
+      | @sg _ _ _ _ _ _ psz cz htyz hpsz hxz hevz hyz =>
+        -- the join is a pair exactly when both sides are, and then the two
+        -- codes are lookups at one query once the inputs are joined
+        match y, z, hc, hpsy, hpsz, hty, htyy with
+        | .bot, z, _, _, hpsz, hty, _ => exact .sg (ps := psz) (c := cz) hty hpsz hxz hevz hyz
+        | .pair A₁ B₁ a₁ x₁ y₁, .bot, _, hpsy, _, hty, _ =>
+          exact .sg (ps := psy) (c := cy) hty hpsy hxy hevy hyy
+        | .pair A₁ B₁ a₁ x₁ y₁, .pair A₂ B₂ a₂ x₂ y₂, hc, hpsy, hpsz, hty, htyy =>
+          obtain ⟨c₁, hdx₁, hev₁, hdy₁⟩ :=
+            TShape.Dom.sg_inv (.sg (ps := psy) (c := cy) htyy hpsy hxy hevy hyy)
+          obtain ⟨c₂, hdx₂, hev₂, hdy₂⟩ :=
+            TShape.Dom.sg_inv (.sg (ps := psz) (c := cz) htyz hpsz hxz hevz hyz)
+          cases htyy with | @pair _ _ _ _ _ _ _ _ _ _ _ _ _ hd hfo hwp hwSg _ _ _ _ hdomA =>
+          have hwp' := (TShape.HasType.wf htyz).1
+          have hjx := Shape.le_join hΔ hwp.2.2.2.1 hwp'.2.2.2.1 hc.2.2.1
+          have hev₁' := TEvaluates.mono_inp hΔ (TShape.LE.T.2 hjx.1) hev₁
+          have hev₂' := TEvaluates.label ⟨hdomA.symm.trans hdomA,
+              (hdomA.choose_spec.defeqDF hc.2.1).symm⟩
+            (TEvaluates.mono_inp hΔ (TShape.LE.T.2 hjx.2) hev₂)
+          have hcc := TEvaluates.compat hΔ hwSg.2.2.2.2 (TShape.WF.T.2 (Shape.WF.join hΔ hc.2.2.1 hwp.2.2.2.1 hwp'.2.2.2.1)) hev₁' hev₂'
+          refine .sg (ps := some (a₁, (x₁.join x₂).T, (y₁.join y₂).T)) (c := c₁.join c₂)
+            hty rfl (fun p hp => ?_) (fun p hp => ?_) (fun p hp => ?_) <;>
+            simp only [Option.mem_def, Option.some.injEq] at hp <;> subst hp
+          · exact ih hc.2.2.1 hdx₁ hdx₂
+          · exact TEvaluates.join hcc hev₁' hev₂'
+          · have hcty := TEvaluates.tHasType (c := TShape.type) hΔ rfl
+              (fun e he => hfo e he) (TEvaluates.join hcc hev₁' hev₂')
+            have hjc := TShape.le_join hΔ (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1 e he).2.2.2) hev₁')
+              (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1 e he).2.2.2) hev₂') hcc
+            exact ih hc.2.2.2 (TShape.Dom.mono_r hΔ hdy₁ hjc.1 hcty)
+              (TShape.Dom.mono_r hΔ hdy₂ hjc.2 hcty)
+        | .refl _, z, hc, _, _, _, htyy =>
+          refine absurd htyy ?_
+          intro h
+          cases h with
+          | refl _ hleid _ =>
+            obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hleid
+            exact absurd h2 (fun x => x)
+        | .sort _, z, hc, _, _, _, htyy | .unit _, z, hc, _, _, _, htyy
+        | .nat, z, hc, _, _, _, htyy | .zero, z, hc, _, _, _, htyy =>
+          exact absurd htyy (by rintro ⟨⟩)
+        | .succ _, z, hc, _, _, _, htyy
+        | .id .., z, hc, _, _, _, htyy | .forallE .., z, hc, _, _, _, htyy
+        | .sigma .., z, hc, _, _, _, htyy | .lam .., z, hc, _, _, _, htyy =>
+          exact absurd htyy (by rintro ⟨⟩)
+        | .pair .., .sort _, hc, _, _, _, _ | .pair .., .unit _, hc, _, _, _, _
+        | .pair .., .nat, hc, _, _, _, _ | .pair .., .zero, hc, _, _, _, _
+        | .pair .., .succ _, hc, _, _, _, _ | .pair .., .refl _, hc, _, _, _, _
+        | .pair .., .id .., hc, _, _, _, _ | .pair .., .forallE .., hc, _, _, _, _
+        | .pair .., .sigma .., hc, _, _, _, _ | .pair .., .lam .., hc, _, _, _, _ =>
+          exact absurd hc id
 
 /-- The join, with the two sides at their own levels. -/
 theorem TShape.Dom.join {Δ : List Term} (hΔ : ⊢ Δ) {y z d : TShape}
@@ -2977,7 +2818,7 @@ theorem TShape.not_binder_of_le {Δ : List Term} {a c : TShape} (h : TShape.LE �
       | .forallE .., .bot | .forallE .., .sort _
       | .sigma .., .bot | .sigma .., .sort _ => exact absurd h2 (fun x => x)
       | .bot, _ | .sort _, _ | .unit _, _ | .nat, _ | .zero, _ | .succ _, _
-      | .refl _, _ | .id .., _ | .lam _ _ _, _ | .pair _ _ _ _, _ => exact hb
+      | .refl _, _ | .id .., _ | .lam _ _ _, _ | .pair _ _ _ _ _, _ => exact hb
     | succ k =>
       match s, s' with
       | .forallE .., .forallE .. | .sigma .., .sigma .. => exact hc trivial
@@ -2990,7 +2831,7 @@ theorem TShape.not_binder_of_le {Δ : List Term} {a c : TShape} (h : TShape.LE �
       | .sigma .., .refl _ | .sigma .., .id .. | .sigma .., .lam _ _ _
       | .sigma .., .pair .. | .sigma .., .forallE .. => exact absurd h2 (fun x => x)
       | .bot, _ | .sort _, _ | .unit _, _ | .nat, _ | .zero, _ | .succ _, _
-      | .refl _, _ | .id .., _ | .lam _ _ _, _ | .pair _ _ _ _, _ => exact hb
+      | .refl _, _ | .id .., _ | .lam _ _ _, _ | .pair _ _ _ _ _, _ => exact hb
 
 /-- The two binder codes, separately: a Π-shape and a Σ-shape. -/
 def TShape.IsPi : TShape → Prop
@@ -3057,9 +2898,9 @@ theorem TShape.isPi_or_bot_of_le {Δ : List Term} {p q : TShape} (h : TShape.LE 
         | .bot => exact .inl rfl
         | .forallE .. => exact .inr trivial
         | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
-        | .lam _ _ _ | .sigma .. | .pair _ _ _ _ => exact absurd h2 (fun x => x)
+        | .lam _ _ _ | .sigma .. | .pair _ _ _ _ _ => exact absurd h2 (fun x => x)
     | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
-    | .lam _ _ _ | .sigma .. | .pair _ _ _ _ => exact absurd hq (fun x => x)
+    | .lam _ _ _ | .sigma .. | .pair _ _ _ _ _ => exact absurd hq (fun x => x)
 
 /-- **The level-free lookup, read back at the graph's own level**:
 `ShapeFun.Eval.toT`'s converse, up to the order.  A `TEvaluates` value is
@@ -3116,9 +2957,9 @@ theorem TShape.isLam_of_le {Δ : List Term} {x y : TShape} (h : TShape.LE Δ x y
         match s' with
         | .lam _ _ _ => exact trivial
         | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
-        | .forallE .. | .sigma .. | .pair _ _ _ _ => exact absurd h2 (fun x => x)
+        | .forallE .. | .sigma .. | .pair _ _ _ _ _ => exact absurd h2 (fun x => x)
     | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
-    | .forallE .. | .sigma .. | .pair _ _ _ _ => exact absurd hx (fun x => x)
+    | .forallE .. | .sigma .. | .pair _ _ _ _ _ => exact absurd hx (fun x => x)
 
 /-- The Σ twin of `TShape.isPi_or_bot_of_le`. -/
 theorem TShape.isSigma_or_bot_of_le {Δ : List Term} {p q : TShape} (h : TShape.LE Δ p q)
@@ -3141,9 +2982,9 @@ theorem TShape.isSigma_or_bot_of_le {Δ : List Term} {p q : TShape} (h : TShape.
         | .bot => exact .inl rfl
         | .sigma .. => exact .inr trivial
         | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
-        | .lam _ _ _ | .forallE .. | .pair _ _ _ _ => exact absurd h2 (fun x => x)
+        | .lam _ _ _ | .forallE .. | .pair _ _ _ _ _ => exact absurd h2 (fun x => x)
     | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
-    | .lam _ _ _ | .forallE .. | .pair _ _ _ _ => exact absurd hq (fun x => x)
+    | .lam _ _ _ | .forallE .. | .pair _ _ _ _ _ => exact absurd hq (fun x => x)
 
 /-- A Σ code is not a Π code. -/
 theorem TShape.IsSigma.not_pi {p : TShape} (h : p.IsSigma) : ¬ p.IsPi := by
