@@ -1611,6 +1611,43 @@ With that, `fst_snd` ← is three lines: saturate `p`, read `fst` and
 rebuild the pair, and bring the given approximant along by
 `Interp.mono`.  → is `dir`, as `sound_eta_to` is.
 
+**But canonicity cannot live in `Dom`** (tried, commit `8734b66`, and
+reverted).  `Dom` is shape-level, and a term-indexed shape-level
+predicate has no defeq transport.  The place it dies is `join_at`:
+joining two hereditarily typed pairs identifies their first components,
+so it must identify the *terms* they stand for — an equation at the
+Σ-code's domain label `A` — and then push a sub-`Dom` along it.  Pushing
+`Dom Δ s d y` along `s ≡ s' : A` means re-proving the clause's equations
+at whatever head `d` has, so it needs `A ≡ Π A' B'` when `d` is a
+Π-code; and nothing at shape level says `d` approximates `A`.  `WF` of a
+`sigma` shape does not relate its domain *code* to its domain *label*,
+and cannot: codes are shapes, labels are terms.  The same wall appears
+at every producer (`sound_pair_dom` needs `a[σ] ≡ fst (⟨a,b⟩[σ])`
+pushed into a sub-`Dom`), so it is not an artefact of `join_at`.
+
+The type is recoverable one level up: `Interp Δ Γ t σ ρ x` *does* know
+which term the shape approximates, and a derivation knows its type.  So
+the condition belongs there — a second hereditary predicate, by
+recursion on the shape and parameterised by the term,
+
+```
+Canon Δ Γ σ t x :
+  pair ⟨A₀, x₁, g⟩ ↦ (∀ e ∈ g, Δ ⊢ e.tm ≡ (Term.fst t).subst σ : e.ty) ∧
+                     Canon (.fst t) x₁ ∧ ∀ e ∈ g, Canon (.snd t) e.out
+  lam ⟨A₀, g⟩      ↦ ∀ e ∈ g, Canon ?(e.tm) e.inp ∧ Canon (.app t ?) e.out
+  _                ↦ True
+```
+
+demanded by `Adm` and the six slot-creating clauses beside `Dom`, and
+produced by saturation alongside it.  Its transport *is* provable, by
+the same shape recursion with the type as a hypothesis: at a pair the
+sub-terms are `fst t` and `snd t`, whose types come from `T = Σ A B`.
+
+That is a second discipline the size of the first (predicate, API,
+`Adm` and six clauses, eight saturation cases, then `fst_snd`), and it
+is what Σ's η costs.  Dropping the graph from Σ-values does not pay any
+of it.
+
 ### 4.7b The dominator: resolved by (β)
 
 *Superseded.*  This section recorded the obstruction as it stood with the
