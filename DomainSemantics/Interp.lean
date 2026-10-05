@@ -1749,6 +1749,89 @@ theorem Interp.body_merge {Δ Γ Γ' Γ'' : List Term} {α : Type} {b : Term} {�
   | zero => exact hzero
   | succ i => exact hles _ (List.mem_map.2 ⟨p, hp, rfl⟩) i
 
+/-- A pair of equal labels makes the two Σ-types definitionally equal.
+`sigmaDF` wants the codomain equation in both contexts; the second is
+the first with its head converted. -/
+theorem PiLabelEq.sigmaEq {Δ : List Term} {A B A' B' : Term} (hΔ : ⊢ Δ)
+    (h : PiLabelEq Δ A B A' B') : TyEq Δ (Term.sigma A B) (Term.sigma A' B') :=
+  ⟨_, IsDefEq.sigmaDF h.1.choose_spec h.2.choose_spec
+    (IsDefEq.ctx_id (show ⊢ (A' :: Δ) from ⟨hΔ, _, h.1.choose_spec.hasType.2⟩)
+      (Ctx.SubstEq.defeqHead hΔ h.1.choose_spec) h.2.choose_spec)⟩
+
+/-- The Π twin. -/
+theorem PiLabelEq.forallEEq {Δ : List Term} {A B A' B' : Term} (hΔ : ⊢ Δ)
+    (h : PiLabelEq Δ A B A' B') : TyEq Δ (Term.forallE A B) (Term.forallE A' B') :=
+  ⟨_, IsDefEq.forallEDF h.1.choose_spec h.2.choose_spec
+    (IsDefEq.ctx_id (show ⊢ (A' :: Δ) from ⟨hΔ, _, h.1.choose_spec.hasType.2⟩)
+      (Ctx.SubstEq.defeqHead hΔ h.1.choose_spec) h.2.choose_spec)⟩
+
+/-- **A shape names what it stands for.**
+
+Two conditions in one recursion, because they are two halves of the same
+thing and are needed together (§4.7f):
+
+* a **code** names its type — a Σ-code approximating `T` has `T ≡ Σ A B`
+  with its own labels, likewise a Π-code.  This is the semantic shadow
+  of type-constructor injectivity, and unlike injectivity it is provable
+  here, because the equations it needs are at *sorts*;
+* a **pair** names its own first projection (§4.7a), which is what
+  `snd`'s clause queries and what Σ's η needs.
+
+Hereditary through λ-values, since a family's codes and a function's
+pairs are read out of one; the recursion is on the *lookup*, at every
+query, so no equation has to move with the entry labels. -/
+def Shape.Canon (Δ : List Term) : ∀ {n}, Term → Shape n → Prop
+  | 0, _, _ => True
+  | _+1, T, .sigma A B _ _ => TyEq Δ T (Term.sigma A B)
+  | _+1, T, .forallE A B _ _ => TyEq Δ T (Term.forallE A B)
+  | _+1, t, .pair A₀ _ a₀ _ _ => Δ ⊢ a₀ ≡ Term.fst t : A₀
+  | _+1, t, .lam A₀ _ g =>
+      ∀ (q : Term), (Δ ⊢ q : A₀) → ∀ (x w : Shape _), Shape.WF Δ x →
+        ShapeFun.Eval Δ (Shape.LE Δ) g A₀ q x w → Canon Δ (Term.app t q) w
+  | _+1, _, _ => True
+
+/-- At the total level. -/
+def TShape.Canon (Δ : List Term) (t : Term) (x : TShape) : Prop :=
+  Shape.Canon Δ t x.2
+
+@[simp] theorem TShape.Canon.T {Δ : List Term} {t : Term} {n} {s : Shape n} :
+    TShape.Canon Δ t (Shape.T s) ↔ Shape.Canon Δ t s := Iff.rfl
+
+@[simp] theorem Shape.Canon.bot {Δ : List Term} {t : Term} {n} :
+    Shape.Canon Δ t (Shape.bot (n := n)) := by cases n <;> trivial
+
+/-- **`Canon` is downward closed**: the order compares exactly what
+`Canon` reads — a code's labels, a pair's name, and a λ's lookups. -/
+theorem Shape.Canon.mono {Δ : List Term} (hΔ : ⊢ Δ) :
+    ∀ {n} {t : Term} {x x' : Shape n}, Shape.LE Δ x' x →
+      Shape.Canon Δ t x → Shape.Canon Δ t x' := by
+  intro n
+  induction n with
+  | zero => intro t x x' _ _; cases x' <;> trivial
+  | succ n ih =>
+    intro t x x' hle hC
+    match x', x, hle, hC with
+    | .bot, _, _, _ => trivial
+    | .sigma A' B' d' f', .sigma A B d f, hle, hC =>
+      exact hC.trans (TyEq.symm (PiLabelEq.sigmaEq hΔ hle.1))
+    | .forallE A' B' d' f', .forallE A B d f, hle, hC =>
+      exact hC.trans (TyEq.symm (PiLabelEq.forallEEq hΔ hle.1))
+    | .pair A' B' a' x' y', .pair A B a x y, hle, hC =>
+      -- the name moved along the order, at the smaller label
+      exact hle.2.2.2.2.trans (hle.2.2.2.1.choose_spec.symm.defeqDF hC)
+    | .lam A' B' g', .lam A B g, hle, hC =>
+      intro q hq x w hwx hev
+      have hwout : Shape.WF Δ w :=
+        ShapeFun.Eval.wf hΔ (fun e he => (hle.1.2.1.1 e he).2.2.2) hev
+      refine ih (Shape.LE.refl hwout)
+        (hC q (hle.2.2.2.1.choose_spec.defeqDF hq) x w hwx ?_)
+      exact ShapeFun.Eval.trans (R := Shape.LE Δ) (fun _ _ _ => Shape.LE.trans hΔ) hle.1.1
+        (ShapeFun.Eval.mono (R := Shape.LE Δ) (fun _ _ _ => Shape.LE.trans hΔ)
+          ⟨hle.2.2.2.1, hq⟩ (Shape.LE.refl hwx) hev)
+    | .sort _, x, hle, hC | .unit _, x, hle, hC | .nat, x, hle, hC
+    | .zero, x, hle, hC | .succ _, x, hle, hC | .refl _, x, hle, hC
+    | .id .., x, hle, hC => trivial
+
 /-- The same merge without a binder: several approximants of one
 subterm, one valuation for all of them. -/
 theorem Interp.list_merge {Δ Γ Γ' : List Term} {α : Type} {t : Term} {θ σ ρ} (hΔ : ⊢ Δ)
