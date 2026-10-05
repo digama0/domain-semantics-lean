@@ -1916,6 +1916,33 @@ separately, stratify through a coarser model, or put the codomain on
 history (`05dcd81`, reverted in `be069e8`) with `Shape.Canon` and
 `Canon.mono` kept, since any of those routes starts from them.
 
+#### 4.7h The old model cannot lend its injectivity
+
+The obvious shortcut — take `sigma_inv` from `Adequacy.lean`, which does
+not import this model, and use it to discharge the name invariant's
+transports — does not work, and the reason is instructive.
+
+`LE_Interp.sound` (`Sound.lean`) is **sorry-free** (`propext`,
+`Classical.choice`, `Quot.sound`).  But the old model's shapes carry no
+syntax:
+
+    | sigma : LE_Interp ρ b.T B → LE_Interp ρ b'.T B → WShape.HasDom f b' →
+        (∀ x, x.HasType b' → LE_Interp (ρ.push x.T) (f.app x).T F) →
+        m ≤ WShape.T (.sigma b f) → LE_Interp ρ m (.sigma B F)
+
+so the probe argument has nothing to read back: from a Σ-shape
+approximating `Σ A₁ B₁` one learns only that its domain part
+approximates `A₁`, never that `A₀ ≡ A₁`.  That is exactly why the
+labelled model was built.  The old file's `sigma_inv` therefore goes
+through `sigma_whRed_l` — weak-head reduction, i.e. **adequacy** — and
+`Adequacy.lean`'s single `sorry` is a case its own model makes *false*
+(the `tr` clause reads the motive at a slot, so it cannot tell `C[a]`
+from `C[b]`).  `#print axioms` confirms the taint: `sigma_inv` and
+`HasType.uniq` both depend on `sorryAx`.
+
+So the stratification route needs a *labelled* coarser model, not the
+one already in the repo.
+
 ### 4.8 The remaining cases, in one line each
 
 `sigmaDF`, `pairDF`, `fstDF`, `sndDF`: mirror Π/λ/app with the pair's

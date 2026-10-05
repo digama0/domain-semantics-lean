@@ -12,9 +12,27 @@ models are separate roots.
 open DomainSemantics
 
 /-!
-**One `sorry` remains in the whole development**: the `fst_snd` case of
-`IsDefEq.sound`, the Σ twin of η.  This board says which theorems reach
-it.
+**One `sorry` remains in the whole development**, and it is one line
+inside the `fst_snd` case of `IsDefEq.sound`:
+
+    have hcanon : PairCanon Δ Γ σ ρ p := sorry
+
+`PairCanon` (`Presheaf.lean`) says a pair-approximant of `p` is named by
+`p`'s own first projection (§4.7a).  *Both* directions of Σ's η are
+proved from it — `sound_fst_snd_of` and `sound_fst_snd_to` — so this
+board's `fst_snd` entry is that condition, not the case.
+
+Why it is not discharged (§4.7d, §4.7f, §4.7g): carrying the name
+hereditarily needs, at each pair, the subject's Σ-typing, and every way
+of supplying it reduces to Σ-injectivity, to type uniqueness (which in
+this calculus reduces to injectivity), or to a codomain label that
+`Term.lam` does not carry.  The old model cannot lend its injectivity
+either: `LE_Interp`'s Σ and Π shapes are label-free (`WShape.sigma b f`),
+so its inversion principles go through `Adequacy`, whose own `sorry` is
+a case its model makes *false*.  `LE_Interp.sound` itself is clean, but
+soundness without labels does not see the components.
+
+This board says which theorems reach the hole.
 
 **η is proved** (`sound_eta_of`, `sound_eta_to`), which is what the slot
 discipline was for: ← reads its typed inputs off the dominating
