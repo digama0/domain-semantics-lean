@@ -12,16 +12,9 @@ models are separate roots.
 open DomainSemantics
 
 /-!
-Two `sorry`s remain in the whole development, and this board says
-which theorems they reach:
-
-* `IsDefEq.soundDom` — **saturation**: every approximant of a well-typed
-  term is below a *hereditarily* typed one.  This is the original's
-  `HasFixedness` (`rawExtend ⟦A⟧ ⟦t⟧ = ⟦t⟧`) read through "ideal = set of
-  approximants", and it is what the slot discipline runs on: `Adm` and
-  the six clauses that create a slot now ask for `TShape.Dom`, their
-  `SourceAdmissible`.  §4.5g.
-* `fst_snd` (`IsDefEq.sound`) — the Σ twin of η, still to do.
+**One `sorry` remains in the whole development**: the `fst_snd` case of
+`IsDefEq.sound`, the Σ twin of η.  This board says which theorems reach
+it.
 
 **η is proved** (`sound_eta_of`, `sound_eta_to`), which is what the slot
 discipline was for: ← reads its typed inputs off the dominating
@@ -29,6 +22,17 @@ approximant saturation supplies, and → collects the bodies' function
 approximants, bounds them by one (`Interp.Dir.list`) and compares by
 lookup coverage (§5.2), `TEvaluates.toEval` bridging back to the
 level-indexed order.
+
+**Saturation is proved too** (`IsDefEq.soundDom`), as the fifth
+conclusion of the soundness induction -- the original's `HasFixedness`
+(`rawExtend ⟦A⟧ ⟦t⟧ = ⟦t⟧`) read through "ideal = set of approximants".
+It has to live in that induction, because the slot discipline makes the
+other conclusions depend on it.  Its cases: `app`/`snd` enlarge a lookup
+output through the dominating function's codomain clause, `lam` rebuilds
+the graph around the bodies' dominators, `pair`/`tr` read it off clauses
+that now demand it, `natCase`/`Y` inherit it from the branch and the
+body, the type formers get it for free (their codes only filter), and
+the computation rules get it from the typings they are padded with.
 * `LR.adequacy`'s `r = false` transport (`Adequacy.lean`, the old
   model) — false for that model, and `LE_Interp.tr_stuck` is the
   witness; it is guarded on the other root, since the two models cannot
@@ -69,8 +73,8 @@ supplies (`Subst.Saturates.one`, `IsDefEq.pinned`). -/
 
 -- **The third conclusion of soundness**: every well-typed term is
 -- pinned, so `to_substTerm`'s clause conditions are a theorem.  What it
--- still reaches is only `eta` and `fst_snd`, through the induction it
--- now shares with the other two conclusions.
+-- still reaches is `fst_snd` alone, through the induction it shares with
+-- the other four conclusions.
 /--
 info: 'DomainSemantics.IsDefEq.pinned' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
 -/
@@ -81,8 +85,11 @@ info: 'DomainSemantics.IsDefEq.pinned' depends on axioms: [propext, sorryAx, Cla
 /-- info: 'DomainSemantics.Interp.tr_bot_of_ne' depends on axioms: [propext] -/
 #guard_msgs in #print axioms Interp.tr_bot_of_ne
 
--- **Saturation**, the assumption the slot discipline runs on.
-/-- info: 'DomainSemantics.IsDefEq.soundDom' depends on axioms: [propext, sorryAx] -/
+-- **Saturation**, what the slot discipline runs on: a conclusion of the
+-- soundness induction, so what it still reaches is `fst_snd` alone.
+/--
+info: 'DomainSemantics.IsDefEq.soundDom' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+-/
 #guard_msgs in #print axioms IsDefEq.soundDom
 
 -- **Directedness** — every case proved, and nothing left under it: `dir`
@@ -91,7 +98,8 @@ info: 'DomainSemantics.IsDefEq.pinned' depends on axioms: [propext, sorryAx, Cla
 /-- info: 'DomainSemantics.IsDefEq.dir' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IsDefEq.dir
 
--- **Soundness** of the labelled model: `to_substTerm`, `eta`, `fst_snd`.
+-- **Soundness** of the labelled model, five conclusions in one
+-- induction (equality, typing, both `Pinned`s, saturation): `fst_snd`.
 /-- info: 'DomainSemantics.IsDefEq.sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IsDefEq.sound
 
