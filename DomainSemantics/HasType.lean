@@ -1,4 +1,5 @@
 import DomainSemantics.Shape
+import DomainSemantics.Regular
 
 /-! # Typing of labelled shapes
 
@@ -2142,7 +2143,8 @@ def Shape.Canon (Δ : List Term) : ∀ {n}, Term → Shape n → Prop
       (∀ e ∈ g, ∀ T ∈ e.out.tyOf, TyEq Δ (B.inst e.tm) T) ∧
       Canon Δ (Term.fst t) x ∧ ∀ e ∈ g, Canon Δ (Term.snd t) e.out
   | _+1, t, .lam A B g =>
-    (∀ e ∈ g, ∀ T ∈ e.inp.tyOf, TyEq Δ A T) ∧
+    (∀ e ∈ g, Δ ⊢ e.tm : A) ∧
+      (∀ e ∈ g, ∀ T ∈ e.inp.tyOf, TyEq Δ A T) ∧
       (∀ e ∈ g, ∀ T ∈ e.out.tyOf, TyEq Δ (B.inst e.tm) T) ∧
       ∀ e ∈ g, Canon Δ e.tm e.inp ∧ Canon Δ (Term.app t e.tm) e.out
   | _+1, _, _ => True
@@ -2160,6 +2162,59 @@ def TShape.Canon (Δ : List Term) (t : Term) (x : TShape) : Prop :=
 
 @[simp] theorem Shape.tyOf_bot {Δ : List Term} {n} :
     (Shape.bot (n := n)).tyOf = none := by cases n <;> rfl
+
+/-- **Canonicity moves with the subject**, along a definitional equality
+at the shape's own type.  This is what a shape-level predicate could not
+have (§4.7c): the projections' congruences need the type, and the type is
+now in the shape -- the coherence conjuncts carrying it down the
+recursion. -/
+theorem Shape.Canon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
+    ∀ {n} {t t' : Term} {x : Shape n},
+      Shape.Canon Δ t x → (∀ T ∈ x.tyOf, Δ ⊢ t ≡ t' : T) → Shape.Canon Δ t' x := by
+  intro n
+  induction n with
+  | zero => exact fun _ _ => trivial
+  | succ n ih =>
+    intro t t' x hx he
+    match x, hx with
+    | .pair A B x₀ g, ⟨hlab, hle, hcx, hco, hfst, hout⟩ =>
+      have heS : Δ ⊢ t ≡ t' : Term.sigma A B := he _ rfl
+      have hSg : Δ ⊢ Term.sigma A B ≡ Term.sigma A B : Term.sort _ :=
+        (heS.hasType.1.isType hΔ).choose_spec
+      obtain ⟨u, hA⟩ := IsDefEq.sigma_dom hSg
+      obtain ⟨v, hB⟩ := IsDefEq.sigma_cod hSg
+      have hf : Δ ⊢ Term.fst t ≡ Term.fst t' : A := IsDefEq.fstDF hA hB heS
+      have hBf : Δ ⊢ B.inst (Term.fst t) ≡ B.inst (Term.fst t') : Term.sort v := by
+        have := IsDefEq.subst' hΔ (show Ctx.SubstEq Δ (Subst.one (Term.fst t))
+            (Subst.one (Term.fst t')) (A :: Δ) from
+          .cons (Ctx.SubstEq.id hΔ) hA (by simpa using hf)) hB
+        simpa [Term.inst] using this
+      have hs : Δ ⊢ Term.snd t ≡ Term.snd t' : B.inst (Term.fst t) :=
+        IsDefEq.sndDF hA hB heS hBf
+      refine ⟨fun e hge => (hlab e hge).trans hf, hle, hcx, hco, ih hfst ?_, fun e hge => ?_⟩
+      · intro T hT
+        exact (hcx T hT).choose_spec.defeqDF hf
+      · refine ih (hout e hge) (fun T hT => ?_)
+        -- the output's type is the codomain at the entry's label, which the
+        -- label equation moves to the first projection
+        have hBe : Δ ⊢ B.inst (Term.fst t) ≡ B.inst e.tm : Term.sort v := by
+          have := IsDefEq.subst' hΔ (show Ctx.SubstEq Δ (Subst.one (Term.fst t))
+              (Subst.one e.tm) (A :: Δ) from
+            .cons (Ctx.SubstEq.id hΔ) hA (by simpa using (hlab e hge).symm)) hB
+          simpa [Term.inst] using this
+        exact ((hco e hge T hT).choose_spec).defeqDF (hBe.defeqDF hs)
+    | .lam A B g, ⟨htm, hci, hco, hall⟩ =>
+      have heP : Δ ⊢ t ≡ t' : Term.forallE A B := he _ rfl
+      have hPi : Δ ⊢ Term.forallE A B ≡ Term.forallE A B : Term.sort _ :=
+        (heP.hasType.1.isType hΔ).choose_spec
+      obtain ⟨u, hA⟩ := IsDefEq.forallE_dom hPi
+      obtain ⟨v, hB⟩ := IsDefEq.forallE_cod hPi
+      refine ⟨htm, hci, hco, fun e hge => ⟨(hall e hge).1, ih (hall e hge).2 (fun T hT => ?_)⟩⟩
+      have hap : Δ ⊢ Term.app t e.tm ≡ Term.app t' e.tm : B.inst e.tm :=
+        IsDefEq.appDF hA hB heP (htm e hge) (IsDefEq.inst0 hΔ (htm e hge) hB)
+      exact ((hco e hge T hT).choose_spec).defeqDF hap
+    | .bot, _ | .sort _, _ | .unit _, _ | .nat, _ | .zero, _ | .succ _, _ | .refl _, _
+    | .id _ _ _ _, _ | .forallE .., _ | .sigma .., _ => trivial
 
 /-- A shape's entries, levels forgotten. -/
 def TShape.entries : TShape → List (Entry TShape)
