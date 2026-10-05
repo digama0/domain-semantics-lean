@@ -1817,6 +1817,70 @@ true and η false.  Ways to break the tie, none of them local:
 3. **Give up lower-closure of typing** for Σ (master's `InterpTyped`,
    §5.1b's fallback (δ)): then the graph is unnecessary and η is Π's.
 
+#### 4.7f Option 2, carried out: what it fixes and what is left
+
+The branch `sigma-no-graph` now carries Mario's option 2.  A Σ-value is
+
+    | pair (A B a : Term) : Shape → Shape → ShapeS Shape
+
+its two components with the first's *term* as a name; `snd` reads the
+second component at a pair whose name is `fst p`, as a clause premise
+rather than a graph query.  The whole development is green, and both
+directions of Σ's η are theorems against a single named condition.
+
+**What the graph's departure fixes.**  §4.7e's counterexample is gone:
+with no entries there is no input for a value to promise a second
+component at, so `sound_fst_snd_to` (η's → direction, *false* with the
+graph) is now proved — two components, each an approximant of a
+projection, one directedness step, and the order compares.
+
+**What pays for it.**  §5.5's objection to a graph-free Σ was that
+typing cannot be both lower- and join-closed.  Both still hold, by
+splitting them between the two predicates that need them:
+
+* `HasType.pair` reads the second component's code at a **dominator** of
+  the first, so shrinking either component keeps the same code — typing
+  stays lower-closed, which `SoundTy` and `mono_l` need;
+* `Dom`'s `sg` clause reads it at the **first component itself**, so two
+  compatible values have compatible codes — `Dom` stays join-closed,
+  which `dir` and saturation need, and `Dom` is never used downward.
+
+`sound_join` is therefore stated on `Dom`, and the two lookup inductions
+that consumed it — `sound_app_ty` and `sound_snd_ty` — are deleted in
+favour of `SoundTy.of_dom`: an approximant sits below a hereditarily
+typed one, and typing is lower-closed, so **saturation gives typing**.
+That is a simplification the Π side should eventually share.
+
+**What is left** is one line, inside the `fst_snd` case:
+
+    have hcanon : PairCanon Δ Γ σ ρ p := sorry
+
+`PairCanon` says: every pair-approximant of `p` is named by `p`'s own
+first projection.  It is §4.7a's invariant in its smallest form — one
+equation per pair, no graph, no hereditary shape predicate at the point
+of use.
+
+**Why it is still open.**  To carry it, the name must move when the
+subject does: from `a₀ ≡ fst t : A₀` and `t ≡ t' : T` one needs
+`fst t ≡ fst t' : A₀`, i.e. `fstDF`, i.e. the equation at a *syntactic*
+Σ whose domain is `A₀`.  The value's own typing gives a Σ-*code* for
+`T`, so what is missing is exactly
+
+    Interp Δ Γ T σ ρ (sigma A' B' d f) → TyEq Δ (T.subst σ) (Σ A' B')
+
+— "a code names its type".  That is provable as a further hereditary
+invariant (through λ-graphs, since a type family's codes are read out of
+one), and its own transports are *sort-level*, so they need no
+inversion; but each step of it needs the subject's typing, which only
+the soundness induction has.  So the two invariants have to be two more
+conclusions of that induction, each the size of the `Dom` discipline.
+Short of that, the name's transport reduces to Σ-injectivity (§4.7d),
+which this model supplies only *after* soundness.
+
+The state to resume from: `PairCanon` is the only hole, both η
+directions are proved from it, and the next step is `SigOk` ("a code
+names its type") as a sixth conclusion, then `NameOk` as a seventh.
+
 ### 4.8 The remaining cases, in one line each
 
 `sigmaDF`, `pairDF`, `fstDF`, `sndDF`: mirror Π/λ/app with the pair's
