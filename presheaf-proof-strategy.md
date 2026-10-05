@@ -1545,6 +1545,72 @@ constructor, and it is a smaller change than carrying canonicity
 hereditarily through `Adm`.  Either way this is a design decision, and
 it is Mario's.
 
+### 4.7c Σ's η: what the Π analogy actually says, and the design
+
+**The analogy does not transpose, and the way it fails is the design.**
+η for Π works because the expansion has a *binder*: `λx. e x` rebuilds a
+λ-approximant of `e` entry by entry, and at the entry `⟨tm, inp⟩` the
+body `app e.lift #0` is read at the stage `σ.cons tm` — so the
+eliminator's query term is *whatever the entry's label says*.  A label
+mismatch cannot arise, because the binder absorbs it.
+
+`⟨fst p, snd p⟩` has no binder.  Its label is forced to `(fst p)[σ]` by
+the `pair` clause, while `p`'s own pair-approximant carries whatever
+label it was built with.  So where Π's η needs nothing of labels, Σ's η
+needs exactly one thing: **a pair-approximant of `p` is labelled by
+`p`'s own first projection**.  That is the whole content of §4.7a's
+counterexample, and no change to the Σ-*value* removes it: relabelling
+has to be justified, not avoided.
+
+**The graph cannot go.**  Shape.lean's own comment is right.  Write
+`f` for the Σ-code's codomain family and consider a pair `⟨x, y⟩` whose
+second component is a single shape:
+
+* typing `y` at the code read at `x` (`f(tm, x)`) is **join**-closed
+  (`f` is monotone in the input, so both codes sit below `f(tm, x₁ ⊔ x₂)`)
+  but not **lower**-closed: shrinking `x` to `x'` shrinks the code, and
+  `y` is not typed at the smaller one.  With `B z` a `natCase` on `z`,
+  `⟨succ zero, succ zero⟩` is typed and `⟨⊥, succ zero⟩`, which the order
+  gives for free, is not;
+* typing it at a *dominator* `x̄ ≥ x` is lower-closed (the witness
+  survives) but not join-closed: the two dominators need not be
+  compatible, so there is no code to join at.
+
+The input-indexed family is what makes the second component's
+information *conditional on the first*, which is what dependent typing
+needs in a domain model.  What **can** go is the per-entry *label*: a
+pair's entries may be indexed by input alone, with one label for the
+whole pair (`WF` forcing every entry's label defeq to it).  That is a
+simplification, not a fix — and it is optional, since the condition
+below can be stated per entry.
+
+**The fix: `Dom` relative to a term.**  Saturation (`SoundDom`) is the
+Π pattern: η ← does not rebuild from the *given* approximant but from
+the hereditarily typed one above it, and downward closure brings the
+given one along.  Σ's η wants the same move, and needs the dominator to
+be *canonically labelled*.  So `TShape.Dom Δ d x` becomes
+`TShape.Dom Δ t d x` — "`x` is hereditarily typed at `d` **as a value of
+the term `t`**" — with the clauses following the eliminators:
+
+| `x` | conditions |
+|---|---|
+| filtering code | as now (`HasType`) |
+| `lam`-shape | each entry's input `Dom` at *its own label* `e.tm`; each output `Dom` at `app t e.tm` |
+| `pair`-shape | every entry's label `≡ fst t`; the first component `Dom` at `fst t`; each output `Dom` at `snd t` |
+
+Every slot-creating clause already knows the term its slot stands for
+(`Adm`: `σ i`; `Interp.lam`: the entry's label; `Y`: `(Y A b)[σ]`;
+`tr`: `b[σ]` and `X[σ]`; `pair`: `a[σ]` and `b[σ]`), so the discipline
+threads through unchanged in shape — only the terms are new.  The eight
+saturation cases keep their proofs: at `app`, for instance, the firing
+entries are at labels defeq to `a[σ]`, so their outputs are `Dom` at
+`app f a[σ]`, which is the subject.
+
+With that, `fst_snd` ← is three lines: saturate `p`, read `fst` and
+`snd` off the dominator (the query fires, the label being canonical),
+rebuild the pair, and bring the given approximant along by
+`Interp.mono`.  → is `dir`, as `sound_eta_to` is.
+
 ### 4.7b The dominator: resolved by (β)
 
 *Superseded.*  This section recorded the obstruction as it stood with the
