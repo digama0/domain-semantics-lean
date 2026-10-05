@@ -2083,37 +2083,22 @@ theorem sound_pair_snd {Γ : List Term} {A B a b : Term} {u v : Bool}
   · intro h
     cases h with
     | bot => exact .bot
-    | snd hp hev hw hle =>
-      -- every entry's output is an approximant of `b`, and the lookup's
-      -- joins are `b`'s own directedness
-      have key : ∀ {n'} {gg : ShapeFun n'} {A₀ tm₀ : Term} {x₀ c : TShape},
-          (∀ e ∈ gg, Interp Δ Γ b σ ρ e.out.T) → TEvaluates Δ gg A₀ tm₀ x₀ c →
-          Interp Δ Γ b σ ρ c := by
-        intro n' gg A₀ tm₀ x₀ c hgg hc
-        induction hc with
-        | bot => exact .bot
-        | entry e he _ _ => exact hgg e he
-        | lower hle'' _ ih => exact ih.mono hΔ hle''.wf hle''
-        | join _ _ _ ih₁ ih₂ => exact ((ihbdir hΔ W hwρ).join hΔ ih₁ ih₂).2
+    | snd hp _ hw hle =>
+      -- the second component *is* an approximant of `b`
       cases hp with
-      | pair _ _ _ _ hwf' _ _ _ hout _ _ _ hle' =>
-        have hcov := (TShape.LE.pair_decomp hΔ hle' hle'.wf hwf'
-          (TEvaluates.refl hwf'.2.2.1)).2.2
-        refine (key ?_ (TEvaluates.trans hΔ hcov hev)).mono hΔ hw hle
-        intro e he
-        obtain ⟨q, hq, rfl⟩ := List.mem_map.1 he
-        exact hout q hq
+      | pair _ hb _ _ _ _ _ _ _ hle' =>
+        exact hb.mono hΔ hw (hle.trans hΔ (TShape.LE.pair_decomp hΔ hle').2.2.2)
   · intro h
     by_cases hb : s.IsBot
     · rw [Shape.WF.eq_bot_of_isBot (s := s) h.wf hb]; exact .bot
-    · -- the single entry, with the hereditary typing the clause now needs
+    · -- the first component is enlarged until it is hereditarily typed,
+      -- which is what the clause's slot asks of it, and the second
+      -- component comes with the code that types it
       obtain ⟨⟨nb, sb⟩, c, hmb, hmle, hc, hdc⟩ := ihbdom hΔ W hAdm h
       obtain ⟨x₀, hbody₀, hx₀⟩ :=
         (Interp.inst (A := A) (b := B) hΔ hΓ hA ha hB hPB W hAdm
           (Subst.Saturates.one hΔ hΓ W hAdm ihAty.isTypeAt ihadom)
           (ihadir hΔ W hwρ) hwρ).1 hc
-      -- the first component is enlarged until it is hereditarily typed,
-      -- which is what the clause's slot asks of it
       obtain ⟨x, d, hx, hlex, hd, hxd⟩ := ihadom hΔ W hAdm hx₀
       have hbody : Interp Δ (A :: Γ) B ((Subst.one a).comp σ) (ρ.push x) c :=
         Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hlex⟩) hbody₀
@@ -2125,45 +2110,21 @@ theorem sound_pair_snd {Γ : List Term} {A B a b : Term} {u v : Bool}
         rw [show s = Shape.bot from TShape.le_bot hΔ
           (Shape.WF.eq_bot_of_isBot hmb.wf ((Shape.lift_isBot hkn).1 hbb)) hmle]
         exact Shape.isBot_bot)
-      have hwf : Shape.WF (n := k+1) Δ (ShapeS.pair (A.subst σ) (B.subst σ.lift) (x.2.lift k)
-          [⟨A.subst σ, a.subst σ, x.2.lift k, sb.lift k⟩]) := by
-        refine ⟨fun hbb => by simp at hbb, ?_, ⟨?_, ?_⟩, ?_, TyEq.refl hAσ, hwx⟩
-        · intro e₀ he₀; cases he₀ with | head => exact hnb | tail _ h => nomatch h
-        · intro e₀ he₀
-          cases he₀ with
-          | head => exact ⟨⟨u, hAσ⟩, haσ, hwx, hws⟩
-          | tail _ h => nomatch h
-        · intro e₀ he₀ e₁ he₁ Θ τ hΘ Wτ _ _
-          cases he₀ with
-          | tail _ h => nomatch h
-          | head =>
-            cases he₁ with
-            | tail _ h => nomatch h
-            | head => exact (Shape.WF.subst hΘ Wτ hws).coherent
-        · intro e₀ he₀
-          cases he₀ with | head => exact TyEq.refl hAσ | tail _ h => nomatch h
-      refine .snd (.pair (g₀ := [(⟨A.subst σ, a.subst σ, x.2.lift k, sb.lift k⟩, c)])
-          (Interp.lift hΔ hkx hx) hd (ihAty.isType hΔ W hAdm hd)
-          (TShape.Dom.lift_subject hΔ hxd hkx) hwf ?_ ?_ ?_ ?_ ?_ ?_ hwf
-          (TShape.LE.refl hwf) ⟨u, hA⟩ ha)
-        (.entry ⟨A.subst σ, a.subst σ, x.2.lift k, sb.lift k⟩ (.head _)
-          ⟨TyEq.refl hAσ, IsDefEq.subst hΔ W hfst.symm⟩ (TShape.LE.refl hwx)) h.wf
+      have hwf : Shape.WF (n := k+1) Δ (ShapeS.pair (A.subst σ) (B.subst σ.lift)
+          (a.subst σ) (x.2.lift k) (sb.lift k)) :=
+        ⟨fun hbb => hnb hbb.2, haσ, TyEq.refl hAσ, hwx, hws⟩
+      have hbody' : Interp Δ (A :: Γ) B (σ.cons (a.subst σ))
+          (ρ.push (Shape.T (x.2.lift k))) c := by
+        refine Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ,
+          TShape.LE.le_lift hΔ hkx hx.wf⟩) ?_
+        rw [← Subst.one_comp]; exact hbody
+      exact .snd (.pair (c := c) (Interp.lift hΔ hkx hx)
+          (Interp.lift (m := ⟨nb, sb⟩) hΔ hkn hmb) hd (ihAty.isType hΔ W hAdm hd)
+          (TShape.Dom.lift_subject hΔ hxd hkx) hwf hbody'
+          (TShape.Dom.lift_subject hΔ hdc hkn) hwf (TShape.LE.refl hwf) ⟨u, hA⟩ ha)
+        (IsDefEq.subst hΔ W hfst.symm) h.wf
         (TShape.LE.trans hΔ hmle (TShape.LE.le_lift (m := ⟨nb, sb⟩) hΔ hkn hmb.wf))
         (Stable.of_typed hfst.hasType.1 (TyEq.refl hAσ))
-      all_goals
-        intro e₀ he₀
-        cases he₀ with
-        | tail _ hnil => nomatch hnil
-        | head =>
-          first
-            | exact haσ
-            | exact TShape.Dom.lift_subject hΔ hxd hkx
-            | exact Interp.lift hΔ hkx hx
-            | exact Interp.lift (m := ⟨nb, sb⟩) hΔ hkn hmb
-            | (refine Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ,
-                 TShape.LE.le_lift hΔ hkx hx.wf⟩) ?_
-               rw [← Subst.one_comp]; exact hbody)
-            | exact TShape.Dom.lift_subject hΔ hdc hkn
 
 /-- **Saturation at a first projection.**  The pair's own saturation
 puts its first component in `Dom`'s Σ clause, and the projection reads
@@ -2175,7 +2136,7 @@ theorem sound_fst_dom {Γ : List Term} {A B p : Term}
   | bot =>
     exact ⟨TShape.bot, TShape.bot, .bot, TShape.bot_le' rfl, .bot,
       TShape.Dom.bot (.bot (.bot .sort))⟩
-  | @fst _ _ _ _ _ n A₀ B₀ x g hp hw hle =>
+  | fst hp hw hle =>
     obtain ⟨P', S, hP', hPle, hS, hPdom⟩ := hpdom hΔ W hAdm hp
     -- the code is a Σ-shape, since `P'` dominates a pair
     have hSsg : S.IsSigma := by
@@ -2190,7 +2151,7 @@ theorem sound_fst_dom {Γ : List Term} {A B p : Term}
     cases hPdom with
     | base hnb _ => exact absurd hSsg.isBinder hnb
     | pi _ _ _ _ => exact absurd hSsg (TShape.IsPi.not_sigma trivial)
-    | @sg nS A' B' dS fS _ cs hty hent hfst hin hevc hout =>
+    | @sg nS A' B' dS fS _ ps cc hty hps hxd' hevc hout =>
       -- `P'` is a pair-shape; its first component is the projection's
       -- value, and `Dom`'s Σ clause has it
       cases hty with
@@ -2200,11 +2161,10 @@ theorem sound_fst_dom {Γ : List Term} {A B p : Term}
           intro h
           obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
           exact absurd h2 (fun x => x))
-      | @pair nP _ _ A₀' B₀' x' G _ _ _ _ G₀ hd hfo hwP hwSg hxd hwG₀ hgG hG₀ev hG₀ty hlabP =>
-        obtain ⟨_, hxle, _⟩ := TShape.LE.pair_decomp hΔ hPle hp.wf hwP
-          (TEvaluates.refl hwP.2.2.1)
-        refine ⟨Shape.T x', dS.T, .fst hP' (TShape.WF.T.2 hwP.2.2.2.2.2)
-            (TShape.LE.refl (TShape.WF.T.2 hwP.2.2.2.2.2)),
+      | @pair nP _ A₀' B₀' a₀' x' y' _ _ _ _ _ _ hd hfo hwP hwSg hxd hxle' hev' hyty hlabP =>
+        obtain ⟨_, _, hxle, _⟩ := TShape.LE.pair_decomp hΔ hPle
+        refine ⟨Shape.T x', dS.T, .fst hP' (TShape.WF.T.2 hwP.2.2.2.1)
+            (TShape.LE.refl (TShape.WF.T.2 hwP.2.2.2.1)),
           TShape.LE.trans hΔ hle hxle, ?_, ?_⟩
         · -- the domain is an approximant of `A`
           cases hS with
@@ -2212,7 +2172,7 @@ theorem sound_fst_dom {Γ : List Term} {A B p : Term}
             obtain ⟨_, hdle, _⟩ :=
               TShape.LE.sigma_decomp hΔ hleSg hwSg hwfc (TEvaluates.refl hwfc.2.2.2)
             exact Interp.mono hΔ (TShape.HasType.wf hd).1 hdle hAint
-        · exact hfst _ (by simp [TShape.fstPart])
+        · exact hxd' _ (by rw [← hps]; rfl)
 
 /-- Soundness for `fstDF`. -/
 theorem sound_fst {Γ : List Term} {A B p p' : Term} {u v : Bool}
