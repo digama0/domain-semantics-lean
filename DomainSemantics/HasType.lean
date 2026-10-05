@@ -935,7 +935,7 @@ theorem TShape.LE.pair_decomp {Δ : List Term} (hΔ : ⊢ Δ) {j n k} {A A' : Te
       ∀ e ∈ g₂, TEvaluates Δ f'' e.ty e.tm e.inp.T e.out.T := by
   obtain ⟨M, hnM, hjM, h2⟩ := TShape.LE.at_succ h
   have hj : j ≤ M := Nat.le_of_succ_le_succ hjM
-  refine ⟨h2.2.2.2.2.1.1, (TShape.LE.def hΔ hj hnM).2 h2.1,
+  refine ⟨h2.2.2.2.2.1, (TShape.LE.def hΔ hj hnM).2 h2.1,
     TEvaluates.of_cover_lift hΔ hj hw.2.2.1 h2.2.1.1
       (TEvaluates.lift_cover hΔ hnM hw'.2.2.1 hg')⟩
 
@@ -1672,7 +1672,7 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
         have hwg' : Shape.WF (n := j+1) Δ (.lam A' B' g') :=
           (Shape.lift_wf hjM).1 (Shape.LE.wf h2)
         exact .lam hd hf hwg' hwPi hwg₀
-          (TShape.LE.lam_decomp hΔ h hwg' hwg hg) hg₀ev hg₀ty (TyEq.trans h2.2.2.2.1.1 hdom)
+          (TShape.LE.lam_decomp hΔ h hwg' hwg hg) hg₀ev hg₀ty (TyEq.trans h2.2.2.2.1 hdom)
       | _ => exact absurd h2 (fun x => x)
   | pair hd hf hwp hwSg hxd hwg₀ hg hg₀ev hg₀ty hdom _ _ ihxd _ =>
     intro m' h

@@ -1142,7 +1142,7 @@ theorem Interp.unweak {Δ : List Term} (hΔ : ⊢ Δ) :
       refine .lam (ihA hΓ hAA WΓ hd hρ hAint) hdty hwf hdom (fun e he => ?_) hw hle ⟨u, hA⟩
       have htm : Δ ⊢ e.tm : (A.lift' l).subst σ' := by
         rw [subst_lift']
-        exact (hwf.2.2.2.1 e he).choose_spec.defeqDF (hwf.2.2.1.1 e he).2.1
+        exact (hwf.2.2.2 e he).choose_spec.defeqDF (hwf.2.2.1.1 e he).2.1
       have hd' : Ctx.SubstEq Δ (σ'.cons e.tm) (σ'.cons e.tm) (A.lift' l :: Γ') :=
         .cons hd (hA.weak' WΓ) htm
       rw [Subst.lift_l_cons]
@@ -1375,17 +1375,15 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
     have hAσ : TyEq Δ (A.subst σ) (A.subst σ₂) := ⟨u, IsDefEq.subst' hΔ W hA⟩
     cases H with
     | bot => exact .bot
-    | lam hAint hdty hwf hdom hbody hw hle _ =>
-      refine .lam (ihA hΓ hAA W hAint) hdty
-        ⟨hwf.1, hwf.2.1, hwf.2.2.1, (fun e he => TyEq.trans (hwf.2.2.2.1 e he) hAσ),
-          ⟨_, IsDefEq.defeqDF_l hΔ hAσ.choose_spec hwf.2.2.2.2.choose_spec⟩⟩
+    | @lam _ _ _ _ _ _ _ _ Bd _ hAint hdty hwf hdom hbody hw hle _ =>
+      refine .lam (Bd := Bd) (ihA hΓ hAA W hAint) hdty
+        ⟨hwf.1, hwf.2.1, hwf.2.2.1, fun e he => TyEq.trans (hwf.2.2.2 e he) hAσ⟩
         hdom (fun e he => ?_) hw
         (hle.trans hΔ (TShape.LE.T.2
-          ⟨ShapeFun.LE.refl hwf.2.2.1, hwf.1, hwf.2.1,
-            ⟨hAσ, _, hwf.2.2.2.2.choose_spec⟩, hwf.2.2.2.1⟩))
+          ⟨ShapeFun.LE.refl hwf.2.2.1, hwf.1, hwf.2.1, hAσ, hwf.2.2.2⟩))
         ⟨u, hA⟩
       have htm : Δ ⊢ e.tm : A.subst σ :=
-        (hwf.2.2.2.1 e he).choose_spec.defeqDF (hwf.2.2.1.1 e he).2.1
+        (hwf.2.2.2 e he).choose_spec.defeqDF (hwf.2.2.1.1 e he).2.1
       have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ₂.cons e.tm) (A :: Γ) := .cons W hA htm
       exact ihb ⟨hΓ, _, hA⟩ hAb W' (hbody e he)
   | forallE A B ihA ihB =>
@@ -1444,16 +1442,16 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
     have haσ : Δ ⊢ a.subst σ ≡ a.subst σ₂ : A.subst σ := IsDefEq.subst' hΔ W hat
     cases H with
     | bot => exact .bot
-    | pair hainp hAint hdty hdx hwf hlab hdom hinp hout hbody hty hw hle _ _ =>
-      refine .pair (iha hΓ hAa W hainp) (ihA hΓ hAA W hAint) hdty hdx
+    | @pair _ _ _ _ _ _ _ _ _ _ _ _ Bd hainp hAint hdty hdx hwf hlab hdom hinp hout hbody
+        hty hw hle _ _ =>
+      refine .pair (Bd := Bd) (iha hΓ hAa W hainp) (ihA hΓ hAA W hAint) hdty hdx
         ⟨hwf.1, hwf.2.1, hwf.2.2.1, (fun e he => TyEq.trans (hwf.2.2.2.1 e he) hAσ),
-          TyEq.refl_r hAσ, hwf.2.2.2.2.2.1,
-          ⟨_, IsDefEq.defeqDF_l hΔ hAσ.choose_spec hwf.2.2.2.2.2.2.choose_spec⟩⟩
+          TyEq.refl_r hAσ, hwf.2.2.2.2.2⟩
         (fun e he => ?_) hdom (fun e he => iha hΓ hAa W (hinp e he))
         (fun e he => ihb hΓ hAb W (hout e he)) (fun e he => ?_) hty hw
         (hle.trans hΔ (TShape.LE.T.2
-          ⟨Shape.LE.refl hwf.2.2.2.2.2.1, ShapeFun.LE.refl hwf.2.2.1, hwf.1, hwf.2.1,
-            ⟨hAσ, _, hwf.2.2.2.2.2.2.choose_spec⟩, hwf.2.2.2.1⟩))
+          ⟨Shape.LE.refl hwf.2.2.2.2.2, ShapeFun.LE.refl hwf.2.2.1, hwf.1, hwf.2.1,
+            hAσ, hwf.2.2.2.1⟩))
         ⟨u, hA⟩ hat
       · -- the entry's label term names the first component, at the new stage
         exact (hlab e he).trans
@@ -1478,7 +1476,7 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
       have heq := hty.move hΔ W
       exact .snd (ih hΓ hAp W hp)
         (TEvaluates.mono hΔ ⟨heq.hasType.1.isType hΔ, heq⟩
-          (TShape.LE.refl (TShape.WF.T.2 hp.wf.2.2.2.2.2.1)) hev)
+          (TShape.LE.refl (TShape.WF.T.2 hp.wf.2.2.2.2.2)) hev)
         hw hle (hty.stage W)
   | natCase C M a b ihC ihM iha ihb =>
     intro Γ σ σ₂ ρ m hΓ hAnn W H
@@ -2299,7 +2297,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         refine .cons Wσ hAθ ?_
         show Δ ⊢ e.tm ≡ e.tm : (A.subst θ).subst σ
         rw [subst_subst]
-        exact (hwf.2.2.2.1 e he).choose_spec.defeqDF (hwf.2.2.1.1 e he).2.1
+        exact (hwf.2.2.2 e he).choose_spec.defeqDF (hwf.2.2.1.1 e he).2.1
       -- the source-side `isType`, through the `Γ`-side one
       have hisTypeSrc : ∀ b, Interp Δ Γ' (A.subst θ) σ ρ b → TShape.HasType Δ b TShape.type := by
         intro b hb
