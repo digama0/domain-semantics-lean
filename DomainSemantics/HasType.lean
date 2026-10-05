@@ -2412,6 +2412,11 @@ theorem TShape.Dom.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {d x : TShape}
       | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
       | .lam _ _ _ | .forallE .. | .pair _ _ _ _ _ => exact absurd h2 (fun x => x)
 
+/-- A code typed at a sort is `Dom` there: a sort filters. -/
+theorem TShape.Dom.of_isType {Δ : List Term} {x : TShape}
+    (h : TShape.HasType Δ x TShape.type) : TShape.Dom Δ TShape.type x :=
+  .base (fun h => h) h
+
 /-- At a code that only filters — anything but a Π or a Σ — typing is
 `Dom`. -/
 theorem TShape.Dom.of_not_binder {Δ : List Term} {d x : TShape} (hnb : ¬ d.IsBinder)

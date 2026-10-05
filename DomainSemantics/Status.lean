@@ -45,11 +45,11 @@ and the saturation hypothesis, both of which the soundness induction now
 supplies (`Subst.Saturates.one`, `IsDefEq.pinned`). -/
 
 -- **The subject join**: two compatible shapes at one type join there.
-/-- info: 'DomainSemantics.TShape.HasType.join' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'DomainSemantics.TShape.HasType.join' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms TShape.HasType.join
 
 -- **Join-closure of a type's extension** (`SoundJoin`), once and for all.
-/-- info: 'DomainSemantics.sound_join' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'DomainSemantics.sound_join' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms sound_join
 
 -- **Strengthening**: an interpretation moves into a smaller context, the
