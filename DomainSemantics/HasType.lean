@@ -2033,41 +2033,6 @@ def Shape.graph {n} : Shape (n+1) → List (Entry (Shape n))
   | .lam _ _ g => g
   | _ => []
 
-/-- **A shape names what it stands for.**
-
-Two conditions in one recursion, because they are two halves of the same
-thing and are needed together (§4.7f):
-
-* a **code** names its type — a Σ-code approximating `T` has `T ≡ Σ A B`
-  with its own labels, likewise a Π-code.  This is the semantic shadow
-  of type-constructor injectivity, and unlike injectivity it is provable
-  here, because the equations it needs are at *sorts*;
-* a **pair** names its own first projection (§4.7a), which is what
-  `snd`'s clause queries and what Σ's η needs.
-
-Hereditary through λ-values, since a family's codes and a function's
-pairs are read out of one; the recursion is on the *lookup*, at every
-query, so no equation has to move with the entry labels. -/
-def Shape.Canon (Δ : List Term) : ∀ {n}, Term → Shape n → Prop
-  | 0, _, _ => True
-  | _+1, T, .sigma A B _ _ => TyEq Δ T (Term.sigma A B)
-  | _+1, T, .forallE A B _ _ => TyEq Δ T (Term.forallE A B)
-  | _+1, t, .pair A₀ _ a₀ _ _ => Δ ⊢ a₀ ≡ Term.fst t : A₀
-  | _+1, t, .lam A₀ _ g =>
-      ∀ (q : Term), (Δ ⊢ q : A₀) → ∀ (x w : Shape _), Shape.WF Δ x →
-        ShapeFun.Eval Δ (Shape.LE Δ) g A₀ q x w → Canon Δ (Term.app t q) w
-  | _+1, _, _ => True
-
-/-- At the total level. -/
-def TShape.Canon (Δ : List Term) (t : Term) (x : TShape) : Prop :=
-  Shape.Canon Δ t x.2
-
-@[simp] theorem TShape.Canon.T {Δ : List Term} {t : Term} {n} {s : Shape n} :
-    TShape.Canon Δ t (Shape.T s) ↔ Shape.Canon Δ t s := Iff.rfl
-
-@[simp] theorem Shape.Canon.bot {Δ : List Term} {t : Term} {n} :
-    Shape.Canon Δ t (Shape.bot (n := n)) := by cases n <;> trivial
-
 /-- A shape's entries, levels forgotten. -/
 def TShape.entries : TShape → List (Entry TShape)
   | ⟨0, _⟩ => []
