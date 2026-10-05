@@ -153,6 +153,18 @@ theorem SoundEq.trans {Γ : List Term} {t t' t'' : Term}
     (h : SoundEq Γ t t') (h' : SoundEq Γ t' t'') : SoundEq Γ t t'' :=
   fun _ _ _ _ hΔ W hA => (h hΔ W hA).trans (h' hΔ W hA)
 
+/-- **Typing follows from saturation.**  An approximant sits below a
+hereditarily typed one, and typing is lower-closed, so the dominator's
+code types it.  This is what replaces the lookup inductions the Σ-side
+used to need: with `sound_join` on `Dom` (§4.7e), the way to type a
+lookup value is to saturate the term it approximates. -/
+theorem SoundTy.of_dom {Γ : List Term} {t A : Term} (hty : Γ ⊢ t : A)
+    (h : SoundDom Γ t A) : SoundTy Γ t A := by
+  refine ⟨hty, ?_⟩
+  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+  obtain ⟨_, a, _, hle, ha, hdom⟩ := h hΔ W hAdm hm
+  exact ⟨a, ha, TShape.HasType.mono_l hΔ hdom.hasType hle⟩
+
 /-- Typing transports along a semantic equality, which is what lets the
 soundness induction state `SoundTy` for the left-hand term only. -/
 theorem SoundTy.of_eq {Γ : List Term} {t t' A : Term}
@@ -2517,93 +2529,6 @@ The `join` rule of the lookup lands on two typed shapes, and typing their
 join is exactly `SoundJoin` (§5.1) — not only `tr`'s business, as the plan
 had it, but every consumer's of a relational lookup.  It is `sound_join`,
 proved once and for all. -/
-theorem sound_app_ty {Γ : List Term} {A B f a : Term} {u v : Bool}
-    (hPB : B.Pinned (A :: Γ))
-    (hΓ : ⊢ Γ) (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v) (ha : Γ ⊢ a : A)
-    (happ : Γ ⊢ .app f a : B.inst a)
-    (hAty : SoundTy Γ A (.sort u)) (haty : SoundTy Γ a A) (hadom : SoundDom Γ a A)
-    (hfty : SoundTy Γ f (.forallE A B)) (hBaty : SoundTy Γ (B.inst a) (.sort v))
-    (hadir : SoundDir Γ a) (hBdir : SoundDir (A :: Γ) B) :
-    SoundTy Γ (.app f a) (B.inst a) := by
-  have hjoin : SoundJoin Γ (B.inst a) := sound_join
-  have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
-  refine ⟨happ, ?_⟩
-  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
-  have hwρ := hAdm.wf
-  have hAσ : Δ ⊢ A.subst σ : .sort u := hA.subst hΔ W
-  have haσ : Δ ⊢ a.subst σ : A.subst σ := ha.subst hΔ W
-  cases hm with
-  | bot => exact ⟨TShape.bot, .bot, .bot (.bot .sort)⟩
-  | @app _ _ _ _ _ _ n g x y A₁ Bl₁ hF hx hev hw hle =>
-    obtain ⟨s, hs, hfsty⟩ := hfty.approx hΔ W hAdm hF
-    cases hfsty with
-    | @lam _ _ _ _ _ _ _ _ _ _ g₀ hd hfout hwg hwPi hwg₀ hg hg₀ev hg₀ty hdomA =>
-      cases hs with
-      | @forallE _ _ _ _ nc gc dc _ _ hAint hdty hwf hlab hdomc hbody hwm hlePi =>
-        obtain ⟨hPiLab, _, hcov⟩ :=
-          TShape.LE.forallE_decomp hΔ hlePi hwPi hwf (TEvaluates.refl hwf.2.2.2)
-        -- a lookup in the canonical graph at the canonical query is an
-        -- approximant of `B[a]`
-        have toI : ∀ {c : TShape},
-            TEvaluates Δ gc (A.subst σ) (a.subst σ) x c →
-            Interp Δ Γ (B.inst a) σ ρ c := by
-          intro c hc
-          refine (Interp.inst (A := A) (b := B) hΔ hΓ hA ha hB hPB W hAdm
-            (Subst.Saturates.one hΔ hΓ W hAdm hAty.isTypeAt hadom)
-            (hadir hΔ W hwρ) hwρ).2 ⟨x, ?_, hx⟩
-          rw [Subst.one_comp]
-          exact sound_graph_lookup hΓA hA hB hΔ W hbody hx.wf hBdir hwρ haσ
-            (TyEq.refl hAσ) hc
-        -- the λ-shape's label is the domain, so its entries' labels are too
-        have hA₁ : TyEq Δ A₁ (A.subst σ) := TyEq.trans hdomA hPiLab.1
-        -- the generator's codes, at the canonical query
-        have inner : ∀ {ty tm : Term} {xi : TShape}, LabelEq Δ ty tm A₁ (a.subst σ) →
-            TShape.LE Δ xi x → ∀ {w : TShape}, TEvaluates Δ (g₀.map (·.1)) ty tm xi w →
-              ∃ c, Interp Δ Γ (B.inst a) σ ρ c ∧ TShape.HasType Δ w c := by
-          intro ty tm xi hlabq hxi w hw'
-          induction hw' with
-          | bot => exact ⟨TShape.bot, .bot, .bot (.bot .sort)⟩
-          | @entry q hq hlabq' hinq =>
-            obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hq
-            have hlabc : LabelEq Δ p.1.ty p.1.tm (A.subst σ) (a.subst σ) :=
-              ⟨TyEq.trans (hlabq'.trans hlabq).1 hA₁, (hlabq'.trans hlabq).2⟩
-            refine ⟨_, toI (TEvaluates.mono hΔ hlabc (hinq.trans hΔ hxi)
-              (TEvaluates.trans hΔ hcov (hg₀ev p hp))), hg₀ty p hp⟩
-          | lower hle' _ ih =>
-            obtain ⟨c, hIc, hct⟩ := ih
-            exact ⟨c, hIc, TShape.HasType.mono_l hΔ hct hle'⟩
-          | join hcj _ _ ih₁ ih₂ =>
-            obtain ⟨c₁, hI₁, ht₁⟩ := ih₁
-            obtain ⟨c₂, hI₂, ht₂⟩ := ih₂
-            obtain ⟨c, hwc, hIc, hlc₁, hlc₂⟩ :=
-              dir_inst (b := B) hA ha hB hPB hΔ W hAdm hΓ hAty hadom
-                hadir hBdir hI₁ hI₂
-            have hcty := hBaty.isType hΔ W hAdm hIc
-            exact ⟨c, hIc, hjoin.hasType_join hΔ W hAdm hIc
-              (TShape.HasType.mono_r hΔ ht₁ _ hlc₁ hcty)
-              (TShape.HasType.mono_r hΔ ht₂ _ hlc₂ hcty) hcj⟩
-        -- and the λ-shape's own lookup, entry by entry
-        have key : ∀ {w : TShape}, TEvaluates Δ g A₁ (a.subst σ) x w →
-            ∃ c, Interp Δ Γ (B.inst a) σ ρ c ∧ TShape.HasType Δ w c := by
-          intro w hw'
-          induction hw' with
-          | bot => exact ⟨TShape.bot, .bot, .bot (.bot .sort)⟩
-          | @entry e he hlabe hine => exact inner hlabe hine (hg e he)
-          | lower hle' _ ih =>
-            obtain ⟨c, hIc, hct⟩ := ih
-            exact ⟨c, hIc, TShape.HasType.mono_l hΔ hct hle'⟩
-          | join hcj _ _ ih₁ ih₂ =>
-            obtain ⟨c₁, hI₁, ht₁⟩ := ih₁
-            obtain ⟨c₂, hI₂, ht₂⟩ := ih₂
-            obtain ⟨c, hwc, hIc, hlc₁, hlc₂⟩ :=
-              dir_inst (b := B) hA ha hB hPB hΔ W hAdm hΓ hAty hadom
-                hadir hBdir hI₁ hI₂
-            have hcty := hBaty.isType hΔ W hAdm hIc
-            exact ⟨c, hIc, hjoin.hasType_join hΔ W hAdm hIc
-              (TShape.HasType.mono_r hΔ ht₁ _ hlc₁ hcty)
-              (TShape.HasType.mono_r hΔ ht₂ _ hlc₂ hcty) hcj⟩
-        obtain ⟨c, hIc, hct⟩ := key hev
-        exact ⟨c, hIc, TShape.HasType.mono_l hΔ hct hle⟩
 
 /-! ## The `app` label
 
@@ -5187,12 +5112,10 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
     have ⟨hef, htyf, hpf, hpf', hd_ihf⟩ := ihf hΓ
     have ⟨hea, htya, hpa, hpa', hd_iha⟩ := iha hΓ
     exact ⟨sound_app_eq hff' haa' htyf hef hea,
-      sound_app_ty (ihB hΓA).pin hΓ hA.hasType.1 hB.hasType.1
-        haa'.hasType.1
-        (.appDF hA hB hff'.hasType.1 haa'.hasType.1 hBinst.hasType.1)
-        (ihA hΓ).ty htya hd_iha htyf (ihBinst hΓ).ty
-        (IsDefEq.dir hΓ haa').1
-        (IsDefEq.dir hΓA hB).1,
+      SoundTy.of_dom (.appDF hA hB hff'.hasType.1 haa'.hasType.1 hBinst.hasType.1)
+        (sound_app_dom (ihB hΓA).pin hΓ hA.hasType.1 hB.hasType.1 haa'.hasType.1
+          (ihA hΓ).ty hd_iha htyf hd_ihf (ihBinst hΓ).ty
+          (IsDefEq.dir hΓ haa').1 (IsDefEq.dir hΓA hB).1),
       ⟨PinApp.of_sound htyf haa'.hasType.1, hpf, hpa⟩,
       ⟨PinApp.of_sound (SoundTy.of_eq hff' hef htyf) haa'.hasType.2, hpf', hpa'⟩,
       sound_app_dom (ihB hΓA).pin hΓ hA.hasType.1 hB.hasType.1 haa'.hasType.1
