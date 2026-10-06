@@ -57,7 +57,7 @@ the labelled model's soundness. -/
 
 -- **Strengthening**: an interpretation moves into a smaller context, the
 -- clauses' premises coming back from the term's annotations.
-/-- info: 'DomainSemantics.Interp.unweak' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'DomainSemantics.Interp.unweak' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in #print axioms Interp.unweak
 
 -- **Stage invariance**: the labels move with the stage, each clause

@@ -2967,3 +2967,58 @@ to reflect along `lift`, which was the one thing standing between it and
 a restatement — it changes what `SoundTy` promises and so touches every
 case that consumes it.
 
+
+## 6. The shape domain, trimmed (2026-10-06)
+
+With soundness closed, the question is whether the domain carries
+anything the proof does not need.  Four pieces of data were removed, each
+because no clause of `Interp`, `TShape.HasType`, `Shape.WF`, `Shape.LE`,
+`Shape.Compat` or the canonicity predicates reads it.
+
+(a) **The codomain label of `lam` and `pair`.**  A λ-shape carried
+`(A, B)` and a pair carried `(A, B, a)`.  Every judgment mentioned the
+domain `A` (a λ's entries are read at it, a pair's name is typed at it)
+and none mentioned `B`: the `Interp` clauses took it as a free implicit,
+and the Π that types a λ-shape carries its own codomain label anyway.
+Deleted.
+
+(b) **The witness of `refl`.**  `refl` wrapped a shape, read by nothing:
+`HasType.refl` asked only that the witness be well formed, both
+canonicity predicates are `True` on it, and no rule looks inside a proof
+of an identity type.  The `tr` rule, which is the only consumer of such a
+proof, asks for `H ≡ refl a` at the stage (§4.7j) rather than for a
+`refl`-shaped approximant with a usable witness.  So `refl` is now
+nullary, the `Interp` clause loses its premise on the subject, and
+directedness for `refl` is the statement that two approximants of one
+nullary shape have an upper bound.
+
+(c) **The per-entry type.**  An `Entry` stored `(ty, tm)`, and every
+place two entries were compared required `ty` to be the domain label of
+the shape the graph sits in (`Shape.WF`'s last `lam` conjunct, and the
+`Interp` premise `∀ e ∈ g, ∃ u, Δ ⊢ e.ty ≡ A[σ] : sort u` at `forallE`
+and `sigma`).  The graph judgments now take that type as a parameter
+(`ShapeFun.WF Δ T W f`, `ShapeFun.Compat R Δ T f f'`,
+`ShapeFun.LE Δ R W T f f'`, `ShapeFun.Eval Δ R f A a x y` reading entries
+at `A`), the per-entry conjuncts disappear, and moving a graph from one
+label to a definitionally equal one is the `retype` family.  What this
+costs is one `retype` at each point where two comparable shapes' labels
+meet, which the order supplies; what it buys is that the "entry type
+equals domain label" invariant is no longer something to carry, restate
+and re-establish.  Note the type is still *stored* — one per graph rather
+than one per entry — for the reason in `ShapeFun.LE.trans_of`:
+composing coverage chains two label equalities, and a type-free label
+would need uniqueness of types to do it.
+
+Side effect: `Interp.unweak` is now `Classical.choice`-free, since the
+`choose_spec` it used to type an entry's label is gone.
+
+(d) Two lemmas with no remaining users, `TShape.LE.refl_ub` and
+`TShape.LE.refl_decomp`, and one, `Interp.lam_entry_ty`, whose statement
+no longer has a subject.  Deleted.
+
+What is *not* removable, and why: the Π/Σ labels `(A, B)` and the `id`
+label `(A, a, b)` are what the inversion theorems project out; the pair's
+domain label types its name, which is what Σ's η reads; `unit`'s
+relevance flag decides which sorts it inhabits; a λ's domain label is
+read by `Interp.lam_label_ty` and pins the lookup at non-admissible
+stages.

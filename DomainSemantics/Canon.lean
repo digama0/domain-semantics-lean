@@ -34,10 +34,10 @@ def Shape.CodeCanon (Δ : List Term) : ∀ {n}, Term → Shape n → Prop
   | _+1, T, .id r A a b => TyEq Δ T (.id r A a b)
   | _+1, T, .sigma A B d f =>
       TyEq Δ T (.sigma A B) ∧ CodeCanon Δ A d ∧
-      ∀ e ∈ f, e.out = .bot ∨ (TyEq Δ e.ty A ∧ CodeCanon Δ (B.inst e.tm) e.out)
+      ∀ e ∈ f, e.out = .bot ∨ CodeCanon Δ (B.inst e.tm) e.out
   | _+1, T, .forallE A B d f =>
       TyEq Δ T (.forallE A B) ∧ CodeCanon Δ A d ∧
-      ∀ e ∈ f, e.out = .bot ∨ (TyEq Δ e.ty A ∧ CodeCanon Δ (B.inst e.tm) e.out)
+      ∀ e ∈ f, e.out = .bot ∨ CodeCanon Δ (B.inst e.tm) e.out
   | _+1, _, .lam .. => True
   | _+1, _, .pair .. => True
   | _+1, _, .zero => True
@@ -159,11 +159,11 @@ theorem Shape.CodeCanon.lift {Δ : List Term} (hΔ : ⊢ Δ) :
       ⟨Shape.lift_eq_bot hΔ h', fun h => h ▸ Shape.lift_bot⟩
     have hf (A B : Term) (f : ShapeFun n) :
         (∀ e ∈ ShapeFun.lift (Shape.lift m) f,
-            e.out = .bot ∨ (TyEq Δ e.ty A ∧ Shape.CodeCanon Δ (B.inst e.tm) e.out)) ↔
-        (∀ e ∈ f, e.out = .bot ∨ (TyEq Δ e.ty A ∧ Shape.CodeCanon Δ (B.inst e.tm) e.out)) := by
+            e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out) ↔
+        (∀ e ∈ f, e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out) := by
       constructor
       · intro H e he
-        have := H ⟨e.ty, e.tm, e.inp.lift m, e.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
+        have := H ⟨e.tm, e.inp.lift m, e.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
         simpa only [hb, ih h'] using this
       · intro H e' he'
         obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'
@@ -196,15 +196,14 @@ theorem Shape.CodeCanon.join {Δ : List Term} (hΔ : ⊢ Δ) :
     intro T y z hwy hwz hc hy hz
     -- the right-hand entries of a Π/Σ graph, moved to the left labels
     have hent {A B A' B' : Term} {u : Bool} {f' : ShapeFun n} (hl : PiLabelEq Δ A B A' B')
-        (hA : Δ ⊢ A : .sort u) (hw' : ShapeFun.WF Δ (Shape.WF Δ) f')
-        (hz' : ∀ e ∈ f', e.out = .bot ∨ (TyEq Δ e.ty A' ∧ Shape.CodeCanon Δ (B'.inst e.tm) e.out)) :
-        ∀ e ∈ f', e.out = .bot ∨ (TyEq Δ e.ty A ∧ Shape.CodeCanon Δ (B.inst e.tm) e.out) := by
+        (hA : Δ ⊢ A : .sort u) (hw' : ShapeFun.WF Δ A' (Shape.WF Δ) f')
+        (hz' : ∀ e ∈ f', e.out = .bot ∨ Shape.CodeCanon Δ (B'.inst e.tm) e.out) :
+        ∀ e ∈ f', e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out := by
       intro e he
-      rcases hz' e he with h | ⟨hty, hC⟩
+      rcases hz' e he with h | hC
       · exact .inl h
-      · refine .inr ⟨hty.trans (TyEq.symm hl.1), hC.conv ?_⟩
-        have htm : Δ ⊢ e.tm : A := (hty.trans (TyEq.symm hl.1)).choose_spec.defeqDF (hw'.1 e he).2.1
-        exact TyEq.inst hΔ hA hl.2.choose_spec htm
+      · have htm : Δ ⊢ e.tm : A := ((hw'.retype (TyEq.symm hl.1)).1 e he).2.1
+        exact .inr (hC.conv (TyEq.inst hΔ hA hl.2.choose_spec htm))
     cases y with
     | bot => simpa using hz
     | sigma A B d f =>
@@ -254,9 +253,9 @@ theorem Shape.CodeCanon.mono {Δ : List Term} (hΔ : ⊢ Δ) :
     -- the covered entries of a smaller Π/Σ graph, at the bigger labels
     have hgraph {A B : Term} {u v : Bool} {f f' : ShapeFun n} (hA : Δ ⊢ A : .sort u)
         (hB : A :: Δ ⊢ B : .sort v)
-        (hff : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) f' f)
-        (hf : ∀ e ∈ f, e.out = .bot ∨ (TyEq Δ e.ty A ∧ Shape.CodeCanon Δ (B.inst e.tm) e.out)) :
-        ∀ e ∈ f', e.out = .bot ∨ (TyEq Δ e.ty A ∧ Shape.CodeCanon Δ (B.inst e.tm) e.out) := by
+        (hff : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) A f' f)
+        (hf : ∀ e ∈ f, e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out) :
+        ∀ e ∈ f', e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out := by
       intro e' he'
       have hwo : ∀ e ∈ f, Shape.WF Δ e.out := fun e he => (hff.2.2.1 e he).2.2.2
       have hev := hff.1 e' he'
@@ -264,33 +263,30 @@ theorem Shape.CodeCanon.mono {Δ : List Term} (hΔ : ⊢ Δ) :
       induction hev with
       | bot => exact .inl rfl
       | entry e he hlab _ =>
-        rcases hf e he with h | ⟨hty, hC⟩
+        rcases hf e he with h | hC
         · exact .inl h
-        · refine .inr ⟨(TyEq.symm hlab.1).trans hty, hC.conv ?_⟩
-          have htm : Δ ⊢ e.tm ≡ e'.tm : A := hty.choose_spec.defeqDF hlab.2
-          exact TyEq.inst hΔ hA hB htm.symm
+        · exact .inr (hC.conv (TyEq.inst hΔ hA hB hlab.2.symm))
       | lower hyz hz ihz =>
-        rcases ihz with h | ⟨hty, hC⟩
+        rcases ihz with h | hC
         · subst h; exact .inl (Shape.le_bot_iff.1 hyz)
-        · exact .inr ⟨hty, ih hyz (ShapeFun.Eval.wf hΔ hwo hz) hC⟩
+        · exact .inr (ih hyz (ShapeFun.Eval.wf hΔ hwo hz) hC)
       | @join y z hcyz hy hz ihy ihz =>
-        rcases ihy with hy0 | ⟨hty, hCy⟩
+        rcases ihy with hy0 | hCy
         · subst hy0; simpa using ihz
-        rcases ihz with hz0 | ⟨_, hCz⟩
-        · subst hz0; simpa using Or.inr ⟨hty, hCy⟩
-        exact .inr ⟨hty, Shape.CodeCanon.join hΔ (ShapeFun.Eval.wf hΔ hwo hy)
-          (ShapeFun.Eval.wf hΔ hwo hz) hcyz hCy hCz⟩
+        rcases ihz with hz0 | hCz
+        · subst hz0; simpa using Or.inr hCy
+        exact .inr (Shape.CodeCanon.join hΔ (ShapeFun.Eval.wf hΔ hwo hy)
+          (ShapeFun.Eval.wf hΔ hwo hz) hcyz hCy hCz)
     -- the labels of the smaller code, from the bigger's
     have hmove {A B A' B' : Term} {f' : ShapeFun n} (hl : PiLabelEq Δ A' B' A B)
-        (hw' : ShapeFun.WF Δ (Shape.WF Δ) f')
-        (hf' : ∀ e ∈ f', e.out = .bot ∨ (TyEq Δ e.ty A ∧ Shape.CodeCanon Δ (B.inst e.tm) e.out)) :
-        ∀ e ∈ f', e.out = .bot ∨ (TyEq Δ e.ty A' ∧ Shape.CodeCanon Δ (B'.inst e.tm) e.out) := by
+        (hw' : ShapeFun.WF Δ A' (Shape.WF Δ) f')
+        (hf' : ∀ e ∈ f', e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out) :
+        ∀ e ∈ f', e.out = .bot ∨ Shape.CodeCanon Δ (B'.inst e.tm) e.out := by
       intro e he
-      rcases hf' e he with h | ⟨hty, hCe⟩
+      rcases hf' e he with h | hCe
       · exact .inl h
-      · refine .inr ⟨hty.trans (TyEq.symm hl.1), hCe.conv ?_⟩
-        have htm : Δ ⊢ e.tm : A' := (hty.trans (TyEq.symm hl.1)).choose_spec.defeqDF (hw'.1 e he).2.1
-        exact TyEq.inst hΔ hl.1.choose_spec.hasType.1 hl.2.choose_spec htm
+      · exact .inr (hCe.conv
+          (TyEq.inst hΔ hl.1.choose_spec.hasType.1 hl.2.choose_spec (hw'.1 e he).2.1))
     cases x with
     | bot => cases Shape.le_bot_iff.1 hle; trivial
     | lam | pair | zero | succ | refl =>
@@ -315,12 +311,12 @@ theorem Shape.CodeCanon.mono {Δ : List Term} (hΔ : ⊢ Δ) :
       rcases Shape.le_sigma hle with rfl | ⟨A', B', d', f', rfl, hl, hdd, hff⟩
       · trivial
       · exact ⟨hC.1.trans (PiLabelEq.sigmaTyEq hΔ hl).symm, (ih hdd hw.2.2.1 hC.2.1).conv hl.1,
-          hmove hl hff.2.1 (hgraph hw.1.choose_spec hw.2.1.choose_spec hff hC.2.2)⟩
+          hmove hl hff.2.1 (hgraph hw.1.choose_spec hw.2.1.choose_spec (hff.retype hl.1) hC.2.2)⟩
     | forallE A B d f =>
       rcases Shape.le_forallE hle with rfl | ⟨A', B', d', f', rfl, hl, hdd, hff⟩
       · trivial
       · exact ⟨hC.1.trans (PiLabelEq.forallETyEq hΔ hl).symm, (ih hdd hw.2.2.1 hC.2.1).conv hl.1,
-          hmove hl hff.2.1 (hgraph hw.1.choose_spec hw.2.1.choose_spec hff hC.2.2)⟩
+          hmove hl hff.2.1 (hgraph hw.1.choose_spec hw.2.1.choose_spec (hff.retype hl.1) hC.2.2)⟩
 
 /-- The total-level order. -/
 theorem TShape.CodeCanon.mono {Δ : List Term} (hΔ : ⊢ Δ) {T : Term} {x x' : TShape}
@@ -350,8 +346,8 @@ reading of the entry-based condition; it is a theorem rather than the
 definition because the definition has to survive substitution, and an
 entry that is dead at one stage can be live at a later one. -/
 theorem TShape.CodeCanon.lookup {Δ : List Term} (hΔ : ⊢ Δ) {n} {A B q : Term} {u v : Bool}
-    {f : ShapeFun n} (hw : ShapeFun.WF Δ (Shape.WF Δ) f)
-    (hf : ∀ e ∈ f, e.out = .bot ∨ (TyEq Δ e.ty A ∧ Shape.CodeCanon Δ (B.inst e.tm) e.out))
+    {f : ShapeFun n} (hw : ShapeFun.WF Δ A (Shape.WF Δ) f)
+    (hf : ∀ e ∈ f, e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out)
     (hA : Δ ⊢ A : .sort u) (hB : A :: Δ ⊢ B : .sort v) {x : TShape} :
     ∀ {c : TShape}, TEvaluates Δ f A q x c → TShape.CodeCanon Δ (B.inst q) c := by
   intro c h
@@ -359,11 +355,9 @@ theorem TShape.CodeCanon.lookup {Δ : List Term} (hΔ : ⊢ Δ) {n} {A B q : Ter
   induction h with
   | bot => exact Shape.CodeCanon.bot
   | entry e he hlab _ =>
-    rcases hf e he with h0 | ⟨hty, hC⟩
+    rcases hf e he with h0 | hC
     · show Shape.CodeCanon Δ _ e.out; rw [h0]; exact Shape.CodeCanon.bot
-    · refine hC.conv ?_
-      have htm : Δ ⊢ e.tm ≡ q : A := hty.choose_spec.defeqDF hlab.2
-      exact TyEq.inst hΔ hA hB htm.symm
+    · exact hC.conv (TyEq.inst hΔ hA hB hlab.2.symm)
   | lower hle hz ih => exact TShape.CodeCanon.mono hΔ hle (TEvaluates.wf hΔ hwo hz) ih
   | join hc hy hz ihy ihz =>
     exact TShape.CodeCanon.join hΔ (TEvaluates.wf hΔ hwo hy) (TEvaluates.wf hΔ hwo hz) hc ihy ihz
@@ -434,21 +428,17 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       obtain ⟨hVin, hVout⟩ := hV e he
       refine ⟨hVin, ?_⟩
       -- the entry's code, from `Dom`'s per-entry list
-      have hmem : (⟨e.ty, e.tm, e.inp.T, e.out.T⟩ : Entry TShape) ∈ cs.map (·.1) := by
+      have hmem : (⟨e.tm, e.inp.T, e.out.T⟩ : Entry TShape) ∈ cs.map (·.1) := by
         rw [← hent]
         simp only [TShape.entries, Shape.graph, List.mem_map]
         exact ⟨e, he, rfl⟩
       obtain ⟨p, hp, hpe⟩ := List.mem_map.1 hmem
       have hevp := hev p hp; have houtp := hout p hp
       simp only [hpe] at hevp houtp
-      have htyA : TyEq Δ e.ty A := (hwl.2.2.2 e he).trans hA₀A
-      have htm : Δ ⊢ e.tm : A := htyA.choose_spec.defeqDF (hwl.2.2.1.1 e he).2.1
-      have hevA : TEvaluates Δ f A e.tm e.inp.T p.2 :=
-        TEvaluates.mono hΔ ⟨htyA, (hwl.2.2.1.1 e he).2.1⟩
-          (TShape.LE.refl (a := e.inp.T) (hwl.2.2.1.1 e he).2.2.1) hevp
+      have htm : Δ ⊢ e.tm : A := hA₀A.choose_spec.defeqDF (hwl.2.2.1.1 e he).2.1
       have happ : Δ ⊢ .app t e.tm ≡ .app t' e.tm : B.inst e.tm :=
         IsDefEq.appDF₀ hΔ (hT.choose_spec.defeqDF ht) htm
-      exact ih houtp (TShape.CodeCanon.lookup hΔ hwf.2.2.2 hCf hA hB hevA) hVout happ
+      exact ih houtp (TShape.CodeCanon.lookup hΔ hwf.2.2.2 hCf hA hB hevp) hVout happ
 
 theorem TShape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) {x d : TShape} {T t t' : Term}
     (hD : TShape.Dom Δ d x) (hC : TShape.CodeCanon Δ T d) (hV : TShape.ValCanon Δ t x)
@@ -474,18 +464,17 @@ theorem Shape.CodeCanon.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     | sort r => exact TyEq.subst hΘ W h
   | succ n ih =>
     intro T s h
-    have hf {A B : Term} {f : ShapeFun n}
-        (hf : ∀ e ∈ f, e.out = .bot ∨ (TyEq Δ e.ty A ∧ Shape.CodeCanon Δ (B.inst e.tm) e.out)) :
+    have hf {B : Term} {f : ShapeFun n}
+        (hf : ∀ e ∈ f, e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out) :
         ∀ e ∈ ShapeFun.subst (Shape.subst · τ) τ f,
-          e.out = .bot ∨ (TyEq Θ e.ty (A.subst τ) ∧
-            Shape.CodeCanon Θ ((B.subst τ.lift).inst e.tm) e.out) := by
+          e.out = .bot ∨ Shape.CodeCanon Θ ((B.subst τ.lift).inst e.tm) e.out := by
       intro e' he'
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
-      rcases hf e he with h0 | ⟨hty, hC⟩
+      rcases hf e he with h0 | hC
       · exact .inl (by simp [h0])
-      · refine .inr ⟨TyEq.subst hΘ W hty, ?_⟩
-        have := ih hC
-        rwa [subst_inst] at this
+      · have := ih hC
+        rw [subst_inst] at this
+        exact .inr this
     cases s with
     | bot | lam | pair | zero | succ | refl => trivial
     | sort r | unit r | nat | id => exact TyEq.subst hΘ W h
@@ -570,7 +559,7 @@ theorem Shape.ValCanon.lift {Δ : List Term} (hΔ : ⊢ Δ) :
     | lam A f =>
       constructor
       · intro H e he
-        have := H ⟨e.ty, e.tm, e.inp.lift m, e.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
+        have := H ⟨e.tm, e.inp.lift m, e.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
         exact ⟨(ih h').1 this.1, (ih h').1 this.2⟩
       · intro H e' he'
         obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'

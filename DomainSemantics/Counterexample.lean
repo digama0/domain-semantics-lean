@@ -35,7 +35,7 @@ abbrev ceSlot : TShape :=
 single entry at the slot's own name. -/
 abbrev ceCode : TShape :=
   Shape.T (n := 2) (ShapeS.sigma .nat .nat (Shape.nat)
-    [⟨.nat, .succ .zero, Shape.zero, Shape.nat⟩])
+    [⟨.succ .zero, Shape.zero, Shape.nat⟩])
 
 /-- The valuation: the misnamed slot, and `⊥` elsewhere. -/
 abbrev ceρ : Valuation := Valuation.nil.push ceSlot
@@ -59,8 +59,8 @@ theorem ce_wfρ : Valuation.WF ceΓ ceρ := by
 /-- The Σ-code is an approximant of the type, at the identity stage. -/
 theorem ce_code_interp :
     Interp ceΓ ceΓ (Term.sigma .nat .nat) Subst.id ceρ ceCode := by
-  have hwg : ShapeFun.WF ceΓ (Shape.WF ceΓ) (n := 1)
-      [⟨.nat, .succ .zero, Shape.zero, Shape.nat⟩] := by
+  have hwg : ShapeFun.WF ceΓ .nat (Shape.WF ceΓ) (n := 1)
+      [⟨.succ .zero, Shape.zero, Shape.nat⟩] := by
     refine ⟨?_, ?_⟩
     · intro e he
       cases he with
@@ -74,15 +74,11 @@ theorem ce_code_interp :
         | tail _ h => nomatch h
         | head => trivial
   have hwSg : Shape.WF (n := 2) ceΓ
-      (ShapeS.sigma .nat .nat Shape.nat [⟨.nat, .succ .zero, Shape.zero, Shape.nat⟩]) :=
+      (ShapeS.sigma .nat .nat Shape.nat [⟨.succ .zero, Shape.zero, Shape.nat⟩]) :=
     ⟨⟨true, .nat⟩, ⟨true, .nat⟩, trivial, hwg⟩
   refine Interp.sigma (d := Shape.nat) (.nat trivial (TShape.LE.refl trivial)) .nat hwSg
-    ?_ ?_ ?_ ?_ (TShape.WF.T.2 hwSg) (TShape.LE.refl (TShape.WF.T.2 hwSg))
+    ?_ ?_ ?_ (TShape.WF.T.2 hwSg) (TShape.LE.refl (TShape.WF.T.2 hwSg))
     ⟨true, .nat⟩ ⟨true, .nat⟩
-  · intro e he
-    cases he with
-    | head => exact ⟨true, .nat⟩
-    | tail _ h => nomatch h
   · intro e he
     cases he with
     | head => exact TShape.Dom.of_not_binder (fun h => h) (.zero)
@@ -97,9 +93,9 @@ theorem ce_code_interp :
     | tail _ h => nomatch h
 
 /-- The graph of the Σ-code, and its well-formedness, reused below. -/
-abbrev ceGraph : ShapeFun 1 := [⟨.nat, .succ .zero, Shape.zero, Shape.nat⟩]
+abbrev ceGraph : ShapeFun 1 := [⟨.succ .zero, Shape.zero, Shape.nat⟩]
 
-theorem ce_wg : ShapeFun.WF ceΓ (Shape.WF ceΓ) ceGraph := by
+theorem ce_wg : ShapeFun.WF ceΓ .nat (Shape.WF ceΓ) ceGraph := by
   refine ⟨?_, ?_⟩
   · intro e he
     cases he with
@@ -119,7 +115,7 @@ theorem ce_wSg : Shape.WF (n := 2) ceΓ
 /-- The lookup that types the second component: at the slot's own name. -/
 theorem ce_lookup : TEvaluates ceΓ ceGraph .nat (.succ .zero)
     (Shape.T (n := 1) Shape.zero) (Shape.T (n := 1) Shape.nat) :=
-  TEvaluates.entry ⟨.nat, .succ .zero, Shape.zero, Shape.nat⟩ List.mem_cons_self
+  TEvaluates.entry ⟨.succ .zero, Shape.zero, Shape.nat⟩ List.mem_cons_self
     ⟨⟨true, .nat⟩, .succDF .zero⟩ (TShape.LE.refl trivial)
 
 /-- The misnamed slot is typed at the Σ-code. -/
