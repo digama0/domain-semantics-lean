@@ -664,7 +664,7 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
     have hev' := TEvaluates.subst hΘ W hev
     rw [subst_subst] at hev'
     exact .app (ihF hΘ W) (iha hΘ W) hev' (hw.subst hΘ W) (h1.subst hΘ W)
-      (hty.subst hΘ W)
+      (hty.subst W)
   | lam _ hd hwf hdom hcan _ hw h1 hAt ihA ihbody =>
     have hwf' := hwf.subst hΘ W; have h1' := h1.subst hΘ W
     rw [Shape.subst, subst_subst] at hwf'
@@ -724,7 +724,7 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
   | snd _ hlab hw h1 hty ihp =>
     have hlab' := IsDefEq.subst hΘ W hlab
     rw [subst_subst] at hlab'
-    exact .snd (ihp hΘ W) hlab' (hw.subst hΘ W) (h1.subst hΘ W) (hty.subst hΘ W)
+    exact .snd (ihp hΘ W) hlab' (hw.subst hΘ W) (h1.subst hΘ W) (hty.subst W)
   | natCase_zero _ hz _ hMt ihM iha =>
     have hz' := hz.subst hΘ W
     rw [subst_subst] at hz'
@@ -1237,7 +1237,7 @@ theorem Interp.unweak {Δ : List Term} (hΔ : ⊢ Δ) :
     | bot => exact .bot
     | tr hw hle hX ha hb hAint hwv hvA hvc hbc hC hcb hm' hcbc hmc hH heq _ _ _ =>
       simp only [subst_lift'] at heq hvc hbc hmc
-      simp only [subst_lift', Subst.lift_l_cons] at hcbc
+      simp only [subst_lift'] at hcbc
       refine .tr hw hle (ihX hΓ hAX WΓ hd hρ hX) (iha hΓ hAa WΓ hd hρ ha)
         (ihb hΓ hAb WΓ hd hρ hb) (ihA hΓ hAA WΓ hd hρ hAint) hwv hvA hvc hbc ?_ hcb hm'
         (by simpa only [Subst.lift_l_cons] using hcbc) hmc
@@ -1757,10 +1757,10 @@ theorem Interp.weak_one {Δ Γ Γ' : List Term} {A : Term} {σ ρ x m} (hΓ : �
 
 /-- Extending an admissible valuation by a typed slot: the old `cons`
 constructor, now a lemma.  It asks for `⊢ Γ`, since the slots below are
-re-read one binder up (`Interp.weak_one`). -/
+re-read one binder up (`Interp.weak_one`).  It does *not* ask that the
+type's approximants be types: `Adm` has no clause that would read it. -/
 theorem Adm.cons {Δ Γ₀ Γ : List Term} {A : Term} {σ ρ x a} (h : Adm Δ Γ₀ Γ σ.tail ρ)
-    (hΓ : ⊢ Γ) (hisType : ∀ b, Interp Δ Γ A σ.tail ρ b → TShape.HasType Δ b TShape.type)
-    (ha : Interp Δ Γ A σ.tail ρ a) (hx : TShape.WF Δ x) (hxa : TShape.Dom Δ a x)
+    (hΓ : ⊢ Γ) (ha : Interp Δ Γ A σ.tail ρ a) (hx : TShape.WF Δ x) (hxa : TShape.Dom Δ a x)
     (hac : TShape.CodeCanon Δ (A.subst σ.tail) a) (hxc : TShape.ValCanon Δ (σ 0) x) :
     Adm Δ Γ₀ (A :: Γ) σ (ρ.push x) := by
   refine ⟨Valuation.WF.push h.wf hx, ?_⟩
@@ -1944,8 +1944,7 @@ theorem Subst.Saturates.lift {Δ Γ₀ Γ Γ' : List Term} {A : Term} {θ σ ρ 
       | zero => rfl
       | succ i => exact lift_subst_cons
     rw [hstage]
-    exact Adm.cons hAdm hΓ
-      (fun _ hb => (hAty hΔ (Ctx.SubstEq.comp hΔ Wσ Wθ) hAdm hb).1) hdI' hwy hyd
+    exact Adm.cons hAdm hΓ hdI' hwy hyd
       (hAty hΔ (Ctx.SubstEq.comp hΔ Wσ Wθ) hAdm hdI').2 hye
 
 /-! ### Weakening the clause conditions
@@ -2076,7 +2075,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
   | bvar i =>
     intro Γ Γ₀ Γ' θ σ ρ m _ _ _ _ _ _ _ _ _ _ H
     refine ⟨fun j => if j = i then m else TShape.bot, .bvar H.wf ?_, fun j => ?_⟩
-    · simp only [if_pos rfl]; exact TShape.LE.refl H.wf
+    · simp only [if_pos]; exact TShape.LE.refl H.wf
     · by_cases hj : j = i
       · subst hj; simpa using H
       · simp only [if_neg hj]; exact .bot
@@ -2187,7 +2186,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         exact hAty hΔ (Ctx.SubstEq.comp hΔ Wσ Wθ) hAdms (Interp.mono_val hΔ hles hb')
       have hisTypeSrc := fun b hb => (hisTypeSrc' b hb).1
       have hAdmE : ∀ e ∈ g, Adm Δ Γ₀ (A.subst θ :: Γ') (σ.cons e.tm) (ρ.push e.inp.T) :=
-        fun e he => Adm.cons hAdm hΓ' hisTypeSrc hAint
+        fun e he => Adm.cons hAdm hΓ' hAint
           (TShape.WF.T.2 (hwf.2.2.1.1 e he).2.2.1) (hdom e he)
           (hisTypeSrc' _ hAint).2 (hcan e he)
       have hSatE : ∀ e ∈ g, Subst.Saturates Δ Γ₀ (A :: Γ) (A.subst θ :: Γ')
@@ -2245,7 +2244,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         exact hAty hΔ (Ctx.SubstEq.comp hΔ Wσ Wθ) hAdms (Interp.mono_val hΔ hles hb')
       have hisTypeSrc := fun b hb => (hisTypeSrc' b hb).1
       have hAdmE : ∀ e ∈ g, Adm Δ Γ₀ (A.subst θ :: Γ') (σ.cons e.tm) (ρ.push e.inp.T) :=
-        fun e he => Adm.cons hAdm hΓ' hisTypeSrc hAint
+        fun e he => Adm.cons hAdm hΓ' hAint
           (TShape.WF.T.2 (hwf.2.2.2.1 e he).2.2.1) (hdom e he)
           (hisTypeSrc' _ hAint).2 (hcan e he)
       have hSatE : ∀ e ∈ g, Subst.Saturates Δ Γ₀ (A :: Γ) (A.subst θ :: Γ')
@@ -2303,7 +2302,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         exact hAty hΔ (Ctx.SubstEq.comp hΔ Wσ Wθ) hAdms (Interp.mono_val hΔ hles hb')
       have hisTypeSrc := fun b hb => (hisTypeSrc' b hb).1
       have hAdmE : ∀ e ∈ g, Adm Δ Γ₀ (A.subst θ :: Γ') (σ.cons e.tm) (ρ.push e.inp.T) :=
-        fun e he => Adm.cons hAdm hΓ' hisTypeSrc hAint
+        fun e he => Adm.cons hAdm hΓ' hAint
           (TShape.WF.T.2 (hwf.2.2.2.1 e he).2.2.1) (hdom e he)
           (hisTypeSrc' _ hAint).2 (hcan e he)
       have hSatE : ∀ e ∈ g, Subst.Saturates Δ Γ₀ (A :: Γ) (A.subst θ :: Γ')
@@ -2346,7 +2345,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
     | @pair _ _ _ _ n x y d c _ _ _ _ hainp hbout hAint hdty hdx hdc hxc hwf hcode hcty
         hw hle _ _ =>
-      simp only [subst_subst, ← Subst.comp_lift] at hwf hle
+      simp only [subst_subst] at hwf hle
       have htm : Δ ⊢ (a.subst θ).subst σ ≡ (a.subst θ).subst σ : (A.subst θ).subst σ := by
         rw [subst_subst, subst_subst]
         exact IsDefEq.subst hΔ (Ctx.SubstEq.comp hΔ Wσ Wθ) hat
@@ -2361,7 +2360,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         exact hAty hΔ (Ctx.SubstEq.comp hΔ Wσ Wθ) hAdms (Interp.mono_val hΔ hles hb')
       have hisTypeSrc := fun b hb => (hisTypeSrc' b hb).1
       have hAdmE : Adm Δ Γ₀ (A.subst θ :: Γ') (σ.cons ((a.subst θ).subst σ)) (ρ.push x.T) :=
-        Adm.cons hAdm hΓ' hisTypeSrc hAint (TShape.WF.T.2 hwf.2.2.2.1) hdx hdc hxc
+        Adm.cons hAdm hΓ' hAint (TShape.WF.T.2 hwf.2.2.2.1) hdx hdc hxc
       have hSatE :
           Subst.Saturates Δ Γ₀ (A :: Γ) (A.subst θ :: Γ') θ.lift
             (σ.cons ((a.subst θ).subst σ)) (ρ.push x.T) := by
@@ -2432,7 +2431,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
       have hvcan : TShape.ValCanon Δ t v.T := Shape.ValCanon.of_numeral
         (TShape.HasType.isNumeral hΔ (TShape.LE.refl (a := TShape.nat) trivial) hvnat)
       have hAdmE : Adm Δ Γ₀ (Term.nat :: Γ') (σ.cons t) (ρ.push v.T) :=
-        Adm.cons hAdm hΓ' hisTypeNat Interp.nat' (TShape.WF.T.2 hwv)
+        Adm.cons hAdm hΓ' Interp.nat' (TShape.WF.T.2 hwv)
           (TShape.Dom.of_not_binder (fun h => h) hvnat) (TyEq.refl .nat) hvcan
       have hSatE : Subst.Saturates Δ Γ₀ (Term.nat :: Γ) (Term.nat :: Γ')
           θ.lift (σ.cons t) (ρ.push v.T) := by
@@ -2499,7 +2498,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         have hisTypeSrc := fun c hc => (hisTypeSrc' c hc).1
         have hAdmE : Adm Δ Γ₀ (A.subst θ :: Γ₂)
             (σ₂.cons (((Term.Y A b).subst θ).subst σ₂)) (ρ₂.push x) :=
-          Adm.cons hAdm₂ hΓ₂ hisTypeSrc hAd hwx hDom hdc hxc
+          Adm.cons hAdm₂ hΓ₂ hAd hwx hDom hdc hxc
         have hSatE : Subst.Saturates Δ Γ₀ (A :: Γ) (A.subst θ :: Γ₂) θ.lift
             (σ₂.cons (((Term.Y A b).subst θ).subst σ₂)) (ρ₂.push x) :=
           Subst.Saturates.lift hΔ hΓ hΓ₂ hgood₂ Wθ₂ Wσ₂ hθ₂ hcons hwx hxc hAty
@@ -2561,7 +2560,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         exact hAty hΔ (Ctx.SubstEq.comp hΔ Wσ Wθ) hAdmt (Interp.mono_val hΔ hlet hc')
       have hisTypeSrc := fun c hc => (hisTypeSrc' c hc).1
       have hAdmE : Adm Δ Γ₀ (A.subst θ :: Γ') (σ.cons ((b.subst θ).subst σ)) (ρ.push v) :=
-        Adm.cons hAdm hΓ' hisTypeSrc hAint hwv hvA hvc hbc
+        Adm.cons hAdm hΓ' hAint hwv hvA hvc hbc
       have hSatE : Subst.Saturates Δ Γ₀ (A :: Γ) (A.subst θ :: Γ') θ.lift
           (σ.cons ((b.subst θ).subst σ)) (ρ.push v) :=
         Subst.Saturates.lift hΔ hΓ hΓ' hgood Wθ Wσ hθ hcons hwv hbc hAty

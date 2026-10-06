@@ -161,7 +161,7 @@ theorem retype (hTy : TyEq Δ A A') (H : Stable Δ Γ σ a A) : Stable Δ Γ σ 
 
 /-- Along a substitution of the ambient context — immediate, since that is
 what the definition quantifies over. -/
-theorem subst (hΘ : ⊢ Θ) (V : Ctx.SubstEq Θ τ₀ τ₀ Δ) (H : Stable Δ Γ σ a A) :
+theorem subst (V : Ctx.SubstEq Θ τ₀ τ₀ Δ) (H : Stable Δ Γ σ a A) :
     Stable Θ Γ (σ.comp τ₀) a (A.subst τ₀) := by
   intro Ξ τ σ₂ hΞ V' W
   rw [Subst.comp_assoc] at W

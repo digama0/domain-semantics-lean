@@ -386,7 +386,7 @@ theorem TEvaluates.trans {Δ : List Term} (hΔ : ⊢ Δ) {n n'} {f : ShapeFun n}
 label, an input equivalent to the old one and an output equivalent to the
 old one, so `mono_inp` and `lower` carry it across. -/
 theorem TEvaluates.lift_graph {Δ : List Term} (hΔ : ⊢ Δ) {n m} (hm : n ≤ m)
-    {f : ShapeFun n} (hw : ShapeFun.WFE Δ (Shape.WF Δ) f) {A a : Term} {x : TShape} :
+    {f : ShapeFun n} (hw : ShapeFun.WFE (Shape.WF Δ) f) {A a : Term} {x : TShape} :
     ∀ {c : TShape}, TEvaluates Δ f A a x c →
       TEvaluates Δ (ShapeFun.lift (Shape.lift m) f) A a x c := by
   intro c h
@@ -653,7 +653,7 @@ inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
     (∀ e ∈ f, HasType Δ e.out.T .type) →
     Shape.WF (n := n+1) Δ (.lam A₀ g) →
     Shape.WF (n := n'+1) Δ (.forallE A B d f) →
-    ShapeFun.WFE Δ (Shape.WF Δ) (g₀.map (·.1)) →
+    ShapeFun.WFE (Shape.WF Δ) (g₀.map (·.1)) →
     (∀ e ∈ g, TEvaluates Δ (g₀.map (·.1)) A₀ e.tm e.inp.T e.out.T) →
     (∀ e ∈ g₀, TEvaluates Δ f A e.1.tm e.1.inp.T e.2) →
     (∀ e ∈ g₀, HasType Δ e.1.out.T e.2) →
@@ -1456,14 +1456,14 @@ theorem TShape.liftGen_map {n m : Nat} {g₀ : List (Entry (Shape n) × TShape)}
 
 theorem join_gen_wf {Δ : List Term} {n₀ n₀'}
     {g₀ : List (Entry (Shape n₀) × TShape)} {g₀' : List (Entry (Shape n₀') × TShape)}
-    (hw : ShapeFun.WFE Δ (Shape.WF Δ) (g₀.map (·.1)))
-    (hw' : ShapeFun.WFE Δ (Shape.WF Δ) (g₀'.map (·.1))) :
-    ShapeFun.WFE Δ (Shape.WF Δ)
+    (hw : ShapeFun.WFE (Shape.WF Δ) (g₀.map (·.1)))
+    (hw' : ShapeFun.WFE (Shape.WF Δ) (g₀'.map (·.1))) :
+    ShapeFun.WFE (Shape.WF Δ)
       ((TShape.liftGen (max n₀ n₀') g₀ ++ TShape.liftGen (max n₀ n₀') g₀').map (·.1)) := by
   intro e he
   rw [List.map_append] at he
   have lifted {k} (hk : k ≤ max n₀ n₀') {h : List (Entry (Shape k) × TShape)}
-      (hh : ShapeFun.WFE Δ (Shape.WF Δ) (h.map (·.1)))
+      (hh : ShapeFun.WFE (Shape.WF Δ) (h.map (·.1)))
       (he : e ∈ (TShape.liftGen (max n₀ n₀') h).map (·.1)) :
       Shape.WF Δ e.inp ∧ Shape.WF Δ e.out := by
     obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
@@ -1477,8 +1477,8 @@ theorem join_gen_wf {Δ : List Term} {n₀ n₀'}
 theorem join_gen_cover {Δ : List Term} (hΔ : ⊢ Δ) {n n₀ n₀'}
     {g g' : ShapeFun n} {g₀ : List (Entry (Shape n₀) × TShape)}
     {g₀' : List (Entry (Shape n₀') × TShape)}
-    (hw : ShapeFun.WFE Δ (Shape.WF Δ) (g₀.map (·.1)))
-    (hw' : ShapeFun.WFE Δ (Shape.WF Δ) (g₀'.map (·.1)))
+    (hw : ShapeFun.WFE (Shape.WF Δ) (g₀.map (·.1)))
+    (hw' : ShapeFun.WFE (Shape.WF Δ) (g₀'.map (·.1)))
     (hg : ∀ e ∈ g, TEvaluates Δ (g₀.map (·.1)) Ty e.tm e.inp.T e.out.T)
     (hg' : ∀ e ∈ g', TEvaluates Δ (g₀'.map (·.1)) Ty e.tm e.inp.T e.out.T) :
     ∀ e ∈ g ++ g', TEvaluates Δ
@@ -1498,15 +1498,15 @@ theorem join_gen_cover {Δ : List Term} (hΔ : ⊢ Δ) {n n₀ n₀'}
 
 theorem join_gen_code {Δ : List Term} (hΔ : ⊢ Δ) {n' n₀ n₀'} {f : ShapeFun n'}
     {g₀ : List (Entry (Shape n₀) × TShape)} {g₀' : List (Entry (Shape n₀') × TShape)}
-    (hw : ShapeFun.WFE Δ (Shape.WF Δ) (g₀.map (·.1)))
-    (hw' : ShapeFun.WFE Δ (Shape.WF Δ) (g₀'.map (·.1)))
+    (hw : ShapeFun.WFE (Shape.WF Δ) (g₀.map (·.1)))
+    (hw' : ShapeFun.WFE (Shape.WF Δ) (g₀'.map (·.1)))
     (hev : ∀ e ∈ g₀, TEvaluates Δ f Ty e.1.tm e.1.inp.T e.2)
     (hev' : ∀ e ∈ g₀', TEvaluates Δ f Ty e.1.tm e.1.inp.T e.2) :
     ∀ e ∈ TShape.liftGen (max n₀ n₀') g₀ ++ TShape.liftGen (max n₀ n₀') g₀',
       TEvaluates Δ f Ty e.1.tm e.1.inp.T e.2 := by
   intro e he
   have lifted {k} (hk : k ≤ max n₀ n₀') {h : List (Entry (Shape k) × TShape)}
-      (hh : ShapeFun.WFE Δ (Shape.WF Δ) (h.map (·.1)))
+      (hh : ShapeFun.WFE (Shape.WF Δ) (h.map (·.1)))
       (hhev : ∀ e ∈ h, TEvaluates Δ f Ty e.1.tm e.1.inp.T e.2)
       (he : e ∈ TShape.liftGen (max n₀ n₀') h) :
       TEvaluates Δ f Ty e.1.tm e.1.inp.T e.2 := by
@@ -1759,7 +1759,7 @@ theorem TShape.Dom.bot_subject {Δ : List Term} {d x : TShape} (hx : x.2 = Shape
   cases n with
   | zero => cases s with
     | bot => exact TShape.Dom.bot h
-    | sort r => exact absurd hx (by simp [Shape.bot, Shape.sort])
+    | sort r => exact absurd hx (by simp [Shape.bot])
   | succ n =>
     cases s <;> first
       | exact TShape.Dom.bot (n := n+1) h
@@ -1923,7 +1923,7 @@ theorem TShape.Dom.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {d x : TShape}
 /-- A code below a binder code is a binder code, or `⊥`: the order pins
 the head.  This is what lets `Dom`'s `base` clause stay disjoint from the
 other two under `mono_r`. -/
-theorem TShape.IsBinder.of_le {Δ : List Term} (hΔ : ⊢ Δ) {d d' : TShape}
+theorem TShape.IsBinder.of_le {Δ : List Term} {d d' : TShape}
     (hle : TShape.LE Δ d d') (hb : d'.IsBinder) (hnb : d.2 ≠ Shape.bot) : d.IsBinder := by
   obtain ⟨n, s⟩ := d
   obtain ⟨k, s'⟩ := d'
@@ -1970,7 +1970,7 @@ theorem TShape.Dom.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {d x : TShape}
     by_cases hb : d.2 = Shape.bot
     · exact TShape.Dom.bot_subject (TShape.HasType.bot_r hΔ hb hty0)
         (TShape.HasType.mono_r hΔ hty0 _ hle hty)
-    · exact .base (fun hbind => hnb (TShape.IsBinder.of_le hΔ hle hbind hb))
+    · exact .base (fun hbind => hnb (TShape.IsBinder.of_le hle hbind hb))
         (TShape.HasType.mono_r hΔ hty0 _ hle hty)
   | @pi n A B d f x cs hty0 hent hin hev hout ihin ihout =>
     intro d' hle hty

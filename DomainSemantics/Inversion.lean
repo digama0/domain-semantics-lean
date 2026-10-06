@@ -59,7 +59,6 @@ regularity lemma first, to build the label-only atom; that is only used
 where neither side is one of the three. -/
 
 private theorem not_le_of_head {Δ : List Term} {a b : TShape}
-    (hb : ¬ a.2 = Shape.bot)
     (hne : ∀ k, ¬ Shape.LE Δ (a.2.lift k) (b.2.lift k)) :
     ¬ TShape.LE Δ a b := fun h =>
   hne _ ((TShape.LE.def_mp (Nat.le_max_left ..) (Nat.le_max_right ..)) h)
@@ -71,7 +70,7 @@ theorem sort_forallE_inv {Γ : List Term} {u s : Bool} {A₁ B₁ : Term}
   rcases Interp.le_forallE h with hb | ⟨n, d, g, hle⟩
   · exact Shape0.noConfusion hb
   · exact absurd ((TShape.LE.def_mp (Nat.zero_le _) (Nat.le_refl _)) hle)
-      (by simp only [Shape.lift_sort]; exact id)
+      id
 
 theorem sort_sigma_inv {Γ : List Term} {u s : Bool} {A₁ B₁ : Term}
     (hΓ : ⊢ Γ) : ¬Γ ⊢ Term.sort u ≡ Term.sigma A₁ B₁ : .sort s := by
@@ -80,28 +79,28 @@ theorem sort_sigma_inv {Γ : List Term} {u s : Bool} {A₁ B₁ : Term}
   rcases Interp.le_sigma h with hb | ⟨n, d, g, hle⟩
   · exact Shape0.noConfusion hb
   · exact absurd ((TShape.LE.def_mp (Nat.zero_le _) (Nat.le_refl _)) hle)
-      (by simp only [Shape.lift_sort]; exact id)
+      id
 
 theorem sort_nat_inv {Γ : List Term} {u s : Bool} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ Term.sort u ≡ Term.nat : .sort s := by
   intro H
   have h := ((IsDefEq.sound hΓ H).eq hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 Interp.sort'
   exact absurd ((TShape.LE.def_mp (Nat.zero_le 1) (Nat.le_refl 1)) (Interp.le_nat h))
-    (by simp only [Shape.lift_sort]; exact id)
+    id
 
 theorem sort_unit_inv {Γ : List Term} {u s r : Bool} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ Term.sort u ≡ Term.unit r : .sort s := by
   intro H
   have h := ((IsDefEq.sound hΓ H).eq hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 Interp.sort'
   exact absurd ((TShape.LE.def_mp (Nat.zero_le 1) (Nat.le_refl 1)) (Interp.le_unit h))
-    (by simp only [Shape.lift_sort]; exact id)
+    id
 
 theorem sort_id_inv {Γ : List Term} {u s r : Bool} {A a b : Term} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ Term.sort u ≡ Term.id r A a b : .sort s := by
   intro H
   have h := ((IsDefEq.sound hΓ H).eq hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 Interp.sort'
   exact absurd ((TShape.LE.def_mp (Nat.zero_le 1) (Nat.le_refl 1)) (Interp.le_id h))
-    (by simp only [Shape.lift_sort]; exact id)
+    id
 
 theorem forallE_nat_inv {Γ : List Term} {s : Bool} {A₀ B₀ : Term} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ Term.forallE A₀ B₀ ≡ Term.nat : .sort s := by
@@ -186,7 +185,7 @@ theorem forallE_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term}
     Interp.piAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀) hA₀ hB₀
   have h := ((IsDefEq.sound hΓ H).eq hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 hprobe
   exact absurd ((TShape.LE.def_mp (Nat.le_refl 1) (Nat.le_refl 1)) (Interp.le_id h))
-    (by simp only [Shape.lift_piAtom, Shape.lift_self]; exact id)
+    (by simp only [Shape.lift_self]; exact id)
 
 theorem sigma_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term}
     (hΓ : ⊢ Γ) : ¬Γ ⊢ Term.sigma A₀ B₀ ≡ Term.id r A a b : .sort s := by
@@ -198,7 +197,7 @@ theorem sigma_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term}
     Interp.sigmaAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀) hA₀ hB₀
   have h := ((IsDefEq.sound hΓ H).eq hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1 hprobe
   exact absurd ((TShape.LE.def_mp (Nat.le_refl 1) (Nat.le_refl 1)) (Interp.le_id h))
-    (by simp only [Shape.lift_sigmaAtom, Shape.lift_self]; exact id)
+    (by simp only [Shape.lift_self]; exact id)
 
 /-! ### The remaining label inversions -/
 

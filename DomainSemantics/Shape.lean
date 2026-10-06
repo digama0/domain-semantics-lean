@@ -225,7 +225,7 @@ def Shape.subst : ∀ {n}, Shape n → Subst → Shape n
   | _+1, .nat, _ => .nat
   | _+1, .zero, _ => .zero
   | _+1, .succ v, σ => .succ (subst v σ)
-  | _+1, .refl, σ => .refl
+  | _+1, .refl, _ => .refl
   | _+1, .id r A a b, σ => .id r (A.subst σ) (a.subst σ) (b.subst σ)
   | _+1, .forallE A B d f, σ =>
       .forallE (A.subst σ) (B.subst σ.lift) (subst d σ) (ShapeFun.subst (subst · σ) σ f)
@@ -302,7 +302,7 @@ coherence.  A *generator* (`HasType.lam`, `HasType.pair`) satisfies this
 but not `ShapeFun.WF`: two generators certifying compatible λ-values need
 not be compatible with each other, since a generator entry no graph entry
 uses is unconstrained. -/
-def ShapeFun.WFE (Γ : List Term) (W : Shape n → Prop) (f : ShapeFun n) : Prop :=
+def ShapeFun.WFE (W : Shape n → Prop) (f : ShapeFun n) : Prop :=
   ∀ e ∈ f, W e.inp ∧ W e.out
 
 /-- Every label occurring in the shape is well-typed in `Γ`. -/
@@ -873,13 +873,13 @@ theorem Shape.subst_subst {σ τ : Subst} {n} {x : Shape n} :
     | refl => rfl
     | pair A a x y =>
       show ShapeS.pair _ _ _ _ = ShapeS.pair _ _ _ _
-      simp [DomainSemantics.subst_subst, ih, ← Subst.comp_lift]
+      simp [DomainSemantics.subst_subst, ih]
     | id r A a b =>
       show ShapeS.id _ _ _ _ = ShapeS.id _ _ _ _
       simp [DomainSemantics.subst_subst]
     | lam Af f =>
       show ShapeS.lam _ _ = ShapeS.lam _ _
-      simp [ShapeFun.subst, DomainSemantics.subst_subst, ih, ← Subst.comp_lift]
+      simp [ShapeFun.subst, DomainSemantics.subst_subst, ih]
     | forallE A B d f =>
       show ShapeS.forallE _ _ _ _ = ShapeS.forallE _ _ _ _
       simp [ShapeFun.subst, DomainSemantics.subst_subst, Subst.comp_lift, ih]
@@ -1144,8 +1144,8 @@ theorem ShapeFun.WF.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f : ShapeFun 
 
 theorem ShapeFun.WFE.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f : ShapeFun n}
     (ih : ∀ {a : Shape n}, Shape.WF Δ a → Shape.WF Θ (a.subst τ))
-    (hf : ShapeFun.WFE Δ (Shape.WF Δ) f) :
-    ShapeFun.WFE Θ (Shape.WF Θ) (ShapeFun.subst (Shape.subst · τ) τ f) := by
+    (hf : ShapeFun.WFE (Shape.WF Δ) f) :
+    ShapeFun.WFE (Shape.WF Θ) (ShapeFun.subst (Shape.subst · τ) τ f) := by
   intro d hd
   obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
   exact ⟨ih (hf e he).1, ih (hf e he).2⟩
