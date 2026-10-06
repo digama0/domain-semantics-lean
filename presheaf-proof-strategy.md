@@ -3018,6 +3018,24 @@ Side effect: `Interp.unweak` is now `Classical.choice`-free, since the
 `TShape.LE.refl_decomp`, and one, `Interp.lam_entry_ty`, whose statement
 no longer has a subject.  Deleted.
 
+Investigated and **kept**: thirteen premises of `Interp` are syntactic
+typings of the clause's own labels at the *source* context
+(`(∃ u, Γ ⊢ A : sort u)` on `lam`/`forallE`/`sigma`/`Y`/`id`/`tr`, and
+the term typings on `id`/`tr`/`Y`).  Nothing downstream of `Interp` reads
+them, and at first sight they are self-sustaining: their only consumers
+are `Interp.ctx`, `Interp.weak'` and `Interp.of_substTerm`, each of which
+destructures a premise and rebuilds it in the new context.  Removing them
+does not work.  The rebuild is not the whole use: those three lemmas also
+need `⊢ (A' :: Γ')` to apply the body's induction hypothesis, and this is
+where it comes from.  `Shape.WF` carries the same typings at the *stage*
+`Δ`, which is the wrong context, and the three lemmas deliberately take
+no `Term.Annot` hypothesis (that is what makes them usable where no
+annotation is in hand).  So the premises are the price of the context
+lemmas being annotation-free.  The two analogous premises that *are* read
+downstream, `pair`'s pair (by `dir_pair`) and `natCase`'s `Γ ⊢ M : nat`
+(by `Interp.inst`), show the pattern was generalised one step past where
+it was needed, but not more than that.
+
 What is *not* removable, and why: the Π/Σ labels `(A, B)` and the `id`
 label `(A, a, b)` are what the inversion theorems project out; the pair's
 domain label types its name, which is what Σ's η reads; `unit`'s
