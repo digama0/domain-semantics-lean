@@ -47,9 +47,9 @@ def Shape.CodeCanon (Δ : List Term) : ∀ {n}, Term → Shape n → Prop
 /-- A value names its own projections. -/
 def Shape.ValCanon (Δ : List Term) : ∀ {n}, Term → Shape n → Prop
   | 0, t, s => CodeCanon Δ t s
-  | _+1, t, .pair A₀ _ a x y =>
+  | _+1, t, .pair A₀ a x y =>
       (Δ ⊢ a ≡ Term.fst t : A₀) ∧ ValCanon Δ (.fst t) x ∧ ValCanon Δ (.snd t) y
-  | _+1, t, .lam _ _ g =>
+  | _+1, t, .lam _ g =>
       ∀ e ∈ g, ValCanon Δ e.tm e.inp ∧ ValCanon Δ (.app t e.tm) e.out
   | _+1, _, .zero => True
   | _+1, _, .succ _ => True
@@ -406,9 +406,9 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
     | id r A a b => cases hD.hasType with | id => exact hcode rfl hV
     | forallE A B d f => cases hD.hasType with | forallE => exact hcode rfl hV
     | sigma A B d f => cases hD.hasType with | sigma => exact hcode rfl hV
-    | pair A₀ B₀ a x y =>
+    | pair A₀ a x y =>
       cases hD.hasType with
-      | @pair _ _ _ _ _ _ _ f A B d _ _ _ _ _ hws _ _ _ _ hA₀A
+      | @pair _ _ _ _ _ _ f A B d _ _ _ _ _ hws _ _ _ _ hA₀A
       obtain ⟨c, hx₁, hev, hy₁⟩ := TShape.Dom.sg_inv hD
       obtain ⟨hT, hCd, hCf⟩ := hC
       obtain ⟨hname, hVx, hVy⟩ := hV
@@ -421,9 +421,9 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       refine ⟨hname.trans (hA₀A.choose_spec.symm.defeqDF hfst), ih hx₁ hCd hVx hfst, ?_⟩
       refine ih hy₁ (TShape.CodeCanon.lookup hΔ hws.2.2.2 hCf hA hB hev) hVy ?_
       exact (TyEq.inst hΔ hA hB hname'.symm).choose_spec.defeqDF hsnd
-    | lam A₀ B₀ g =>
+    | lam A₀ g =>
       cases hD.hasType with
-      | @lam _ _ _ _ _ _ f A B d _ _ _ hwl hwf _ _ _ _ hA₀A
+      | @lam _ _ _ _ _ f A B d _ _ _ hwl hwf _ _ _ _ hA₀A
       cases hD with
       | base hnb _ => exact absurd trivial hnb
       | @pi _ _ _ _ _ _ cs _ hent _ hev hout
@@ -503,10 +503,10 @@ theorem Shape.ValCanon.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     cases s with
     | bot | zero | succ | refl => trivial
     | sort | unit | nat | id | sigma | forallE => exact Shape.CodeCanon.subst hΘ W h
-    | pair A₀ B₀ a x y =>
+    | pair A₀ a x y =>
       obtain ⟨hname, hx, hy⟩ := h
       exact ⟨IsDefEq.subst hΘ W hname, ih hx, ih hy⟩
-    | lam A₀ B₀ g =>
+    | lam A₀ g =>
       intro e' he'
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
       obtain ⟨hin, hout⟩ := h e he
@@ -566,8 +566,8 @@ theorem Shape.ValCanon.lift {Δ : List Term} (hΔ : ⊢ Δ) :
       exact (Shape.CodeCanon.lift hΔ h (T := t) (s := (ShapeS.sigma A B d f : Shape (n+1))) :)
     | forallE A B d f =>
       exact (Shape.CodeCanon.lift hΔ h (T := t) (s := (ShapeS.forallE A B d f : Shape (n+1))) :)
-    | pair A B a x y => exact and_congr Iff.rfl (and_congr (ih h') (ih h'))
-    | lam A B f =>
+    | pair A a x y => exact and_congr Iff.rfl (and_congr (ih h') (ih h'))
+    | lam A f =>
       constructor
       · intro H e he
         have := H ⟨e.ty, e.tm, e.inp.lift m, e.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
@@ -592,17 +592,17 @@ theorem Shape.ValCanon.join {Δ : List Term} (hΔ : ⊢ Δ) :
     intro t y z hwy hwz hc hy hz
     cases y with
     | bot => simpa using hz
-    | pair A B a x₁ y₁ =>
+    | pair A a x₁ y₁ =>
       cases z with
       | bot => simpa using hy
-      | pair A' B' a' x₂ y₂ =>
+      | pair A' a' x₂ y₂ =>
         exact ⟨hy.1, ih hwy.2.2.2.1 hwz.2.2.2.1 hc.2.2.1 hy.2.1 hz.2.1,
           ih hwy.2.2.2.2 hwz.2.2.2.2 hc.2.2.2 hy.2.2 hz.2.2⟩
       | _ => exact absurd hc id
-    | lam A B f =>
+    | lam A f =>
       cases z with
       | bot => simpa using hy
-      | lam A' B' f' =>
+      | lam A' f' =>
         intro e he
         rcases List.mem_append.1 he with he | he
         · exact hy e he

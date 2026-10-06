@@ -29,7 +29,7 @@ abbrev ceΓ : List Term := [Term.sigma .nat .nat]
 /-- The misnamed slot: components `zero` and `zero`, but named
 `succ zero` rather than `fst #0`. -/
 abbrev ceSlot : TShape :=
-  Shape.T (n := 2) (ShapeS.pair .nat .nat (.succ .zero) (Shape.zero) (Shape.zero))
+  Shape.T (n := 2) (ShapeS.pair .nat (.succ .zero) (Shape.zero) (Shape.zero))
 
 /-- The Σ-code it is typed at: domain `nat`, and a codomain graph with a
 single entry at the slot's own name. -/
