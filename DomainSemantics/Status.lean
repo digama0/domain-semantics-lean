@@ -52,6 +52,9 @@ the labelled model's soundness. -/
 #guard_msgs in #print axioms TShape.HasType.join
 
 -- **Join-closure of a type's extension** (`SoundJoin`), once and for all.
+-- Nothing applies it: the proof reaches `TShape.HasType.join` directly at
+-- every point where the plan expected to need join-closure, so this is the
+-- §5.1 milestone standing on its own, not a load-bearing lemma.
 /-- info: 'DomainSemantics.sound_join' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms sound_join
 

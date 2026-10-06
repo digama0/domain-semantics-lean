@@ -3415,7 +3415,9 @@ theorem dir_refl {Γ : List Term} {a : Term} {r : Bool} : SoundDir Γ (.refl r a
         hle₁.trans hΔ (TShape.LE.refl_of hΔ), hle₂.trans hΔ (TShape.LE.refl_of hΔ)⟩
 
 /-- **Directedness for `.tr`** — the case the plan called open, and the
-one consumer of `SoundJoin`.
+case `SoundJoin` was meant for.  In the event it goes through
+`TShape.HasType.join` directly, which is `SoundJoin`'s own ingredient, so
+join-closure of a type's *extension* is never needed.
 
 Everything in the `tr` clause is joined slotwise: the witness shape `v`
 (which interprets both endpoints, so it is the *join*, not an upper
@@ -4775,9 +4777,10 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
     exact ⟨dir_id hAA'.hasType.1 haa'.hasType.1 hbb'.hasType.1,
       dir_id hAA'.hasType.2 (hAA'.defeqDF haa'.hasType.2) (hAA'.defeqDF hbb'.hasType.2)⟩
   | reflDF => exact ⟨dir_refl, dir_refl⟩
-  -- the case `SoundJoin` was for: two transports are typed at two
+  -- the case `SoundJoin` was meant for: two transports are typed at two
   -- approximants of the motive, and the witness above both has to be
-  -- typed at the motive above both.  Every other case is an upper bound
+  -- typed at the motive above both (`dir_tr` does this with the subject
+  -- join alone).  Every other case is an upper bound
   -- with no typing to preserve, which is why they run under
   -- `Valuation.WF` with no admissibility in sight
   | trDF hAA' haa' hbb' hC hC' hxx' hhh' _ _ ihA iha ihb ihC ihC' ihx ihh =>
