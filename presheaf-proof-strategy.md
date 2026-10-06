@@ -3018,6 +3018,21 @@ Side effect: `Interp.unweak` is now `Classical.choice`-free, since the
 `TShape.LE.refl_decomp`, and one, `Interp.lam_entry_ty`, whose statement
 no longer has a subject.  Deleted.
 
+*Hypotheses.* 68 of them were declared and never used, and `lake build`
+is now warning-free.  One was load-bearing in appearance only and paid
+for the rest: `Adm.cons` asked that the type's approximants be types,
+which admissibility has no clause to read, so it was a definitional
+condition in lemma clothing supplied at 33 call sites.  Removing it
+cascaded through four further waves, because most of those sites built
+it out of a `SoundTy` that nothing else wanted.  The residue is one
+pattern: a `sound_*` lemma taking a subterm's typing beside its
+saturation and reading only the saturation, because the single uniform
+call site in `IsDefEq.sound` has both to hand.  Singular cases worth
+naming: `sound_refl` took an equation for the argument and proves its
+conclusion without it, `dir_tr` took directedness of the transported
+proof, Σ-η's forward direction took four, and `ShapeFun.WFE` took a
+context its body never mentions.
+
 Investigated and **kept**: thirteen premises of `Interp` are syntactic
 typings of the clause's own labels at the *source* context
 (`(∃ u, Γ ⊢ A : sort u)` on `lam`/`forallE`/`sigma`/`Y`/`id`/`tr`, and
