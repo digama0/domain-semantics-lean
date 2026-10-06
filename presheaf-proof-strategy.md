@@ -2067,6 +2067,55 @@ clauses are rewired; `PiLabelEq.sigmaEq`/`forallEEq` and `IsDefEq.ctx_id`
 /`Ctx.SubstEq.defeqHead` have local copies there to be deduplicated
 (`Canon` sits between `HasType` and `Interp`).
 
+#### 4.7j Done: the propagation, and the two things it found
+
+The plan of §4.7i is carried out, and **`IsDefEq.sound` has no `sorry`**
+(axioms `propext`, `Classical.choice`, `Quot.sound`), Σ's η included.
+
+* `Adm` asks, per slot, `CodeCanon (A[σ]) a ∧ ValCanon (σ i) (ρ i)`;
+  `IsTypeAt` asks for code canonicity too, and `Saturates.lift` takes the
+  pushed slot's name.
+* The clauses carry the names of the slots they push: λ/Π/Σ entries'
+  inputs, the pair's first component and its domain code, `Y`'s tower and
+  its code, `tr`'s witness and its code.
+* `SoundDom` concludes, besides the dominator and its `Dom` code, that
+  the code names the type and the dominator names the term.  Most cases
+  were pass-through; the ones with content are `app` (each firing
+  entry's output is moved from `app f e.tm` to `app f a` by
+  `ValCanon.defeq` through the entry's own code), `lam` (β per entry),
+  `natCase` and `Y` (ι and unfolding, at the stage), `snd`/`fst` (read off
+  the saturated pair), and **`pair`**, whose dominator has to be rebuilt:
+  the second component is an arbitrary approximant of `b`, so `b`'s
+  saturation enlarges it, `Interp.inst` reads its code as `B` at a slot
+  for `a`, and that slot is joined with the given first component and
+  saturated.
+* `PairCanon` is then a lemma (`PairCanon.of_dom`): a pair-approximant
+  sits below the saturated one, which names `fst p`.
+
+Two things the propagation turned up, both fixed in the model:
+
+1. **The `tr` clause at `r = true` was wrong for names.**  It accepted a
+   `refl`-shaped approximant of the proof, so a stuck `tr A a a C X h`
+   (with `h` a variable holding a `refl` slot; there is no UIP) received
+   `X`'s values, whose pairs are named `fst X`, not `fst (tr … X h)`.
+   The clause now asks for `H[σ] ≡ refl a[σ]` at the stage, as
+   `natCase` asks for `M[σ] ≡ succ t`; then `tr … ≡ X` there by
+   `tr_refl` (`IsDefEq.tr_stage`), and at `r = false` the equation is
+   proof irrelevance.  For the same reason the clause carries that its
+   transported value names `X[σ]` and its code names `C[σ, b[σ]]`;
+   re-saturating `X` cannot supply this, because the code it gives is
+   read at a slot for `a`, and the clause's slot must approximate `a`
+   and `b` at once.
+2. Moving those names along a stage needs `X`'s and `C`'s typings, so
+   `tr`'s annotation records them, as a typing *up to equality*
+   (`x : C₀[a₀]`, `a₀ ≡ a`, `C₀ ≡ C`), which `trDF` supplies without
+   instantiating (`IsDefEq.annot` has no `⊢ Γ`).
+
+`Counterexample.lean` now shows the old witness is excluded: well formed
+and hereditarily typed, but not admissible (`ce_not_adm`), the failed
+conjunct being its name; `succ zero ≢ fst #0` is a corollary of
+soundness.
+
 ### 4.8 The remaining cases, in one line each
 
 `sigmaDF`, `pairDF`, `fstDF`, `sndDF`: mirror Π/λ/app with the pair's

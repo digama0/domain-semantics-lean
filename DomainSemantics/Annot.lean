@@ -53,8 +53,9 @@ def Term.Annot : Term → List Term → Prop
     (∃ u, Γ ⊢ A : .sort u) ∧ (Γ ⊢ a : A) ∧ (Γ ⊢ b : A) ∧
       A.Annot Γ ∧ a.Annot Γ ∧ b.Annot Γ
   | .refl _ a, Γ => a.Annot Γ
-  | .tr _ A a b C x h, Γ =>
-    (∃ u, Γ ⊢ A : .sort u) ∧ (Γ ⊢ a : A) ∧ (Γ ⊢ b : A) ∧
+  | .tr r A a b C x h, Γ =>
+    (∃ u, Γ ⊢ A : .sort u) ∧ (Γ ⊢ a : A) ∧ (Γ ⊢ b : A) ∧ (Γ ⊢ h : .id r A a b) ∧
+      (∃ a₀ C₀ v, (Γ ⊢ x : C₀.inst a₀) ∧ (Γ ⊢ a₀ ≡ a : A) ∧ (A :: Γ ⊢ C₀ ≡ C : .sort v)) ∧
       A.Annot Γ ∧ a.Annot Γ ∧ b.Annot Γ ∧ C.Annot (A :: Γ) ∧ x.Annot Γ ∧ h.Annot Γ
 
 /-- **Every term in a derivation is well-annotated.**  One case per rule:
@@ -102,10 +103,13 @@ theorem IsDefEq.annot {Γ : List Term} {e1 e2 T : Term} (H : Γ ⊢ e1 ≡ e2 : 
       ⟨_, hAA'.hasType.2⟩, hAA'.defeqDF haa'.hasType.2, hAA'.defeqDF hbb'.hasType.2,
       ihA.2, iha.2, ihb.2⟩
   | reflDF _ _ _ _ iha _ => exact ⟨iha.1, iha.2⟩
-  | trDF hAA' haa' hbb' _ _ _ _ _ _ ihA iha ihb ihC ihC' ihx ihh _ _ =>
-    exact ⟨⟨⟨_, hAA'.hasType.1⟩, haa'.hasType.1, hbb'.hasType.1,
+  | trDF hAA' haa' hbb' hCC' hCC'' hxx' hhh' _ _ ihA iha ihb ihC ihC' ihx ihh _ _ =>
+    exact ⟨⟨⟨_, hAA'.hasType.1⟩, haa'.hasType.1, hbb'.hasType.1, hhh'.hasType.1,
+        ⟨_, _, _, hxx'.hasType.1, haa'.hasType.1, hCC'.hasType.1⟩,
         ihA.1, iha.1, ihb.1, ihC.1, ihx.1, ihh.1⟩,
       ⟨_, hAA'.hasType.2⟩, hAA'.defeqDF haa'.hasType.2, hAA'.defeqDF hbb'.hasType.2,
+      (IsDefEq.idDF hAA' haa' hbb').defeqDF hhh'.hasType.2,
+      ⟨_, _, _, hxx'.hasType.2, hAA'.defeqDF haa', hCC''⟩,
       ihA.2, iha.2, ihb.2, ihC'.2, ihx.2, ihh.2⟩
   -- the computation rules: both sides are typing premises
   | beta _ _ he' _ _ _ _ _ ihl ihr => exact ⟨ihl.1, ihr.1⟩
@@ -159,6 +163,9 @@ theorem Term.Annot.weak' : ∀ {t : Term} {Γ Γ' : List Term} {l : Lift},
     rintro Γ Γ' l W ⟨⟨u, hA⟩, hat, hbt, hAA, hAa, hAb⟩
     exact ⟨⟨u, hA.weak' W⟩, hat.weak' W, hbt.weak' W, ihA W hAA, iha W hAa, ihb W hAb⟩
   | tr r A a b C X Hp ihA iha ihb ihC ihX ihH =>
-    rintro Γ Γ' l W ⟨⟨u, hA⟩, hat, hbt, hAA, hAa, hAb, hAC, hAX, hAH⟩
-    exact ⟨⟨u, hA.weak' W⟩, hat.weak' W, hbt.weak' W, ihA W hAA, iha W hAa, ihb W hAb,
+    rintro Γ Γ' l W ⟨⟨u, hA⟩, hat, hbt, hht, ⟨a₀, C₀, v, hxt, ha₀, hC₀⟩, hAA, hAa, hAb, hAC,
+      hAX, hAH⟩
+    exact ⟨⟨u, hA.weak' W⟩, hat.weak' W, hbt.weak' W, hht.weak' W,
+      ⟨_, _, v, lift'_inst_hi C₀ a₀ l ▸ hxt.weak' W, ha₀.weak' W, hC₀.weak' W.cons⟩,
+      ihA W hAA, iha W hAa, ihb W hAb,
       ihC W.cons hAC, ihX W hAX, ihH W hAH⟩

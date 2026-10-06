@@ -1,5 +1,6 @@
 import DomainSemantics.Strong
 import DomainSemantics.Inversion
+import DomainSemantics.Counterexample
 
 /-! # Where the labelled model stands
 
@@ -12,55 +13,40 @@ models are separate roots.
 open DomainSemantics
 
 /-!
-**One `sorry` remains in the whole development**, and it is one line
-inside the `fst_snd` case of `IsDefEq.sound`:
+**No `sorry` remains in the labelled model.**  Soundness
+(`IsDefEq.sound`) is proved for every rule, Σ's η (`fst_snd`) included.
 
-    have hcanon : PairCanon Δ Γ σ ρ p := sorry
+What closed `fst_snd` (§4.7i) is a change to admissibility, not a proof
+trick: `Adm` now asks every slot to **name the term it stands for**
+(`TShape.ValCanon`: a pair is named by the term's first projection, its
+components name the projections, a λ's outputs name the applications),
+and its code to name the slot's type (`TShape.CodeCanon`).  Without it
+the η-equation is false (`Counterexample.lean`: the old witness is now
+excluded, `ce_not_adm`).  The names propagate as a sixth piece of
+saturation: `SoundDom` concludes that the dominator names the term and
+its code names the type.  The transport that made this look impossible
+(§4.7d) is `ValCanon.defeq`, which moves a name along a definitional
+equality of the subject *through the code the value is typed at*, so no
+inversion is needed.  Two clauses changed with it: the binders, pair, `Y`
+and `tr` clauses carry their slots' names, and `tr` at `r = true` asks
+for its proof to *be* `refl` at the stage (a `refl`-shaped slot under a
+stuck transport would pass on names of the wrong term).
 
-`PairCanon` (`Presheaf.lean`) says a pair-approximant of `p` is named by
-`p`'s own first projection (§4.7a).  *Both* directions of Σ's η are
-proved from it — `sound_fst_snd_of` and `sound_fst_snd_to` — so this
-board's `fst_snd` entry is that condition, not the case.
+**η is proved** (`sound_eta_of`, `sound_eta_to`), and so is Σ's η
+(`sound_fst_snd_of`, `sound_fst_snd_to`, with `PairCanon.of_dom`).
 
-Why it is not discharged (§4.7d, §4.7f, §4.7g): carrying the name
-hereditarily needs, at each pair, the subject's Σ-typing, and every way
-of supplying it reduces to Σ-injectivity, to type uniqueness (which in
-this calculus reduces to injectivity), or to a codomain label that
-`Term.lam` does not carry.  The old model cannot lend its injectivity
-either: `LE_Interp`'s Σ and Π shapes are label-free (`WShape.sigma b f`),
-so its inversion principles go through `Adequacy`, whose own `sorry` is
-a case its model makes *false*.  `LE_Interp.sound` itself is clean, but
-soundness without labels does not see the components.
-
-This board says which theorems reach the hole.
-
-**η is proved** (`sound_eta_of`, `sound_eta_to`), which is what the slot
-discipline was for: ← reads its typed inputs off the dominating
-approximant saturation supplies, and → collects the bodies' function
-approximants, bounds them by one (`Interp.Dir.list`) and compares by
-lookup coverage (§5.2), `TEvaluates.toEval` bridging back to the
-level-indexed order.
-
-**Saturation is proved too** (`IsDefEq.soundDom`), as the fifth
-conclusion of the soundness induction -- the original's `HasFixedness`
-(`rawExtend ⟦A⟧ ⟦t⟧ = ⟦t⟧`) read through "ideal = set of approximants".
-It has to live in that induction, because the slot discipline makes the
-other conclusions depend on it.  Its cases: `app`/`snd` enlarge a lookup
-output through the dominating function's codomain clause, `lam` rebuilds
-the graph around the bodies' dominators, `pair`/`tr` read it off clauses
-that now demand it, `natCase`/`Y` inherit it from the branch and the
-body, the type formers get it for free (their codes only filter), and
-the computation rules get it from the typings they are padded with.
-* `LR.adequacy`'s `r = false` transport (`Adequacy.lean`, the old
-  model) — false for that model, and `LE_Interp.tr_stuck` is the
-  witness; it is guarded on the other root, since the two models cannot
-  be imported together.
+**Saturation is proved** (`IsDefEq.soundDom`), as a conclusion of the
+soundness induction -- the original's `HasFixedness` read through
+"ideal = set of approximants", now with names.
 
 **Stage invariance and strengthening are theorems** (`Interp.stage`,
 `Interp.unweak`), `IsDefEq.dir` is clean, and so is the substitution
-half: `Interp.to_substTerm` reads its clause conditions off `Term.Pinned`
-and the saturation hypothesis, both of which the soundness induction now
-supplies (`Subst.Saturates.one`, `IsDefEq.pinned`). -/
+half (`Interp.to_substTerm`, `Interp.substTerm`).
+
+The one remaining `sorry` of the repository is in the *old* model:
+`LR.adequacy`'s `r = false` transport (`Adequacy.lean`), false for that
+model with `LE_Interp.tr_stuck` as the witness; it is guarded on the
+other root, since the two models cannot be imported together. -/
 
 -- **The subject join**: two compatible shapes at one type join there.
 /-- info: 'DomainSemantics.TShape.HasType.join' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -90,12 +76,8 @@ supplies (`Subst.Saturates.one`, `IsDefEq.pinned`). -/
 #guard_msgs in #print axioms Interp.inst
 
 -- **The third conclusion of soundness**: every well-typed term is
--- pinned, so `to_substTerm`'s clause conditions are a theorem.  What it
--- still reaches is `fst_snd` alone, through the induction it shares with
--- the other four conclusions.
-/--
-info: 'DomainSemantics.IsDefEq.pinned' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
--/
+-- pinned, so `to_substTerm`'s clause conditions are a theorem.
+/-- info: 'DomainSemantics.IsDefEq.pinned' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IsDefEq.pinned
 
 -- **The proof-irrelevant transport**: it computes by K, so a transport
@@ -103,11 +85,9 @@ info: 'DomainSemantics.IsDefEq.pinned' depends on axioms: [propext, sorryAx, Cla
 /-- info: 'DomainSemantics.Interp.tr_bot_of_ne' depends on axioms: [propext] -/
 #guard_msgs in #print axioms Interp.tr_bot_of_ne
 
--- **Saturation**, what the slot discipline runs on: a conclusion of the
--- soundness induction, so what it still reaches is `fst_snd` alone.
-/--
-info: 'DomainSemantics.IsDefEq.soundDom' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
--/
+-- **Saturation**, what the slot discipline runs on, with names: a
+-- conclusion of the soundness induction.
+/-- info: 'DomainSemantics.IsDefEq.soundDom' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IsDefEq.soundDom
 
 -- **Directedness** — every case proved, and nothing left under it: `dir`
@@ -117,10 +97,20 @@ info: 'DomainSemantics.IsDefEq.soundDom' depends on axioms: [propext, sorryAx, C
 #guard_msgs in #print axioms IsDefEq.dir
 
 -- **Soundness** of the labelled model, five conclusions in one
--- induction (equality, typing, both `Pinned`s, saturation): `fst_snd`.
-/-- info: 'DomainSemantics.IsDefEq.sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+-- induction (equality, typing, both `Pinned`s, saturation), every rule.
+/-- info: 'DomainSemantics.IsDefEq.sound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IsDefEq.sound
 
+-- **Σ's η**: a pair-approximant is named by the subject's first
+-- projection, because the saturated one is.
+/-- info: 'DomainSemantics.PairCanon.of_dom' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms PairCanon.of_dom
+
 -- **Type uniqueness** from the labelled model, syntactic and semantic halves.
-/-- info: 'DomainSemantics.StrongSound.uniq' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'DomainSemantics.StrongSound.uniq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms StrongSound.uniq
+
+-- **The old admissibility's witness is excluded**: well formed and
+-- hereditarily typed, but not named by the variable it stands for.
+/-- info: 'DomainSemantics.ce_not_adm' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ce_not_adm

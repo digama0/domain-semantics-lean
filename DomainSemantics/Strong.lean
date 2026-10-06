@@ -247,7 +247,7 @@ theorem StrongSound.uniq : ∀ {t : Term} {Γ : List Term} {A B : Term}, ⊢ Γ 
     refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
     cases H1 with | lam a1 a2 => cases H2 with | lam b1 b2 =>
     have ⟨hs, _, h⟩ := ihe (show ⊢ (A₀ :: Γ) from ⟨hΓ, _, a1.typed⟩) a2 b2
-    exact ⟨sound_forallE_eq a1.typed h h SoundEq.refl a1 hs hs, _, .forallEDF a1.typed h h⟩
+    exact ⟨sound_forallE_eq a1.typed h h SoundEq.refl a1 (IsDefEq.soundDom hΓ a1.typed) hs hs, _, .forallEDF a1.typed h h⟩
   | app f a ihf _ =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
@@ -264,7 +264,8 @@ theorem StrongSound.uniq : ∀ {t : Term} {Γ : List Term} {A B : Term}, ⊢ Γ 
         hΓ a1.typed hB₀ b1.typed hB₁
         (IsDefEq.dir hΓA₀ hB₀).1 (IsDefEq.dir hΓA₁ hB₁).1
         a3.sound b3.sound (IsDefEq.soundDom hΓ a3.sound.typed)
-        (IsDefEq.soundDom hΓ b3.sound.typed) (IsDefEq.dir hΓ a3.sound.typed).1 a1 b1 hs,
+        (IsDefEq.soundDom hΓ b3.sound.typed) (IsDefEq.dir hΓ a3.sound.typed).1 a1 b1
+        (IsDefEq.soundDom hΓ a1.typed) (IsDefEq.soundDom hΓ b1.typed) hs,
       _, IsDefEq.inst_cod hΓ a1.typed a3.sound.typed hcod⟩
   | fst p ihp =>
     intro Γ A B hΓ
@@ -290,7 +291,8 @@ theorem StrongSound.uniq : ∀ {t : Term} {Γ : List Term} {A B : Term}, ⊢ Γ 
         (sound_fst a1.typed a2.typed SoundEq.refl a3.sound).2
         (sound_fst b1.typed b2.typed SoundEq.refl b3.sound).2
         (IsDefEq.soundDom hΓ hfst) (IsDefEq.soundDom hΓ hfst')
-        (IsDefEq.dir hΓ hfst).1 a1 b1 hs,
+        (IsDefEq.dir hΓ hfst).1 a1 b1 (IsDefEq.soundDom hΓ a1.typed)
+        (IsDefEq.soundDom hΓ b1.typed) hs,
       _, IsDefEq.inst_cod hΓ a1.typed hfst hcod⟩
   | refl r a iha =>
     intro Γ A B hΓ
