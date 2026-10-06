@@ -1714,8 +1714,7 @@ theorem Interp.body_merge {Δ Γ Γ' Γ'' : List Term} {α : Type} {b : Term} {�
 
 def Adm (Δ : List Term) (_Γ₀ Γ : List Term) (σ : Subst) (ρ : Valuation) : Prop :=
   Valuation.WF Δ ρ ∧
-    ∀ {i A}, Lookup Γ i A → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Dom Δ a (ρ i) ∧
-      TShape.CodeCanon Δ (A.subst σ) a ∧ TShape.ValCanon Δ (σ i) (ρ i)
+    ∀ {i A}, Lookup Γ i A → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Slot Δ (A.subst σ) a (σ i) (ρ i)
 
 /-- The all-bottom valuation is admissible, for free.  This is the
 hypothesis every inversion theorem is run under; with the base context
@@ -1734,8 +1733,8 @@ theorem Adm.lookup {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ)
   fun hl => (h.2 hl).imp fun _ ⟨hI, hD, _⟩ => ⟨hI, hD.hasType⟩
 
 theorem Adm.lookupCanon {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) :
-    ∀ {i A}, Lookup Γ i A → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Dom Δ a (ρ i) ∧
-      TShape.CodeCanon Δ (A.subst σ) a ∧ TShape.ValCanon Δ (σ i) (ρ i) := h.2
+    ∀ {i A}, Lookup Γ i A →
+      ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Slot Δ (A.subst σ) a (σ i) (ρ i) := h.2
 
 /-- Weakening the stage by one slot: `A` at `σ.tail` under `ρ` is
 `A.lift` at `σ` under `ρ.push x`.  `Interp.weak'` at `Lift.refl.skip`. -/

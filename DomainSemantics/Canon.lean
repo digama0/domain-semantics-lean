@@ -628,3 +628,49 @@ theorem TShape.ValCanon.of_bot {Δ : List Term} {t : Term} {x : TShape} (h : x.2
   obtain ⟨n, s⟩ := x
   show Shape.ValCanon Δ t s
   rw [show s = Shape.bot from h]; exact Shape.ValCanon.bot
+
+/-! ## The slot condition
+
+The three facts above never travel alone.  Wherever the model records
+what a valuation slot (or a dominator, or a transported value) *is*, it
+records all three: the shape is hereditarily typed at a code, the code
+names the type, and the shape names the term.  `Slot` is that bundle.
+
+Its point is `Slot.defeq`: moving the name along a definitional equality
+needs the other two, and with them bundled the transport takes no extra
+arguments.  That is the code-indexed form of canonicity, got by
+conjunction rather than by a new recursion. -/
+
+/-- `x` is hereditarily typed at the code `d`, which names the type `T`,
+and `x` names the term `t`. -/
+def TShape.Slot (Δ : List Term) (T : Term) (d : TShape) (t : Term) (x : TShape) : Prop :=
+  TShape.Dom Δ d x ∧ TShape.CodeCanon Δ T d ∧ TShape.ValCanon Δ t x
+
+theorem TShape.Slot.dom {Δ : List Term} {T t : Term} {d x : TShape}
+    (h : TShape.Slot Δ T d t x) : TShape.Dom Δ d x := h.1
+
+theorem TShape.Slot.code {Δ : List Term} {T t : Term} {d x : TShape}
+    (h : TShape.Slot Δ T d t x) : TShape.CodeCanon Δ T d := h.2.1
+
+theorem TShape.Slot.val {Δ : List Term} {T t : Term} {d x : TShape}
+    (h : TShape.Slot Δ T d t x) : TShape.ValCanon Δ t x := h.2.2
+
+theorem TShape.Slot.hasType {Δ : List Term} {T t : Term} {d x : TShape}
+    (h : TShape.Slot Δ T d t x) : TShape.HasType Δ x d := h.1.hasType
+
+/-- **The transport, with nothing to pass in.**  This is what the bundle
+is for: `ValCanon.defeq` needs the code and its naming, and here they are
+the slot's own fields. -/
+theorem TShape.Slot.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x : TShape}
+    (h : TShape.Slot Δ T d t x) (ht : Δ ⊢ t ≡ t' : T) : TShape.Slot Δ T d t' x :=
+  ⟨h.1, h.2.1, TShape.ValCanon.defeq hΔ h.1 h.2.1 h.2.2 ht⟩
+
+/-- Conversion in the type: the code's naming is the only field that sees it. -/
+theorem TShape.Slot.conv {Δ : List Term} {T T' t : Term} {d x : TShape}
+    (h : TShape.Slot Δ T d t x) (hT : TyEq Δ T' T) : TShape.Slot Δ T' d t x :=
+  ⟨h.1, h.2.1.conv hT, h.2.2⟩
+
+theorem TShape.Slot.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) {T t : Term} {d x : TShape} (h : TShape.Slot Δ T d t x) :
+    TShape.Slot Θ (T.subst τ) (d.subst τ) (t.subst τ) (x.subst τ) :=
+  ⟨h.1.subst hΘ W, h.2.1.subst hΘ W, h.2.2.subst hΘ W⟩

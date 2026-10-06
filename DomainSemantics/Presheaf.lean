@@ -89,8 +89,7 @@ def SoundDom (Γ : List Term) (t A : Term) : Prop :=
   ∀ {{Δ Γ₀ : List Term}} {{σ ρ}}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
     ∀ {m}, Interp Δ Γ t σ ρ m →
       ∃ m' a, Interp Δ Γ t σ ρ m' ∧ TShape.LE Δ m m' ∧
-        Interp Δ Γ A σ ρ a ∧ TShape.Dom Δ a m' ∧
-        TShape.CodeCanon Δ (A.subst σ) a ∧ TShape.ValCanon Δ (t.subst σ) m'
+        Interp Δ Γ A σ ρ a ∧ TShape.Slot Δ (A.subst σ) a (t.subst σ) m'
 
 /-- Every approximant of `t`, read as a code, names `t`: what saturation
 at a sort says, and what an atom's top shape gives by downward closure. -/
@@ -172,22 +171,21 @@ theorem SoundDom.codeAt {Γ : List Term} {T : Term} {u : Bool} (h : SoundDom Γ 
   exact TShape.CodeCanon.mono hΔ hle hm'.wf hcan.toCode
 
 /-- Saturation transports along an equality of terms, both sides being
-the same set of approximants; the names move along the equation, read
-through the code the dominator is typed at (`ValCanon.defeq`). -/
+the same set of approximants; the slot carries its own code, so moving
+the name along the equation takes nothing extra (`Slot.defeq`). -/
 theorem SoundDom.of_eq {Γ : List Term} {t t' A : Term} (hs : Γ ⊢ t ≡ t' : A)
     (he : SoundEq Γ t t') (h : SoundDom Γ t A) : SoundDom Γ t' A := by
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
-  obtain ⟨m', c, hm', hle, hc, hdc, hcc, hcan⟩ := h hΔ W hAdm ((he hΔ W hAdm).2 hm)
-  exact ⟨m', c, (he hΔ W hAdm).1 hm', hle, hc, hdc, hcc,
-    TShape.ValCanon.defeq hΔ hdc hcc hcan (hs.subst hΔ W)⟩
+  obtain ⟨m', c, hm', hle, hc, hslot⟩ := h hΔ W hAdm ((he hΔ W hAdm).2 hm)
+  exact ⟨m', c, (he hΔ W hAdm).1 hm', hle, hc, hslot.defeq hΔ (hs.subst hΔ W)⟩
 
 /-- And along an equality of *types*, which is what `defeqDF` moves. -/
 theorem SoundDom.of_tyEq {Γ : List Term} {t A B : Term} {u : Bool} (hs : Γ ⊢ A ≡ B : .sort u)
     (hAB : SoundEq Γ A B) (h : SoundDom Γ t A) : SoundDom Γ t B := by
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
-  obtain ⟨m', c, hm', hle, hc, hdc, hcc, hcan⟩ := h hΔ W hAdm hm
-  exact ⟨m', c, hm', hle, (hAB hΔ W hAdm).1 hc, hdc,
-    TShape.CodeCanon.conv hcc (TyEq.symm ⟨u, hs.subst hΔ W⟩), hcan⟩
+  obtain ⟨m', c, hm', hle, hc, hslot⟩ := h hΔ W hAdm hm
+  exact ⟨m', c, hm', hle, (hAB hΔ W hAdm).1 hc,
+    hslot.conv (TyEq.symm ⟨u, hs.subst hΔ W⟩)⟩
 
 /-- **A variable's slot is hereditarily typed and names the variable** —
 that is what `Adm` says, and it is the base case of saturation. -/
