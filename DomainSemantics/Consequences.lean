@@ -524,6 +524,13 @@ theorem sort_forallE_inv' (hΓ : ⊢₀ Γ) : ¬Γ ⊢₀ .sort u ≡ Term.foral
 theorem sort_inv' (hΓ : ⊢₀ Γ) (d : Γ ⊢₀ Term.sort u ≡ Term.sort v : V) : u = v :=
   sort_inv (Ctx.WF.iff.2 hΓ) ((IsDefEq.iff hΓ).2 d)
 
+/-- **Type uniqueness**, on the judgment itself: two types of one term
+are definitionally equal.  `HasType.uniq` is the same fact on the
+bundled scaffold; this is the form a reader of `IsDefEq` wants. -/
+theorem IsDefEq.uniq (hΓ : ⊢ Γ) (h₁ : Γ ⊢ e : A) (h₂ : Γ ⊢ e : B) :
+    ∃ u, Γ ⊢ A ≡ B : .sort u :=
+  (h₁.toHasType hΓ).1.uniq hΓ (h₂.toHasType hΓ).1
+
 theorem IsDefEq.trans_r (hΓ : ⊢ Γ)
     (H : Γ ⊢ M ≡ N : A) (h2 : Γ ⊢ N ≡ P : B) : Γ ⊢ M ≡ P : B := by
   have ⟨_, eq⟩ := (H.toHasType hΓ).2.uniq hΓ (h2.toHasType hΓ).1
@@ -947,6 +954,12 @@ theorem progress {e : Term} : ∀ {A}, [] ⊢ e : A → Value e ∨ ∃ e', e �
 /-- Progress for the standard judgment `IsDefEq₀`. -/
 theorem progress' {e A : Term} (h : [] ⊢₀ e : A) : Value e ∨ ∃ e', e ⤳ e' :=
   progress ((IsDefEq.iff (Γ := []) trivial).2 h)
+
+/-- **Type uniqueness** for the standard judgment. -/
+theorem IsDefEq.uniq' (hΓ : ⊢₀ Γ) (h₁ : Γ ⊢₀ e : A) (h₂ : Γ ⊢₀ e : B) :
+    ∃ u, Γ ⊢₀ A ≡ B : .sort u :=
+  have ⟨u, h⟩ := IsDefEq.uniq (Ctx.WF.iff.2 hΓ) ((IsDefEq.iff hΓ).2 h₁) ((IsDefEq.iff hΓ).2 h₂)
+  ⟨u, (IsDefEq.iff hΓ).1 h⟩
 
 /-- Definitional UIP (uniqueness of identity proofs) is disprovable.
 (Propositional UIP is not, since this model can never disprove type inhabitation,

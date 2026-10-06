@@ -1,14 +1,23 @@
 # DomainSemantics
 
-A Lean 4 formalisation of a denotational semantics for a dependently-typed
-λ-calculus, including soundness, adequacy, type uniqueness, subject
-reduction, and progress theorems.
+A Lean 4 formalisation of a denotational semantics for a dependently
+typed λ-calculus with Π, Σ, `Nat`, `Unit`, a proof-relevant identity
+type, a fixpoint `Y`, and `Type : Type`. From it come Π- and Σ-injectivity,
+fifteen no-confusion principles, type uniqueness, subject reduction and
+progress.
 
-The semantic domain is a level-graded family of "shape" structures —
-finite approximations of values that interpret terms via a step-indexed
-logical relation. From the resulting Adequacy theorem we recover Pi-type
-and sort injectivity, and from those we prove uniqueness of typing for
-the syntactic definitional-equality judgment.
+The semantic domain is a level-graded family of "shape" structures,
+finite approximations of values, each carrying the **syntactic labels**
+of the type or term it approximates. The labels are what glue syntax
+into the domain: a function shape's graph is looked up at the label of
+the argument, and Π-injectivity is then a projection out of a Π-shape's
+label. There is no logical relation and no adequacy theorem; every
+syntactic consequence is read off soundness directly.
+
+Admissibility of a valuation asks each slot to **name the term it stands
+for**. That is what makes Σ's η true (see `DomainSemantics/Canon.lean`,
+and `DomainSemantics/Counterexample.lean` for the witness that refutes
+the weaker admissibility).
 
 ## Compilation
 
@@ -17,12 +26,7 @@ lake build
 ```
 
 Build dependencies — [Lean 4](https://lean-lang.org/) (toolchain pinned
-via `lean-toolchain` to
-[`leanprover/lean4:v4.29.0`](https://github.com/leanprover/lean4/releases/tag/v4.29.0))
-and [Batteries](https://github.com/leanprover-community/batteries)
-(pinned in `lake-manifest.json`). A first build downloads `batteries`
-and compiles the library; `Shape.lean`, `Sound.lean`, `LogRel.lean`, and
-`Adequacy.lean` are the heaviest files.
+via `lean-toolchain`) and [batteries](https://github.com/leanprover-community/batteries).
 
 To rebuild a single file:
 
@@ -32,41 +36,57 @@ lake build DomainSemantics.Consequences
 
 ## Validation
 
-Axiom checks for the ten headline theorems are baked into the umbrella
-file `DomainSemantics.lean` using `#guard_msgs`:
+Axiom checks for the eleven headline theorems are baked into the umbrella
+file `DomainSemantics.lean` using `#guard_msgs`. They are stated for
+`IsDefEq₀` (notation `⊢₀`), the judgment of `Term.lean`'s rule list:
 
-* `LE_Interp.sound` — soundness
-* `LR.adequacy` — fundamental theorem
-* `forallE_inv` — Pi injectivity
-* `sort_inv` — sort injectivity
-* `HasType.uniq` — type uniqueness
+* `IsDefEq.sound` — soundness of the interpretation
+* `IsDefEq.iff` — the instrumented `IsDefEq` and the standard `IsDefEq₀` agree
+* `forallE_inv'` — Π-injectivity
+* `sort_inv'` — sort injectivity
+* `sort_forallE_inv'` — no confusion (one of fifteen)
+* `IsDefEq.uniq'` — type uniqueness
 * `IsDefEq.uniq_sort` — sort uniqueness
-* `IsDefEq.iff` — equivalence of `IsDefEq` and `IsDefEq₀`
-* `WHRed.subject_red` — subject reduction for weak-head reduction
-* `progress` — closed well-typed terms are values or step
+* `WHRed.subject_red'` — subject reduction for weak-head reduction
+* `progress'` — closed well-typed terms are values or step
+* `zero_ne_succ_zero` — the equational theory is not the total relation
 * `not_UIP` — definitional UIP fails (the identity type is proof-relevant)
 
-Each line pins the expected axiom list to exactly
-`[propext, Classical.choice, Quot.sound]`. Any `sorryAx` or
-project-specific axiom that leaks into a dependency changes the printed
-output and fails the build, so a successful `lake build` is the
-validation step.
+`DomainSemantics/Status.lean` is a second board, for the model's own
+internals. Each line pins the expected axiom list to exactly
+`[propext, Classical.choice, Quot.sound]` (two are tighter). Any
+`sorryAx` or project-specific axiom that leaks into a dependency changes
+the printed output and fails the build, so a successful `lake build` is
+the validation step. There are no `sorry`s and no project axioms.
+
+What is **not** claimed: consistency. `Y` inhabits every type at every
+sort, which with `Type : Type` is deliberate. The non-triviality claim is
+about the *equational* theory, and `zero_ne_succ_zero` and `not_UIP` are
+its witnesses.
 
 ## File map
 
-The library is organised as a strict dependency chain
-`Basic → Lift → Term → Shape → Sound → LogRel → Adequacy → Consequences`,
-plus the umbrella file `DomainSemantics.lean` that re-exports the top of
-the chain and hosts the `#guard_msgs` axiom checks.
+The library is a strict dependency chain. Lines are of Lean source.
 
 | File | Lines | Role |
 |---|---:|---|
-| [`DomainSemantics/Basic.lean`](DomainSemantics/Basic.lean) | 79 | Prelude. `List`/`Option` lemmas plus `ReflTransGen`, the reflexive-transitive closure used to build multi-step reduction. |
-| [`DomainSemantics/Lift.lean`](DomainSemantics/Lift.lean) | 71 | `Lift`: term-level representation of de Bruijn weakening/extension. Used uniformly by every later weakening lemma. |
-| [`DomainSemantics/Term.lean`](DomainSemantics/Term.lean) | 1922 | Core syntax (`Term`), substitution (`Subst`), context machinery (`Lookup`, `Ctx.Lift'`, `Ctx.WF`), the standard definitional-equality judgment `IsDefEq₀` (notation `⊢₀`), the instrumented `IsDefEq` (notation `⊢`), the two-sided substitution judgment `Ctx.SubstEq`, weak-head reduction `WHRed`/`WHNF`/`WHRedS`, and the `Value` predicate for weak-head canonical forms. |
-| [`DomainSemantics/ShapeOld.lean`](DomainSemantics/ShapeOld.lean) | 4379 | The semantic domain of the logical-relation proof (to be replaced on this branch, see `presheaf-plan.md`). Level-graded `Shape n`, well-formed restrictions `WShape n` / `WShapeFun n`, the total domain `TShape := Σ n, WShape n`, plus order, compatibility, join, application, and a decidable typing relation `HasType`. |
-| [`DomainSemantics/Sound.lean`](DomainSemantics/Sound.lean) | 2902 | The interpretation relation `LE_Interp` and its saturated form `InterpTyped`; mutual scaffolding `StrongSound` / `StrongSoundCore`; main theorem `LE_Interp.sound`. |
-| [`DomainSemantics/LogRel.lean`](DomainSemantics/LogRel.lean) | 2203 | The level-graded logical relation. `LogRelBase` (data) / `LogRel` (data + closure properties), `LR0` (base level), `LRS IH` (successor), and the recursive combinator `LR : LogRel Γ n`. |
-| [`DomainSemantics/Adequacy.lean`](DomainSemantics/Adequacy.lean) | 2655 | The fundamental theorem. `LR.SubstWF` (two-sided substitution well-formedness), `LR.Adequate`, and the headline theorem `LR.adequacy`. Concludes with the inversion lemmas `forallE_inv`, `sort_inv`, `sort_forallE_inv`, `sigma_nat_inv`, and friends. |
-| [`DomainSemantics/Consequences.lean`](DomainSemantics/Consequences.lean) | 955 | Discharges the `IsDefEq` scaffolding and derives operational consequences. Bundled typing judgment `HasType`, type uniqueness `HasType.uniq`, sort uniqueness `IsDefEq.uniq_sort`, the bridge theorem `IsDefEq.iff` equating `IsDefEq` with the standard `IsDefEq₀`, canonical-form lemmas (`Value.forallE_r`, `Value.sigma_r`, `Value.nat_r`, `Value.id_r`), subject reduction `WHRed.subject_red`, `progress`, and the identity-type proof-relevance witness `not_UIP`. |
-| [`DomainSemantics.lean`](DomainSemantics.lean) | 47 | Umbrella: imports `DomainSemantics.Consequences` and pins the axiom list for each headline theorem via `#guard_msgs in #print axioms`. |
+| [`Basic.lean`](DomainSemantics/Basic.lean) | 13 | The batteries `simp` attributes the project wants on by default. |
+| [`Lift.lean`](DomainSemantics/Lift.lean) | 67 | `Lift`: a term-level representation of de Bruijn weakening, used by every later weakening lemma. |
+| [`Term.lean`](DomainSemantics/Term.lean) | 1963 | Syntax (`Term`), substitution (`Subst`), contexts (`Lookup`, `Ctx.Lift'`, `Ctx.WF`), the standard judgment `IsDefEq₀` (`⊢₀`), the instrumented `IsDefEq` (`⊢`), the two-sided `Ctx.SubstEq`, and one-step weak-head reduction `WHRed`. |
+| [`Regular.lean`](DomainSemantics/Regular.lean) | 165 | Regularity: the subterms of a well-typed term are well typed, read off the judgment's own premises. |
+| [`Annot.lean`](DomainSemantics/Annot.lean) | 171 | `Term.Annot`: the typing data a term's own annotations carry, which strengthening needs and which `IsDefEq.annot` supplies. |
+| [`Label.lean`](DomainSemantics/Label.lean) | 220 | Equality of the syntactic labels a shape carries, and `Stable`. |
+| [`Shape.lean`](DomainSemantics/Shape.lean) | 2565 | The domain: level-graded `Shape n`, graphs as labelled `Entry` lists, the total `TShape`, and the order, compatibility, join, lift, substitution and graph lookup (`ShapeFun.Eval`). |
+| [`HasType.lean`](DomainSemantics/HasType.lean) | 2580 | `TShape.HasType`, typing of shapes, one inductive over `TShape`; the total-level lookup `TEvaluates`; `TShape.Dom`, hereditary typing; the subject join. |
+| [`Canon.lean`](DomainSemantics/Canon.lean) | 645 | Canonicity: `CodeCanon` (a code names its type), `ValCanon` (a value names its projections), and `ValCanon.defeq`, the transport that makes Σ's η go through. |
+| [`Interp.lean`](DomainSemantics/Interp.lean) | 2696 | `Interp`, the interpretation relation, with one clause per former; admissibility `Adm`; stage invariance, strengthening and substitution. |
+| [`Presheaf.lean`](DomainSemantics/Presheaf.lean) | 5579 | `IsDefEq.sound`: five conclusions (equality, typing, both `Pinned`s, saturation) in one induction, every rule, Σ's η included. |
+| [`Strong.lean`](DomainSemantics/Strong.lean) | 240 | `StrongSound.uniq`, the semantic half of type uniqueness. |
+| [`Inversion.lean`](DomainSemantics/Inversion.lean) | 258 | Π-, Σ- and Id-injectivity, fifteen no-confusion principles, and `zero_ne_succ_zero`, all four steps from soundness and none from adequacy. |
+| [`Counterexample.lean`](DomainSemantics/Counterexample.lean) | 169 | The slot that refutes the weaker admissibility: well formed and hereditarily typed, but not named by the variable it stands for. |
+| [`Consequences.lean`](DomainSemantics/Consequences.lean) | 980 | Type uniqueness, sort uniqueness, `IsDefEq.iff`, canonical forms, subject reduction, progress, `not_UIP`. |
+| [`Status.lean`](DomainSemantics/Status.lean) | 115 | The internals board: where the model stands, axiom-checked. |
+| [`DomainSemantics.lean`](DomainSemantics.lean) | 59 | Umbrella: the headline board. |
+
+`presheaf-proof-strategy.md` is the design record, including what the
+labels buy (§4.7) and what the domain no longer carries (§6).

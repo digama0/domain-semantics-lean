@@ -489,8 +489,10 @@ too, uniqueness identifies them, and the equation transports.  `Annot`
 records what an `app`'s argument and a `snd`'s first projection are typed
 at, which `IsDefEq.annot` gets from `appDF`'s and `sndDF`'s own premises.
 
-So the whole assumption is now `IsDefEq.uniq` (`Uniq.lean`): **a term has
-at most one type, up to definitional equality.**
+So the whole assumption was once `IsDefEq.uniq`: **a term has at most
+one type, up to definitional equality.**  (It is no longer assumed; the
+rest of this section records why it looked unavoidable and §4.7 what
+removed it.)
 
 **And that is circular, which is the finding.**  Uniqueness is true of
 this theory, and its proof is formalised here — `HasType.uniq` in
@@ -2944,7 +2946,7 @@ is the one still owed.
 | `Interp.unweak` | indexed by `Term.Annot`, not by a typing | §3.4 | **done** (proved) |
 | `Interp.subst_iff` → `Interp.substTerm` | directedness of the `θ i` as a hypothesis (`Interp.Dir`) | §3.3 | **done** modulo §3.1d |
 | `Interp.inst` | takes `Interp.Dir` of the substituted term | §3.3 | **done** modulo §3.1d |
-| `IsDefEq.uniq` | **assumed** (`Uniq.lean`), for `Stable.transfers` alone | §3.1d | open — remove by making `SoundSubst` a conclusion of `sound` |
+| `IsDefEq.uniq` | not assumed: `Stable.transfers` is gone, and uniqueness is a *corollary* of soundness (`Consequences.lean`) | §3.1d | **done** |
 | `Adm.subst` | delete | §3.5 | **done** |
 | `ShapeFun.LE` | lookup coverage, carrying `WF` of both graphs | §5.2 | **done** |
 | `ShapeFun.Eval.lower` | drop the `WF` side condition (`Shape.LE.wf`) | §5.2 | **done** |

@@ -230,3 +230,29 @@ theorem id_rel_inv {Γ : List Term} {r r' s : Bool} {A₀ a₀ b₀ A₁ a₁ b�
   | id _ hle _ _ _ =>
     obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ hle
     exact h2.1
+
+/-! ## Non-degeneracy on closed terms
+
+The no-confusion family above separates *types*.  This separates two
+closed *terms* of one type, which is what says the equational theory is
+not the total relation on well-typed terms.  (`not_UIP` and
+`Counterexample.ce_ne` also separate two terms, but both of theirs live
+in a non-empty context, so neither rules out the theory collapsing on
+closed terms.) -/
+
+/-- **`zero` and `succ zero` are not definitionally equal.**  The
+`succ`-shape approximates `succ zero` at the empty stage; if the two
+terms were equal it would approximate `zero`, whose approximants are all
+below the `zero`-shape, and a `succ`-shape is not. -/
+theorem zero_ne_succ_zero : ¬ ([] ⊢ Term.zero ≡ Term.succ .zero : .nat) := by
+  intro h
+  have hwz : TShape.WF [] (Shape.T (n := 1) Shape.zero) := TShape.WF.T.2 trivial
+  have hws : TShape.WF [] (Shape.T (n := 2) (Shape.succ Shape.zero)) := TShape.WF.T.2 trivial
+  have hs : Interp [] [] (.succ .zero) Subst.id Valuation.nil
+      (Shape.T (n := 2) (Shape.succ Shape.zero)) :=
+    .succ (.zero hwz (TShape.LE.refl hwz)) hws (TShape.LE.refl hws)
+  have hΓ : ⊢ ([] : List Term) := trivial
+  have hle := Interp.le_zero
+    (((IsDefEq.sound hΓ h).eq hΓ (Ctx.SubstEq.id hΓ) Adm.bot).2 hs)
+  obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hle
+  exact absurd h2 (fun x => x)
