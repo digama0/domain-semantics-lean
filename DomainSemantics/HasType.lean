@@ -325,7 +325,7 @@ theorem TEvaluates.mono {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A 
   intro c h
   induction h with
   | bot => exact .bot
-  | entry e he hl hin => exact .entry e he (LabelEq.right (hl.trans hlab)) (hin.trans hΔ hx)
+  | entry e he hl hin => exact .entry e he (hl.trans hlab).right (hin.trans hΔ hx)
   | lower hle _ ih => exact .lower hle ih
   | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
 
@@ -342,7 +342,7 @@ theorem TEvaluates.retype {Δ : List Term} {n} {f : ShapeFun n} {A A' a : Term}
   intro c h
   induction h with
   | bot => exact .bot
-  | entry e he hl hin => exact .entry e he (LabelEq.retype hA hl) hin
+  | entry e he hl hin => exact .entry e he (hl.retype hA) hin
   | lower hle _ ih => exact .lower hle ih
   | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
 

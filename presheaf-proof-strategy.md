@@ -1154,7 +1154,7 @@ inputs along `forallE_decomp`'s `d ≤ d'` (the Π order is *covariant* in
 the domain) by `mono_r` on the inputs; `lift_subject`, `lower_subject`
 and `subst` carry it entrywise; `join` concatenates, both sides being
 typed at the same `d` because the clause pins the Π (`join_gen_inp`,
-three lines after `join_gen_ty`); and the one producer, `sound_lam_ty`,
+three lines after `join_gen_ty`); and the one producer, `lam_pi_code`,
 has it for free, since there the generator **is** the λ's own graph and
 the typing is the `Interp.lam` clause's own `hdom`.
 

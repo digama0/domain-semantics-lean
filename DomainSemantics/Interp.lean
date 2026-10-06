@@ -1869,7 +1869,7 @@ theorem TypedAt.zero {Γ : List Term} : TypedAt Γ Term.zero Term.nat := by
 
 /-- The successor of the slot a `natCase` branch binds: the slot is a
 numeral because the stage is admissible, so the successor is one too.
-This is the lifted motive's argument in `sound_natCase_ty`. -/
+This is the lifted motive's argument at `natCase`. -/
 theorem TypedAt.succ_bvar0 {Γ : List Term} :
     TypedAt (Term.nat :: Γ) (Term.succ (.bvar 0)) Term.nat := by
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
@@ -1940,8 +1940,8 @@ theorem Subst.Saturates.lift {Δ Γ₀ Γ Γ' : List Term} {A : Term} {θ σ ρ 
 
 These restrict along a context lift, and what restricts with them is the
 *stage*: `Ctx.SubstEq.lift_l` for the substitution and `Adm.unlift` for
-the valuation.  Only `sound_natCase_ty` needs them, for the motive it
-reads one context deeper. -/
+the valuation.  Only `natCase` needs them, for the motive it reads one
+context deeper. -/
 
 /-- Admissibility restricts along a context lift.  A variable of the
 smaller context is one of the bigger (`Lookup.weak'`) and its type is the
