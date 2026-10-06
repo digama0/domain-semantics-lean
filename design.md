@@ -108,11 +108,14 @@ This group has no counterpart in master or in intgrah, and it is what
 makes Σ's η true. In a value-driven model a pair's second component is
 typed at a *shape*; here the model is stage-driven, so the second
 component is typed at the code read at a **term**, and that term has to
-be the pair's own first projection or η fails. `Counterexample.lean`
-carries the witness: a slot that is well formed and hereditarily typed at
-a Σ-code, is an approximant of a variable, and is *not* one of that
-variable's η-expansion, because it is named `succ zero` instead of
-`fst #0`.
+be the pair's own first projection or η fails. The witness, for
+`Γ = [Σ nat nat]`: the slot `pair nat nat (succ zero) zero zero` is well
+formed and hereditarily typed at a Σ-code, so the old admissibility
+accepted it; it is an approximant of `#0`; and it is *not* one of
+`⟨fst #0, snd #0⟩`, whose approximants are all named `fst #0`. With the
+naming conjunct it is no longer admissible. (Machine-checked at commit
+`248147c`, and again as `ce_not_adm` before that file was dropped as
+documentation rather than a deliverable.)
 
 **`Shape.CodeCanon Δ T s`**: the code `s` names its type `T`. Entry-based
 on graphs, with `⊥`-outputs exempt, because a dead entry can come alive

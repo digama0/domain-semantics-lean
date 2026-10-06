@@ -8,4 +8,4 @@ rev = "v4.29.0"
 
 [[lean_lib]]
 name = "DomainSemantics"
-globs = ["DomainSemantics", "DomainSemantics.Status", "DomainSemantics.Annot", "DomainSemantics.HasType", "DomainSemantics.Canon", "DomainSemantics.Interp", "DomainSemantics.Presheaf", "DomainSemantics.Strong", "DomainSemantics.Regular", "DomainSemantics.Inversion", "DomainSemantics.Counterexample"]
+globs = ["DomainSemantics", "DomainSemantics.Status", "DomainSemantics.Annot", "DomainSemantics.HasType", "DomainSemantics.Canon", "DomainSemantics.Interp", "DomainSemantics.Presheaf", "DomainSemantics.Strong", "DomainSemantics.Regular", "DomainSemantics.Inversion"]

@@ -1,6 +1,5 @@
 import DomainSemantics.Strong
 import DomainSemantics.Inversion
-import DomainSemantics.Counterexample
 
 /-! # Where the labelled model stands
 
@@ -21,8 +20,14 @@ trick: `Adm` now asks every slot to **name the term it stands for**
 (`TShape.ValCanon`: a pair is named by the term's first projection, its
 components name the projections, a λ's outputs name the applications),
 and its code to name the slot's type (`TShape.CodeCanon`).  Without it
-the η-equation is false (`Counterexample.lean`: the old witness is now
-excluded, `ce_not_adm`).  The names propagate as a sixth piece of
+the η-equation is false: in `Γ = [Σ nat nat]` the valuation whose only
+slot is `pair nat nat (succ zero) zero zero` is well formed and
+hereditarily typed at a Σ-code, is an approximant of `#0`, and is not
+one of `⟨fst #0, snd #0⟩`, whose approximants are all named `fst #0`.
+With the naming conjunct that slot is no longer admissible.  (The
+machine-checked version of this is commit `248147c`; the excluded-witness
+file that replaced it is deleted, being documentation rather than a
+deliverable.)  The names propagate as a sixth piece of
 saturation: `SoundDom` concludes that the dominator names the term and
 its code names the type.  The transport that made this look impossible
 (§4.7d) is `ValCanon.defeq`, which moves a name along a definitional
@@ -111,8 +116,3 @@ the labelled model's soundness. -/
 -- **Type uniqueness** from the labelled model, syntactic and semantic halves.
 /-- info: 'DomainSemantics.StrongSound.uniq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms StrongSound.uniq
-
--- **The old admissibility's witness is excluded**: well formed and
--- hereditarily typed, but not named by the variable it stands for.
-/-- info: 'DomainSemantics.ce_not_adm' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ce_not_adm

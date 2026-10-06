@@ -234,10 +234,9 @@ theorem id_rel_inv {Γ : List Term} {r r' s : Bool} {A₀ a₀ b₀ A₁ a₁ b�
 
 The no-confusion family above separates *types*.  This separates two
 closed *terms* of one type, which is what says the equational theory is
-not the total relation on well-typed terms.  (`not_UIP` and
-`Counterexample.ce_ne` also separate two terms, but both of theirs live
-in a non-empty context, so neither rules out the theory collapsing on
-closed terms.) -/
+not the total relation on well-typed terms.  (`not_UIP` also separates
+two terms, but in a non-empty context, so it does not rule out the
+theory collapsing on closed terms.) -/
 
 /-- **`zero` and `succ zero` are not definitionally equal.**  The
 `succ`-shape approximates `succ zero` at the empty stage; if the two

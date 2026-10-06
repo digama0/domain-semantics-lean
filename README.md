@@ -16,8 +16,7 @@ syntactic consequence is read off soundness directly.
 
 Admissibility of a valuation asks each slot to **name the term it stands
 for**. That is what makes Σ's η true (see `DomainSemantics/Canon.lean`,
-and `DomainSemantics/Counterexample.lean` for the witness that refutes
-the weaker admissibility).
+and `design.md` for the witness that refutes the weaker admissibility).
 
 ## Compilation
 
@@ -83,7 +82,6 @@ The library is a strict dependency chain. Lines are of Lean source.
 | [`Presheaf.lean`](DomainSemantics/Presheaf.lean) | 5579 | `IsDefEq.sound`: five conclusions (equality, typing, both `Pinned`s, saturation) in one induction, every rule, Σ's η included. |
 | [`Strong.lean`](DomainSemantics/Strong.lean) | 240 | `StrongSound.uniq`, the semantic half of type uniqueness. |
 | [`Inversion.lean`](DomainSemantics/Inversion.lean) | 258 | Π-, Σ- and Id-injectivity, fifteen no-confusion principles, and `zero_ne_succ_zero`, all four steps from soundness and none from adequacy. |
-| [`Counterexample.lean`](DomainSemantics/Counterexample.lean) | 169 | The slot that refutes the weaker admissibility: well formed and hereditarily typed, but not named by the variable it stands for. |
 | [`Consequences.lean`](DomainSemantics/Consequences.lean) | 980 | Type uniqueness, sort uniqueness, `IsDefEq.iff`, canonical forms, subject reduction, progress, `not_UIP`. |
 | [`Status.lean`](DomainSemantics/Status.lean) | 115 | The internals board: where the model stands, axiom-checked. |
 | [`DomainSemantics.lean`](DomainSemantics.lean) | 59 | Umbrella: the headline board. |

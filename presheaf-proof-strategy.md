@@ -1983,7 +1983,7 @@ one already in the repo.
   **point at one stage**.  `snd p` pins the query `fst p` from the
   syntax, and a point at the stage `succ zero` does not respond to it.
   A slot that is a point at the wrong stage is exactly the
-  `Counterexample.lean` witness.
+  witness in §4.7h.
 
 So nothing is wrong with the Σ-*shape* as it now stands (`pair A B a x
 y`, §4.7f): it is the only possible Σ-value here.  What is wrong is
@@ -2114,8 +2114,8 @@ Two things the propagation turned up, both fixed in the model:
    (`x : C₀[a₀]`, `a₀ ≡ a`, `C₀ ≡ C`), which `trDF` supplies without
    instantiating (`IsDefEq.annot` has no `⊢ Γ`).
 
-`Counterexample.lean` now shows the old witness is excluded: well formed
-and hereditarily typed, but not admissible (`ce_not_adm`), the failed
+The old witness is now excluded: well formed
+and hereditarily typed, but not admissible, the failed
 conjunct being its name; `succ zero ≢ fst #0` is a corollary of
 soundness.
 
