@@ -39,19 +39,6 @@ structure Entry (α : Type) where
   out : α
   deriving Inhabited
 
-namespace Entry
-
-/-- Map the shape components of an entry, keeping the label. -/
-def map (f : α → β) (e : Entry α) : Entry β := ⟨e.tm, f e.inp, f e.out⟩
-
-@[simp] theorem map_tm (f : α → β) (e : Entry α) : (e.map f).tm = e.tm := rfl
-@[simp] theorem map_inp (f : α → β) (e : Entry α) : (e.map f).inp = f e.inp := rfl
-@[simp] theorem map_out (f : α → β) (e : Entry α) : (e.map f).out = f e.out := rfl
-
-end Entry
-
-/-- Ground (level-0) shapes: the bottom element and a sort indexed by
-`rel : Bool`. All function-shape information lives at level ≥ 1. -/
 inductive Shape0 : Type where
   | bot : Shape0
   | sort (rel : Bool) : Shape0
@@ -120,8 +107,6 @@ theorem Shape.sort_ne_bot {n} {r : Bool} : (Shape.sort r : Shape n) ≠ Shape.bo
 @[match_pattern] def Shape.refl {n} : Shape (n+1) := ShapeS.refl
 
 abbrev Shape.type : Shape n := .sort true
-abbrev Shape.prop : Shape n := .sort false
-
 instance : Inhabited (Shape n) := ⟨.bot⟩
 
 /-! ## Lifting between levels
@@ -228,22 +213,6 @@ def Shape.IsBot : ∀ {n}, Shape n → Prop
 
 @[simp] theorem Shape.isBot_bot : (Shape.bot (n := n)).IsBot := by cases n <;> trivial
 
-@[simp] theorem Shape.isBot_lam {A : Term} {f : ShapeFun n} :
-    Shape.IsBot (n := n+1) (ShapeS.lam A f) ↔ ∀ e ∈ f, e.out.IsBot := Iff.rfl
-
-@[simp] theorem Shape.isBot_pair {A a : Term} {x y : Shape n} :
-    Shape.IsBot (n := n+1) (ShapeS.pair A a x y) ↔ x.IsBot ∧ y.IsBot := Iff.rfl
-
-/-! ## Substitution
-
-Shapes carry syntactic labels, so a substitution acts on them.  The action
-is purely structural (the semantic components are untouched apart from
-recursing), and since it does not inspect the labels it needs no typing
-hypotheses; those appear only in the *preservation* lemmas below, which is
-the whole "no quotient, preservation lemmas instead" policy in miniature.
-Note `B` in a Π/Σ label lives under a binder, hence `σ.lift`. -/
-
-/-- Substitute in a graph, given the action on the shapes at this level. -/
 def ShapeFun.subst (g : Shape n → Shape n) (σ : Subst) (f : ShapeFun n) : ShapeFun n :=
   f.map fun e => ⟨e.tm.subst σ, g e.inp, g e.out⟩
 
@@ -490,22 +459,6 @@ theorem ShapeFun.Eval.trans {Δ : List Term} {n} {R : Shape n → Shape n → Pr
   | lower hle _ ih => exact .lower hle ih
   | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
 
-/-- Adding entries preserves a lookup. -/
-theorem ShapeFun.Eval.sub {Δ : List Term} {n} {R : Shape n → Shape n → Prop}
-    {f f' : ShapeFun n} {A a : Term} {x y : Shape n} (hsub : ∀ e ∈ f, e ∈ f')
-    (H : ShapeFun.Eval Δ R f A a x y) : ShapeFun.Eval Δ R f' A a x y := by
-  induction H with
-  | bot => exact .bot
-  | entry e he hl hin => exact .entry e (hsub e he) hl hin
-  | lower hle _ ih => exact .lower hle ih
-  | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
-
-/-! ### Moving a graph's type along a definitional equality
-
-A graph's entries are read at the domain label of the shape it sits in,
-and two comparable shapes have definitionally equal labels; these move
-every graph judgment from one to the other. -/
-
 theorem ShapeFun.Compat.retype {R : List Term → Shape n → Shape n → Prop} {Δ : List Term}
     {T T' : Term} {f f' : ShapeFun n} (hT : TyEq Δ T T')
     (h : ShapeFun.Compat R Δ T f f') : ShapeFun.Compat R Δ T' f f' :=
@@ -717,13 +670,6 @@ theorem Shape.le_succ {Δ : List Term} {n} {v : Shape n} {s : Shape (n+1)}
   | succ v' => exact .inr ⟨v', rfl, h⟩
   | _ => exact absurd h id
 
-theorem Shape.le_refl' {Δ : List Term} {n} {s : Shape (n+1)}
-    (h : Shape.LE Δ s (ShapeS.refl)) : s = Shape.bot ∨ s = ShapeS.refl := by
-  cases s with
-  | bot => exact .inl rfl
-  | refl => exact .inr rfl
-  | _ => exact absurd h id
-
 theorem Shape.le_id {Δ : List Term} {n} {r : Bool} {A a b : Term} {s : Shape (n+1)}
     (h : Shape.LE Δ s (ShapeS.id r A a b)) :
     s = Shape.bot ∨ ∃ A' a' b', s = ShapeS.id r A' a' b' ∧ IdLabelEq Δ A' a' b' A a b := by
@@ -752,26 +698,6 @@ theorem Shape.le_sigma {Δ : List Term} {n} {A B : Term} {d : Shape n} {f : Shap
   | sigma A' B' d' f' => exact .inr ⟨A', B', d', f', rfl, h.1, h.2.1, h.2.2⟩
   | _ => exact absurd h id
 
-theorem Shape.le_lam {Δ : List Term} {n} {A : Term} {g : ShapeFun n} {s : Shape (n+1)}
-    (h : Shape.LE Δ s (ShapeS.lam A g)) :
-    s = Shape.bot ∨ ∃ A' g', s = ShapeS.lam A' g' ∧
-      ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) A' g' g ∧ TyEq Δ A' A := by
-  cases s with
-  | bot => exact .inl rfl
-  | lam A' g' => exact .inr ⟨A', g', rfl, h.1, h.2.2.2.1⟩
-  | _ => exact absurd h id
-
-theorem Shape.le_pair {Δ : List Term} {n} {A a : Term} {x y : Shape n}
-    {s : Shape (n+1)} (h : Shape.LE Δ s (ShapeS.pair A a x y)) :
-    s = Shape.bot ∨ ∃ A' a' x' y', s = ShapeS.pair A' a' x' y' ∧
-      Shape.LE Δ x' x ∧ Shape.LE Δ y' y ∧ TyEq Δ A' A ∧ (Δ ⊢ a' ≡ a : A') := by
-  cases s with
-  | bot => exact .inl rfl
-  | pair A' a' x' y' => exact .inr ⟨A', a', x', y', rfl, h.1, h.2.1, h.2.2.2.1, h.2.2.2.2⟩
-  | _ => exact absurd h id
-
-/-- Lifting is purely structural, so it commutes with substitution at
-every pair of levels. -/
 theorem Shape.lift_subst {n} (m : Nat) {s : Shape n} {τ : Subst} :
     (s.subst τ).lift m = (s.lift m).subst τ := by
   induction n generalizing m with
@@ -1002,14 +928,6 @@ On graphs it is **append**, which is the lub for entry-wise coverage; the
 old `ShapeFun.join` re-applied the graphs because they had to stay
 saturated. -/
 
-/-- `Join Δ x y z`: `z` is a least upper bound of `x` and `y` in the
-context `Δ`.  This is master's `WShape.Join`, and it is the form used in
-proofs: it is insensitive to which of two definitionally equal labels a
-witness happens to carry, and does not presuppose that a join exists. -/
-def Shape.Join (Δ : List Term) {n} (x y z : Shape n) : Prop :=
-  ∀ w, Shape.LE Δ z w ↔ (Shape.LE Δ x w ∧ Shape.LE Δ y w)
-
-/-- Lifting *up* commutes with the join. -/
 theorem Shape.lift_join {n m} (h : n ≤ m) {s t : Shape n} :
     (s.lift m).join (t.lift m) = (s.join t).lift m := by
   induction n generalizing m with
@@ -1976,44 +1894,6 @@ theorem Shape.le_join (hΔ : ⊢ Δ) : ∀ {n} {x y : Shape n}, Shape.WF Δ x �
         exact ⟨⟨rfl, IdLabelEq.refl hA ha hb⟩, ⟨h.1.symm, h.2.symm⟩⟩
       | _ => exact absurd h id
 
-/-- Joins exist for compatible well-formed shapes, with the function as
-witness. -/
-theorem Shape.exists_join (hΔ : ⊢ Δ) {n} {x y : Shape n}
-    (hx : Shape.WF Δ x) (hy : Shape.WF Δ y) (h : Shape.Compat Δ x y) :
-    Shape.Join Δ x y (x.join y) := by
-  have ⟨hl, hr⟩ := Shape.le_join hΔ hx hy h
-  exact fun w => ⟨fun hw => ⟨hl.trans hΔ hw, hr.trans hΔ hw⟩, fun ⟨h₁, h₂⟩ => Shape.join_le h₁ h₂⟩
-
-/-! ## Well-formedness, compatibility and join under substitution
-
-`join` commutes with substitution on the nose, being structural and
-context-free.  Combined with `WF.subst`, `Compat.subst` and `exists_join`
-this gives joins at the new stage without needing `Join` itself to
-transport (which it does not: `Join Θ` quantifies over more shapes than
-the image of the substitution). -/
-
-theorem Shape.IsBot.subst {τ : Subst} : ∀ {n} {s : Shape n}, s.IsBot → (s.subst τ).IsBot := by
-  intro n
-  induction n with
-  | zero =>
-    intro s h
-    cases s with
-    | bot => trivial
-    | sort => exact absurd h id
-  | succ n ih =>
-    intro s h
-    cases s with
-    | bot => trivial
-    | lam Af f =>
-      intro d hd
-      obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
-      exact ih (h e he)
-    | pair A a x y => exact ⟨ih h.1, ih h.2⟩
-    | _ => exact absurd h id
-
-/-- Well-formedness survives joining.  Needs compatibility, because the
-coherence conjunct of the joined graph has to relate entries coming from
-*different* sides, which is exactly what `Compat` supplies. -/
 theorem Shape.WF.join : ∀ {n} {Δ : List Term} {y z : Shape n}, ⊢ Δ →
     Shape.Compat Δ y z → Shape.WF Δ y → Shape.WF Δ z → Shape.WF Δ (y.join z) := by
   intro n
@@ -2360,10 +2240,6 @@ theorem join.def {a b : TShape} {k} (h1 : a.1 ≤ k) (h2 : b.1 ≤ k) :
       Shape.lift_join (Nat.max_le.2 ⟨h1, h2⟩)]
   rfl
 
-@[simp] theorem join_fst {a b : TShape} : (TShape.join a b).1 = max a.1 b.1 := rfl
-
-/-! The order at the total level, from the order at each level. -/
-
 theorem LE.refl {Δ : List Term} {a : TShape} (h : TShape.WF Δ a) : TShape.LE Δ a a :=
   Shape.LE.refl ((Shape.lift_wf (Nat.le_max_left ..)).2 h)
 
@@ -2377,13 +2253,6 @@ theorem LE.trans {Δ : List Term} (hΔ : ⊢ Δ) {a b c : TShape}
   exact (LE.def hΔ ha hc).2
     (Shape.LE.trans hΔ ((LE.def_mp ha hb) h1) ((LE.def_mp hb hc) h2))
 
-@[simp] theorem bot_le {Δ : List Term} {a : TShape} : TShape.LE Δ TShape.bot a := by
-  show Shape.LE Δ _ _
-  simp only [TShape.bot, Shape.T, Shape.lift_bot]
-  exact Shape.LE.bot
-
-/-- The order between two shapes at the *same* level is the level's own
-order: the common case, and the one that needs no arithmetic. -/
 theorem LE.T {Δ : List Term} {n} {s t : Shape n} :
     TShape.LE Δ (Shape.T s) (Shape.T t) ↔ Shape.LE Δ s t := by
   show Shape.LE Δ (s.lift (max n n)) (t.lift (max n n)) ↔ _
@@ -2397,17 +2266,6 @@ theorem Compat.T {Δ : List Term} {n} {s t : Shape n} :
   refine Iff.trans (Compat.def (Nat.le_refl n) (Nat.le_refl n)) ?_
   rw [Shape.lift_self, Shape.lift_self]
 
-/-- The join of two shapes at the same level, read back at that level.
-Stated through `lift` rather than as an equation of `TShape`s because
-`max n n` is only propositionally `n`. -/
-theorem join.T {n} {s t : Shape n} :
-    (TShape.join (Shape.T s) (Shape.T t)).2.lift n = s.join t := by
-  rw [join.def (a := Shape.T s) (b := Shape.T t) (Nat.le_refl n) (Nat.le_refl n),
-    Shape.lift_self, Shape.lift_self]
-
-/-- The same as an equation of `TShape`s.  The rewrite along `max n n = n`
-is dependent — it moves the level index — but the motive is type-correct
-because the payload is `(s.lift k).join (t.lift k) : Shape k`. -/
 theorem join_T {n} {s t : Shape n} :
     TShape.join (Shape.T s) (Shape.T t) = Shape.T (s.join t) := by
   show (⟨max n n, (s.lift (max n n)).join (t.lift (max n n))⟩ : TShape) = _
@@ -2436,22 +2294,8 @@ theorem TShape.bot_le' {Δ : List Term} {a b : TShape} (ha : a.2 = Shape.bot) :
   rw [ha, Shape.lift_bot]
   exact Shape.LE.bot
 
-theorem TShape.le_bot_iff {Δ : List Term} (hΔ : ⊢ Δ) {a : TShape} :
-    TShape.LE Δ a TShape.bot ↔ a.2 = .bot :=
-  ⟨TShape.le_bot hΔ rfl, TShape.bot_le'⟩
-
-/-- Reindexing the total shape domain along a typed substitution.  The
-`TShape` forms of `Shape.LE.subst` and `Shape.WF.subst`: the level is
-untouched, so the canonical level of the pair is untouched too. -/
-@[simp] theorem TShape.subst_fst {a : TShape} {τ : Subst} : (a.subst τ).1 = a.1 := rfl
-
 @[simp] theorem TShape.subst_T {n} {s : Shape n} {τ : Subst} :
     (Shape.T s).subst τ = Shape.T (s.subst τ) := rfl
-
-@[simp] theorem TShape.subst_bot {τ : Subst} : TShape.bot.subst τ = TShape.bot := rfl
-
-@[simp] theorem TShape.subst_sort {r : Bool} {τ : Subst} :
-    (TShape.sort r).subst τ = TShape.sort r := rfl
 
 theorem TShape.LE.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (W : Ctx.SubstEq Θ τ τ Δ) {a b : TShape} (h : TShape.LE Δ a b) :
@@ -2480,24 +2324,6 @@ theorem TShape.join_eq_bot {a b : TShape} (ha : a.2 = Shape.bot) (hb : b.2 = Sha
 
 @[simp] theorem Shape.join_bot : ∀ {n} {s : Shape n}, s.join (Shape.bot (n := n)) = s := by
   intro n; cases n <;> intro s <;> cases s <;> rfl
-
-/-- And at the total level, where it is lifting. -/
-theorem TShape.bot_join {n} {b : TShape} :
-    TShape.join (Shape.T (n := n) Shape.bot) b = ⟨max n b.1, b.2.lift (max n b.1)⟩ := by
-  show (⟨max n b.1, (Shape.lift (max n b.1) (Shape.bot (n := n))).join
-    (Shape.lift (max n b.1) b.2)⟩ : TShape) = _
-  rw [Shape.lift_bot, Shape.bot_join]
-
-theorem TShape.join_bot {n} {a : TShape} :
-    TShape.join a (Shape.T (n := n) Shape.bot) = ⟨max a.1 n, a.2.lift (max a.1 n)⟩ := by
-  show (⟨max a.1 n, (Shape.lift (max a.1 n) a.2).join
-    (Shape.lift (max a.1 n) (Shape.bot (n := n)))⟩ : TShape) = _
-  rw [Shape.lift_bot, Shape.join_bot]
-
-/-! The two unary shape formers are monotone.  Master's
-`TShape.succ_le_succ`, one direction; the level bookkeeping is one use of
-`LE.def` on each side, since `max (a.1+1) (b.1+1)` is only propositionally
-`max a.1 b.1 + 1`. -/
 
 theorem TShape.LE.succ_of {Δ : List Term} (hΔ : ⊢ Δ) {a b : TShape} (h : TShape.LE Δ a b) :
     TShape.LE Δ (Shape.T (n := a.1+1) (ShapeS.succ a.2))
@@ -2538,14 +2364,6 @@ theorem Shape.piAtom_le_forallE {Δ : List Term} {n} {A B A' B' : Term}
     {d : Shape n} {f : ShapeFun n}
     (h : Shape.LE Δ (Shape.piAtom A B) (ShapeS.forallE A' B' d f : Shape (n+1))) :
     PiLabelEq Δ A B A' B' := h.1
-
-theorem Shape.piAtom_le {Δ : List Term} {n} {A B A' B' : Term}
-    {d : Shape n} {f : ShapeFun n} (h : PiLabelEq Δ A B A' B')
-    (hf : ShapeFun.WF Δ A' (Shape.WF Δ) f) :
-    Shape.LE Δ (Shape.piAtom A B) (ShapeS.forallE A' B' d f : Shape (n+1)) :=
-  ⟨h, Shape.LE.bot, fun _ he => absurd he List.not_mem_nil,
-    ⟨fun _ he => absurd he List.not_mem_nil, fun _ he => absurd he List.not_mem_nil⟩,
-    hf.retype (TyEq.symm h.1)⟩
 
 @[simp] theorem Shape.lift_piAtom {n m} {A B : Term} :
     (Shape.piAtom (n := n) A B).lift (m+1) = Shape.piAtom A B := by
@@ -2690,8 +2508,6 @@ namespace TShape
 /-- Move a shape up to level `k`. -/
 def lift (m : TShape) (k : Nat) : TShape := ⟨k, m.2.lift k⟩
 
-@[simp] theorem lift_fst {m : TShape} {k} : (m.lift k).1 = k := rfl
-
 theorem WF.lift {Δ : List Term} {m : TShape} {k} (hk : m.1 ≤ k)
     (h : TShape.WF Δ m) : TShape.WF Δ (m.lift k) := (Shape.lift_wf hk).2 h
 
@@ -2747,175 +2563,3 @@ join relationally rather than as an operation.  `Joins` is the least upper
 bound spelled out by its universal property; it is pinned only up to
 mutual `≤`, which is all this order provides (labels are compared up to
 definitional equality, so `LE` is a preorder, not a partial order). -/
-
-/-- `j` is a least upper bound of the list `s`, stated by the universal
-property `j ≤ w ↔ ∀ x ∈ s, x ≤ w`.
-
-The quantifier ranges over **well-formed** `w` only: `LE Δ` compares
-labels by definitional equality in `Δ`, which is reflexive only on
-well-typed terms, so `LE Δ j w` for an ill-formed `w` is not a meaningful
-constraint and there is no reason to be below every such `w`.  With that
-restriction the two halves of the property are `Joins.le` (which needs
-`WF Δ j`, since it instantiates at `w := j`) and `Joins.min`. -/
-def Shape.Joins (Δ : List Term) {n} (s : List (Shape n)) (j : Shape n) : Prop :=
-  ∀ w, Shape.WF Δ w → (Shape.LE Δ j w ↔ ∀ x ∈ s, Shape.LE Δ x w)
-
-/-- Build a `Joins` from the two halves. -/
-theorem Shape.Joins.of {Δ : List Term} (hΔ : ⊢ Δ) {n} {s : List (Shape n)} {j : Shape n}
-    (hup : ∀ x ∈ s, Shape.LE Δ x j)
-    (hmin : ∀ w, Shape.WF Δ w → (∀ x ∈ s, Shape.LE Δ x w) → Shape.LE Δ j w) :
-    Shape.Joins Δ s j :=
-  fun w hw => ⟨fun hjw x hx => (hup x hx).trans hΔ hjw, hmin w hw⟩
-
-/-- `j` is an upper bound. -/
-theorem Shape.Joins.le {Δ : List Term} {n} {s : List (Shape n)} {j : Shape n}
-    (hj : Shape.WF Δ j) (h : Shape.Joins Δ s j) : ∀ x ∈ s, Shape.LE Δ x j :=
-  (h j hj).1 (Shape.LE.refl hj)
-
-/-- `j` is the least one. -/
-theorem Shape.Joins.min {Δ : List Term} {n} {s : List (Shape n)} {j w : Shape n}
-    (h : Shape.Joins Δ s j) (hw : Shape.WF Δ w) (hle : ∀ x ∈ s, Shape.LE Δ x w) :
-    Shape.LE Δ j w := (h w hw).2 hle
-
-/-- A least upper bound is unique up to mutual `≤`. -/
-theorem Shape.Joins.uniq {Δ : List Term} {n} {s : List (Shape n)} {j j' : Shape n}
-    (hj : Shape.WF Δ j) (hj' : Shape.WF Δ j')
-    (h : Shape.Joins Δ s j) (h' : Shape.Joins Δ s j') :
-    Shape.LE Δ j j' ∧ Shape.LE Δ j' j :=
-  ⟨h.min hj' (h'.le hj'), h'.min hj (h.le hj)⟩
-
-/-- `Joins` sees only the members of the list, not its order or
-multiplicities.  This is what lets the sublist produced by
-`List.Sublist.union` stand in for a concatenation. -/
-theorem Shape.Joins.mem_congr {Δ : List Term} {n} {s t : List (Shape n)} {j : Shape n}
-    (hst : ∀ x ∈ t, x ∈ s) (hts : ∀ x ∈ s, x ∈ t) (h : Shape.Joins Δ s j) :
-    Shape.Joins Δ t j :=
-  fun w hw => (h w hw).trans
-    ⟨fun H x hx => H x (hst x hx), fun H x hx => H x (hts x hx)⟩
-
-theorem Shape.Joins.nil {Δ : List Term} {n} : Shape.Joins Δ ([] : List (Shape n)) .bot :=
-  fun _ _ => ⟨fun _ => nofun, fun _ => Shape.LE.bot⟩
-
-theorem Shape.Joins.singleton {Δ : List Term} (hΔ : ⊢ Δ) {n} {x : Shape n}
-    (hx : Shape.WF Δ x) : Shape.Joins Δ [x] x :=
-  .of hΔ (fun y hy => by cases List.mem_singleton.1 hy; exact Shape.LE.refl hx)
-    (fun _ _ hw => hw _ (.head _))
-
-/-- Consing on: the binary `join` computes the least upper bound of the
-extended list, given that it is a least upper bound of the two shapes. -/
-theorem Shape.Joins.cons {Δ : List Term} (hΔ : ⊢ Δ) {n} {x j : Shape n} {s : List (Shape n)}
-    (hx : Shape.WF Δ x) (hj : Shape.WF Δ j) (hc : Shape.Compat Δ x j)
-    (h : Shape.Joins Δ s j) : Shape.Joins Δ (x :: s) (x.join j) := by
-  have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hx hj hc
-  refine .of hΔ (fun y hy => ?_) fun w hw hle =>
-    Shape.join_le (hle x (.head _)) (h.min hw fun y hy => hle y (.tail _ hy))
-  match List.mem_cons.1 hy with
-  | .inl h' => cases h'; exact hu₁
-  | .inr h' => exact (h.le hj y h').trans hΔ hu₂
-
-/-- Appending: the two joins join. -/
-theorem Shape.Joins.append {Δ : List Term} (hΔ : ⊢ Δ) {n} {s t : List (Shape n)}
-    {j k : Shape n} (hj : Shape.WF Δ j) (hk : Shape.WF Δ k) (hc : Shape.Compat Δ j k)
-    (hs : Shape.Joins Δ s j) (ht : Shape.Joins Δ t k) :
-    Shape.Joins Δ (s ++ t) (j.join k) :=
-  have ⟨hu₁, hu₂⟩ := Shape.le_join hΔ hj hk hc
-  .of hΔ
-    (fun y hy => match List.mem_append.1 hy with
-      | .inl h' => (hs.le hj y h').trans hΔ hu₁
-      | .inr h' => (ht.le hk y h').trans hΔ hu₂)
-    (fun _ hw hle => Shape.join_le
-      (hs.min hw fun y hy => hle y (List.mem_append.2 (.inl hy)))
-      (ht.min hw fun y hy => hle y (List.mem_append.2 (.inr hy))))
-
-/-- **Existence**: a list of well-formed shapes with a common upper bound
-has a least upper bound, itself below that bound.  Compatibility -- the
-only obstruction -- comes for free from the common bound. -/
-theorem Shape.exists_joins {Δ : List Term} (hΔ : ⊢ Δ) {n} {w : Shape n} (hw : Shape.WF Δ w) :
-    ∀ {s : List (Shape n)}, (∀ x ∈ s, Shape.WF Δ x) → (∀ x ∈ s, Shape.LE Δ x w) →
-      ∃ j, Shape.Joins Δ s j ∧ Shape.WF Δ j ∧ Shape.LE Δ j w := by
-  intro s
-  induction s with
-  | nil => exact fun _ _ => ⟨.bot, .nil, by cases n <;> trivial, Shape.LE.bot⟩
-  | cons x s ih =>
-    intro hwf hle
-    have ⟨j, hj, hwj, hjw⟩ :=
-      ih (fun y hy => hwf y (.tail _ hy)) (fun y hy => hle y (.tail _ hy))
-    have hx := hwf x (.head _)
-    have hc := Shape.Compat.of_common_upper hΔ hw.coherent (hle x (.head _)) hjw
-    exact ⟨x.join j, hj.cons hΔ hx hwj hc, Shape.WF.join hΔ hc hx hwj,
-      Shape.join_le (hle x (.head _)) hjw⟩
-
-/-- `Joins` transfers along mutual `≤`, since that is all it pins down. -/
-theorem Shape.Joins.congr {Δ : List Term} (hΔ : ⊢ Δ) {n} {L : List (Shape n)} {j j' : Shape n}
-    (hjj' : Shape.LE Δ j j') (hj'j : Shape.LE Δ j' j) (h : Shape.Joins Δ L j) :
-    Shape.Joins Δ L j' :=
-  fun w hw => ⟨fun hle => (h w hw).1 (hjj'.trans hΔ hle),
-    fun hub => hj'j.trans hΔ ((h w hw).2 hub)⟩
-
-/-- Least upper bounds are preserved by `lift`.  Minimality survives the
-move even though the ambient level gains shapes that are not lifts,
-because the binary join commutes with `lift` (`Shape.lift_join`) and
-`Shape.join_le` is unconditional. -/
-theorem Shape.Joins.lift {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) :
-    ∀ {L : List (Shape n)} {j : Shape n}, (∀ x ∈ L, Shape.WF Δ x) → Shape.WF Δ j →
-      Shape.Joins Δ L j → Shape.Joins Δ (L.map (Shape.lift k)) (j.lift k) := by
-  intro L
-  induction L with
-  | nil =>
-    intro j _ _ hj
-    have hjb : Shape.LE Δ j .bot := hj.min (by cases n <;> trivial) nofun
-    refine fun w hw => ⟨fun _ => nofun, fun _ => ?_⟩
-    have := (Shape.lift_le_lift (Γ := Δ) hΔ h).2 hjb
-    rw [Shape.lift_bot] at this
-    exact this.trans hΔ Shape.LE.bot
-  | cons x L ih =>
-    intro j hwL hwj hj
-    have hwx := hwL x (.head _)
-    have hxj := hj.le hwj x (.head _)
-    have ⟨j₀, hj₀, hwj₀, hj₀j⟩ :=
-      Shape.exists_joins hΔ hwj (fun y hy => hwL y (.tail _ hy))
-        (fun y hy => hj.le hwj y (.tail _ hy))
-    have hc := Shape.Compat.of_common_upper hΔ hwj.coherent hxj hj₀j
-    have ⟨h₁, h₂⟩ :=
-      Shape.Joins.uniq hwj (Shape.WF.join hΔ hc hwx hwj₀) hj (hj₀.cons hΔ hwx hwj₀ hc)
-    have hlift : Shape.Joins Δ ((x :: L).map (Shape.lift k)) ((x.join j₀).lift k) := by
-      rw [← Shape.lift_join h]
-      exact (ih (fun y hy => hwL y (.tail _ hy)) hwj₀ hj₀).cons hΔ
-        ((Shape.lift_wf h).2 hwx) ((Shape.lift_wf h).2 hwj₀) ((Shape.lift_compat h).2 hc)
-    exact hlift.congr hΔ ((Shape.lift_le_lift hΔ h).2 h₂) ((Shape.lift_le_lift hΔ h).2 h₁)
-
-/-- A pairwise-compatible list has a least upper bound.  Unlike
-`exists_joins` this needs no common bound to start from: the fold keeps
-compatibility going by `join_compat`, which is why the statement carries
-the "compatible with anything all of `L` is compatible with" clause. -/
-theorem Shape.exists_joins_of_pairwise {Δ : List Term} (hΔ : ⊢ Δ) : ∀ {n} {L : List (Shape n)},
-    (∀ v ∈ L, Shape.WF Δ v) → (∀ v ∈ L, ∀ w ∈ L, Shape.Compat Δ v w) →
-    ∃ j, Shape.Joins Δ L j ∧ Shape.WF Δ j ∧
-      ∀ w, (∀ v ∈ L, Shape.Compat Δ v w) → Shape.Compat Δ j w := by
-  intro n L
-  induction L with
-  | nil =>
-    exact fun _ _ => ⟨.bot, .nil, by cases n <;> trivial, fun _ _ => Shape.Compat.bot_left⟩
-  | cons x L ih =>
-    intro hwf hpw
-    have ⟨j, hj, hwj, hjc⟩ :=
-      ih (fun v hv => hwf v (.tail _ hv))
-        (fun v hv w hw => hpw v (.tail _ hv) w (.tail _ hw))
-    have hwx := hwf x (.head _)
-    have hc : Shape.Compat Δ x j :=
-      Shape.Compat.symm hΔ (hjc x fun v hv => hpw v (.tail _ hv) x (.head _))
-    exact ⟨x.join j, hj.cons hΔ hwx hwj hc, Shape.WF.join hΔ hc hwx hwj,
-      fun w hw => .join hΔ (hw x (.head _)) (hjc w fun v hv => hw v (.tail _ hv))⟩
-
-/-! The two projections of a lifted graph, in the unfolded form
-`List.sublist_map` leaves behind. -/
-
-theorem ShapeFun.map_lift_inp {n k} {s : List (Entry (Shape n))} :
-    (s.map fun e => (⟨e.tm, e.inp.lift k, e.out.lift k⟩ : Entry (Shape k))).map Entry.inp
-      = (s.map Entry.inp).map (Shape.lift k) := by
-  simp [List.map_map, Function.comp_def]
-
-theorem ShapeFun.map_lift_out {n k} {s : List (Entry (Shape n))} :
-    (s.map fun e => (⟨e.tm, e.inp.lift k, e.out.lift k⟩ : Entry (Shape k))).map Entry.out
-      = (s.map Entry.out).map (Shape.lift k) := by
-  simp [List.map_map, Function.comp_def]

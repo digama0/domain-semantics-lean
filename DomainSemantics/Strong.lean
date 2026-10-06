@@ -11,9 +11,7 @@ recording each subterm's type, wrapped around the two semantic ones:
   `StrongSound` (or `SoundTy`) for the subterms at the types the
   corresponding `IsDefEq` rule gives them;
 * `StrongSound Γ t A` — `SoundTy Γ t A` together with such a core at some
-  `A'` that is `SoundEq` to `A`;
-* `StrongSoundEq Γ t t' A` — `SoundEq Γ t t'` with both sides
-  `StrongSound` at `A`.
+  `A'` that is `SoundEq` to `A`.
 
 The point is `StrongSound.uniq`: two strong typings of one term have
 `SoundEq` types.  In this design that is not weaker than the syntactic
@@ -83,70 +81,9 @@ inductive StrongSoundCore : List Term → Term → Term → Prop where
     StrongSoundCore Γ (.tr r A a b C x h) (C.inst b)
 end
 
-/-- Strong soundness for an equality judgment: both sides are individually
-`StrongSound` at `A`, and they are semantically equal. -/
-structure StrongSoundEq (Γ : List Term) (t t' A : Term) : Prop where
-  sound : SoundEq Γ t t'
-  left : StrongSound Γ t A
-  right : StrongSound Γ t' A
-
-/-! ## The algebra of the three predicates
-
-All of it is bookkeeping; `SoundEq`'s own `rfl`/`symm`/`trans` are in
-`Presheaf.lean`. -/
-
 theorem StrongSound.sound : StrongSound Γ t A → SoundTy Γ t A
   | ⟨h, _, _, _⟩ => h
 
-/-- The judgment's type is a type, syntactically: the link to the core's
-type is a definitional equality, so its right-hand typing is the answer. -/
-theorem StrongSound.isType : StrongSound Γ t A → ∃ u, Γ ⊢ A : .sort u
-  | ⟨_, _, _, ⟨u, h⟩⟩ => ⟨u, h.hasType.2⟩
-
-theorem StrongSoundEq.symm : StrongSoundEq Γ t t' A → StrongSoundEq Γ t' t A
-  | ⟨h1, h2, h3⟩ => ⟨h1.symm, h3, h2⟩
-
-theorem StrongSoundEq.rfl' (H : StrongSound Γ t A) : StrongSoundEq Γ t t A :=
-  ⟨SoundEq.refl, H, H⟩
-
-theorem StrongSoundEq.trans :
-    StrongSoundEq Γ t t' A → StrongSoundEq Γ t' t'' A → StrongSoundEq Γ t t'' A
-  | ⟨a1, a2, _⟩, ⟨b1, _, b3⟩ => ⟨a1.trans b1, a2, b3⟩
-
-/-- The type of a `SoundTy` moves along a semantic equality of types. -/
-theorem SoundTy.defeq_r {u} (H0 : Γ ⊢ A ≡ B : .sort u) (H1 : SoundEq Γ A B)
-    (H : SoundTy Γ t A) : SoundTy Γ t B := by
-  refine ⟨H0.defeqDF H.typed, ?_⟩
-  intro Δ Γ₀ σ ρ hΔ W hAdm m h
-  have ⟨a, ha, hty⟩ := H.approx hΔ W hAdm h
-  exact ⟨a, (H1 hΔ W hAdm).1 ha, hty⟩
-
-theorem StrongSound.defeq_r {u} (H1 : SoundEq Γ A B) (H1' : Γ ⊢ A ≡ B : .sort u) :
-    StrongSound Γ t A → StrongSound Γ t B
-  | ⟨sound, core, eq, ⟨_, eq'⟩⟩ =>
-    ⟨sound.defeq_r H1' H1, core, eq.trans H1, ⟨_, eq'.trans' H1'⟩⟩
-
-/-- The way each soundness case will build its `StrongSoundEq`: the two
-structural derivations, and the pair of semantic facts `IsDefEq.sound`
-already produces. -/
-theorem StrongSoundEq.mk' {u₁ u₂}
-    (hs : Γ ⊢ t ≡ t' : A)
-    (h2 : StrongSoundCore Γ t A₁) (h2' : SoundEq Γ A₁ A) (h2'' : Γ ⊢ A₁ ≡ A : .sort u₁)
-    (h3 : StrongSoundCore Γ t' A₂) (h3' : SoundEq Γ A₂ A) (h3'' : Γ ⊢ A₂ ≡ A : .sort u₂)
-    (h4 : SoundEq Γ t t' ∧ SoundTy Γ t A) :
-    StrongSoundEq Γ t t' A :=
-  ⟨h4.1, ⟨h4.2, h2, h2', ⟨_, h2''⟩⟩, ⟨SoundTy.of_eq hs h4.1 h4.2, h3, h3', ⟨_, h3''⟩⟩⟩
-
-/-- **Semantic uniqueness of types**, given it for the structural
-relation.  Master's `uniq_of_core`. -/
-theorem StrongSound.uniq_of_core
-    (H : ∀ {A B}, StrongSoundCore Γ t A → StrongSoundCore Γ t B → SoundEq Γ A B) :
-    StrongSound Γ t A → StrongSound Γ t B → SoundEq Γ A B
-  | ⟨_, a2, a3, _⟩, ⟨_, b2, b3, _⟩ => a3.symm.trans ((H a2 b2).trans b3)
-
-/-- And syntactically.  `H` is handed the two core types' own typings,
-which the `StrongSound`s carry: the clauses whose two cores agree on the
-nose still have to produce a *reflexivity*, and that needs a typing. -/
 theorem StrongSound.uniq_of_core'
     (H : ∀ {A B}, (∃ u, Γ ⊢ A : .sort u) → (∃ u, Γ ⊢ B : .sort u) →
       StrongSoundCore Γ t A → StrongSoundCore Γ t B →

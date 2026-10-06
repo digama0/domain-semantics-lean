@@ -52,11 +52,6 @@ def Valuation.tail (ro : Valuation) : Valuation := fun i => ro (i+1)
 the presheaf on morphisms, which for us is `Shape.subst` slotwise. -/
 def Valuation.subst (ro : Valuation) (tau : Subst) : Valuation := fun i => (ro i).subst tau
 
-@[simp] theorem Valuation.tail_push {ro : Valuation} {u} : (ro.push u).tail = ro := rfl
-
-@[simp] theorem Valuation.subst_apply {ro : Valuation} {tau i} :
-    ro.subst tau i = (ro i).subst tau := rfl
-
 @[simp] theorem Valuation.subst_push {ro : Valuation} {tau u} :
     (ro.push u).subst tau = (ro.subst tau).push (u.subst tau) := by
   funext i; cases i <;> rfl
@@ -69,13 +64,6 @@ def Valuation.WF (Δ : List Term) (ρ : Valuation) : Prop := ∀ i, TShape.WF Δ
 
 theorem Valuation.LE.refl {Δ : List Term} {ρ : Valuation} (h : ρ.WF Δ) : ρ.LE Δ ρ :=
   fun i => TShape.LE.refl (h i)
-
-theorem Valuation.LE.trans {Δ : List Term} (hΔ : ⊢ Δ) {ρ ρ' ρ'' : Valuation}
-    (h : ρ.LE Δ ρ') (h' : ρ'.LE Δ ρ'') : ρ.LE Δ ρ'' :=
-  fun i => TShape.LE.trans hΔ (h i) (h' i)
-
-@[simp] theorem Valuation.push_zero {ρ : Valuation} {u} : (ρ.push u) 0 = u := rfl
-@[simp] theorem Valuation.push_succ {ρ : Valuation} {u i} : (ρ.push u) (i+1) = ρ i := rfl
 
 theorem Valuation.LE.push {Δ : List Term} {ρ ρ' : Valuation} {u u' : TShape} :
     (ρ.push u).LE Δ (ρ'.push u') ↔ ρ.LE Δ ρ' ∧ TShape.LE Δ u u' :=
@@ -524,9 +512,6 @@ theorem Interp.ctx {Δ Γ : List Term} {t σ ρ m} (H : Interp Δ Γ t σ ρ m) 
 Master's primed forms.  Each takes the well-formedness that `LE` needs to
 be reflexive, which master gets from its shapes being a `WF` subtype. -/
 
-theorem Interp.bvar' {Δ Γ σ ρ i} (h : TShape.WF Δ (ρ i)) :
-    Interp Δ Γ (.bvar i) σ ρ (ρ i) := .bvar h (TShape.LE.refl h)
-
 theorem Interp.sort' {Δ Γ σ ρ r} :
     Interp Δ Γ (.sort r) σ ρ (TShape.sort r) :=
   .sort trivial (TShape.LE.refl (a := TShape.sort r) trivial)
@@ -537,21 +522,6 @@ theorem Interp.unit' {Δ Γ σ ρ r} :
 
 theorem Interp.nat' {Δ Γ σ ρ} : Interp Δ Γ .nat σ ρ TShape.nat :=
   .nat trivial (TShape.LE.refl (a := TShape.nat) trivial)
-
-theorem Interp.zero' {Δ Γ σ ρ} : Interp Δ Γ .zero σ ρ TShape.zero :=
-  .zero trivial (TShape.LE.refl (a := TShape.zero) trivial)
-
-theorem Interp.succ' {Δ Γ σ ρ N} {n} {v : Shape n}
-    (hv : Interp Δ Γ N σ ρ (Shape.T v)) (h : Shape.WF Δ v) :
-    Interp Δ Γ (.succ N) σ ρ (Shape.T (n := n+1) (ShapeS.succ v)) :=
-  .succ hv h (TShape.LE.refl (a := Shape.T (n := n+1) (ShapeS.succ v)) h)
-
-/-! ## Inversion for the atoms
-
-Every rule but `bot` pins the head of the term, so these are one `cases`
-each.  They are what the soundness induction reads a subderivation with,
-and — for `forallE` — what eventually yields Π-injectivity, since the
-shape it returns carries the syntactic pair. -/
 
 theorem Interp.le_sort {Δ Γ σ ρ m r}
     (H : Interp Δ Γ (.sort r) σ ρ m) : TShape.LE Δ m (TShape.sort r) := by
@@ -592,18 +562,6 @@ theorem Interp.bvar_iff {Δ Γ σ ρ m i} :
       | bvar _ h => exact h⟩,
    fun ⟨hw, h⟩ => .bvar hw h⟩
 
-theorem Interp.le_succ {Δ Γ σ ρ m N}
-    (H : Interp Δ Γ (.succ N) σ ρ m) :
-    ∃ n, ∃ v : Shape n, Interp Δ Γ N σ ρ (Shape.T v) ∧
-      TShape.LE Δ m (Shape.T (n := n+1) (ShapeS.succ v)) := by
-  cases H with
-  | bot => exact ⟨0, .bot, .bot, TShape.bot_le' rfl⟩
-  | succ hv _ h => exact ⟨_, _, hv, h⟩
-
-/-- The Π case.  The shape the interpretation lands in **records the
-syntactic pair** `(A[σ], B[σ.lift])`, which is what makes injectivity of
-`forallE` a projection out of soundness rather than a consequence of
-adequacy. -/
 theorem Interp.le_forallE {Δ Γ σ ρ m A B}
     (H : Interp Δ Γ (.forallE A B) σ ρ m) :
     m.2 = Shape.bot ∨
@@ -1554,23 +1512,6 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
         (haσ.symm.trans heq).trans hbσ
       exact ((IsDefEq.subst' hΔ W hA)).defeqDF h1
 
-theorem Interp.weak_iff {Δ Γ Γ' : List Term} {t σ' ρ ρ' m l} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
-    (hAnn : t.Annot Γ) (WΓ : Ctx.Lift' l Γ Γ') (hd : Ctx.SubstEq Δ σ' σ' Γ')
-    (hρ : ∀ i, ρ i = ρ' (Lift.liftVar l i)) :
-    Interp Δ Γ' (t.lift' l) σ' ρ' m ↔ Interp Δ Γ t (Subst.lift_l l σ') ρ m :=
-  ⟨fun H => Interp.unweak hΔ hΓ hAnn WΓ hd hρ H, fun H => H.weak' hΓ WΓ hρ⟩
-
-/-- Directedness of a term's approximants **at one stage**: any two have a
-well-formed upper bound that is again an approximant.
-
-This is the other repo's `IsDirected` verbatim -- his conclusion is a
-common upper bound *in the set*, not the join, and compatibility is a
-consequence (`Compat.of_common_upper`) rather than a hypothesis.  Master's
-`compat_join` states the derived `Compat ∧ join` form instead.
-
-It is a property of a *stage*, not of a term-in-context: `SoundDir` is its
-closure over well-formed stages, and the lemmas below take it as a
-hypothesis so that they do not have to wait for soundness. -/
 def Interp.Dir (Δ Γ : List Term) (t : Term) (σ : Subst) (ρ : Valuation) : Prop :=
   ∀ {{m₁ m₂}}, Interp Δ Γ t σ ρ m₁ → Interp Δ Γ t σ ρ m₂ →
     ∃ s, TShape.WF Δ s ∧ Interp Δ Γ t σ ρ s ∧ TShape.LE Δ m₁ s ∧ TShape.LE Δ m₂ s
@@ -1614,10 +1555,6 @@ def Valuation.Approx (Δ Γ : List Term) (θ σ : Subst) (ρ ρ' : Valuation) : 
 theorem Valuation.Approx.nil {Δ Γ : List Term} {θ σ ρ} :
     Valuation.Approx Δ Γ θ σ ρ Valuation.nil := fun _ => .bot
 
-theorem Valuation.Approx.wf {Δ Γ : List Term} {θ σ ρ ρ'}
-    (h : Valuation.Approx Δ Γ θ σ ρ ρ') : Valuation.WF Δ ρ' := fun i => (h i).wf
-
-/-- Two approximating valuations join to one, slotwise. -/
 theorem Valuation.Approx.join {Δ Γ : List Term} {θ σ ρ ρ₁ ρ₂} (hΔ : ⊢ Δ)
     (hθ : ∀ i, Interp.Dir Δ Γ (θ i) σ ρ)
     (h₁ : Valuation.Approx Δ Γ θ σ ρ ρ₁) (h₂ : Valuation.Approx Δ Γ θ σ ρ ρ₂) :
@@ -1660,28 +1597,6 @@ theorem Interp.Dir.bvar {Δ Γ : List Term} {i σ ρ} (hρ : TShape.WF Δ (ρ i)
     | bot => exact TShape.bot_le' rfl
     | bvar _ hle => exact hle
 
-/-- Directedness survives weakening: an approximant of `t↑` at an extended
-stage is one of `t` at the old one, and back (`Interp.weak_iff`). -/
-theorem Interp.Dir.weak {Δ Γ Γ' : List Term} {t σ ρ x e} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
-    (hAnn : t.Annot Γ) (WΓ : Ctx.Lift' (.skip .refl) Γ Γ')
-    (hd : Ctx.SubstEq Δ (σ.cons e) (σ.cons e) Γ') (h : Interp.Dir Δ Γ t σ ρ) :
-    Interp.Dir Δ Γ' t.lift (σ.cons e) (ρ.push x) := by
-  intro m₁ m₂ h₁ h₂
-  have hiff : ∀ {m}, Interp Δ Γ' t.lift (σ.cons e) (ρ.push x) m ↔
-      Interp Δ Γ t σ ρ m := fun {_} => Interp.weak_iff hΔ hΓ hAnn WΓ hd (fun _ => rfl)
-  obtain ⟨s, hws, hs, hs₁, hs₂⟩ := h (hiff.1 h₁) (hiff.1 h₂)
-  exact ⟨s, hws, hiff.2 hs, hs₁, hs₂⟩
-
-/-- **A transport computes only by K.**  If the endpoints are not
-definitionally equal at the stage, the transport has no information —
-the `tr` clause cannot fire and only `bot` is left.
-
-This is the fact the old, context-free `LE_Interp` cannot state, and it
-is what an adequacy proof needs: a *stuck* transport must not be given
-the transported value's shapes, because no syntactic rule relates the
-two.  Here the motive is read at the stage `σ.cons (b[σ])`, so `C[b]` is
-pinned by the syntax of `b`, and the endpoints' equation can be demanded
-alongside it. -/
 theorem Interp.tr_bot_of_ne {Δ Γ : List Term} {r : Bool} {A a b C X H : Term} {σ ρ m}
     (h : Interp Δ Γ (.tr r A a b C X H) σ ρ m)
     (hne : ¬ (Δ ⊢ a.subst σ ≡ b.subst σ : A.subst σ)) : m.2 = Shape.bot := by
@@ -1808,56 +1723,6 @@ theorem Interp.body_merge {Δ Γ Γ' Γ'' : List Term} {α : Type} {b : Term} {�
   | zero => exact hzero
   | succ i => exact hles _ (List.mem_map.2 ⟨p, hp, rfl⟩) i
 
-/-- The same merge without a binder: several approximants of one
-subterm, one valuation for all of them. -/
-theorem Interp.list_merge {Δ Γ Γ' : List Term} {α : Type} {t : Term} {θ σ ρ} (hΔ : ⊢ Δ)
-    (hθ : ∀ i, Interp.Dir Δ Γ' (θ i) σ ρ)
-    {l : List α} {out : α → TShape}
-    (ih : ∀ {m₂}, Interp Δ Γ' (t.subst θ) σ ρ m₂ →
-      ∃ ρ', Interp Δ Γ t (θ.comp σ) ρ' m₂ ∧ Valuation.Approx Δ Γ' θ σ ρ ρ')
-    (hl : ∀ e ∈ l, Interp Δ Γ' (t.subst θ) σ ρ (out e)) :
-    ∃ ρ', Valuation.Approx Δ Γ' θ σ ρ ρ' ∧
-      ∀ e ∈ l, Interp Δ Γ t (θ.comp σ) ρ' (out e) := by
-  obtain ⟨ps, hps, hall⟩ := List.exists_pairs (β := Valuation)
-    (P := fun e ρ'' => Interp Δ Γ t (θ.comp σ) ρ'' (out e) ∧
-      Valuation.Approx Δ Γ' θ σ ρ ρ'')
-    (fun e he => ih (hl e he))
-  obtain ⟨hAj, hles⟩ := Valuation.Approx.foldr (l := ps.map Prod.snd) hΔ hθ (by
-    intro ρ'' hρ''
-    obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hρ''
-    exact (hall p hp).2)
-  refine ⟨_, hAj, fun e he => ?_⟩
-  obtain ⟨p, hp, rfl⟩ : ∃ p ∈ ps, p.1 = e := by
-    have : e ∈ ps.map Prod.fst := hps ▸ he
-    obtain ⟨p, hp, hpe⟩ := List.mem_map.1 this
-    exact ⟨p, hp, hpe⟩
-  exact Interp.mono_val hΔ (hles _ (List.mem_map.2 ⟨p, hp, rfl⟩)) (hall p hp).1
-
-/-! ## Admissibility
-
-Master's `Valuation.Fits`, with the stage threaded through.  The shape is
-master's and it matters: `Fits` is **indexed by a base context** and grows
-the valuated part with `cons`, rather than recursing on all of `Γ` with a
-condition per slot.  That is what makes `nil` a constructor, and hence
-what makes the all-`⊥` valuation admissible for free — which is how both
-master and the other repo run inversion.  Recursing on `Γ` instead loses
-it, and with it every inversion theorem.
-
-So `Adm Δ Γ₀ Γ σ ρ` reads: at the stage `(Δ, σ)`, `ρ` is an admissible
-valuation for `Γ`, relative to the base `Γ₀` that `Γ` extends.  Slots
-below the base get `⊥`.
-
-Each `cons` asks what his `SourceAdmissible` asks of a slot: the type's own
-interpretation is saturated (the `b'` premise), the slot has a type among
-the type's approximants, and the slot is a fixed point of the decoder of
-that type — here, `TShape.HasType`.  The `WF` premise is what master gets
-for free from its shapes being a `WF` subtype.
-
-The second premise used to be `∃ b', b ≤ b' ∧ Interp b' ∧ HasType b' type`,
-standing in for a downward closure typing did not have.  It has one now
-(`TShape.HasType.mono_l`), so it says directly that every approximant of
-`A` is a type. -/
-
 def Adm (Δ : List Term) (_Γ₀ Γ : List Term) (σ : Subst) (ρ : Valuation) : Prop :=
   Valuation.WF Δ ρ ∧
     ∀ {i A}, Lookup Γ i A → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Dom Δ a (ρ i) ∧
@@ -1879,13 +1744,6 @@ theorem Adm.lookup {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ)
     ∀ {i A}, Lookup Γ i A → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.HasType Δ (ρ i) a :=
   fun hl => (h.2 hl).imp fun _ ⟨hI, hD, _⟩ => ⟨hI, hD.hasType⟩
 
-/-- The hereditary form, which is the definition. -/
-theorem Adm.lookupDom {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) :
-    ∀ {i A}, Lookup Γ i A → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Dom Δ a (ρ i) :=
-  fun hl => (h.2 hl).imp fun _ ⟨hI, hD, _⟩ => ⟨hI, hD⟩
-
-/-- And with the names: the slot's code names the slot's type, and the
-slot names the term it stands for (§4.7i). -/
 theorem Adm.lookupCanon {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) :
     ∀ {i A}, Lookup Γ i A → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Dom Δ a (ρ i) ∧
       TShape.CodeCanon Δ (A.subst σ) a ∧ TShape.ValCanon Δ (σ i) (ρ i) := h.2

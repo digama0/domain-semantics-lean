@@ -25,67 +25,6 @@ namespace DomainSemantics
 
 variable {Δ : List Term}
 
-/-- Relational graph lookup: `Evaluates Δ f A a x y` says `y` approximates
-the result of applying the graph `f`, at the argument label `(A, a)`, to an
-input at least `x`.
-
-It is `ShapeFun.Eval` at `R := Shape.LE Δ` — the *same* relation the order
-on graphs is built from (`Shape.lean`), which is why it has to be declared
-there, parameterised by the order one level down.  Replacing `ShapeFun.app`
-(a function) by this (a relation) is what lets us drop saturation: the join
-of several matching entries is available here without having to be stored
-in the graph. -/
-@[reducible] def Evaluates (Δ : List Term) {n} (f : ShapeFun n) (A a : Term)
-    (x c : Shape n) : Prop := ShapeFun.Eval Δ (Shape.LE Δ) f A a x c
-
-namespace Evaluates
-variable {Δ : List Term} {n} {f : ShapeFun n} {A a : Term} {x : Shape n}
-
-@[match_pattern] abbrev bot : Evaluates Δ f A a x .bot := ShapeFun.Eval.bot
-@[match_pattern] abbrev entry (e : Entry (Shape n)) (he : e ∈ f)
-    (hl : LabelEq Δ A e.tm A a) (hin : Shape.LE Δ e.inp x) :
-    Evaluates Δ f A a x e.out := ShapeFun.Eval.entry e he hl hin
-@[match_pattern] abbrev lower {y z} (hle : Shape.LE Δ y z)
-    (h : Evaluates Δ f A a x z) : Evaluates Δ f A a x y := ShapeFun.Eval.lower hle h
-@[match_pattern] abbrev join {y z} (hc : Shape.Compat Δ y z)
-    (hy : Evaluates Δ f A a x y) (hz : Evaluates Δ f A a x z) :
-    Evaluates Δ f A a x (y.join z) := ShapeFun.Eval.join hc hy hz
-
-end Evaluates
-
-/-- The **β-law**, and it is nearly free here: looking a graph up at one of
-its own entries returns that entry's output.
-
-The other repo needs a real lemma for this
-(`rawApplication_abstraction_eq_value`: applying an abstraction recovers
-the action it was built from), because its λ-value is an abstraction
-*operator* and recovering the action needs finitarity and
-ideal-valuedness.  Our λ-shape carries the graph itself, and the graph is
-a `List`, so finitarity is structural and β is one constructor. -/
-theorem Evaluates.entry_self {Δ : List Term} {n} {f : ShapeFun n} {e : Entry (Shape n)}
-    (hwf : ShapeFun.WF Δ Ty (Shape.WF Δ) f) (he : e ∈ f) :
-    Evaluates Δ f Ty e.tm e.inp e.out :=
-  have ⟨⟨_, hty⟩, htm, hin, _⟩ := hwf.1 e he
-  .entry e he (LabelEq.refl hty htm) (Shape.LE.refl hin)
-
-/-- Enlarging the graph by more entries preserves a lookup, on the nose.
-Much weaker than `mono_graph`, which allows the entries themselves to be
-replaced by dominating ones and so only returns a larger result; here the
-derivation transfers unchanged. -/
-theorem Evaluates.mono_sub {Δ : List Term} {n} {f f' : ShapeFun n} {A a : Term}
-    {x c : Shape n} (hsub : ∀ e ∈ f, e ∈ f') (H : Evaluates Δ f A a x c) :
-    Evaluates Δ f' A a x c := by
-  induction H with
-  | bot => exact .bot
-  | entry e he hlab hin => exact .entry e (hsub e he) hlab hin
-  | lower hle _ ih => exact .lower hle ih
-  | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
-
-/-- "is a numeral".  The one condition that cannot be phrased as
-`HasType · .nat` uniformly, because `Shape 0` has no `nat`; it is
-independent of typing, so it gets its own recursion rather than an
-inline match in `HasType`.  `HasType v .nat ↔ IsNumeral v` at positive
-level (`Shape.hasType_nat_iff`). -/
 inductive Shape.IsNumeral : ∀ {n}, Shape n → Prop
   | bot : IsNumeral .bot
   | zero : IsNumeral (n := n+1) .zero
@@ -136,28 +75,6 @@ theorem Bool.le_true' (r : Bool) : r ≤ true := by cases r <;> decide
 theorem Bool.le_tr {t r s : Bool} (h₁ : t ≤ r) (h₂ : r ≤ s) : t ≤ s := by
   revert h₁ h₂; cases t <;> cases r <;> cases s <;> decide
 
-/-- The lookup is monotone in the query input: a larger input matches at
-least as many entries. -/
-theorem Evaluates.mono_input {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term}
-    {x x' c : Shape n} (hxx : Shape.LE Δ x x') (H : Evaluates Δ f A a x c) :
-    Evaluates Δ f A a x' c := by
-  induction H with
-  | bot => exact .bot
-  | entry e he hlab hin => exact .entry e he hlab (Shape.LE.trans hΔ hin hxx)
-  | lower hle _ ih => exact .lower hle ih
-  | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
-
-/-- And it only sees the query label up to definitional equality. -/
-theorem Evaluates.label {Δ : List Term} {n} {f : ShapeFun n} {A a A' a' : Term}
-    {x c : Shape n} (hlab : LabelEq Δ A a A' a') (H : Evaluates Δ f A a x c) :
-    Evaluates Δ f A' a' x c := by
-  induction H with
-  | bot => exact .bot
-  | entry e he hl hin => exact .entry e he (LabelEq.right (hl.trans hlab)) hin
-  | lower hle _ ih => exact .lower hle ih
-  | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
-
-/-- Numerals are downward closed. -/
 theorem Shape.IsNumeral.lower {Δ : List Term} {n} {v v' : Shape n}
     (hle : Shape.LE Δ v' v) (h : Shape.IsNumeral v) : Shape.IsNumeral v' := by
   induction h with
@@ -165,21 +82,6 @@ theorem Shape.IsNumeral.lower {Δ : List Term} {n} {v v' : Shape n}
   | zero => match v' with | .bot => exact .bot | .zero => exact .zero
   | succ _ ih => match v' with | .bot => exact .bot | .succ w' => exact .succ (ih hle)
 
-theorem Evaluates.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
-    {n} {f : ShapeFun n} {A a : Term} {x c : Shape n} :
-    Evaluates Δ f A a x c →
-    Evaluates Θ (ShapeFun.subst (Shape.subst · τ) τ f) (A.subst τ) (a.subst τ)
-      (x.subst τ) (c.subst τ) := by
-  intro h
-  induction h with
-  | bot => simp only [Shape.subst_bot]; exact .bot
-  | entry e he hlab hin =>
-    exact .entry _ (ShapeFun.mem_subst.2 ⟨e, he, rfl⟩) (hlab.subst hΘ W) (hin.subst hΘ W)
-  | lower hle _ ih => exact .lower (hle.subst hΘ W) ih
-  | join hc _ _ ih₁ ih₂ => exact Shape.join_subst ▸ .join (hc.subst hΘ W) ih₁ ih₂
-
-/-- Numerals are stable under substitution: there is nothing in them but
-shape. -/
 theorem Shape.IsNumeral.subst {τ : Subst} : ∀ {n} {v : Shape n},
     Shape.IsNumeral v → Shape.IsNumeral (v.subst τ) := by
   intro n v h
@@ -194,241 +96,6 @@ What the relational lookup owes and master does not: master's lookup is a
 saturated max-below *function*, single-valued, so there is nothing to
 join and nothing to check. -/
 
-/-- Everything a single lookup returns is pairwise compatible, given that
-the graph is internally coherent and the query shape is.
-
-Coherence asks for the two entries' *inputs* to be compatible, and that is
-exactly what the query supplies: both inputs lie below the query shape, so
-`of_common_upper` applies. -/
-theorem Evaluates.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term}
-    {x : Shape n} (hf : ShapeFun.Compat Shape.Compat Δ A f f) (hx : Shape.Compat Δ x x)
-    {y z : Shape n} (hy : Evaluates Δ f A a x y) (hz : Evaluates Δ f A a x z) :
-    Shape.Compat Δ y z := by
-  induction hy with
-  | bot => exact .bot_left
-  | lower hle _ ih => exact ih.symm hΔ |>.anti_right hΔ hle |>.symm hΔ
-  | join _ _ _ ih₁ ih₂ => exact ih₁.join hΔ ih₂
-  | entry e he hlab hin
-  induction hz with
-  | bot => exact .bot_right
-  | entry e' he' hlab' hin' =>
-    simpa using hf e he e' he' Δ .id hΔ (.id hΔ)
-      (by simpa using hlab.trans hlab'.symm)
-      (by simpa using hx.of_common_upper hΔ hin hin')
-  | lower hle _ ih => exact ih.anti_right hΔ hle
-  | join _ _ _ ih₁ ih₂ => exact ((ih₁.symm hΔ).join hΔ (ih₂.symm hΔ)).symm hΔ
-
-/-- Everything the lookup returns is well formed, structurally: it is `⊥`,
-an entry output, a join of those, or a lowering.  `WF` is not downward
-closed, so the last case is not free — it holds because the order carries
-the well-formedness of its lower bound (`Shape.LE.wf`). -/
-theorem Evaluates.wf {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term}
-    {x : Shape n} (hf : ∀ e ∈ f, Shape.WF Δ e.out) :
-    ∀ {y : Shape n}, Evaluates Δ f A a x y → Shape.WF Δ y := by
-  intro y h
-  induction h with
-  | bot => cases n <;> trivial
-  | entry e he _ _ => exact hf e he
-  | lower hle _ _ => exact hle.wf
-  | join hc _ _ ih₁ ih₂ => exact Shape.WF.join hΔ hc ih₁ ih₂
-
-/-! ## `Evaluates`, without `Evaluates`
-
-A lookup returns exactly the shapes dominated by the join of the outputs
-of some sublist of matching entries whose inputs are dominated by the
-query.  It replaces reasoning about derivations by reasoning about two
-joins over one sublist, which is what the (now removed) cycle argument
-ran on; `Evaluates.lift_of` still uses it.
-
-`of_sublist` is the constructive half -- a sublist of matching entries can
-be folded into one lookup, which is where graph coherence
-(`Evaluates.compat`) is spent -- and `tighten` the destructive half. -/
-open List in
-/-- The outputs of a sublist of matching entries have a least upper bound,
-and the lookup reaches it. -/
-theorem Evaluates.of_sublist {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
-    {A a : Term}
-    (hwf : ShapeFun.WF Δ A (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ A f f) {x : Shape n} (hx : Shape.Compat Δ x x) :
-    ∀ {s : List (Entry (Shape n))}, s <+ f → (∀ e ∈ s, LabelEq Δ A e.tm A a) →
-      (∀ e ∈ s, Shape.LE Δ e.inp x) →
-      ∃ J, Shape.Joins Δ (s.map Entry.out) J ∧ Shape.WF Δ J ∧ Evaluates Δ f A a x J := by
-  intro s
-  induction s with
-  | nil => exact fun _ _ _ => ⟨.bot, .nil, by cases n <;> trivial, .bot⟩
-  | cons e s ih =>
-    intro hsf hlab hin
-    have ⟨J, hJ, hwJ, hevJ⟩ := ih ((List.sublist_cons_self e s).trans hsf)
-      (fun e' he' => hlab e' (.tail _ he')) (fun e' he' => hin e' (.tail _ he'))
-    have he : e ∈ f := hsf.subset (.head _)
-    have heve : Evaluates Δ f A a x e.out := .entry e he (hlab e (.head _)) (hin e (.head _))
-    have hwe := (hwf.1 e he).2.2.2
-    have hc := Evaluates.compat hΔ hco hx heve hevJ
-    exact ⟨e.out.join J, hJ.cons hΔ hwe hwJ hc, Shape.WF.join hΔ hc hwe hwJ, .join hc heve hevJ⟩
-
-open List in
-/-- Every lookup is dominated by the join of the outputs of the entries it
-uses, whose inputs are in turn dominated by the query. -/
-theorem Evaluates.tighten {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
-    {A a : Term}
-    (hwf : ShapeFun.WF Δ A (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ A f f) {x : Shape n} (hwx : Shape.WF Δ x) {y : Shape n}
-    (H : Evaluates Δ f A a x y) :
-    ∃ (s : List (Entry (Shape n))) (ji jo : Shape n), s <+ f ∧
-      (∀ e ∈ s, LabelEq Δ A e.tm A a) ∧
-      Shape.Joins Δ (s.map Entry.inp) ji ∧ Shape.WF Δ ji ∧ Shape.LE Δ ji x ∧
-      Shape.Joins Δ (s.map Entry.out) jo ∧ Shape.WF Δ jo ∧ Shape.LE Δ y jo := by
-  induction H with
-  | bot =>
-    exact ⟨[], .bot, .bot, List.nil_sublist f, nofun, .nil, by cases n <;> trivial,
-      Shape.LE.bot, .nil, by cases n <;> trivial, Shape.LE.bot⟩
-  | entry e he hlab hin =>
-    have hwi := (hwf.1 e he).2.2.1
-    have hwo := (hwf.1 e he).2.2.2
-    exact ⟨[e], e.inp, e.out, List.singleton_sublist.2 he,
-      (fun e' he' => by cases List.mem_singleton.1 he'; exact hlab),
-      Shape.Joins.singleton hΔ hwi, hwi, hin,
-      Shape.Joins.singleton hΔ hwo, hwo, Shape.LE.refl hwo⟩
-  | lower hle _ ih =>
-    have ⟨s, ji, jo, hs, hlab, hji, hwji, hjix, hjo, hwjo, hyjo⟩ := ih
-    exact ⟨s, ji, jo, hs, hlab, hji, hwji, hjix, hjo, hwjo, hle.trans hΔ hyjo⟩
-  | join hc _ _ ih₁ ih₂ =>
-    have ⟨s₁, ji₁, jo₁, hs₁, hlab₁, hji₁, hwji₁, hji₁x, hjo₁, _, hy₁⟩ := ih₁
-    have ⟨s₂, ji₂, jo₂, hs₂, hlab₂, hji₂, hwji₂, hji₂x, hjo₂, _, hy₂⟩ := ih₂
-    have ⟨s, hs, hss₁, hss₂, hunion⟩ := hs₁.union hs₂
-    have hlab : ∀ e ∈ s, LabelEq Δ A e.tm A a := fun e he =>
-      match hunion e he with
-      | .inl h' => hlab₁ e h'
-      | .inr h' => hlab₂ e h'
-    have hinx : ∀ e ∈ s, Shape.LE Δ e.inp x := fun e he =>
-      match hunion e he with
-      | .inl h' => (hji₁.le hwji₁ _ (List.mem_map.2 ⟨e, h', rfl⟩)).trans hΔ hji₁x
-      | .inr h' => (hji₂.le hwji₂ _ (List.mem_map.2 ⟨e, h', rfl⟩)).trans hΔ hji₂x
-    have ⟨ji, hji, hwji, hjix⟩ :=
-      Shape.exists_joins hΔ hwx
-        (fun v hv => have ⟨e, he, hv⟩ := List.mem_map.1 hv
-          hv ▸ (hwf.1 e (hs.subset he)).2.2.1)
-        (fun v hv => have ⟨e, he, hv⟩ := List.mem_map.1 hv; hv ▸ hinx e he)
-    have ⟨J, hJ, hwJ, _⟩ := Evaluates.of_sublist hΔ hwf hco hwx.coherent hs hlab hinx
-    have hout : ∀ {t : List (Entry (Shape n))}, t <+ s → ∀ v ∈ t.map Entry.out,
-        Shape.LE Δ v J := fun ht v hv =>
-      have ⟨e, he, hv⟩ := List.mem_map.1 hv
-      hv ▸ hJ.le hwJ _ (List.mem_map.2 ⟨e, ht.subset he, rfl⟩)
-    exact ⟨s, ji, J, hs, hlab, hji, hwji, hjix, hJ, hwJ,
-      Shape.join_le (hy₁.trans hΔ (hjo₁.min hwJ (hout hss₁)))
-        (hy₂.trans hΔ (hjo₂.min hwJ (hout hss₂)))⟩
-
-open List in
-/-- The characterisation, as the equivalence it is. -/
-theorem Evaluates.joins_iff {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
-    {A a : Term}
-    (hwf : ShapeFun.WF Δ A (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ A f f) {x y : Shape n} (hwx : Shape.WF Δ x) :
-    Evaluates Δ f A a x y ↔
-      ∃ (s : List (Entry (Shape n))) (ji jo : Shape n), s <+ f ∧
-        (∀ e ∈ s, LabelEq Δ A e.tm A a) ∧
-        Shape.Joins Δ (s.map Entry.inp) ji ∧ Shape.WF Δ ji ∧ Shape.LE Δ ji x ∧
-        Shape.Joins Δ (s.map Entry.out) jo ∧ Shape.WF Δ jo ∧ Shape.LE Δ y jo := by
-  refine ⟨Evaluates.tighten hΔ hwf hco hwx, ?_⟩
-  rintro ⟨s, ji, jo, hs, hlab, hji, hwji, hjix, hjo, hwjo, hyjo⟩
-  have ⟨J, hJ, hwJ, hev⟩ :=
-    Evaluates.of_sublist hΔ hwf hco hwx.coherent hs hlab fun e he =>
-      (hji.le hwji _ (List.mem_map.2 ⟨e, he, rfl⟩)).trans hΔ hjix
-  exact .lower (hyjo.trans hΔ (hjo.min hwJ (hJ.le hwJ))) hev
-
-/-! ## Lifting
-
-`Interp` quantifies over `TShape`, so every notion it mentions has to be
-transportable along `Shape.lift`.  For the order, well-formedness,
-compatibility and the join that transport is an equivalence
-(`Shape.lift_le_lift` and friends).
-
-For the *lookup* it is one-directional: `Evaluates.lower` can produce a
-witness at the higher level that is not the lift of anything, since the
-order on graphs is contravariant in the input, so a shape below a lifted
-shape need not itself be a lift.  Master has the equivalence only because
-its lookup is a function.  This is why `TEvaluates` compares `TShape`s
-instead: there is then nothing to reflect, and `TShape.HasType` inherits
-that — `lift_subject` *and* `lower_subject` are both theorems. -/
-
-theorem Evaluates.lift {Δ : List Term} {n k} (h : n ≤ k) {f : ShapeFun n} {A a : Term}
-    {x c : Shape n} (H : Evaluates Δ f A a x c) :
-    Evaluates Δ (ShapeFun.lift (Shape.lift k) f) A a (x.lift k) (c.lift k) := by
-  induction H with
-  | bot => rw [Shape.lift_bot]; exact .bot
-  | entry e he hlab hin =>
-    exact .entry ⟨e.tm, e.inp.lift k, e.out.lift k⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
-      hlab (Shape.lift_le h hin)
-  | lower hle _ ih => exact .lower (Shape.lift_le h hle) ih
-  | join hc _ _ ih₁ ih₂ =>
-    rw [← Shape.lift_join h]
-    exact .join ((Shape.lift_compat h).2 hc) ih₁ ih₂
-
-/-! ### The layers are full substructures
-
-Each level consists of the same shapes as the one below, related the same
-way, plus new ones.  So a relation established at one layer is preserved
-*and reflected* by the embedding into a higher one.  For the lookup that
-is `Evaluates.lift_iff` below.
-
-The `lower` rule is what makes this need an argument.  A well-formed shape
-below a lift need **not** be a lift — the order on graphs is contravariant
-in the input, so a smaller λ-shape can have inputs with genuine
-higher-level structure — so a lookup over a lifted graph really can
-produce shapes outside the image.  But by `Evaluates.tighten` such a
-lookup is dominated by a join over a sublist of the lifted graph, a
-sublist of a lifted graph is a lifted sublist, and `Joins.lift` says the
-join of the lifts is the lift of the join.  So the dominating shape is
-always in the image, and that is the whole content. -/
-
-/-- Everything a lifted graph's lookup returns is below the lift of
-something the original lookup returns, namely the join of the outputs of
-the sublist it uses, taken one level down. -/
-theorem Evaluates.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) {f : ShapeFun n}
-    {A a : Term} {x : Shape n}
-    (hwf : ShapeFun.WF Δ A (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ A f f)
-    (hwx : Shape.WF Δ x) :
-    ∀ {c' : Shape k}, Evaluates Δ (ShapeFun.lift (Shape.lift k) f) A a (x.lift k) c' →
-      ∃ c, Shape.LE Δ c' (c.lift k) ∧ Evaluates Δ f A a x c := by
-  intro c' H
-  have ⟨s, ji, jo, hs, hlab, hji, hwji, hjix, hjo, hwjo, hcjo⟩ :=
-    Evaluates.tighten hΔ ((ShapeFun.lift_wf h).2 hwf) ((ShapeFun.lift_compat h).2 hco)
-      ((Shape.lift_wf h).2 hwx) H
-  simp only [ShapeFun.lift] at hs
-  obtain ⟨s₀, hs₀, rfl⟩ := List.sublist_map hs
-  rw [ShapeFun.map_lift_inp] at hji
-  rw [ShapeFun.map_lift_out] at hjo
-  have hinx : ∀ e ∈ s₀, Shape.LE Δ e.inp x := fun e he =>
-    (Shape.lift_le_lift hΔ h).1
-      ((hji.le hwji _ (List.mem_map.2 ⟨e.inp, List.mem_map.2 ⟨e, he, rfl⟩, rfl⟩)).trans hΔ hjix)
-  have ⟨J, hJ, hwJ, hevJ⟩ :=
-    Evaluates.of_sublist hΔ hwf hco hwx.coherent hs₀
-      (fun e he => hlab _ (List.mem_map.2 ⟨e, he, rfl⟩)) hinx
-  have ⟨hle, _⟩ :=
-    Shape.Joins.uniq hwjo ((Shape.lift_wf h).2 hwJ) hjo
-      (Shape.Joins.lift hΔ h (fun v hv => by
-        obtain ⟨e, he, rfl⟩ := List.mem_map.1 hv
-        exact (hwf.1 e (hs₀.subset he)).2.2.2) hwJ hJ)
-  exact ⟨J, hcjo.trans hΔ hle, hevJ⟩
-
-/-- **Fullness for the lookup.**  On the shapes that come from the level
-below, the lifted graph relates exactly what the original one did. -/
-theorem Evaluates.lift_iff {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) {f : ShapeFun n}
-    {A a : Term} {x c : Shape n}
-    (hwf : ShapeFun.WF Δ A (Shape.WF Δ) f) (hco : ShapeFun.Compat Shape.Compat Δ A f f)
-    (hwx : Shape.WF Δ x) :
-    Evaluates Δ (ShapeFun.lift (Shape.lift k) f) A a (x.lift k) (c.lift k) ↔
-      Evaluates Δ f A a x c := by
-  refine ⟨fun H => ?_, Evaluates.lift h⟩
-  have ⟨c₀, hle, hc₀⟩ := Evaluates.lift_of hΔ h hwf hco hwx H
-  exact .lower ((Shape.lift_le_lift hΔ h).1 hle) hc₀
-
-theorem ShapeFun.LE.lift {Δ : List Term} {n k} (h : n ≤ k) {f g : ShapeFun n}
-    (H : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) Ty f g) :
-    ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) Ty (ShapeFun.lift (Shape.lift k) f)
-      (ShapeFun.lift (Shape.lift k) g) := by
-  refine ⟨fun e' he' => ?_, (ShapeFun.lift_wf h).2 H.2.1, (ShapeFun.lift_wf h).2 H.2.2⟩
-  obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'
-  exact ShapeFun.Eval.lift h (Shape.lift_le h) (H.1 e he)
-
-/-- Numerals lift and reflect. -/
 theorem Shape.IsNumeral.lift_iff {n k} (h : n ≤ k) {v : Shape n} :
     Shape.IsNumeral (v.lift k) ↔ Shape.IsNumeral v := by
   constructor <;> intro H
@@ -1897,39 +1564,6 @@ theorem TEvaluates.eq_bot {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
   | lower hle _ ih => exact TShape.le_bot hΔ ih hle
   | join _ _ _ ih₁ ih₂ => exact TShape.join_eq_bot ih₁ ih₂
 
-/-- **A lookup is `⊥`, or it inherits any property its matching entries'
-outputs have.**  `eq_bot` is `Q := False`; the useful instances take `Q` to
-be a property of the *query label*, which the `entry` premise's `LabelEq`
-transfers from the entry.
-
-The disjunction is what makes the chain of §5.5b compose without a case
-split on "is this output `⊥`": each link hands the next one exactly this
-shape, and the `⊥` branch is discharged once at the top, by a λ-shape's
-non-degeneracy. -/
-theorem TEvaluates.bot_or {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
-    {A a : Term} {x : TShape} {Q : Prop}
-    (hf : ∀ e ∈ f, LabelEq Δ A e.tm A a → e.out = Shape.bot ∨ Q) :
-    ∀ {c : TShape}, TEvaluates Δ f A a x c → c.2 = Shape.bot ∨ Q := by
-  intro c h
-  induction h with
-  | bot => exact .inl rfl
-  | entry e he hl _ => exact hf e he hl
-  | lower hle _ ih => exact ih.imp (fun hb => TShape.le_bot hΔ hb hle) (fun h => h)
-  | join _ _ _ ih₁ ih₂ =>
-    match ih₁, ih₂ with
-    | .inl h₁, .inl h₂ => exact .inl (TShape.join_eq_bot h₁ h₂)
-    | .inr h, _ => exact .inr h
-    | _, .inr h => exact .inr h
-
-/-- A lookup is `⊥` or it matched an entry.  `bot_or` at the tautological
-property. -/
-theorem TEvaluates.eq_bot_or_entry {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n}
-    {A a : Term} {x : TShape} {c : TShape} (h : TEvaluates Δ f A a x c) :
-    c.2 = Shape.bot ∨ ∃ e ∈ f, LabelEq Δ A e.tm A a :=
-  TEvaluates.bot_or hΔ (fun e he hl => .inr ⟨e, he, hl⟩) h
-
-/-- Nothing but `⊥` is typed at `⊥`.  `refl` is the only clause whose type
-is not pinned, and its bound puts an `id` shape below `⊥`. -/
 theorem TShape.HasType.bot_r {Δ : List Term} (hΔ : ⊢ Δ) {x a : TShape}
     (ha : a.2 = Shape.bot) (h : TShape.HasType Δ x a) : x.2 = Shape.bot := by
   cases h with
@@ -2043,16 +1677,6 @@ def TShape.entries : TShape → List (Entry TShape)
   | ⟨0, _⟩ => []
   | ⟨_+1, s⟩ => s.graph.map (fun e => ⟨e.tm, e.inp.T, e.out.T⟩)
 
-/-- A pair shape's first component, as a one-element list (empty for
-everything else), so that `Dom`'s Σ clause can quantify over it. -/
-def TShape.fstPart : TShape → List TShape
-  | ⟨0, _⟩ => []
-  | ⟨_+1, .pair _ _ x _⟩ => [x.T]
-  | ⟨_+1, _⟩ => []
-
-/-- A pair shape's name and both components, so that `Dom`'s Σ clause can
-quantify over them without an existential (which an inductive premise may
-not have over the relation being defined). -/
 def TShape.pairParts : TShape → Option (Term × TShape × TShape)
   | ⟨0, _⟩ => none
   | ⟨_+1, .pair _ a x y⟩ => some (a, x.T, y.T)
@@ -2113,10 +1737,6 @@ theorem TShape.Dom.hasType {Δ : List Term} {d x : TShape} (h : TShape.Dom Δ d 
 @[simp] theorem TShape.entries_bot {n} : (Shape.T (n := n) Shape.bot).entries = [] := by
   cases n <;> rfl
 
-@[simp] theorem TShape.fstPart_bot {n} : (Shape.T (n := n) Shape.bot).fstPart = [] := by
-  cases n <;> rfl
-
-/-- `⊥` is hereditarily typed wherever it is typed: it carries nothing. -/
 theorem TShape.Dom.bot {Δ : List Term} {d : TShape} {n}
     (h : TShape.HasType Δ (Shape.T (n := n) .bot) d) :
     TShape.Dom Δ d (Shape.T (n := n) .bot) := by
@@ -2155,15 +1775,6 @@ theorem TShape.Dom.bot_subject {Δ : List Term} {d x : TShape} (hx : x.2 = Shape
     cases s <;>
       simp [TShape.entries, TShape.subst, Shape.graph, Shape.subst, ShapeFun.subst,
         List.map_map, Function.comp_def, Shape.T]
-
-@[simp] theorem TShape.fstPart_subst {x : TShape} {τ : Subst} :
-    (x.subst τ).fstPart = x.fstPart.map (·.subst τ) := by
-  obtain ⟨n, s⟩ := x
-  cases n with
-  | zero => cases s <;> rfl
-  | succ n =>
-    cases s <;>
-      simp [TShape.fstPart, TShape.subst, Shape.subst, Shape.T]
 
 theorem TShape.IsBinder.subst {d : TShape} {τ : Subst} (h : ¬ d.IsBinder) :
     ¬ (d.subst τ).IsBinder := by
@@ -2219,13 +1830,6 @@ theorem TShape.entries_lift {x : TShape} {k} (hk : x.1 ≤ k + 1) :
       simp [TShape.entries, TShape.lift, Shape.graph, Shape.lift, ShapeFun.lift,
         List.map_map, Function.comp_def, Shape.T]
 
-theorem TShape.fstPart_lift {x : TShape} {k} (hk : x.1 ≤ k + 1) :
-    (x.lift (k+1)).fstPart = x.fstPart.map (·.lift k) := by
-  obtain ⟨n, s⟩ := x
-  cases n with
-  | zero => cases s <;> rfl
-  | succ n => cases s <;> simp [TShape.fstPart, TShape.lift, Shape.lift, Shape.T]
-
 theorem TShape.pairParts_lift {x : TShape} {k} (hk : x.1 ≤ k + 1) :
     (x.lift (k+1)).pairParts =
       x.pairParts.map (fun p => (p.1, p.2.1.lift k, p.2.2.lift k)) := by
@@ -2247,15 +1851,6 @@ theorem TShape.entries_level {x : TShape} {e : Entry TShape} (he : e ∈ x.entri
     simp only [TShape.entries, List.mem_map] at he
     obtain ⟨e₀, _, rfl⟩ := he
     exact ⟨rfl, rfl⟩
-
-theorem TShape.fstPart_level {x : TShape} {y : TShape} (hy : y ∈ x.fstPart) :
-    y.1 + 1 = x.1 := by
-  obtain ⟨n, s⟩ := x
-  cases n with
-  | zero => simp [TShape.fstPart] at hy
-  | succ n =>
-    match s, hy with
-    | .pair _ _ _ _, hy => simp [TShape.fstPart] at hy; subst hy; rfl
 
 theorem TShape.pairParts_level {x : TShape} {ps} (hps : x.pairParts = ps)
     {p} (hp : p ∈ ps) : p.2.1.1 + 1 = x.1 ∧ p.2.2.1 + 1 = x.1 := by
@@ -2574,18 +2169,6 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .refl, .succ _ => .inr (.inl rfl)
   | .refl, .id _ _ _ _ => .inr (.inl rfl)
   | .refl, .refl => .inr (.inl rfl)
-
-theorem TShape.mem_entries_join {n} {x y : Shape (n+1)} {e : Entry TShape}
-    (he : e ∈ (Shape.T (x.join y)).entries) :
-    e ∈ (Shape.T x).entries ∨ e ∈ (Shape.T y).entries := by
-  simp only [TShape.entries, List.mem_map] at he ⊢
-  obtain ⟨e₀, he₀, rfl⟩ := he
-  rcases Shape.graph_join (x := x) (y := y) with h | h | h <;> rw [h] at he₀
-  · rcases List.mem_append.1 he₀ with h' | h'
-    · exact .inl ⟨e₀, h', rfl⟩
-    · exact .inr ⟨e₀, h', rfl⟩
-  · exact .inl ⟨e₀, he₀, rfl⟩
-  · exact .inr ⟨e₀, he₀, rfl⟩
 
 theorem TShape.entries_join {n} {x y : Shape (n+1)} :
     (Shape.T (x.join y)).entries = (Shape.T x).entries ++ (Shape.T y).entries ∨
@@ -2995,10 +2578,3 @@ theorem TShape.isSigma_or_bot_of_le {Δ : List Term} {p q : TShape} (h : TShape.
         | .lam _ _ | .forallE .. | .pair _ _ _ _ => exact absurd h2 (fun x => x)
     | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
     | .lam _ _ | .forallE .. | .pair _ _ _ _ => exact absurd hq (fun x => x)
-
-/-- A Σ code is not a Π code. -/
-theorem TShape.IsSigma.not_pi {p : TShape} (h : p.IsSigma) : ¬ p.IsPi := by
-  obtain ⟨n, s⟩ := p
-  cases n with
-  | zero => exact fun x => x
-  | succ n => cases s <;> first | exact fun x => x | exact absurd h (fun x => x)

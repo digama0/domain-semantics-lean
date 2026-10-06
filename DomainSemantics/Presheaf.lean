@@ -165,22 +165,6 @@ theorem SoundDom.of_sort {Γ : List Term} {t : Term} {r : Bool} (h : TypedAt Γ 
   SoundDom.of_typedAt (fun ha => TShape.not_binder_of_le (Interp.le_sort ha) (fun h => h)) h
     hct CodeAt.sort
 
-/-- At `unit`, likewise. -/
-theorem SoundDom.of_unit {Γ : List Term} {t : Term} {r : Bool} (h : TypedAt Γ t (.unit r))
-    (hct : CodeAt Γ t) (hcA : CodeAt Γ (.unit r)) : SoundDom Γ t (.unit r) :=
-  SoundDom.of_typedAt (fun ha => TShape.not_binder_of_le (Interp.le_unit ha) (fun h => h)) h
-    hct hcA
-
-/-- And at an identity type. -/
-theorem SoundDom.of_id {Γ : List Term} {t A a b : Term} {r : Bool}
-    (h : TypedAt Γ t (.id r A a b)) (hct : CodeAt Γ t) (hcA : CodeAt Γ (.id r A a b)) :
-    SoundDom Γ t (.id r A a b) :=
-  SoundDom.of_typedAt (fun ha => TShape.not_binder_of_le (Interp.le_id ha) (fun h => h)) h
-    hct hcA
-
-/-- **Saturation at a sort names the type**: an approximant is below the
-saturated one, which names the type as a code, and codes are downward
-closed. -/
 theorem SoundDom.codeAt {Γ : List Term} {T : Term} {u : Bool} (h : SoundDom Γ T (.sort u)) :
     CodeAt Γ T := by
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
@@ -505,47 +489,6 @@ theorem Subst.Saturates.one {Γ Γ₀ Δ : List Term} {A a : Term} {σ ρ}
   let h := Valuation.Approx.canon_one hΔ hΓ W hAdm hAty hadom hρ'
   ⟨_, h.choose_spec.1, h.choose_spec.2.1, h.choose_spec.2.2⟩
 
-/-- `Interp.inst`'s forward direction, with the **admissibility** of the
-stage it lands at.  That is what a subterm's `SoundTy` has to be read at
-after the substitution, and `canon_one` is why it holds here: the slot
-the decomposition produces is already an approximant of `a`, so `SoundTy
-a A` types it where it stands.
-
-`Interp.inst` itself cannot say this — `Adm` and `SoundTy` live above
-`Interp.lean` — which is why it is here. -/
-theorem Interp.inst_adm {Γ Δ : List Term} {A a b B : Term} {u : Bool} {σ ρ m}
-    (hΔ : ⊢ Δ) (hΓ : ⊢ Γ) (hA : Γ ⊢ A : .sort u) (hat : Γ ⊢ a : A)
-    (hb : A :: Γ ⊢ b : B) (hPin : b.Pinned (A :: Γ)) (W : Ctx.SubstEq Δ σ σ Γ)
-    (hAdm : Adm Δ Γ Γ σ ρ) (hAty : SoundTy Γ A (.sort u)) (hAdom : SoundDom Γ A (.sort u))
-    (haty : SoundTy Γ a A) (hadom : SoundDom Γ a A)
-    (ha : Interp.Dir Δ Γ a σ ρ) (H : Interp Δ Γ (b.inst a) σ ρ m) :
-    ∃ x, Interp Δ (A :: Γ) b ((Subst.one a).comp σ) (ρ.push x) m ∧
-      Interp Δ Γ a σ ρ x ∧
-      Adm Δ Γ (A :: Γ) ((Subst.one a).comp σ) (ρ.push x) := by
-  obtain ⟨x, hbx, hx⟩ :=
-    (Interp.inst hΔ hΓ hA hat hb hPin W hAdm
-      (Subst.Saturates.one hΔ hΓ W hAdm (hAty.isTypeAt hAdom) hadom) ha hAdm.wf).1 H
-  -- the slot is an approximant of `a`; `canon_one` enlarges it until it
-  -- is hereditarily typed, which is what the extended stage asks
-  have hρ' : Valuation.Approx Δ Γ (Subst.one a) σ ρ (ρ.push x) := by
-    intro i
-    cases i with
-    | zero => exact hx
-    | succ i => exact .bvar (hAdm.wf i) (TShape.LE.refl (hAdm.wf i))
-  obtain ⟨x', hle', hap', hadm'⟩ :=
-    Valuation.Approx.canon_one hΔ hΓ W hAdm (hAty.isTypeAt hAdom) hadom hρ'
-  refine ⟨x', Interp.mono_val hΔ ?_ hbx, by simpa using hap' 0, by simpa using hadm'⟩
-  intro i
-  cases i with
-  | zero => exact hle' 0
-  | succ i => exact TShape.LE.refl (hAdm.wf i)
-
-/-- The `SoundTy` half of `forallEDF`, in isolation: a Π-type's
-interpretation is typed at its sort.
-
-This is the obligation that was out of reach before `HasType` became a
-lower set: the Π's approximant is below the canonical Π-shape, and the
-step that brings the typing back down to it is `mono_l`. -/
 theorem sound_forallE_ty {Γ : List Term} {A B : Term} {u v : Bool}
     (ihA : SoundTy Γ A (.sort u)) (ihAd : SoundDom Γ A (.sort u))
     (ihB : SoundTy (A :: Γ) B (.sort v))
@@ -853,27 +796,6 @@ theorem sound_join {Γ : List Term} {A : Term} : SoundJoin Γ A := by
   exact ⟨x.join y, TShape.WF.join hΔ hc hx hy, (TShape.le_join hΔ hx hy hc).1,
     (TShape.le_join hΔ hx hy hc).2, TShape.Dom.join hΔ hc hxa hya⟩
 
-/-- What `SoundJoin` is for: with typing lower-closed, a typed *upper
-bound* types the join itself.  Every consumer of a relational lookup needs
-this, since the lookup's `join` rule returns `y₁ ⊔ y₂` and the two sides
-come typed separately. -/
-theorem SoundJoin.hasType_join {Γ : List Term} {A : Term} (h : SoundJoin Γ A)
-    {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ)
-    (hAdm : Adm Δ Γ₀ Γ σ ρ) {a x y : TShape} (ha : Interp Δ Γ A σ ρ a)
-    (hxa : TShape.Dom Δ a x) (hya : TShape.Dom Δ a y)
-    (hc : TShape.Compat Δ x y) : TShape.HasType Δ (x.join y) a :=
-  have ⟨z, _, hxz, hyz, hza⟩ :=
-    h hΔ W hAdm ha hxa.hasType.wf.1 hya.hasType.wf.1 hxa hya hc
-  TShape.HasType.mono_l hΔ hza.hasType (TShape.join_le hΔ hxz hyz)
-
-/-- The common upper bound of two Π-shapes: same labels (both come from
-the same term at the same stage), domains joined by `A`'s directedness,
-graphs appended.
-
-All the content is the appended graph's coherence, and there the cross
-pairs; see the section comment.  The domain of the joined shape is a type
-because each domain is — the `Interp.forallE` premise added for exactly
-this — and `HasType.join` at a *sort* is available. -/
 theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
     (hΓ : ⊢ Γ) (hAty : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B ≡ B : .sort v)
     (ihAdir : SoundDir Γ A) (ihBdir : SoundDir (A :: Γ) B)

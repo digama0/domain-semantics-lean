@@ -142,21 +142,6 @@ theorem IsDefEq.succ_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡ 
         | exact Term.noConfusion h
         | solve_by_elim [Or.inl, Or.inr]
 
-/-- The argument of a `succ` that is definitionally equal to anything. -/
-theorem IsDefEq.succ_arg {Γ : List Term} {t e X : Term}
-    (H : Γ ⊢ .succ t ≡ e : X) : Γ ⊢ t : .nat := H.succ_regular (.inl rfl)
-
-/-- **`succ` is injective**, syntactically.
-
-The eliminator computes: with the constant motive `nat`, `zero` at the
-`zero` branch and `bvar 0` at the `succ` branch, `natCase` is the
-predecessor, and `natCase_succ` says so on both sides of the given
-equation.  The two arguments are typed by `succ_regular`, which is what
-makes the eliminator applicable at all.
-
-Directedness at `natCase` needs this: two `natCase_succ` derivations for
-one term carry two label terms for the body's binder, each definitionally
-`M[σ]`'s predecessor, and the bodies can only be compared at one stage. -/
 theorem IsDefEq.succ_inj {Γ : List Term} {t t' : Term} (hΓ : ⊢ Γ)
     (H : Γ ⊢ .succ t ≡ .succ t' : .nat) : Γ ⊢ t ≡ t' : .nat := by
   have ht : Γ ⊢ t : .nat := H.succ_regular (.inl rfl)

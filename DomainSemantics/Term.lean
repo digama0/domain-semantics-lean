@@ -32,8 +32,8 @@ The syntactic core of the project.
   original judgment as well.
 * `Ctx.SubstEq` is the two-sided substitution judgment used to derive
   the substitution lemma `IsDefEq.subst'`.
-* `WHRed` / `WHNF` / `WHRedS` set up weak-head reduction and its
-  reflexive-transitive closure, the workhorses of the logical relation. -/
+* `WHRed` is one step of weak-head reduction, the subject of
+  `WHRed.subject_red` and `progress`. -/
 
 namespace DomainSemantics
 
@@ -1961,79 +1961,3 @@ inductive WHRed : Term → Term → Prop where
   | Y : .Y A b ⤳ b.inst (.Y A b)
   | tr : h ⤳ h' → .tr r A a b C x h ⤳ .tr r A a b C x h'
   | tr_refl : .tr r A a b C x (.refl r' y) ⤳ x
-
-/-- `WHNF e` says `e` is in weak head-normal form: no `⤳` step applies. -/
-def WHNF (e : Term) := ∀ e', ¬e ⤳ e'
-
-theorem WHNF.sort : WHNF (.sort A) := nofun
-theorem WHNF.unit : WHNF (.unit r) := nofun
-theorem WHNF.star : WHNF (.star r) := nofun
-theorem WHNF.forallE : WHNF (.forallE A B) := nofun
-theorem WHNF.sigma : WHNF (.sigma A B) := nofun
-theorem WHNF.nat : WHNF .nat := nofun
-theorem WHNF.zero : WHNF .zero := nofun
-theorem WHNF.succ : WHNF (.succ n) := nofun
-theorem WHNF.id : WHNF (.id r A a b) := nofun
-theorem WHNF.refl : WHNF (.refl r a) := nofun
-
-theorem WHRed.determ (H1 : e ⤳ e₁) (H2 : e ⤳ e₂) : e₁ = e₂ := by
-  induction H1 generalizing e₂ with
-  | app h1 ih => cases H2 with | app h2 => congr 1; exact ih h2 | beta => cases h1
-  | beta => cases H2 with | app h2 => cases h2 | beta => rfl
-  | fst h1 ih => cases H2 with | fst h2 => congr 1; exact ih h2 | pair_fst => cases h1
-  | snd h1 ih => cases H2 with | snd h2 => congr 1; exact ih h2 | pair_snd => cases h1
-  | pair_fst => cases H2 with | fst h2 => cases h2 | pair_fst => rfl
-  | pair_snd => cases H2 with | snd h2 => cases h2 | pair_snd => rfl
-  | natCase h1 ih => cases H2 with
-    | natCase h2 => congr 1; exact ih h2
-    | natCase_zero => cases h1
-    | natCase_succ => cases h1
-  | natCase_zero => cases H2 with | natCase h2 => cases h2 | natCase_zero => rfl
-  | natCase_succ => cases H2 with | natCase h2 => cases h2 | natCase_succ => rfl
-  | Y => let .Y := H2; rfl
-  | tr h1 ih => cases H2 with | tr h2 => congr 1; exact ih h2 | tr_refl => cases h1
-  | tr_refl => cases H2 with | tr h2 => cases h2 | tr_refl => rfl
-
-/-- Multi-step weak-head reduction: the reflexive-transitive closure of `WHRed`. -/
-def WHRedS : Term → Term → Prop := ReflTransGen WHRed
-scoped notation:65 e1 " ⤳* " e2:36 => WHRedS e1 e2
-
-theorem WHRedS.app (H : e1 ⤳* e2) : e1.app a ⤳* e2.app a := by
-  induction H with
-  | rfl => exact .rfl
-  | tail _ h2 ih => exact .tail ih h2.app
-
-theorem WHRedS.fst (H : e1 ⤳* e2) : .fst e1 ⤳* .fst e2 := by
-  induction H with
-  | rfl => exact .rfl
-  | tail _ h2 ih => exact .tail ih h2.fst
-
-theorem WHRedS.snd (H : e1 ⤳* e2) : .snd e1 ⤳* .snd e2 := by
-  induction H with
-  | rfl => exact .rfl
-  | tail _ h2 ih => exact .tail ih h2.snd
-
-theorem WHRedS.natCase (H : M ⤳* M') :
-    Term.natCase C M a b ⤳* Term.natCase C M' a b := by
-  induction H with
-  | rfl => exact .rfl
-  | tail _ h2 ih => exact .tail ih h2.natCase
-
-theorem WHRedS.tr (H : e1 ⤳* e2) : Term.tr r A a b C x e1 ⤳* Term.tr r A a b C x e2 := by
-  induction H with
-  | rfl => exact .rfl
-  | tail _ h2 ih => exact .tail ih h2.tr
-
-theorem WHRedS.determ_l (H1 : e ⤳* e₁) (H2 : e ⤳* e₂) (W2 : WHNF e₂) : e₁ ⤳* e₂ := by
-  induction H1 using ReflTransGen.headIndOn generalizing e₂ with | rfl => exact H2 | head l1 l2 ih
-  cases H2 using ReflTransGen.headIndOn with | rfl => cases W2 _ l1 | head r1 r2
-  cases l1.determ r1; exact ih r2 W2
-
-theorem WHNF.whRedS (W : WHNF e) (H : e ⤳* e') : e = e' := by
-  cases H using ReflTransGen.headIndOn with
-  | rfl => rfl
-  | head h1 => cases W _ h1
-
-theorem WHRedS.determ
-    (H1 : e ⤳* e₁) (W1 : WHNF e₁)
-    (H2 : e ⤳* e₂) (W2 : WHNF e₂) : e₁ = e₂ := W1.whRedS (H1.determ_l H2 W2)

@@ -48,11 +48,6 @@ theorem subst (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
     LabelEq Δ A a A' a' → LabelEq Θ (A.subst τ) (a.subst τ) (A'.subst τ) (a'.subst τ)
   | ⟨⟨u, h1⟩, h2⟩ => ⟨⟨u, h1.subst hΘ W⟩, h2.subst hΘ W⟩
 
-/-- Read both sides at the left type. -/
-theorem left : LabelEq Δ A a A' a' → LabelEq Δ A a A a'
-  | ⟨⟨u, h1⟩, h2⟩ => ⟨⟨u, h1.hasType.1⟩, h2⟩
-
-/-- Read both sides at the right type. -/
 theorem right : LabelEq Δ A a A' a' → LabelEq Δ A' a A' a'
   | ⟨⟨u, h1⟩, h2⟩ => ⟨⟨u, h1.hasType.2⟩, h1.defeqDF h2⟩
 
@@ -81,9 +76,6 @@ theorem refl_r : TyEq Δ A A' → TyEq Δ A' A'
 theorem subst (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
     TyEq Δ A A' → TyEq Θ (A.subst τ) (A'.subst τ)
   | ⟨u, h⟩ => ⟨u, h.subst hΘ W⟩
-
-/-- The type half of a label equality. -/
-theorem of_labelEq : LabelEq Δ A a A' a' → TyEq Δ A A' := (·.1)
 
 end TyEq
 
