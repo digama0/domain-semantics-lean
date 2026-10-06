@@ -224,6 +224,39 @@ judgment's heterogeneous `trans'` rule go through without sort
 uniqueness, and so breaks the circularity: soundness comes first, type
 uniqueness is derived from it.
 
+### Why they are one induction
+
+They cannot be separated. The five are one strongly connected component,
+and the tightest cycle needs only two of them:
+
+- **`pin` needs `ty`.** `Term.Pinned` at a binder is `IsTypeAt Γ A`
+  together with the subterms' own, and `IsTypeAt` is half of
+  `SoundTy Γ A (.sort u)` (`SoundTy.isTypeAt`).
+- **`ty` needs `pin`.** `sound_tr_ty` and `sound_natCase_ty` take the
+  motive's `Pinned`, because typing the result means instantiating the
+  motive and `Interp.inst` is what consumes `Pinned`.
+
+Both edges are at subterms, which is exactly what a simultaneous
+induction is for. Three further cycles run through the other two fields:
+`ty` needs `dom` (at `app` and `snd`, through `SoundTy.of_dom`: an
+approximant sits below a hereditarily typed one and typing is
+lower-closed); `dom` needs `pin` (every `sound_*_dom` takes the
+codomain's or motive's `Pinned`); and `eq` needs all three while `ty` and
+`dom` need `eq`, because `symm` rebuilds them for the other side with
+`SoundTy.of_eq` and `SoundDom.of_eq`.
+
+Two things are known to be separable, and both were separated. **`dir`**
+is its own induction, proved before soundness and under the weaker
+`Valuation.WF`; that works because `IsDefEq.dir` never instantiates a
+binder, so it never needs an admissible stage. And the record needs no
+`dom'` field: `SoundDom.of_eq` moves saturation across `eq`, so only
+`pin` had to be doubled, and that only because `symm` swaps the sides.
+
+Of the four remaining edges, exactly one looks removable. `SoundTy.of_dom`
+replaced the former `sound_app_ty` and `sound_snd_ty`; restoring those
+would break `ty → dom`. It would not buy a separation, because `ty ↔ pin`
+survives on its own.
+
 Two derived notions sit on top. **`CodeAt Γ t`** says every approximant
 of `t`, read as a code, names `t`; it follows from any `SoundDom` at a
 sort. **`PairCanon`** says every pair-approximant of `p` is named by
