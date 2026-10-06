@@ -33,17 +33,12 @@ theorem forallE_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {s : Bool}
 
 /-! ## The rest of the inversion principles
 
-`Consequences.lean` consumes eighteen of these from `Adequacy.lean`.  Each
-is the same four-step argument as `forallE_inv`: regularity gives a
+`Consequences.lean` is built on these.  Each is the same four-step argument as `forallE_inv`: regularity gives a
 label-only probe, soundness moves it to the other side at the identity
 stage and the `⊥` valuation, and the order reads the label back.  For the
 no-confusion family the last step is trivial, since the order between two
 different heads is `False`; those need no regularity lemma either, only a
-probe for one of the two heads.
-
-They are stated here so the endpoint of the branch is explicit.  Once they
-are proved, `Consequences.lean` can be re-pointed at this file and
-`Adequacy.lean`, `LogRel.lean` and `Sound.lean` deleted. -/
+probe for one of the two heads. -/
 
 /-- Two sorts that are definitionally equal are the same sort.  The probe
 is the sort shape itself, and the order between two sort shapes *is* the
@@ -219,3 +214,19 @@ theorem id_inv {Γ : List Term} {r : Bool} {A₀ a₀ b₀ A₁ a₁ b₁ : Term
     ∃ u, Γ ⊢ A₀ ≡ A₁ : .sort u ∧ Γ ⊢ a₀ ≡ a₁ : A₀ ∧ Γ ⊢ b₀ ≡ b₁ : A₀ :=
   have ⟨⟨_, hA₀⟩, ha₀, hb₀⟩ := H.id_dom
   SoundEq.id_inv hΓ hA₀ ha₀ hb₀ (IsDefEq.sound hΓ H).eq
+
+/-- Two definitionally equal identity types are in the same sort: the
+relevance flag is part of the `id`-shape's head, and the order compares
+it.  (`id_inv` assumes it; this is where it comes from.) -/
+theorem id_rel_inv {Γ : List Term} {r r' s : Bool} {A₀ a₀ b₀ A₁ a₁ b₁ : Term}
+    (hΓ : ⊢ Γ) (H : Γ ⊢ Term.id r A₀ a₀ b₀ ≡ Term.id r' A₁ a₁ b₁ : .sort s) : r = r' := by
+  have ⟨⟨u, hA₀⟩, ha₀, hb₀⟩ := H.id_dom
+  have hw : TShape.WF Γ (Shape.T (n := 1)
+      (ShapeS.id r (A₀.subst Subst.id) (a₀.subst Subst.id) (b₀.subst Subst.id))) :=
+    Shape.WF.id_of hΓ (Ctx.SubstEq.id hΓ) hA₀ ha₀ hb₀
+  have hmove := ((IsDefEq.sound hΓ H).eq hΓ (Ctx.SubstEq.id hΓ) Adm.bot).1
+    (.id hw (TShape.LE.refl hw) ⟨u, hA₀⟩ ha₀ hb₀)
+  cases hmove with
+  | id _ hle _ _ _ =>
+    obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ hle
+    exact h2.1

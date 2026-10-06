@@ -4,10 +4,10 @@ import DomainSemantics.Counterexample
 
 /-! # Where the labelled model stands
 
-The axiom board for the presheaf line, checked at build time, as
-`DomainSemantics.lean` is for the old one.  The two cannot be one file:
-`Shape` and `ShapeOld` both define `DomainSemantics.Shape`, so the two
-models are separate roots.
+The axiom board for the labelled model, checked at build time.  The
+corollaries built on it (type uniqueness, the equivalence of the two
+judgments, subject reduction, progress) are guarded in
+`DomainSemantics.lean`.
 -/
 
 open DomainSemantics
@@ -43,10 +43,9 @@ soundness induction -- the original's `HasFixedness` read through
 `Interp.unweak`), `IsDefEq.dir` is clean, and so is the substitution
 half (`Interp.to_substTerm`, `Interp.substTerm`).
 
-The one remaining `sorry` of the repository is in the *old* model:
-`LR.adequacy`'s `r = false` transport (`Adequacy.lean`), false for that
-model with `LE_Interp.tr_stuck` as the witness; it is guarded on the
-other root, since the two models cannot be imported together. -/
+The old, label-free model (master's `LE_Interp` with its adequacy proof)
+is gone from this branch: everything it was used for is now proved from
+the labelled model's soundness. -/
 
 -- **The subject join**: two compatible shapes at one type join there.
 /-- info: 'DomainSemantics.TShape.HasType.join' depends on axioms: [propext, Classical.choice, Quot.sound] -/

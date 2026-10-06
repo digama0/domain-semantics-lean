@@ -26,7 +26,7 @@ The syntactic core of the project.
 
   These extras make `IsDefEq` *easier* to work with internally —
   inductions get stronger inversion data, and `trans'` lets us defer
-  sort uniqueness until after Adequacy proves it. Once `uniq_sort` is
+  sort uniqueness until after soundness proves it. Once `uniq_sort` is
   available, `IsDefEq.iff` shows the two systems are equivalent on
   well-formed contexts, so we can prove the key theorems about the
   original judgment as well.

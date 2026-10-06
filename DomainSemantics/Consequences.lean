@@ -1,4 +1,4 @@
-import DomainSemantics.Adequacy
+import DomainSemantics.Inversion
 
 /-! # Unique typing, and discharging the `IsDefEq` scaffolding
 
@@ -8,7 +8,7 @@ which carries explicit sort-typing premises at every congruence rule
 and has a heterogeneous transitivity rule `trans'` whose middle term
 may live at a different sort. This file ties the two together.
 
-Using `sort_inv` and `forallE_inv` from `Adequacy.lean` we first prove
+Using the inversion principles of `Inversion.lean` we first prove
 type uniqueness for `IsDefEq`, and then show that the `trans'` rule and
 the extra sort proofs are admissible — so the working judgment really
 is equivalent to the standard one.
@@ -566,8 +566,8 @@ theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) {A} (hM : Γ ⊢ M : A)
     let ⟨_, .tr ihA iha ihb hC hCb ihx h_h, transport⟩ := (hM.toHasType hΓ).1.toStructural
     let ⟨_, .refl ihA' ihy, _⟩ := h_h.toStructural
     obtain ⟨_, h_id_eq⟩ := h_h.uniq hΓ (.base (.refl ihA' ihy))
-    obtain ⟨_, _, _, red, _, _, hay, hby⟩ := id_whRed_l hΓ (h_id_eq.to_id_type hΓ)
-    cases WHNF.id.whRedS red
+    cases id_rel_inv hΓ h_id_eq
+    obtain ⟨_, _, hay, hby⟩ := id_inv hΓ (h_id_eq.to_id_type hΓ)
     have hA := ihA.hasType
     have step1 := IsDefEq.trDF hA hay hby hC hC ihx.hasType h_h.hasType
       (.instDF hΓ hA .sort hC hby) (.idDF hA iha.hasType ihb.hasType)
@@ -709,7 +709,7 @@ theorem Value.forallE_r (hΓ : ⊢ Γ) (hv : Value f) (h : Γ ⊢ f : .forallE A
     cases sort_forallE_inv hΓ eq.symm
   | star =>
     obtain ⟨_, eq⟩ := (h.toHasType hΓ).1.uniq hΓ (.base .star)
-    cases forallE_unit_inv hΓ eq.symm
+    cases forallE_unit_inv hΓ eq
   | forallE =>
     obtain ⟨_, hfs, _⟩ := (h.toHasType hΓ).1.toStructural
     let .forallE hC hD := hfs
@@ -760,7 +760,7 @@ theorem Value.sigma_r (hΓ : ⊢ Γ) (hv : Value f) (h : Γ ⊢ f : .sigma A B) 
     cases sort_sigma_inv hΓ (eq.symm.to_sigma_type hΓ)
   | star =>
     obtain ⟨_, eq⟩ := (h.toHasType hΓ).1.uniq hΓ (.base .star)
-    cases sigma_unit_inv hΓ (eq.symm.to_sigma_type hΓ)
+    cases sigma_unit_inv hΓ eq
   | lam =>
     obtain ⟨_, hfs, _⟩ := (h.toHasType hΓ).1.toStructural
     let .lam hC hD hE := hfs
@@ -810,7 +810,7 @@ theorem Value.nat_r (hΓ : ⊢ Γ) (hv : Value n) (h : Γ ⊢ n : .nat) :
     cases sort_nat_inv hΓ (eq.symm.trans_r hΓ .nat)
   | star =>
     obtain ⟨_, eq⟩ := (h.toHasType hΓ).1.uniq hΓ (.base .star)
-    cases nat_unit_inv hΓ (eq.symm.trans_r hΓ .nat)
+    cases nat_unit_inv hΓ eq
   | lam =>
     obtain ⟨_, hfs, _⟩ := (h.toHasType hΓ).1.toStructural
     let .lam hC hD hE := hfs
@@ -856,8 +856,7 @@ theorem Value.id_r (hΓ : ⊢ Γ) (hv : Value f) (h : Γ ⊢ f : .id r A a b) :
   | refl =>
     let ⟨_, .refl hA' ha', _⟩ := H.toStructural
     obtain ⟨_, h_id_eq⟩ := H.uniq hΓ (.base (.refl hA' ha'))
-    obtain ⟨_, _, _, red, _⟩ := id_whRed_l hΓ (h_id_eq.to_id_type hΓ)
-    cases WHNF.id.whRedS red
+    cases id_rel_inv hΓ h_id_eq
     exact ⟨_, rfl⟩
   | sort => exact no (.base .sort') (sort_id_inv hΓ)
   | lam =>
@@ -957,7 +956,12 @@ theorem not_UIP (uip : ∀ {Γ A M h}, Γ ⊢ h : .id true A M M → Γ ⊢ h �
   let Γ := [Term.id true .type .type .type]
   refine have hA := .idDF (r := true) .sort .sort .sort; have hΓ : ⊢ Γ := ⟨⟨⟩, _, hA⟩; ?_
   specialize @uip Γ .type .type _ (.bvar₀ hΓ .zero)
-  let ρ := Valuation.nil.push (WShape.T (n := 1) (.refl .bot))
-  have W : ρ.Fits [] Γ := .cons .nil (InterpTyped.hsort (LE_Interp.sound hA .nil).2)
-    (.id .sort' .sort' .sort' .rfl) rfl
-  cases LE_Interp.bvar_iff.1 <| (LE_Interp.sound uip W).1.2 (.refl .sort' .rfl)
+  -- at the all-`⊥` valuation the variable has only `⊥`, while `refl type`
+  -- has a `refl` shape; soundness would make them the same
+  have hw : TShape.WF Γ (Shape.T (n := 1) (ShapeS.refl (Shape.sort true : Shape 0))) :=
+    TShape.WF.T.2 Shape.WF.sort
+  have hr : Interp Γ Γ (.refl true .type) Subst.id Valuation.nil
+      (Shape.T (n := 1) (ShapeS.refl (Shape.sort true : Shape 0))) :=
+    .refl Interp.sort' hw (TShape.LE.refl hw)
+  have h := ((IsDefEq.sound hΓ uip).eq hΓ (Ctx.SubstEq.id hΓ) Adm.bot).2 hr
+  exact absurd (TShape.le_bot hΓ rfl (Interp.bvar_iff.1 h).2) (by simp [Shape.bot])

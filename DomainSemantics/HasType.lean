@@ -9,7 +9,7 @@ levels; see the section heading below it for why, and §5.5/§5.5a of
 `presheaf-proof-strategy.md` for the history.
 
 Before it comes the machinery it is built on: `Evaluates`, the relational
-graph lookup at a fixed level (`ShapeOld.lean`'s `ShapeFun.app` was a
+graph lookup at a fixed level (master's `ShapeFun.app` was a
 function, correct only because graphs were saturated; saturation is gone,
 so the codomain type comes from a relation, which is also how the other
 repo reads it — `rawExtend T X` quantifies `∃ c ∈ T`), and `TEvaluates`,
@@ -450,7 +450,7 @@ theorem Shape.IsNumeral.lift_iff {n k} (h : n ≤ k) {v : Shape n} :
 /-! ## What the level-indexed typing cost, and why it is gone
 
 A first version of this file defined typing by *recursion on the level*,
-mirroring `ShapeOld.lean`.  It is deleted; this note says what it was and
+mirroring master's `Shape.lean`.  It is deleted; this note says what it was and
 why, since the shape of the difficulty recurs.
 
 Every fact about a level-indexed relation has to be transported along

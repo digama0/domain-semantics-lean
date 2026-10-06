@@ -290,8 +290,8 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
   clause carries it at the stage, exactly as `natCase_zero` carries
   `M[σ] ≡ zero`.  Without it a *stuck* transport (endpoints not equal at
   the stage) would still be given `X`'s approximants, which no syntactic
-  rule can justify: that is the hole left in the old, context-free
-  `LE_Interp` (`Adequacy.lean`), and the reason for the labelled redesign.
+  rule can justify: that is the hole left in master's context-free
+  `LE_Interp`, and the reason for the labelled redesign.
 
   At `r = true` the proof is informative, and the clause asks for it to
   *be* `refl` at the stage, as a judgment.  A `refl`-shaped approximant is
@@ -1717,7 +1717,7 @@ theorem Interp.tr_bot_of_ne {Δ Γ : List Term} {r : Bool} {A a b C X H : Term} 
   | bot => rfl
   | tr _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ heq => exact absurd heq hne
 
-/-- The same example `LE_Interp.tr_stuck` settles the other way: the
+/-- The same example master's `LE_Interp.tr_stuck` settles the other way: the
 transport `tr false nat zero (succ zero) nat zero h`, which no rule
 computes, has only `⊥` here, because `zero ≢ succ zero`.  (That the
 endpoints are not equal is `IsDefEq.sound`'s business, so it is a

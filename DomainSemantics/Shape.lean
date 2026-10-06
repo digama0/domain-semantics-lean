@@ -2,7 +2,7 @@ import DomainSemantics.Label
 
 /-! # Labelled shapes
 
-The semantic domain of the gluing model. This is `ShapeOld.lean`'s
+The semantic domain of the gluing model. This is master's
 level-graded `Shape n` with two changes:
 
 * a function graph is a `List (Entry (Shape n))` rather than a
@@ -63,7 +63,7 @@ inductive Shape0 : Type where
   | sort (rel : Bool) : Shape0
 
 /-- One step of the level-graded shape constructor. Compared with
-`ShapeOld.lean`: graphs are lists of `Entry`, and `forallE`/`sigma`/`id`
+master's `Shape`: graphs are lists of `Entry`, and `forallE`/`sigma`/`id`
 carry syntactic labels. `refl` keeps a shape argument, so the
 proof-relevant identity type stays proof-relevant. -/
 inductive ShapeS (Shape : Type) : Type where
