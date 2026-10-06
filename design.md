@@ -256,20 +256,48 @@ formers, where `dom` comes from `SoundDom.of_sort` applied to `ty`, so
 nothing is saved there; and at `pair` and `Y` the `SoundTy` is also read
 for its `typedAt` inside the `Pinned` components.
 
-`CodeCanon` and `ValCanon` look like the best candidate for
+`CodeCanon` and `ValCanon` look like the obvious candidate for
 intermingling, since they are two recursions on the same shape with
 complementary heads: `ValCanon` at a type-former shape *is* `CodeCanon`,
-and `CodeCanon` at a value-former shape is `True`. One predicate would
-replace two families of closure lemmas. It does not work, and the reason
-is exactly the §4.7 obstruction. `CodeCanon.mono`, downward closure, is
-consumed; the merged predicate would have to have it; and `ValCanon` is
-not downward closed at `lam`. A smaller λ-shape's entry is reached by a
-lookup at a *definitionally equal* label, so its output names
-`app t e'.tm` where the bigger one names `app t e.tm`, and moving a
-value's name along that equality is `ValCanon.defeq`, which needs the
+and `CodeCanon` at a value-former shape is `True`. That merge does not
+work, and the reason is the §4.7 obstruction. `CodeCanon.mono`, downward
+closure, is consumed; the merged predicate would have to have it; and
+`ValCanon` is not downward closed at `lam`. A smaller λ-shape's entry is
+reached by a lookup at a *definitionally equal* label, so its output
+names `app t e'.tm` where the bigger one names `app t e.tm`, and moving
+a value's name along that equality is `ValCanon.defeq`, which needs the
 code the value is `Dom`-typed at. `mono` does not have one. That is why
 `ValCanon` has `defeq`, `subst`, `lift`, `join` and `toCode` but no
-`mono`, and why the two predicates stay apart.
+`mono`.
+
+**`ValCanon` merges with `Dom` instead** (`TShape.Named`, and
+`Named.iff` for the equivalence). The two are the same induction: `Dom`
+recurses on the code and `ValCanon` on the shape, but a shape typed at a
+code has its head determined by that code, so the recursions line up
+clause for clause. Folding the naming in needs three observations. At a
+code that only filters, a typed shape is never a `lam` or a `pair`
+(`ValCanon.of_code`), so the only naming left is a code naming its type,
+and `CodeCanon` is `True` on the numerals and on `refl`. At a Π, an
+entry's input names the entry's own label term and its output names the
+application, which is exactly `ValCanon`'s `lam` clause. At a Σ, the
+components name the projections, with the equation read at the Σ's
+domain label rather than the pair shape's, the two being definitionally
+equal because `HasType.pair` says so.
+
+What is left over, `CodeCanon`, does not merge in, and the reason is not
+an obstruction but a type error: `Named` is a statement about the value
+`x`, `CodeCanon` one about the *code* `d`. Different subjects, so no
+single induction carries both. The slot condition is therefore exactly
+two notions (`Slot.iff`), and `Slot` itself is their conjunction.
+
+Note what this does *not* buy. Indexing the naming by the code does not
+make `defeq` free on its own: moving a pair's name along `t ≡ t'` needs
+the Σ labels to be the type of `t`, which is `CodeCanon`. The transport
+needs the bundle, not the indexing, which is why `Slot.defeq` is the
+form it takes. And the fold is not free: `Dom`'s term argument has to be
+supplied at every one of its ~170 sites, and `Dom.of_isType` and
+`Dom.of_not_binder` would each gain a `CodeCanon` hypothesis. `Named`
+is proved and unused; the propagation is a separate job.
 
 Two things are known to be separable, and both were separated. **`dir`**
 is its own induction, proved before soundness and under the weaker

@@ -674,3 +674,169 @@ theorem TShape.Slot.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (W : Ctx.SubstEq Θ τ τ Δ) {T t : Term} {d x : TShape} (h : TShape.Slot Δ T d t x) :
     TShape.Slot Θ (T.subst τ) (d.subst τ) (t.subst τ) (x.subst τ) :=
   ⟨h.1.subst hΘ W, h.2.1.subst hΘ W, h.2.2.subst hΘ W⟩
+
+/-! ## Merging the slot condition into one recursion
+
+`Slot` above is the conjunction.  `Named` below is the same thing stated
+as one relation, by the same induction on the code that `TShape.Dom`
+uses, with the naming conjuncts folded into its clauses.  The two agree
+(`Named.iff`), which is what says the merge is sound; what it costs is
+that `Dom`'s term argument has to be supplied at every site.
+
+Three observations make the fold go through:
+
+* at a code that only filters, a shape typed there is never a `lam` or a
+  `pair`, so the only naming left is a code naming its type, and
+  `CodeCanon` is `True` on the numerals and on `refl`;
+* at a Π, an entry's *input* names the entry's own label term and its
+  *output* names the application — exactly `ValCanon`'s `lam` clause;
+* at a Σ, the pair's name is its first projection and the components
+  name the projections, with the equation read at the Σ's domain label
+  rather than the pair shape's, the two being definitionally equal
+  because `HasType.pair` says so. -/
+
+/-- `x` is hereditarily typed at the code `d` **and names `t`**. -/
+inductive TShape.Named (Δ : List Term) : TShape → Term → TShape → Prop where
+  | base {d x : TShape} {t : Term} : ¬ d.IsBinder → TShape.HasType Δ x d →
+    TShape.CodeCanon Δ t x → Named Δ d t x
+  | pi {n} {A B t : Term} {d : Shape n} {f : ShapeFun n} {x : TShape}
+      {cs : List (Entry TShape × TShape)} :
+    TShape.HasType Δ x (Shape.T (n := n+1) (ShapeS.forallE A B d f)) →
+    x.entries = cs.map (·.1) →
+    (∀ p ∈ cs, Named Δ d.T p.1.tm p.1.inp) →
+    (∀ p ∈ cs, TEvaluates Δ f A p.1.tm p.1.inp p.2) →
+    (∀ p ∈ cs, Named Δ p.2 (Term.app t p.1.tm) p.1.out) →
+    Named Δ (Shape.T (n := n+1) (ShapeS.forallE A B d f)) t x
+  | sg {n} {A B t : Term} {d : Shape n} {f : ShapeFun n} {x : TShape}
+      {ps : Option (Term × TShape × TShape)} {c : TShape} :
+    TShape.HasType Δ x (Shape.T (n := n+1) (ShapeS.sigma A B d f)) →
+    x.pairParts = ps →
+    (∀ p ∈ ps, Δ ⊢ p.1 ≡ Term.fst t : A) →
+    (∀ p ∈ ps, Named Δ d.T (Term.fst t) p.2.1) →
+    (∀ p ∈ ps, TEvaluates Δ f A p.1 p.2.1 c) →
+    (∀ p ∈ ps, Named Δ c (Term.snd t) p.2.2) →
+    Named Δ (Shape.T (n := n+1) (ShapeS.sigma A B d f)) t x
+
+theorem TShape.Named.dom {Δ : List Term} {d x : TShape} {t : Term}
+    (h : TShape.Named Δ d t x) : TShape.Dom Δ d x := by
+  induction h with
+  | base hnb hty _ => exact .base hnb hty
+  | pi hty hent _ hev _ ihin ihout => exact .pi hty hent ihin hev ihout
+  | sg hty hps _ _ hev _ ihx ihy => exact .sg hty hps ihx hev ihy
+
+/-- At a code that only filters, a typed shape is never a `lam` or a
+`pair`, and on every other head `ValCanon` *is* `CodeCanon`.  This is
+what lets `Named`'s `base` clause carry only the code's naming. -/
+theorem TShape.ValCanon.of_code {Δ : List Term} {t : Term} {d x : TShape}
+    (hnb : ¬ d.IsBinder) (hty : TShape.HasType Δ x d) (hc : TShape.CodeCanon Δ t x) :
+    TShape.ValCanon Δ t x := by
+  obtain ⟨n, s⟩ := x
+  cases hty with
+  | lam _ _ _ hwPi _ _ _ _ _ => exact absurd trivial hnb
+  | pair _ _ _ hwSg _ _ _ _ _ => exact absurd trivial hnb
+  | bot _ => exact Shape.ValCanon.bot
+  | zero => trivial
+  | succ _ => trivial
+  | refl _ _ => trivial
+  | sort => cases n <;> exact hc
+  | unit _ => exact hc
+  | nat => exact hc
+  | id _ _ => exact hc
+  | forallE _ _ _ => exact hc
+  | sigma _ _ _ => exact hc
+
+/-- **`Named` carries the naming.**  Each clause's per-part conditions
+are exactly what `ValCanon` asks of the corresponding head. -/
+theorem TShape.Named.val {Δ : List Term} {d x : TShape} {t : Term}
+    (h : TShape.Named Δ d t x) : TShape.ValCanon Δ t x := by
+  induction h with
+  | base hnb hty hc => exact TShape.ValCanon.of_code hnb hty hc
+  | @pi n A B t d f x cs hty hent _ hev _ ihin ihout =>
+    cases hty with
+    | bot _ => exact Shape.ValCanon.bot
+    | refl _ _ => trivial
+    | @lam _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ =>
+      intro e he
+      have hmem : (⟨e.tm, e.inp.T, e.out.T⟩ : Entry TShape) ∈ cs.map (·.1) := by
+        rw [← hent]
+        simp only [TShape.entries, Shape.graph, List.mem_map]
+        exact ⟨e, he, rfl⟩
+      obtain ⟨p, hp, hpe⟩ := List.mem_map.1 hmem
+      have h1 := ihin p hp; have h2 := ihout p hp
+      simp only [hpe] at h1 h2
+      exact ⟨h1, h2⟩
+  | @sg n A B t d f x ps c hty hps hname _ hev _ ihx ihy =>
+    cases hty with
+    | bot _ => exact Shape.ValCanon.bot
+    | refl _ _ => trivial
+    | @pair _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hA₀A =>
+      subst hps
+      refine ⟨?_, ?_, ?_⟩
+      · exact (hA₀A.choose_spec.symm.defeqDF (hname _ rfl))
+      · exact ihx _ rfl
+      · exact ihy _ rfl
+
+/-- **And it asks for nothing more.**  `Named` is exactly `Dom` together
+with `ValCanon`, so folding the naming into the hereditary-typing
+induction changes no theorem, only where the conditions are written. -/
+theorem TShape.Named.of_dom {Δ : List Term} {d x : TShape} {t : Term}
+    (hD : TShape.Dom Δ d x) (hV : TShape.ValCanon Δ t x) : TShape.Named Δ d t x := by
+  revert hV
+  induction hD generalizing t with
+  | base hnb hty => exact fun hV => .base hnb hty (Shape.ValCanon.toCode hV)
+  | @pi n A B d f x cs hty hent _ hev _ ihin ihout =>
+    intro hV
+    have hall : ∀ p ∈ cs, TShape.ValCanon Δ p.1.tm p.1.inp ∧
+        TShape.ValCanon Δ (Term.app t p.1.tm) p.1.out := by
+      cases hty with
+      | bot _ =>
+        have : cs = [] := by
+          simpa only [TShape.entries_bot, List.map_eq_nil_iff] using hent.symm
+        simp [this]
+      | refl _ _ =>
+        have : cs = [] := by
+          simpa only [TShape.entries, Shape.graph, List.map_nil, List.map_eq_nil_iff] using hent.symm
+        simp [this]
+      | @lam _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ =>
+        intro p hp
+        have hmem : p.1 ∈ cs.map (·.1) := List.mem_map.2 ⟨p, hp, rfl⟩
+        rw [← hent] at hmem
+        simp only [TShape.entries, Shape.graph, List.mem_map] at hmem
+        obtain ⟨e, he, hpe⟩ := hmem
+        obtain ⟨h1, h2⟩ := hV e he
+        exact hpe ▸ ⟨h1, h2⟩
+    exact .pi hty hent (fun p hp => ihin p hp (hall p hp).1) hev
+      (fun p hp => ihout p hp (hall p hp).2)
+  | @sg n A B d f x ps c hty hps _ hev _ ihx ihy =>
+    intro hV
+    have hall : ∀ p ∈ ps, (Δ ⊢ p.1 ≡ Term.fst t : A) ∧
+        TShape.ValCanon Δ (Term.fst t) p.2.1 ∧ TShape.ValCanon Δ (Term.snd t) p.2.2 := by
+      cases hty with
+      | bot _ =>
+        have : ps = none := by simpa only [TShape.pairParts_bot] using hps.symm
+        simp [this]
+      | refl _ _ =>
+        have : ps = none := by simpa only [TShape.pairParts] using hps.symm
+        simp [this]
+      | @pair _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hA₀A =>
+        subst hps
+        intro p hp
+        obtain rfl : p = _ := by simpa only [TShape.pairParts, Option.mem_def,
+          Option.some.injEq] using hp.symm
+        obtain ⟨hname, h1, h2⟩ := hV
+        exact ⟨hA₀A.choose_spec.defeqDF hname, h1, h2⟩
+    exact .sg hty hps (fun p hp => (hall p hp).1) (fun p hp => ihx p hp (hall p hp).2.1) hev
+      (fun p hp => ihy p hp (hall p hp).2.2)
+
+/-- **The merge, as an equivalence.** -/
+theorem TShape.Named.iff {Δ : List Term} {d x : TShape} {t : Term} :
+    TShape.Named Δ d t x ↔ TShape.Dom Δ d x ∧ TShape.ValCanon Δ t x :=
+  ⟨fun h => ⟨h.dom, h.val⟩, fun h => .of_dom h.1 h.2⟩
+
+/-- **So the slot condition is two notions, not three.**  What is left
+over does not merge in, and for a reason: `Named` is a statement about
+the value `x`, while `CodeCanon` is a statement about the *code* `d`.
+They have different subjects, so no single induction carries both. -/
+theorem TShape.Slot.iff {Δ : List Term} {T t : Term} {d x : TShape} :
+    TShape.Slot Δ T d t x ↔ TShape.Named Δ d t x ∧ TShape.CodeCanon Δ T d :=
+  ⟨fun h => ⟨.of_dom h.1 h.2.2, h.2.1⟩, fun h => ⟨h.1.dom, h.2, h.1.val⟩⟩
