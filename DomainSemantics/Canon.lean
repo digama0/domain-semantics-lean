@@ -521,3 +521,136 @@ theorem TShape.ValCanon.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (W : Ctx.SubstEq Θ τ τ Δ) {t : Term} {x : TShape} (h : TShape.ValCanon Δ t x) :
     TShape.ValCanon Θ (t.subst τ) (x.subst τ) :=
   Shape.ValCanon.subst hΘ W h
+
+/-! ## Values: the bridge, lifting and the join -/
+
+/-- **A canonical value is a canonical code**, read as a code: on code
+heads the two predicates agree, and on value heads `CodeCanon` asks
+nothing.  So the saturated approximants of a *type* name it. -/
+theorem Shape.ValCanon.toCode {Δ : List Term} :
+    ∀ {n} {t : Term} {x : Shape n}, Shape.ValCanon Δ t x → Shape.CodeCanon Δ t x := by
+  intro n t x h
+  cases n with
+  | zero => exact h
+  | succ n => cases x <;> first | exact h | trivial
+
+/-- Numerals carry no names. -/
+theorem Shape.ValCanon.of_numeral {Δ : List Term} {t : Term} :
+    ∀ {n} {x : Shape n}, Shape.IsNumeral x → Shape.ValCanon Δ t x := by
+  intro n x h
+  cases h <;> first | exact Shape.ValCanon.bot | trivial
+
+theorem Shape.ValCanon.lift {Δ : List Term} (hΔ : ⊢ Δ) :
+    ∀ {n m} (_ : n ≤ m) {t : Term} {s : Shape n},
+      Shape.ValCanon Δ t (s.lift m) ↔ Shape.ValCanon Δ t s := by
+  intro n
+  induction n with
+  | zero =>
+    intro m _ t s
+    cases m with
+    | zero => rw [Shape.lift_self]
+    | succ m => cases s <;> exact Iff.rfl
+  | succ n ih =>
+    intro m h t s
+    let m+1 := m; have h' := Nat.le_of_succ_le_succ h
+    cases s with
+    | bot | zero | succ | refl => exact Iff.rfl
+    | sort r =>
+      exact (Shape.CodeCanon.lift hΔ h (T := t) (s := (ShapeS.sort r : Shape (n+1))) :)
+    | unit r =>
+      exact (Shape.CodeCanon.lift hΔ h (T := t) (s := (ShapeS.unit r : Shape (n+1))) :)
+    | nat => exact (Shape.CodeCanon.lift hΔ h (T := t) (s := (ShapeS.nat : Shape (n+1))) :)
+    | id r A a b =>
+      exact (Shape.CodeCanon.lift hΔ h (T := t) (s := (ShapeS.id r A a b : Shape (n+1))) :)
+    | sigma A B d f =>
+      exact (Shape.CodeCanon.lift hΔ h (T := t) (s := (ShapeS.sigma A B d f : Shape (n+1))) :)
+    | forallE A B d f =>
+      exact (Shape.CodeCanon.lift hΔ h (T := t) (s := (ShapeS.forallE A B d f : Shape (n+1))) :)
+    | pair A B a x y => exact and_congr Iff.rfl (and_congr (ih h') (ih h'))
+    | lam A B f =>
+      constructor
+      · intro H e he
+        have := H ⟨e.ty, e.tm, e.inp.lift m, e.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
+        exact ⟨(ih h').1 this.1, (ih h').1 this.2⟩
+      · intro H e' he'
+        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'
+        exact ⟨(ih h').2 (H e he).1, (ih h').2 (H e he).2⟩
+
+theorem TShape.ValCanon.lift_iff {Δ : List Term} (hΔ : ⊢ Δ) {t : Term} {a : TShape} {k}
+    (h : a.1 ≤ k) : TShape.ValCanon Δ t a ↔ Shape.ValCanon Δ t (a.2.lift k) :=
+  (Shape.ValCanon.lift hΔ h).symm
+
+/-- **Two canonical values of one term join canonically**: the join keeps
+the left name, joins components and appends graphs. -/
+theorem Shape.ValCanon.join {Δ : List Term} (hΔ : ⊢ Δ) :
+    ∀ {n} {t : Term} {y z : Shape n}, Shape.WF Δ y → Shape.WF Δ z → Shape.Compat Δ y z →
+      Shape.ValCanon Δ t y → Shape.ValCanon Δ t z → Shape.ValCanon Δ t (y.join z) := by
+  intro n
+  induction n with
+  | zero => intro t y z hwy hwz hc hy hz; exact Shape.CodeCanon.join hΔ hwy hwz hc hy hz
+  | succ n ih =>
+    intro t y z hwy hwz hc hy hz
+    cases y with
+    | bot => simpa using hz
+    | pair A B a x₁ y₁ =>
+      cases z with
+      | bot => simpa using hy
+      | pair A' B' a' x₂ y₂ =>
+        exact ⟨hy.1, ih hwy.2.2.2.1 hwz.2.2.2.1 hc.2.2.1 hy.2.1 hz.2.1,
+          ih hwy.2.2.2.2 hwz.2.2.2.2 hc.2.2.2 hy.2.2 hz.2.2⟩
+      | _ => exact absurd hc id
+    | lam A B f =>
+      cases z with
+      | bot => simpa using hy
+      | lam A' B' f' =>
+        intro e he
+        rcases List.mem_append.1 he with he | he
+        · exact hy e he
+        · exact hz e he
+      | _ => exact absurd hc id
+    | zero | succ | refl =>
+      cases z with
+      | bot => simpa using hy
+      | _ => first | trivial | exact absurd hc id
+    | sort | unit | nat | id | sigma | forallE =>
+      cases z with
+      | bot => simpa using hy
+      | _ =>
+        first
+        | exact absurd hc id
+        | exact Shape.CodeCanon.join hΔ hwy hwz hc hy hz
+
+theorem TShape.ValCanon.join {Δ : List Term} (hΔ : ⊢ Δ) {t : Term} {y z : TShape}
+    (hwy : TShape.WF Δ y) (hwz : TShape.WF Δ z) (hc : TShape.Compat Δ y z)
+    (hy : TShape.ValCanon Δ t y) (hz : TShape.ValCanon Δ t z) :
+    TShape.ValCanon Δ t (TShape.join y z) := by
+  have h1 := Nat.le_max_left y.1 z.1; have h2 := Nat.le_max_right y.1 z.1
+  rw [TShape.ValCanon.lift_iff hΔ (k := max y.1 z.1) (Nat.le_refl _), TShape.join.def h1 h2]
+  exact Shape.ValCanon.join hΔ ((TShape.WF.def h1).1 hwy) ((TShape.WF.def h2).1 hwz)
+    ((TShape.Compat.def h1 h2).1 hc) ((TShape.ValCanon.lift_iff hΔ h1).1 hy)
+    ((TShape.ValCanon.lift_iff hΔ h2).1 hz)
+
+theorem TShape.ValCanon.toCode {Δ : List Term} {t : Term} {x : TShape}
+    (h : TShape.ValCanon Δ t x) : TShape.CodeCanon Δ t x := Shape.ValCanon.toCode h
+
+theorem TShape.CodeCanon.conv {Δ : List Term} {T T' : Term} {x : TShape}
+    (h : TShape.CodeCanon Δ T x) (hT : TyEq Δ T' T) : TShape.CodeCanon Δ T' x :=
+  Shape.CodeCanon.conv h hT
+
+@[simp] theorem TShape.ValCanon.bot {Δ : List Term} {t : Term} {n} :
+    TShape.ValCanon Δ t (Shape.T (n := n) Shape.bot) := Shape.ValCanon.bot
+
+@[simp] theorem TShape.CodeCanon.bot {Δ : List Term} {T : Term} {n} :
+    TShape.CodeCanon Δ T (Shape.T (n := n) Shape.bot) := Shape.CodeCanon.bot
+
+theorem TShape.ValCanon.of_bot {Δ : List Term} {t : Term} {x : TShape} (h : x.2 = Shape.bot) :
+    TShape.ValCanon Δ t x := by
+  obtain ⟨n, s⟩ := x
+  show Shape.ValCanon Δ t s
+  rw [show s = Shape.bot from h]; exact Shape.ValCanon.bot
+
+theorem TShape.CodeCanon.of_bot {Δ : List Term} {T : Term} {x : TShape} (h : x.2 = Shape.bot) :
+    TShape.CodeCanon Δ T x := by
+  obtain ⟨n, s⟩ := x
+  show Shape.CodeCanon Δ T s
+  rw [show s = Shape.bot from h]; exact Shape.CodeCanon.bot
