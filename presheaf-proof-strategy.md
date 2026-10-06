@@ -1385,7 +1385,8 @@ model gives it the shape `zero`: take `v := ⊥` (the only shape below both
 `zero` and `succ ⊥`), read the constant motive there, and the
 transported value `zero` is typed at it.  Adequacy says a term of shape
 `zero` reduces to `zero`; this one does not.  `Interp.tr_stuck_bot` is
-the same example on the new side, where it is `⊥`.
+the same example on the new side, where it is `⊥`; it used to assume
+`zero ≢ succ zero` and now proves it (`zero_ne_succ`).
 
 `LE_Interp ρ m M` has no context and no stage.  It cannot state `a ≡ b`;
 and it reads the motive at a valuation *slot* (`LE_Interp (ρ.push v) cb C`),
@@ -3017,6 +3018,19 @@ Side effect: `Interp.unweak` is now `Classical.choice`-free, since the
 (d) Two lemmas with no remaining users, `TShape.LE.refl_ub` and
 `TShape.LE.refl_decomp`, and one, `Interp.lam_entry_ty`, whose statement
 no longer has a subject.  Deleted.
+
+*How the rounds interact.*  Mostly they do not.  Of the hypotheses the
+last round removed, exactly one died because of the trimming above
+(`sound_refl`'s equation for the argument, which only ever moved the
+witness inside a `refl`-shape, plus `dir_refl`'s own argument, dropped
+with the clause at the time).  31 died in the `Adm.cons` cascade, and 21
+were already slack before either round.  In the other direction the
+`Interp` premises are unaffected: their blocker is the context lemmas'
+need for `⊢ (A' :: Γ')`, which no amount of hypothesis pruning supplies.
+The one real connection runs the other way, from §2 to the model:
+`Interp.tr_stuck_bot` used to *assume* `zero ≢ succ zero`, with a comment
+that this was soundness's business; `zero_ne_succ` now proves it, so the
+lemma is unconditional and has moved downstream to `Inversion.lean`.
 
 *Hypotheses.* 68 of them were declared and never used, and `lake build`
 is now warning-free.  One was load-bearing in appearance only and paid

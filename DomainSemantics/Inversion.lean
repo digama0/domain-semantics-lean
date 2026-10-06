@@ -243,15 +243,31 @@ closed terms.) -/
 `succ`-shape approximates `succ zero` at the empty stage; if the two
 terms were equal it would approximate `zero`, whose approximants are all
 below the `zero`-shape, and a `succ`-shape is not. -/
-theorem zero_ne_succ_zero : ¬ ([] ⊢ Term.zero ≡ Term.succ .zero : .nat) := by
+theorem zero_ne_succ {Γ : List Term} (hΓ : ⊢ Γ) :
+    ¬ (Γ ⊢ Term.zero ≡ Term.succ .zero : .nat) := by
   intro h
-  have hwz : TShape.WF [] (Shape.T (n := 1) Shape.zero) := TShape.WF.T.2 trivial
-  have hws : TShape.WF [] (Shape.T (n := 2) (Shape.succ Shape.zero)) := TShape.WF.T.2 trivial
-  have hs : Interp [] [] (.succ .zero) Subst.id Valuation.nil
+  have hwz : TShape.WF Γ (Shape.T (n := 1) Shape.zero) := TShape.WF.T.2 trivial
+  have hws : TShape.WF Γ (Shape.T (n := 2) (Shape.succ Shape.zero)) := TShape.WF.T.2 trivial
+  have hs : Interp Γ Γ (.succ .zero) Subst.id Valuation.nil
       (Shape.T (n := 2) (Shape.succ Shape.zero)) :=
     .succ (.zero hwz (TShape.LE.refl hwz)) hws (TShape.LE.refl hws)
-  have hΓ : ⊢ ([] : List Term) := trivial
   have hle := Interp.le_zero
     (((IsDefEq.sound hΓ h).eq hΓ (Ctx.SubstEq.id hΓ) Adm.bot).2 hs)
   obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hle
   exact absurd h2 (fun x => x)
+
+/-- The closed instance, which is the one that says the equational theory
+is not the total relation. -/
+theorem zero_ne_succ_zero : ¬ ([] ⊢ Term.zero ≡ Term.succ .zero : .nat) :=
+  zero_ne_succ trivial
+
+/-- **A stuck transport has no information.**  `tr false nat zero (succ
+zero) nat zero h` is a transport no rule computes, because its endpoints
+are not equal, and the `tr` clause now *asks* for them to be equal at the
+stage.  The hypothesis this used to take, that `zero ≢ succ zero`, is
+`zero_ne_succ`; before the model could separate two closed terms it had
+to be assumed. -/
+theorem Interp.tr_stuck_bot {Δ Γ : List Term} {σ ρ m H} (hΔ : ⊢ Δ)
+    (h : Interp Δ Γ (.tr false .nat .zero (.succ .zero) .nat .zero H) σ ρ m) :
+    m.2 = Shape.bot :=
+  Interp.tr_bot_of_ne h (by simpa using zero_ne_succ hΔ)

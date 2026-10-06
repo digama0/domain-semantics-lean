@@ -278,13 +278,6 @@ theorem Interp.of_bot {Δ Γ σ ρ} {t : Term} {m : TShape} (h : m.2 = Shape.bot
   rw [h] at hm
   exact hm ▸ .bot
 
-theorem TShape.Compat.of_bot {Δ : List Term} {a b : TShape} (ha : a.2 = Shape.bot) :
-    TShape.Compat Δ a b := by
-  show Shape.Compat Δ (Shape.lift (max a.1 b.1) a.2) (Shape.lift (max a.1 b.1) b.2)
-  rw [ha]
-  simp only [Shape.lift_bot]
-  cases max a.1 b.1 <;> trivial
-
 /-- Soundness for a congruence between two terms that only `⊥` approximates. -/
 theorem sound_of_bot {Γ : List Term} {t t' A : Term} (hty : Γ ⊢ t : A)
     (h : ∀ {Δ Γ' σ ρ m}, Interp Δ Γ' t σ ρ m → m.2 = Shape.bot)

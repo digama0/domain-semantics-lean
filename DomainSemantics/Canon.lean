@@ -68,12 +68,6 @@ def TShape.CodeCanon (Δ : List Term) (T : Term) (x : TShape) : Prop :=
 def TShape.ValCanon (Δ : List Term) (t : Term) (x : TShape) : Prop :=
   Shape.ValCanon Δ t x.2
 
-@[simp] theorem TShape.CodeCanon.T {Δ : List Term} {T : Term} {n} {s : Shape n} :
-    TShape.CodeCanon Δ T (Shape.T s) ↔ Shape.CodeCanon Δ T s := Iff.rfl
-
-@[simp] theorem TShape.ValCanon.T {Δ : List Term} {t : Term} {n} {s : Shape n} :
-    TShape.ValCanon Δ t (Shape.T s) ↔ Shape.ValCanon Δ t s := Iff.rfl
-
 @[simp] theorem Shape.CodeCanon.bot {Δ : List Term} {T : Term} {n} :
     Shape.CodeCanon Δ T (Shape.bot (n := n)) := by cases n <;> trivial
 
@@ -626,9 +620,6 @@ theorem TShape.CodeCanon.conv {Δ : List Term} {T T' : Term} {x : TShape}
     (h : TShape.CodeCanon Δ T x) (hT : TyEq Δ T' T) : TShape.CodeCanon Δ T' x :=
   Shape.CodeCanon.conv h hT
 
-@[simp] theorem TShape.ValCanon.bot {Δ : List Term} {t : Term} {n} :
-    TShape.ValCanon Δ t (Shape.T (n := n) Shape.bot) := Shape.ValCanon.bot
-
 @[simp] theorem TShape.CodeCanon.bot {Δ : List Term} {T : Term} {n} :
     TShape.CodeCanon Δ T (Shape.T (n := n) Shape.bot) := Shape.CodeCanon.bot
 
@@ -637,9 +628,3 @@ theorem TShape.ValCanon.of_bot {Δ : List Term} {t : Term} {x : TShape} (h : x.2
   obtain ⟨n, s⟩ := x
   show Shape.ValCanon Δ t s
   rw [show s = Shape.bot from h]; exact Shape.ValCanon.bot
-
-theorem TShape.CodeCanon.of_bot {Δ : List Term} {T : Term} {x : TShape} (h : x.2 = Shape.bot) :
-    TShape.CodeCanon Δ T x := by
-  obtain ⟨n, s⟩ := x
-  show Shape.CodeCanon Δ T s
-  rw [show s = Shape.bot from h]; exact Shape.CodeCanon.bot
