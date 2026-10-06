@@ -1943,6 +1943,130 @@ from `C[b]`).  `#print axioms` confirms the taint: `sigma_inv` and
 So the stratification route needs a *labelled* coarser model, not the
 one already in the repo.
 
+#### 4.7i The diagnosis, against master and intgrah; and the door that was open
+
+**What is actually wrong.**  Read the two reference models side by side.
+
+* *Master* is a **value-driven** model with label-free shapes.  A pair is
+  `pair : Shape → Shape → ShapeS Shape`; `natCase` fires when the
+  scrutinee's *shape* is `succ v`; a pair's second component is typed at
+  the Σ-code's codomain read at the first component's *shape*
+  (`y.HasType (b.app x)`).  Nothing in the model mentions a term, so a
+  variable's slot is any pair of typed shapes, `⟨fst p, snd p⟩`
+  approximates to `(x', y')` with `x' ≤ x`, `y' ≤ y`, and Σ's η is a
+  one-liner (`Sound.lean`, `fst_snd`).  The price is paid elsewhere: with
+  no syntax in the shapes, `⟦Σ A B⟧ = ⟦Σ A' B'⟧` says nothing about
+  `A ≡ A'`, so injectivity needs weak-head normalisation — the adequacy
+  proof, whose one `sorry` is the stuck `tr` that this model cannot
+  express.
+* *The presheaf model* (intgrah's pattern) is **stage-driven**: an
+  interpretation is indexed by a substitution σ, reduction happens when
+  the *term at the stage* is definitionally a redex (`natCase_succ`
+  needs `Δ ⊢ M[σ] ≡ succ t`), and a binder's body is read at a stage
+  extended by a **term**.  That is what the labels are for, and it is
+  what makes injectivity fall out of soundness.  It also means the
+  codomain `B` of a Σ is a family over *terms*: `B[σ, succ zero]` and
+  `B[σ, fst #0]` have different codes (`natCase` on the variable
+  computes in one and is stuck in the other), even at the same slot.  So
+  the type of a pair's second component is a function of a *term*, and
+  the pair must know which one.  There is no label-free Σ-value in a
+  stage-driven model: the name is forced, and a label-free pair would be
+  typed at nothing in particular.
+* *intgrah* has no Σ, but his Π says what the right shape of the fix
+  is.  A λ-value is a **family over labels**: it responds at every query,
+  and `app f a` pins the query from the syntax of `a`.  Its η holds
+  because the expansion `λx. f x` rebuilds the family label by label,
+  with the binder absorbing the label.  A pair is not a family; it is a
+  **point at one stage**.  `snd p` pins the query `fst p` from the
+  syntax, and a point at the stage `succ zero` does not respond to it.
+  A slot that is a point at the wrong stage is exactly the
+  `Counterexample.lean` witness.
+
+So nothing is wrong with the Σ-*shape* as it now stands (`pair A B a x
+y`, §4.7f): it is the only possible Σ-value here.  What is wrong is
+`Adm`: it admits a slot for `p` that is a value of some *other* term.  At
+the generic stage the only term a variable's slot can stand for is the
+variable, and the condition "the slot for `σ i` is named `fst (σ i)`,
+hereditarily" is a missing conjunct of admissibility, of the same kind as
+`Dom`.  That is the §4.7a conclusion; what was unresolved was whether the
+conjunct could be *propagated* (§4.7d, §4.7g: three locked doors).
+
+**The doors were locked by the formulation, not the model.**  All four
+attempts (§4.7d) asked the *value* to know its own type — read off its
+labels, off a quantified typing, or off a `WF` coherence of codes — and
+then needed Σ-injectivity or type uniqueness to move the name along a
+definitional equality of the subject.  But the type is never needed from
+the value: the value is `Dom`-typed at a **code**, the code carries
+labels, and whether a code names its type is a sort-level fact.  Stated
+relative to the code, the transport is a theorem with no inversion in it.
+`DomainSemantics/Canon.lean` (new) has it, machine-checked, with the
+closure properties the two uses need:
+
+```
+Shape.CodeCanon Δ T d   -- a code names its type, hereditarily
+  sigma A B d f ↦ T ≡ Σ A B ∧ CodeCanon A d ∧
+                  ∀ e ∈ f, e.out = ⊥ ∨ (e.ty ≡ A ∧ CodeCanon (B[e.tm]) e.out)
+  sort r        ↦ T ≡ sort r          (likewise nat, unit, Id, Π)
+Shape.ValCanon Δ t x    -- a value names its own projections
+  pair A₀ _ a x y ↦ a ≡ fst t : A₀ ∧ ValCanon (fst t) x ∧ ValCanon (snd t) y
+  lam _ _ g       ↦ ∀ e ∈ g, ValCanon e.tm e.inp ∧ ValCanon (app t e.tm) e.out
+  code-shaped     ↦ CodeCanon t x
+```
+
+* `ValCanon.defeq : Dom d x → CodeCanon T d → ValCanon t x → (Δ ⊢ t ≡ t' : T) → ValCanon t' x`.
+  At a pair the code is `sigma A B d₁ f` with `T ≡ Σ A B`, so `fstDF₀`
+  and `sndDF₀` apply at a *syntactic* Σ; the components recurse at
+  `d₁` (canonical for `A`) and at the lookup `f(a, x)` (canonical for
+  `B[a] ≡ B[fst t]`).  At a λ the code is a Π-code, `appDF₀` applies,
+  and each output recurses at the entry's own code from `Dom.pi`.  This
+  is the lemma §4.7c, §4.7d and §4.7g could not state.
+* `CodeCanon.mono` (downward closed, needs `WF` of the bigger code) and
+  `CodeCanon.join`: codes compare *both* labels (`PiLabelEq`), so no
+  injectivity is needed; dead entries (output `⊥`) are exempt because
+  the order can hand them to a smaller code under any label type.
+  `CodeCanon.lookup` derives the query-based reading from the
+  entry-based one through these two.
+* `ValCanon.subst`, `CodeCanon.subst`: entry-based, so entries map and
+  `(fst t)[τ] = fst (t[τ])` is syntactic.  No typing is consulted.
+
+The two horns of §4.7g are split between the two predicates: **values
+are entry-based** (substitutive; downward closure is never consumed,
+since the consumers are saturation, which produces a canonical value
+*above*, and the pair's name, which the order preserves), **codes are
+query-based in effect** (downward closed, because their transports are
+at sorts).  Door 3 — the λ-value's undetermined codomain label — is not
+touched: the codomain code is read from the Π-code that `Dom`-types the
+λ-value, which the induction supplies canonical for the *derivation's*
+type, never from the λ-value's own `Bd` (now vestigial).
+
+**What remains is propagation, and it is the `Dom` discipline again.**
+
+1. `Adm`: `∃ a, Interp Γ_i σ ρ a ∧ Dom a (ρ i) ∧ CodeCanon (Γ_i[σ]) a ∧ ValCanon (σ i) (ρ i)`.
+2. The slot-creating clauses add `ValCanon tm inp` for the slot they
+   push (`lam`, `forallE`, `sigma`: `e.tm`/`e.inp`; `pair`: `a[σ]`/`x`;
+   `Y`: `(Y A b)[σ]`/`x`; `tr`: its two; `natCase_succ`: nothing, the
+   slot is a numeral).  `Interp.subst`/`weak`/`ctx` go through by the
+   `.subst` lemmas.
+3. A sixth `Sound` conclusion, `SoundCanon Γ t A`: every approximant of
+   `t` is below one `m'` with a code `a` of `A[σ]`, `Dom a m'`,
+   `CodeCanon (A[σ]) a` and `ValCanon (t[σ]) m'`.  `bvar` is `Adm`;
+   `app` saturates `f`, transports each firing entry's output along
+   `app f e.tm ≡ app f a[σ]` by `ValCanon.defeq` with that entry's code,
+   and joins; `lam`/`forallE`/`sigma`/`pair` saturate their bodies at
+   the extended (now admissible) valuation and transport along β /
+   `pair_fst`; `fst`/`snd`/`Y`/`tr` read the saturated subject's
+   components; the rest are `of_eq` across `SoundEq`, as `SoundDom` does
+   it.  Every transport site has the derivation's syntactic type and a
+   canonical code for it, which is all `ValCanon.defeq` asks.
+4. `PairCanon` is then `SoundCanon` at `p` plus `Shape.le_pair`, and
+   `fst_snd` closes (both directions are already proved against it).
+
+The old `Shape.Canon` block in `Interp.lean` (type-indexed, query-based
+λ clause) is superseded by `Canon.lean` and should be deleted when the
+clauses are rewired; `PiLabelEq.sigmaEq`/`forallEEq` and `IsDefEq.ctx_id`
+/`Ctx.SubstEq.defeqHead` have local copies there to be deduplicated
+(`Canon` sits between `HasType` and `Interp`).
+
 ### 4.8 The remaining cases, in one line each
 
 `sigmaDF`, `pairDF`, `fstDF`, `sndDF`: mirror Π/λ/app with the pair's
