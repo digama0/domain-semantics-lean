@@ -350,7 +350,7 @@ theorem TShape.HasType.unit_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape} {r 
     m.2 = Shape.bot := by
   cases TShape.HasType.mono_r hΔ h (TShape.unit r) ha (.unit (Bool.le_true' r)) with
   | bot _ => rfl
-  | refl _ hc _ =>
+  | refl hc _ =>
     obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ hc
     exact absurd h2 (fun x => x)
 
@@ -2385,7 +2385,7 @@ theorem sound_fst_dom {Γ : List Term} {A B p : Term}
       -- value, and `Dom`'s Σ clause has it
       cases hty with
       | bot hb => exact absurd (TShape.le_bot hΔ rfl hPle) (by simp [Shape.bot])
-      | refl hwv hleid hAty' =>
+      | refl hleid hAty' =>
         exact absurd hleid (by
           intro h
           obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
@@ -2931,7 +2931,7 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
       cases hty with
       | bot hb =>
         exact absurd (TShape.le_bot hΔ rfl hFle) (by simp [Shape.bot])
-      | refl hwv hleid hAty' =>
+      | refl hleid hAty' =>
         exact absurd hleid (by
           intro h
           obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
@@ -3138,7 +3138,7 @@ theorem sound_snd_dom {Γ : List Term} {A B p : Term} {u v : Bool}
     | @sg nS A' B' dS fS _ ps cc hty hps hxd' hevc hout =>
       cases hty with
       | bot hb => exact absurd (TShape.le_bot hΔ rfl hPle) (by simp [Shape.bot])
-      | refl hwv hleid hAty' =>
+      | refl hleid hAty' =>
         exact absurd hleid (by
           intro h
           obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
@@ -3289,9 +3289,10 @@ theorem dir_id {Γ : List Term} {A a b : Term} {u r : Bool}
 
 /-! ## The two unary formers
 
-`.succ N` and `.refl a` wrap their argument's shape, so directedness is
-their argument's: the bound is the wrapper applied to the argument's
-bound, and `TShape.LE.succ_of` / `refl_of` carry the order through. -/
+`.succ N` wraps its argument's shape, so directedness is its argument's:
+the bound is the wrapper applied to the argument's bound, and
+`TShape.LE.succ_of` carries the order through.  `.refl a` carries nothing,
+so its approximants are `⊥` and the one `refl`-shape. -/
 
 /-- Soundness for `succDF`.  `SoundEq` is the argument's, clause by
 clause; `SoundTy` needs the argument's shape to be a numeral, which is
@@ -3333,11 +3334,11 @@ theorem sound_refl {Γ : List Term} {A a a' : Term} {u r : Bool}
     · intro h
       cases h with
       | bot => exact .bot
-      | refl hv hw hle => exact .refl ((ihe hΔ W hAdm).1 hv) hw hle
+      | refl hw hle => exact .refl hw hle
     · intro h
       cases h with
       | bot => exact .bot
-      | refl hv hw hle => exact .refl ((ihe hΔ W hAdm).2 hv) hw hle
+      | refl hw hle => exact .refl hw hle
   · refine ⟨.reflDF hA haa'.hasType.1 hid, ?_⟩
     intro Δ Γ₀ σ ρ hΔ W hAdm m hm
     have hwid : TShape.WF Δ
@@ -3349,9 +3350,8 @@ theorem sound_refl {Γ : List Term} {A a a' : Term} {u r : Bool}
     refine ⟨_, .id hwid (TShape.LE.refl hwid) ⟨u, hA⟩ haa'.hasType.1 haa'.hasType.1, ?_⟩
     cases hm with
     | bot => exact .bot hidty
-    | refl hv hw hle =>
-      exact TShape.HasType.mono_l hΔ
-        (.refl hv.wf (TShape.LE.refl hwid) hidty) hle
+    | refl hw hle =>
+      exact TShape.HasType.mono_l hΔ (.refl (TShape.LE.refl hwid) hidty) hle
 
 /-- Directedness for `.succ`: the other repo's `succ_isDirected`. -/
 theorem dir_succ {Γ : List Term} {N : Term} (h : SoundDir Γ N) : SoundDir Γ (.succ N) := by
@@ -3537,46 +3537,20 @@ theorem dir_Y {Γ : List Term} {A b : Term} {u : Bool} (hA : Γ ⊢ A : .sort u)
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   exact dir_Y_aux hΔ h₁ rfl hwρ W (.cons W hA (hY.subst hΔ W)) ihA ihb h₂
 
-/-- Directedness for `.refl`.  At `r = false` there is no `refl` rule and
-`cases` leaves only `bot`, so the statement needs no side condition. -/
-theorem dir_refl {Γ : List Term} {a : Term} {r : Bool} (h : SoundDir Γ a) :
-    SoundDir Γ (.refl r a) := by
+/-- Directedness for `.refl`: every `refl`-approximant is below the one
+`refl`-shape.  At `r = false` there is no `refl` rule and `cases` leaves
+only `bot`. -/
+theorem dir_refl {Γ : List Term} {a : Term} {r : Bool} : SoundDir Γ (.refl r a) := by
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
+  have hwz : TShape.WF Δ (Shape.T (n := 1) ShapeS.refl) := TShape.WF.T.2 trivial
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | refl hv₁ _ hle₁ =>
+  | refl hw₁ hle₁ =>
     cases h₂ with
-    | bot =>
-      refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
-      · exact hv₁.wf
-      · exact .refl hv₁ hv₁.wf (TShape.LE.refl hv₁.wf)
-    | refl hv₂ _ hle₂ =>
-      obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := h hΔ W hwρ hv₁ hv₂
-      refine ⟨_, ?_, ?_, hle₁.trans hΔ (TShape.LE.refl_of hΔ hz₁),
-        hle₂.trans hΔ (TShape.LE.refl_of hΔ hz₂)⟩
-      · exact hwz
-      · exact .refl hz hwz (TShape.LE.refl hwz)
-
-/-- Above a `refl`-shape there is only a `refl`-shape, and the order
-between two of them is the order between their witnesses — `succ_ub` and
-`succ_decomp` for the other unary former. -/
-theorem TShape.LE.refl_ub {Δ : List Term} {n} {v : Shape n} {z : TShape}
-    (h : TShape.LE Δ (Shape.T (n := n+1) (ShapeS.refl v)) z) :
-    ∃ (k : Nat) (w : Shape k), z = Shape.T (n := k+1) (ShapeS.refl w) := by
-  obtain ⟨j, t⟩ := z
-  obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
-  cases j with
-  | zero => cases t <;> exact absurd h2 (fun x => x)
-  | succ j =>
-    cases t with
-    | refl w => exact ⟨j, w, rfl⟩
-    | _ => exact absurd h2 (fun x => x)
-
-theorem TShape.LE.refl_decomp {Δ : List Term} (hΔ : ⊢ Δ) {n k} {v : Shape n} {w : Shape k}
-    (h : TShape.LE Δ (Shape.T (n := n+1) (ShapeS.refl v))
-      (Shape.T (n := k+1) (ShapeS.refl w))) : TShape.LE Δ v.T w.T := by
-  obtain ⟨M, hkM, hnM, h2⟩ := TShape.LE.at_succ h
-  exact (TShape.LE.def hΔ (Nat.le_of_succ_le_succ hnM) hkM).2 h2
+    | bot => exact ⟨_, hw₁, .refl hw₁ hle₁, TShape.LE.refl hw₁, TShape.bot_le' rfl⟩
+    | refl _ hle₂ =>
+      exact ⟨_, hwz, .refl hwz (TShape.LE.refl hwz),
+        hle₁.trans hΔ (TShape.LE.refl_of hΔ), hle₂.trans hΔ (TShape.LE.refl_of hΔ)⟩
 
 /-- **Directedness for `.tr`** — the case the plan called open, and the
 one consumer of `SoundJoin`.
@@ -4941,7 +4915,7 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
   | idDF hAA' haa' hbb' ihA iha ihb =>
     exact ⟨dir_id hAA'.hasType.1 haa'.hasType.1 hbb'.hasType.1,
       dir_id hAA'.hasType.2 (hAA'.defeqDF haa'.hasType.2) (hAA'.defeqDF hbb'.hasType.2)⟩
-  | reflDF _ _ _ _ iha _ => exact ⟨dir_refl (iha hΓ).1, dir_refl (iha hΓ).2⟩
+  | reflDF => exact ⟨dir_refl, dir_refl⟩
   -- the case `SoundJoin` was for: two transports are typed at two
   -- approximants of the motive, and the witness above both has to be
   -- typed at the motive above both.  Every other case is an upper bound
@@ -5033,7 +5007,7 @@ theorem CodeAt.refl {Γ : List Term} {r : Bool} {a : Term} : CodeAt Γ (.refl r 
   intro Δ Γ₀ σ ρ hΔ W _ m hm
   cases hm with
   | bot => exact TShape.CodeCanon.bot
-  | refl hv hw hle => exact TShape.CodeCanon.mono hΔ hle (TShape.WF.T.2 hv.wf) trivial
+  | refl _ hle => exact TShape.CodeCanon.mono hΔ hle (TShape.WF.T.2 trivial) trivial
 
 /-! ## η
 
@@ -5076,7 +5050,7 @@ theorem sound_eta_of {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
     -- are hereditarily typed at the Π's domain
     cases hty with
     | bot hb => exact hmbot (TShape.le_bot hΔ rfl hle)
-    | refl hwv hleid hAty =>
+    | refl hleid hAty =>
       -- a `refl`-shape is never typed at a Π code
       exact absurd hleid (by
         intro h
@@ -5328,7 +5302,7 @@ theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢
   | @sg nS A' B' dS fS _ ps cc hty hps hxd' hevc hout =>
     cases hty with
     | bot hb => exact hbot (TShape.le_bot hΔ rfl hle)
-    | refl hwv hleid hAty' =>
+    | refl hleid hAty' =>
       exact absurd hleid (by
         intro h
         obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h

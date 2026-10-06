@@ -271,10 +271,9 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
     Interp Δ Γ (.id r A a b) σ ρ m
   /-- `refl` has a shape only in the proof-relevant sort; at `r = false`
   the `bot` rule is all there is, which is proof irrelevance. -/
-  | refl {n} {v : Shape n} :
-    Interp Δ Γ a σ ρ (Shape.T v) →
+  | refl {n} :
     TShape.WF Δ m →
-    TShape.LE Δ m (Shape.T (n := n+1) (.refl v)) →
+    TShape.LE Δ m (Shape.T (n := n+1) .refl) →
     Interp Δ Γ (.refl true a) σ ρ m
   /-- Transport.  Master's constructor, with the motive evaluated at the
   stage extended by `b`, which is the label term the motive's binder is
@@ -333,7 +332,7 @@ theorem Interp.wf {Δ Γ : List Term} {t : Term} {σ ρ m}
   induction H with
   | bot => exact .bot
   | bvar hw | sort hw | unit hw | nat hw | zero hw | succ _ hw
-  | app _ _ _ hw | lam _ _ _ _ _ _ hw | forallE _ _ _ _ _ _ _ hw | id hw | refl _ hw | tr hw
+  | app _ _ _ hw | lam _ _ _ _ _ _ hw | forallE _ _ _ _ _ _ _ hw | id hw | refl hw | tr hw
   | sigma _ _ _ _ _ _ _ hw | pair _ _ _ _ _ _ _ _ _ _ hw | fst _ hw | snd _ _ hw
   | natCase_zero _ _ _ _ _ hw | natCase_succ _ _ _ _ _ _ hw
   | Y _ _ _ _ _ _ _ _ _ _ _ _ hw => exact hw
@@ -369,7 +368,7 @@ theorem Interp.mono (hΔ : ⊢ Δ) {Γ : List Term} {t : Term} {σ ρ} {m m' : T
   | Y hself hwx hA hdty hDom hdc hxc _ hAt hYt _ _ ihb =>
     exact .Y hself hwx hA hdty hDom hdc hxc (ihb hw h) hAt hYt
   | id _ h1 hAt hat hbt => exact .id hw (TShape.LE.trans hΔ h h1) hAt hat hbt
-  | refl hv _ h1 => exact .refl hv hw (TShape.LE.trans hΔ h h1)
+  | refl _ h1 => exact .refl hw (TShape.LE.trans hΔ h h1)
   | tr _ hle hX ha hb hA hwv hvA hvc hbc hC hcb hm' hcbc hmc hH heq hAt hat hbt _ _ _ _ _ =>
     exact .tr hw (TShape.LE.trans hΔ h hle) hX ha hb hA hwv hvA hvc hbc hC hcb hm' hcbc hmc hH heq
       hAt hat hbt
@@ -409,7 +408,7 @@ theorem Interp.mono_val {Γ : List Term} {t : Term} {σ} {ρ ρ' : Valuation} {m
     exact .Y (ihself hρ) hwx (ihA hρ) hdty hDom hdc hxc
       (ihb (Valuation.LE.push.2 ⟨hρ, .refl hwx⟩)) hAt hYt
   | id hw h1 hAt hat hbt => exact .id hw h1 hAt hat hbt
-  | refl _ hw h1 ihv => exact .refl (ihv hρ) hw h1
+  | refl hw h1 => exact .refl hw h1
   | tr hw hle _ _ _ _ hwv hvA hvc hbc _ hcb hm' hcbc hmc hH heq hAt hat hbt ihX iha ihb ihA ihC =>
     refine .tr hw hle (ihX hρ) (iha hρ) (ihb hρ) (ihA hρ) hwv hvA hvc hbc ?_ hcb hm' hcbc hmc
       hH heq hAt hat hbt
@@ -512,7 +511,7 @@ theorem Interp.ctx {Δ Γ : List Term} {t σ ρ m} (H : Interp Δ Γ t σ ρ m) 
     obtain ⟨u, hA⟩ := hAt
     exact .id hw h ⟨u, IsDefEq.ctx_id hΓ' W hA⟩ (IsDefEq.ctx_id hΓ' W hat)
       (IsDefEq.ctx_id hΓ' W hbt)
-  | refl _ hw h ihv => exact fun hΓ' W => .refl (ihv hΓ' W) hw h
+  | refl hw h => exact fun _ _ => .refl hw h
   | @tr _ _ _ _ _ _ _ _ _ A _ _ _ _ _ hw hle _ _ _ _ hwv hvA hvc hbc _ hcb hm' hcbc hmc hH heq hAt hat hbt
       ihX iha ihb ihA ihC =>
     intro Γ' hΓ' W
@@ -797,7 +796,7 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
     have := h1.subst hΘ W
     simp only [TShape.subst_T, Shape.subst, subst_subst] at this
     exact .id (hw.subst hΘ W) this hAt hat hbt
-  | refl _ hw h1 ihv => exact .refl (ihv hΘ W) (hw.subst hΘ W) (h1.subst hΘ W)
+  | refl hw h1 => exact .refl (hw.subst hΘ W) (h1.subst hΘ W)
   | tr hw hle _ _ _ _ hwv hvA hvc hbc _ hcb hm' hcbc hmc hH heq hAt hat hbt ihX iha ihb ihA ihC =>
     have heq' := heq.subst hΘ W
     rw [subst_subst, subst_subst, subst_subst] at heq'
@@ -913,7 +912,7 @@ theorem Interp.weak' {Δ : List Term} {Γ t σ' ρ m l} (hΓ : ⊢ Γ)
     simp only [← subst_lift'] at h1
     obtain ⟨u, hA⟩ := hAt
     exact .id hw h1 ⟨u, hA.weak' WΓ⟩ (hat.weak' WΓ) (hbt.weak' WΓ)
-  | refl _ hw h1 ihv => exact .refl (ihv hΓ WΓ hρ rfl) hw h1
+  | refl hw h1 => exact .refl hw h1
   | tr hw hle _ _ _ _ hwv hvA hvc hbc _ hcb hm' hcbc hmc hH heq hAt hat hbt ihX iha ihb ihA ihC =>
     rw [← subst_lift', ← subst_lift', ← subst_lift'] at heq
     simp only [← subst_lift'] at hvc hbc
@@ -1064,8 +1063,8 @@ theorem Interp.of_substTerm {Δ Γ : List Term} {t : Term} {τ ρ' m} (hΔ : ⊢
     simp only [← subst_subst] at h1
     obtain ⟨u, hAty⟩ := hAt
     exact .id hw h1 ⟨u, hAty.subst hΓ' Wθ⟩ (hat.subst hΓ' Wθ) (hbt.subst hΓ' Wθ)
-  | refl _ hw h1 ihv =>
-    intro _ _ _ _ hΓ' Wθ hτ hθ; exact .refl (ihv hΓ' Wθ hτ hθ) hw h1
+  | refl hw h1 =>
+    intro _ _ _ _ _ _ _ _; exact .refl hw h1
   | @tr _ _ _ _ _ _ _ _ _ A _ _ _ _ _ hw hle _ _ _ _ hwv hvA hvc hbc _ hcb hm' hcbc hmc hH heq hAt hat hbt
       ihX iha ihb ihA ihC =>
     intro Γ' θ σ ρ hΓ' Wθ hτ hθ
@@ -1292,7 +1291,7 @@ theorem Interp.unweak {Δ : List Term} (hΔ : ⊢ Δ) :
     intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
     cases H with
     | bot => exact .bot
-    | refl hv hw hle => exact .refl (ih hΓ hAnn WΓ hd hρ hv) hw hle
+    | refl hw hle => exact .refl hw hle
   | tr r A a b C X Hp ihA iha ihb ihC ihX ihH =>
     intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
     obtain ⟨⟨u, hA⟩, hat, hbt, hht, _, hAA, hAa, hAb, hAC, hAX, hAH⟩ := hAnn
@@ -1545,7 +1544,7 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
     intro Γ σ σ₂ ρ m hΓ hAnn W H
     cases H with
     | bot => exact .bot
-    | refl hv hw hle => exact .refl (ih hΓ hAnn W hv) hw hle
+    | refl hw hle => exact .refl hw hle
   | tr r A a b C X Hp ihA iha ihb ihC ihX ihH =>
     intro Γ σ σ₂ ρ m hΓ hAnn W H
     obtain ⟨⟨u, hA⟩, hat, hbt, hht, ⟨a₀, C₀, v₀, hx₀, ha₀, hC₀⟩, hAA, hAa, hAb, hAC, hAX, hAH⟩ :=
@@ -2320,9 +2319,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
     intro Γ Γ₀ Γ' θ σ ρ m hΓ hAnn hPin hΓ' hgood Wθ Wσ hAdm hSat hθ H
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
-    | refl hv hw hle =>
-      obtain ⟨ρ', hv', hA⟩ := ih hΓ hAnn hPin hΓ' hgood Wθ Wσ hAdm hSat hθ hv
-      exact ⟨ρ', .refl hv' hw hle, hA⟩
+    | refl hw hle => exact ⟨Valuation.nil, .refl hw hle, .nil⟩
   | id r A a b ihA iha ihb =>
     intro Γ Γ₀ Γ' θ σ ρ m hΓ hAnn hPin hΓ' hgood Wθ Wσ hAdm hSat hθ H
     obtain ⟨⟨u, hA⟩, hat, hbt, hAA, hAa, hAb⟩ := hAnn

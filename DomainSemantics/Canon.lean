@@ -42,7 +42,7 @@ def Shape.CodeCanon (Δ : List Term) : ∀ {n}, Term → Shape n → Prop
   | _+1, _, .pair .. => True
   | _+1, _, .zero => True
   | _+1, _, .succ _ => True
-  | _+1, _, .refl _ => True
+  | _+1, _, .refl => True
 
 /-- A value names its own projections. -/
 def Shape.ValCanon (Δ : List Term) : ∀ {n}, Term → Shape n → Prop
@@ -53,7 +53,7 @@ def Shape.ValCanon (Δ : List Term) : ∀ {n}, Term → Shape n → Prop
       ∀ e ∈ g, ValCanon Δ e.tm e.inp ∧ ValCanon Δ (.app t e.tm) e.out
   | _+1, _, .zero => True
   | _+1, _, .succ _ => True
-  | _+1, _, .refl _ => True
+  | _+1, _, .refl => True
   | _+1, _, .bot => True
   | _+1, t, s@(.sort _) => CodeCanon Δ t s
   | _+1, t, s@(.unit _) => CodeCanon Δ t s

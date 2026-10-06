@@ -935,7 +935,7 @@ theorem progress {e : Term} : ∀ {A}, [] ⊢ e : A → Value e ∨ ∃ e', e �
     · exact .inr ⟨_, .natCase hstep⟩
   | Y => intro A _; exact .inr ⟨_, .Y⟩
   | id _ _ _ => intro A _; exact .inl .id
-  | refl _ => intro A _; exact .inl .refl
+  | refl => intro A _; exact .inl .refl
   | tr _ _ _ _ _ _ _ _ _ _ _ _ ih_h =>
     intro A hty
     let ⟨_, .tr _ _ _ _ _ _ h_h, _⟩ := (hty.toHasType (Γ := []) trivial).1.toStructural
@@ -958,10 +958,10 @@ theorem not_UIP (uip : ∀ {Γ A M h}, Γ ⊢ h : .id true A M M → Γ ⊢ h �
   specialize @uip Γ .type .type _ (.bvar₀ hΓ .zero)
   -- at the all-`⊥` valuation the variable has only `⊥`, while `refl type`
   -- has a `refl` shape; soundness would make them the same
-  have hw : TShape.WF Γ (Shape.T (n := 1) (ShapeS.refl (Shape.sort true : Shape 0))) :=
-    TShape.WF.T.2 Shape.WF.sort
+  have hw : TShape.WF Γ (Shape.T (n := 1) (ShapeS.refl)) :=
+    TShape.WF.T.2 trivial
   have hr : Interp Γ Γ (.refl true .type) Subst.id Valuation.nil
-      (Shape.T (n := 1) (ShapeS.refl (Shape.sort true : Shape 0))) :=
-    .refl Interp.sort' hw (TShape.LE.refl hw)
+      (Shape.T (n := 1) (ShapeS.refl)) :=
+    .refl hw (TShape.LE.refl hw)
   have h := ((IsDefEq.sound hΓ uip).eq hΓ (Ctx.SubstEq.id hΓ) Adm.bot).2 hr
   exact absurd (TShape.le_bot hΓ rfl (Interp.bvar_iff.1 h).2) (by simp [Shape.bot])

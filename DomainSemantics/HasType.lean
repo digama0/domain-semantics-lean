@@ -1012,9 +1012,9 @@ inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
     HasType Δ y.T c →
     TyEq Δ A₀ A →
     HasType Δ (Shape.T (n := n+1) (.pair A₀ a x y)) (Shape.T (n := n'+1) (.sigma A B d f))
-  | refl {a n k} {w : Shape n} {A x y : Term} : Shape.WF Δ w →
+  | refl {a n k} {A x y : Term} :
     TShape.LE Δ (Shape.T (n := k+1) (.id true A x y)) a →
-    HasType Δ a .type → HasType Δ (Shape.T (n := n+1) (.refl w)) a
+    HasType Δ a .type → HasType Δ (Shape.T (n := n+1) .refl) a
 
 /-- **Everything a shape is typed at is a type.** -/
 theorem TShape.HasType.isType {Δ : List Term} {m a : TShape}
@@ -1031,7 +1031,7 @@ theorem TShape.HasType.isType {Δ : List Term} {m a : TShape}
   | sigma _ _ _ _ _ => exact .sort
   | lam hd hf _ hwPi _ _ _ _ _ _ _ => exact .forallE hd hf hwPi
   | pair hd hf _ hwSg _ _ _ _ _ => exact .sigma hd hf hwSg
-  | refl _ _ hA _ => exact hA
+  | refl _ hA _ => exact hA
 
 /-- Sorts are injective at every level. -/
 theorem Shape.sort_inj {n} {r r' : Bool} (h : (Shape.sort r : Shape n) = Shape.sort r') :
@@ -1058,7 +1058,7 @@ theorem TShape.HasType.sort_level {Δ : List Term} {m a : TShape}
   -- the type is a pinned Π, resp. Σ, so it is not a sort outright
   | lam _ _ _ _ _ _ _ _ _ _ _ => intro _ _ ha; exact absurd ha (fun h => by cases h)
   | pair _ _ _ _ _ _ _ _ _ _ _ _ => intro _ _ ha; exact absurd ha (fun h => by cases h)
-  | refl _ hc _ _ =>
+  | refl hc _ _ =>
     intro _ _ ha
     obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hc
     rw [ha, Shape.lift_sort] at h2
@@ -1162,7 +1162,7 @@ theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
         refine .pair hd' hf' hwp hw' (ihxd d'.T hdd hd') hxle ?_ hyty (hdom.trans hSg.1)
         exact TEvaluates.retype hSg.1 (TEvaluates.trans hΔ hcov hev)
       | _ => exact absurd h2 (fun x => x)
-  | refl hw hc _ _ => exact fun _ h hA' => .refl hw (hc.trans hΔ h) hA'
+  | refl hc _ _ => exact fun _ h hA' => .refl (hc.trans hΔ h) hA'
 
 /-- **Everything typed is well formed, and so is its type.**
 
@@ -1185,7 +1185,7 @@ theorem TShape.HasType.wf {Δ : List Term} {m a : TShape}
   | sigma _ _ hw _ _ => exact ⟨hw, Shape.WF.sort⟩
   | lam _ _ hwg hwPi _ _ _ _ _ _ _ _ => exact ⟨hwg, hwPi⟩
   | pair _ _ hwp hwSg _ _ _ _ _ _ _ _ _ => exact ⟨hwp, hwSg⟩
-  | refl hw _ _ ih => exact ⟨hw, ih.1⟩
+  | refl _ _ ih => exact ⟨trivial, ih.1⟩
 
 /-- Typing does not see the level of its subject: `⟨n, m⟩` and
 `⟨k, m.lift k⟩` are order-equivalent, and every clause reaches the subject
@@ -1232,9 +1232,9 @@ theorem TShape.HasType.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShap
     exact .pair hd hf ((Shape.lift_wf (Nat.succ_le_succ hn)).2 hwp) hwSg
       (ihxd hn) (TShape.LE.trans hΔ (TShape.lift_le_self hΔ hn hwp.2.2.2.1) hxle) hev
       (ihy hn) hdom
-  | refl hw hc hA _ =>
+  | refl hc hA _ =>
     intro k hk; obtain ⟨k, rfl⟩ := succ_of hk
-    exact .refl ((Shape.lift_wf (Nat.le_of_succ_le_succ hk)).2 hw) hc hA
+    exact .refl hc hA
 
 /-- **And the level of the subject can be lowered again.**  This is the
 reflection direction that §5.5 shows the level-indexed definition cannot
@@ -1288,9 +1288,9 @@ theorem TShape.HasType.lower_subject {Δ : List Term} (hΔ : ⊢ Δ) :
     | id r A x y =>
       cases H with | id hj hw
       exact .id hj hw
-    | refl w =>
-      cases H with | refl hw hc hA
-      exact .refl ((Shape.lift_wf hk').1 hw) hc hA
+    | refl =>
+      cases H with | refl hc hA
+      exact .refl hc hA
     | forallE A B d f =>
       cases H with | forallE hd hf hw
       exact .forallE (ih hk' hd)
@@ -1343,7 +1343,7 @@ theorem TShape.HasType.cumul {Δ : List Term} {m a : TShape}
     rw [Bool.eq_true_of_le (Shape.sort_inj ha).symm hrs]; exact .sigma hd hf hw
   | lam _ _ _ _ _ _ _ _ _ _ _ => intro _ _ _ ha _; exact absurd ha (fun h => by cases h)
   | pair _ _ _ _ _ _ _ _ _ _ _ _ => intro _ _ _ ha _; exact absurd ha (fun h => by cases h)
-  | refl _ hc _ _ =>
+  | refl hc _ _ =>
     intro _ _ _ ha _
     obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hc
     rw [ha, Shape.lift_sort] at h2
@@ -1406,9 +1406,9 @@ theorem TShape.HasType.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
         exact ihf e₀ he₀)
       (Shape.WF.subst hΘ W hwp) (Shape.WF.subst hΘ W hwSg) ihxd
       (TShape.LE.subst hΘ W hxle) (TEvaluates.subst hΘ W hev) ihy (hdom.subst hΘ W)
-  | refl hw hc _ ih =>
+  | refl hc _ ih =>
     simp only [TShape.subst_T] at *
-    exact .refl (Shape.WF.subst hΘ W hw) (TShape.LE.subst hΘ W hc) ih
+    exact .refl (TShape.LE.subst hΘ W hc) ih
 
 /-- **The join of two types is a type.**  Only `forallE` and `sigma` have
 content: the join is componentwise, the domains join by the induction
@@ -1474,10 +1474,10 @@ theorem TShape.HasType.join_sort {Δ : List Term} (hΔ : ⊢ Δ) :
         cases hy with | pair _ _ _ _ _ _ _ _ _
         exact absurd ha (fun h => by cases h)
       | _ => first | exact hy | exact absurd hc (fun x => x)
-    | refl w =>
+    | refl =>
       cases z with
-      | refl w' =>
-        cases hy with | refl _ hcg _
+      | refl =>
+        cases hy with | refl hcg _
         obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hcg
         rw [ha, Shape.lift_sort] at h2
         exact absurd h2 (fun x => x)
@@ -1575,7 +1575,7 @@ theorem TShape.HasType.mono_l_sort_T {Δ : List Term} (hΔ : ⊢ Δ) :
     -- a sort, so `ha` refutes both outright now that the type is pinned
     | lam _ _ _ _ _ _ _ => exact absurd ha (fun h => by cases h)
     | pair _ _ _ _ _ _ _ _ => exact absurd ha (fun h => by cases h)
-    | refl _ hc _ =>
+    | refl hc _ =>
       have h2 := TShape.LE.def_mp (k := max _ a.1 + 1)
         (Nat.succ_le_succ (Nat.le_max_left ..))
         (Nat.le_succ_of_le (Nat.le_max_right ..)) hc
@@ -1700,7 +1700,7 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
         exact TEvaluates.label ⟨hdom.symm.trans hdom,
           (hA'.trans hdom).choose_spec.defeqDF ha'.symm⟩ hev
       | _ => exact absurd h2 (fun x => x)
-  | refl hw hc hA _ =>
+  | refl hc hA _ =>
     exact fun {m'} h => by
       obtain ⟨j, s⟩ := m'
       obtain ⟨M, _, hjM, h2⟩ := TShape.LE.at_succ h
@@ -1709,8 +1709,8 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
       | succ j =>
         cases s with
         | bot => exact .bot hA
-        | refl w' =>
-          exact .refl ((Shape.lift_wf (Nat.le_of_succ_le_succ hjM)).1 (Shape.LE.wf h2)) hc hA
+        | refl =>
+          exact .refl hc hA
         | _ => exact absurd h2 (fun x => x)
 
 /-! ## Proof irrelevance, over `TShape`
@@ -1744,7 +1744,7 @@ theorem TShape.HasType.isNumeral {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
   | bot _ => exact .bot
   | zero => exact .zero
   | succ hN => exact .succ hN
-  | refl _ hc _ =>
+  | refl hc _ =>
     obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ hc
     exact absurd h2 (fun x => x)
 
@@ -1939,7 +1939,7 @@ theorem TShape.HasType.bot_r {Δ : List Term} (hΔ : ⊢ Δ) {x a : TShape}
   | sigma _ _ _ => exact absurd ha Shape.sort_ne_bot
   | lam _ _ _ _ _ _ _ => exact absurd ha (fun h => by cases h)
   | pair _ _ _ _ _ _ _ _ => exact absurd ha (fun h => by cases h)
-  | refl _ hc _ => exact absurd (TShape.le_bot hΔ ha hc) (fun h => by cases h)
+  | refl hc _ => exact absurd (TShape.le_bot hΔ ha hc) (fun h => by cases h)
 
 /-- A sort is typed at `.type` and nothing else, so never at `.prop`.  The
 hypothesis form is forced: `Shape.sort` at a variable level is a stuck
@@ -1951,7 +1951,7 @@ theorem TShape.HasType.sort_not_prop {Δ : List Term} {a : TShape} {j : Bool}
   | unit _ => exact absurd ha (fun h => by cases h)
   | id _ _ => exact absurd ha (fun h => by cases h)
   | forallE _ _ _ => exact absurd ha (fun h => by cases h)
-  | refl _ _ _ => exact absurd ha (fun h => by cases h)
+  | refl _ _ => exact absurd ha (fun h => by cases h)
 
 /-- **A proposition is inhabited only by `⊥`.**
 
@@ -1974,7 +1974,7 @@ theorem TShape.HasType.proofIrrel {Δ : List Term} (hΔ : ⊢ Δ) {x a : TShape}
   | zero => intro ha; exact absurd ha (fun h => by cases h)
   | succ _ => intro ha; exact absurd ha (fun h => by cases h)
   | pair _ _ _ _ _ _ _ _ _ _ _ _ => intro ha; exact absurd ha (fun h => by cases h)
-  | refl _ hc _ _ =>
+  | refl hc _ _ =>
     intro ha
     cases ha with
     | bot _ => exact absurd (TShape.le_bot hΔ rfl hc) (fun h => by cases h)
@@ -1988,7 +1988,7 @@ theorem TShape.HasType.proofIrrel {Δ : List Term} (hΔ : ⊢ Δ) {x a : TShape}
     | forallE _ _ _ =>
       obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hc
       exact absurd h2 (fun x => x)
-    | refl _ _ _ =>
+    | refl _ _ =>
       obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hc
       exact absurd h2 (fun x => x)
   | @lam n n₀ n' _ g f _ _ d g₀ _ _ hwg _ _ hg hg₀ev _ _ _ _ ihg₀ty =>
@@ -2124,7 +2124,7 @@ theorem TShape.Dom.bot {Δ : List Term} {d : TShape} {n}
       exact .pi (cs := []) h (by simp) (by simp) (by simp) (by simp)
     | .sigma .. =>
       exact .sg (ps := none) (c := TShape.bot) h (by simp) (by simp) (by simp) (by simp)
-    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
     | .lam _ _ | .pair _ _ _ _ => exact .base (fun h => h) h
 
 /-- The same, for a subject that is `⊥` only up to its level. -/
@@ -2261,7 +2261,7 @@ theorem TShape.pairParts_level {x : TShape} {ps} (hps : x.pairParts = ps)
     subst hps
     match s with
     | .pair _ _ _ _ => simp [TShape.pairParts] at hp; subst hp; exact ⟨rfl, rfl⟩
-    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
     | .lam _ _ | .forallE .. | .sigma .. =>
       exact absurd hp (by simp [TShape.pairParts])
 
@@ -2338,7 +2338,7 @@ theorem TShape.IsBinder.of_le {Δ : List Term} (hΔ : ⊢ Δ) {d d' : TShape}
       | sort r =>
         match s' with
         | .forallE .. | .sigma .. => exact absurd h2 (fun x => x)
-        | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+        | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
         | .lam _ _ | .pair _ _ _ _ => exact absurd hb (fun x => x)
     | succ n =>
       match s, s' with
@@ -2350,13 +2350,13 @@ theorem TShape.IsBinder.of_le {Δ : List Term} (hΔ : ⊢ Δ) {d d' : TShape}
       | .nat, .forallE .. | .nat, .sigma ..
       | .zero, .forallE .. | .zero, .sigma ..
       | .succ _, .forallE .. | .succ _, .sigma ..
-      | .refl _, .forallE .. | .refl _, .sigma ..
+      | .refl, .forallE .. | .refl, .sigma ..
       | .id .., .forallE .. | .id .., .sigma ..
       | .lam .., .forallE .. | .lam .., .sigma ..
       | .pair .., .forallE .. | .pair .., .sigma ..
       | .forallE .., .sigma .. | .sigma .., .forallE .. => exact absurd h2 (fun x => x)
       | _, .bot | _, .sort _ | _, .unit _ | _, .nat | _, .zero | _, .succ _
-      | _, .refl _ | _, .id .. | _, .lam .. | _, .pair .. => exact absurd hb (fun x => x)
+      | _, .refl | _, .id .. | _, .lam .. | _, .pair .. => exact absurd hb (fun x => x)
 
 /-- **`Dom` grows with the code.**  The Π and Σ orders are covariant in
 the domain, so the hereditary conditions move up with them; where the
@@ -2390,7 +2390,7 @@ theorem TShape.Dom.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {d x : TShape}
           obtain ⟨_, _, hcov⟩ := TShape.LE.forallE_decomp hΔ hle
             (TShape.HasType.wf hty0).2 hw₂ (fun e he => TEvaluates.refl hw₂.2.2.2 e he)
           exact TEvaluates.trans hΔ hcov (hev p hp)
-      | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+      | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
       | .lam _ _ | .sigma .. | .pair _ _ _ _ => exact absurd h2 (fun x => x)
   | @sg n A B d f x ps c hty0 hps hx hev hy ihx ihy =>
     intro d' hle hty
@@ -2409,7 +2409,7 @@ theorem TShape.Dom.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {d x : TShape}
           (fun p hp => ihx p hp hdle hd₂)
           (fun p hp => TEvaluates.retype hlab.1 (TEvaluates.trans hΔ hcov (hev p hp)))
           (fun p hp => hy p hp)
-      | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+      | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
       | .lam _ _ | .forallE .. | .pair _ _ _ _ => exact absurd h2 (fun x => x)
 
 /-- A code typed at a sort is `Dom` there: a sort filters. -/
@@ -2436,7 +2436,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .bot, .zero => .inr (.inr rfl)
   | .bot, .succ _ => .inr (.inr rfl)
   | .bot, .id _ _ _ _ => .inr (.inr rfl)
-  | .bot, .refl _ => .inr (.inr rfl)
+  | .bot, .refl => .inr (.inr rfl)
   | .sort _, .bot => .inr (.inl rfl)
   | .sort _, .sort _ => .inr (.inl rfl)
   | .sort _, .unit _ => .inr (.inl rfl)
@@ -2448,7 +2448,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .sort _, .zero => .inr (.inl rfl)
   | .sort _, .succ _ => .inr (.inl rfl)
   | .sort _, .id _ _ _ _ => .inr (.inl rfl)
-  | .sort _, .refl _ => .inr (.inl rfl)
+  | .sort _, .refl => .inr (.inl rfl)
   | .unit _, .bot => .inr (.inl rfl)
   | .unit _, .sort _ => .inr (.inl rfl)
   | .unit _, .unit _ => .inr (.inl rfl)
@@ -2460,7 +2460,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .unit _, .zero => .inr (.inl rfl)
   | .unit _, .succ _ => .inr (.inl rfl)
   | .unit _, .id _ _ _ _ => .inr (.inl rfl)
-  | .unit _, .refl _ => .inr (.inl rfl)
+  | .unit _, .refl => .inr (.inl rfl)
   | .forallE _ _ _ _, .bot => .inr (.inl rfl)
   | .forallE _ _ _ _, .sort _ => .inr (.inl rfl)
   | .forallE _ _ _ _, .unit _ => .inr (.inl rfl)
@@ -2472,7 +2472,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .forallE _ _ _ _, .zero => .inr (.inl rfl)
   | .forallE _ _ _ _, .succ _ => .inr (.inl rfl)
   | .forallE _ _ _ _, .id _ _ _ _ => .inr (.inl rfl)
-  | .forallE _ _ _ _, .refl _ => .inr (.inl rfl)
+  | .forallE _ _ _ _, .refl => .inr (.inl rfl)
   | .lam _ _, .bot => .inr (.inl rfl)
   | .lam _ _, .sort _ => .inr (.inl rfl)
   | .lam _ _, .unit _ => .inr (.inl rfl)
@@ -2484,7 +2484,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .lam _ _, .zero => .inr (.inl rfl)
   | .lam _ _, .succ _ => .inr (.inl rfl)
   | .lam _ _, .id _ _ _ _ => .inr (.inl rfl)
-  | .lam _ _, .refl _ => .inr (.inl rfl)
+  | .lam _ _, .refl => .inr (.inl rfl)
   | .sigma _ _ _ _, .bot => .inr (.inl rfl)
   | .sigma _ _ _ _, .sort _ => .inr (.inl rfl)
   | .sigma _ _ _ _, .unit _ => .inr (.inl rfl)
@@ -2496,7 +2496,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .sigma _ _ _ _, .zero => .inr (.inl rfl)
   | .sigma _ _ _ _, .succ _ => .inr (.inl rfl)
   | .sigma _ _ _ _, .id _ _ _ _ => .inr (.inl rfl)
-  | .sigma _ _ _ _, .refl _ => .inr (.inl rfl)
+  | .sigma _ _ _ _, .refl => .inr (.inl rfl)
   | .pair _ _ _ _, .bot => .inr (.inl rfl)
   | .pair _ _ _ _, .sort _ => .inr (.inl rfl)
   | .pair _ _ _ _, .unit _ => .inr (.inl rfl)
@@ -2508,7 +2508,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .pair _ _ _ _, .zero => .inr (.inl rfl)
   | .pair _ _ _ _, .succ _ => .inr (.inl rfl)
   | .pair _ _ _ _, .id _ _ _ _ => .inr (.inl rfl)
-  | .pair _ _ _ _, .refl _ => .inr (.inl rfl)
+  | .pair _ _ _ _, .refl => .inr (.inl rfl)
   | .nat, .bot => .inr (.inl rfl)
   | .nat, .sort _ => .inr (.inl rfl)
   | .nat, .unit _ => .inr (.inl rfl)
@@ -2520,7 +2520,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .nat, .zero => .inr (.inl rfl)
   | .nat, .succ _ => .inr (.inl rfl)
   | .nat, .id _ _ _ _ => .inr (.inl rfl)
-  | .nat, .refl _ => .inr (.inl rfl)
+  | .nat, .refl => .inr (.inl rfl)
   | .zero, .bot => .inr (.inl rfl)
   | .zero, .sort _ => .inr (.inl rfl)
   | .zero, .unit _ => .inr (.inl rfl)
@@ -2532,7 +2532,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .zero, .zero => .inr (.inl rfl)
   | .zero, .succ _ => .inr (.inl rfl)
   | .zero, .id _ _ _ _ => .inr (.inl rfl)
-  | .zero, .refl _ => .inr (.inl rfl)
+  | .zero, .refl => .inr (.inl rfl)
   | .succ _, .bot => .inr (.inl rfl)
   | .succ _, .sort _ => .inr (.inl rfl)
   | .succ _, .unit _ => .inr (.inl rfl)
@@ -2544,7 +2544,7 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .succ _, .zero => .inr (.inl rfl)
   | .succ _, .succ _ => .inr (.inl rfl)
   | .succ _, .id _ _ _ _ => .inr (.inl rfl)
-  | .succ _, .refl _ => .inr (.inl rfl)
+  | .succ _, .refl => .inr (.inl rfl)
   | .id _ _ _ _, .bot => .inr (.inl rfl)
   | .id _ _ _ _, .sort _ => .inr (.inl rfl)
   | .id _ _ _ _, .unit _ => .inr (.inl rfl)
@@ -2556,19 +2556,19 @@ theorem Shape.graph_join {n} : ∀ {x y : Shape (n+1)},
   | .id _ _ _ _, .zero => .inr (.inl rfl)
   | .id _ _ _ _, .succ _ => .inr (.inl rfl)
   | .id _ _ _ _, .id _ _ _ _ => .inr (.inl rfl)
-  | .id _ _ _ _, .refl _ => .inr (.inl rfl)
-  | .refl _, .bot => .inr (.inl rfl)
-  | .refl _, .sort _ => .inr (.inl rfl)
-  | .refl _, .unit _ => .inr (.inl rfl)
-  | .refl _, .forallE _ _ _ _ => .inr (.inl rfl)
-  | .refl _, .lam _ _ => .inr (.inl rfl)
-  | .refl _, .sigma _ _ _ _ => .inr (.inl rfl)
-  | .refl _, .pair _ _ _ _ => .inr (.inl rfl)
-  | .refl _, .nat => .inr (.inl rfl)
-  | .refl _, .zero => .inr (.inl rfl)
-  | .refl _, .succ _ => .inr (.inl rfl)
-  | .refl _, .id _ _ _ _ => .inr (.inl rfl)
-  | .refl _, .refl _ => .inr (.inl rfl)
+  | .id _ _ _ _, .refl => .inr (.inl rfl)
+  | .refl, .bot => .inr (.inl rfl)
+  | .refl, .sort _ => .inr (.inl rfl)
+  | .refl, .unit _ => .inr (.inl rfl)
+  | .refl, .forallE _ _ _ _ => .inr (.inl rfl)
+  | .refl, .lam _ _ => .inr (.inl rfl)
+  | .refl, .sigma _ _ _ _ => .inr (.inl rfl)
+  | .refl, .pair _ _ _ _ => .inr (.inl rfl)
+  | .refl, .nat => .inr (.inl rfl)
+  | .refl, .zero => .inr (.inl rfl)
+  | .refl, .succ _ => .inr (.inl rfl)
+  | .refl, .id _ _ _ _ => .inr (.inl rfl)
+  | .refl, .refl => .inr (.inl rfl)
 
 theorem TShape.mem_entries_join {n} {x y : Shape (n+1)} {e : Entry TShape}
     (he : e ∈ (Shape.T (x.join y)).entries) :
@@ -2649,13 +2649,13 @@ theorem TShape.HasType.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
     | sigma A B d f =>
       cases hy with | sigma hd hf hw =>
       exact TShape.HasType.join_sort hΔ rfl (.sigma hd hf hw) hz hc
-    | refl w =>
+    | refl =>
       cases z with
       | bot => exact hy
-      | refl w' =>
-        cases hy with | refl hw hle hA =>
-        cases hz with | refl hw' _ _ =>
-        exact .refl (Shape.WF.join hΔ hc hw hw') hle hA
+      | refl =>
+        cases hy with | refl hle hA =>
+        cases hz with | refl _ _ =>
+        exact .refl hle hA
       | _ => exact absurd hc (fun x => x)
     | lam A₀ g =>
       cases z with
@@ -2778,11 +2778,11 @@ theorem TShape.Dom.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
               (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1 e he).2.2.2) hev₂') hcc
             exact ih hc.2.2.2 (TShape.Dom.mono_r hΔ hdy₁ hjc.1 hcty)
               (TShape.Dom.mono_r hΔ hdy₂ hjc.2 hcty)
-        | .refl _, z, hc, _, _, _, htyy =>
+        | .refl, z, hc, _, _, _, htyy =>
           refine absurd htyy ?_
           intro h
           cases h with
-          | refl _ hleid _ =>
+          | refl hleid _ =>
             obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hleid
             exact absurd h2 (fun x => x)
         | .sort _, z, hc, _, _, _, htyy | .unit _, z, hc, _, _, _, htyy
@@ -2794,7 +2794,7 @@ theorem TShape.Dom.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
           exact absurd htyy (by rintro ⟨⟩)
         | .pair .., .sort _, hc, _, _, _, _ | .pair .., .unit _, hc, _, _, _, _
         | .pair .., .nat, hc, _, _, _, _ | .pair .., .zero, hc, _, _, _, _
-        | .pair .., .succ _, hc, _, _, _, _ | .pair .., .refl _, hc, _, _, _, _
+        | .pair .., .succ _, hc, _, _, _, _ | .pair .., .refl, hc, _, _, _, _
         | .pair .., .id .., hc, _, _, _, _ | .pair .., .forallE .., hc, _, _, _, _
         | .pair .., .sigma .., hc, _, _, _, _ | .pair .., .lam .., hc, _, _, _, _ =>
           exact absurd hc id
@@ -2823,20 +2823,20 @@ theorem TShape.not_binder_of_le {Δ : List Term} {a c : TShape} (h : TShape.LE �
       | .forallE .., .bot | .forallE .., .sort _
       | .sigma .., .bot | .sigma .., .sort _ => exact absurd h2 (fun x => x)
       | .bot, _ | .sort _, _ | .unit _, _ | .nat, _ | .zero, _ | .succ _, _
-      | .refl _, _ | .id .., _ | .lam _ _, _ | .pair _ _ _ _, _ => exact hb
+      | .refl, _ | .id .., _ | .lam _ _, _ | .pair _ _ _ _, _ => exact hb
     | succ k =>
       match s, s' with
       | .forallE .., .forallE .. | .sigma .., .sigma .. => exact hc trivial
       | .forallE .., .bot | .forallE .., .sort _ | .forallE .., .unit _
       | .forallE .., .nat | .forallE .., .zero | .forallE .., .succ _
-      | .forallE .., .refl _ | .forallE .., .id .. | .forallE .., .lam _ _
+      | .forallE .., .refl | .forallE .., .id .. | .forallE .., .lam _ _
       | .forallE .., .pair .. | .forallE .., .sigma ..
       | .sigma .., .bot | .sigma .., .sort _ | .sigma .., .unit _
       | .sigma .., .nat | .sigma .., .zero | .sigma .., .succ _
-      | .sigma .., .refl _ | .sigma .., .id .. | .sigma .., .lam _ _
+      | .sigma .., .refl | .sigma .., .id .. | .sigma .., .lam _ _
       | .sigma .., .pair .. | .sigma .., .forallE .. => exact absurd h2 (fun x => x)
       | .bot, _ | .sort _, _ | .unit _, _ | .nat, _ | .zero, _ | .succ _, _
-      | .refl _, _ | .id .., _ | .lam _ _, _ | .pair _ _ _ _, _ => exact hb
+      | .refl, _ | .id .., _ | .lam _ _, _ | .pair _ _ _ _, _ => exact hb
 
 /-- The two binder codes, separately: a Π-shape and a Σ-shape. -/
 def TShape.IsPi : TShape → Prop
@@ -2902,9 +2902,9 @@ theorem TShape.isPi_or_bot_of_le {Δ : List Term} {p q : TShape} (h : TShape.LE 
         match s with
         | .bot => exact .inl rfl
         | .forallE .. => exact .inr trivial
-        | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+        | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
         | .lam _ _ | .sigma .. | .pair _ _ _ _ => exact absurd h2 (fun x => x)
-    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
     | .lam _ _ | .sigma .. | .pair _ _ _ _ => exact absurd hq (fun x => x)
 
 /-- **The level-free lookup, read back at the graph's own level**:
@@ -2961,9 +2961,9 @@ theorem TShape.isLam_of_le {Δ : List Term} {x y : TShape} (h : TShape.LE Δ x y
       | succ k =>
         match s' with
         | .lam _ _ => exact trivial
-        | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+        | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
         | .forallE .. | .sigma .. | .pair _ _ _ _ => exact absurd h2 (fun x => x)
-    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
     | .forallE .. | .sigma .. | .pair _ _ _ _ => exact absurd hx (fun x => x)
 
 /-- The Σ twin of `TShape.isPi_or_bot_of_le`. -/
@@ -2986,9 +2986,9 @@ theorem TShape.isSigma_or_bot_of_le {Δ : List Term} {p q : TShape} (h : TShape.
         match s with
         | .bot => exact .inl rfl
         | .sigma .. => exact .inr trivial
-        | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+        | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
         | .lam _ _ | .forallE .. | .pair _ _ _ _ => exact absurd h2 (fun x => x)
-    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl _ | .id _ _ _ _
+    | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
     | .lam _ _ | .forallE .. | .pair _ _ _ _ => exact absurd hq (fun x => x)
 
 /-- A Σ code is not a Π code. -/
