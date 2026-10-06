@@ -152,14 +152,14 @@ because it is independent: `find_cycle`,
 Defined directly on `TShape` there is nothing to reflect, and every clause
 **pins the shape of its subject and its type** while leaving the
 *contents* free.  `.succ v'` below `.succ v` is the `succ` clause again at
-`v'`; a λ below `.lam g` is the `lam` clause again at its own graph, with
+`v'`; a λ below `.lam A₀ g` is the `lam` clause again at its own graph, with
 `g₀` kept as the generator the codomain witnesses live over (the other
 repo's pattern — *the conditions constrain a generator above the shape
 being classified*, `ΩLower`, `piGenerator`; §5.5); a pair below
-`.pair ty tm x y` is the `pair` clause again at its own first component
-`x'`, with `x` kept as the dominator the code is read at.  Everything
-strictly below a shape and not of its head is `⊥`, and the `bot` clause
-takes that.  `mono_l` and `mono_r` are then both theorems.
+`.pair A₀ a x y` is the `pair` clause again at its own first component
+`x'`, with the dominator `xd` that the code is read at kept where it was.
+Everything strictly below a shape and not of its head is `⊥`, and the
+`bot` clause takes that.  `mono_l` and `mono_r` are then both theorems.
 
 `forallE` and `sigma` are stated *directly* on `d` and `f`, with no
 generator: `mono_l` pushes the premises into a smaller Π through
@@ -167,9 +167,10 @@ generator: `mono_l` pushes the premises into a smaller Π through
 is `mono_l_sort` — available because a Π is typed at a sort, where no
 existential level can appear.
 
-`id`, `refl`, `pair`, `lam`, `forallE` and `sigma` pay for pinning with a
+`id`, `pair`, `lam`, `forallE` and `sigma` pay for pinning with a
 `Shape.WF` premise, since their subject's well-formedness is not otherwise
-free; `succ` does not, because `IsNumeral` implies it.
+free; `succ` does not, because `IsNumeral` implies it, and `refl` does not
+because it carries nothing to be well formed.
 
 The codomain witness of `lam` is a **list of pairs** `g₀`, not an `∃`
 inside the premise: `∃ c, … ∧ HasType …` would put the inductive under
@@ -660,17 +661,14 @@ inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
     -- the domain label is the Π's domain: intgrah's `Section` condition
     TyEq Δ A₀ A →
     HasType Δ (Shape.T (n := n+1) (.lam A₀ g)) (Shape.T (n := n'+1) (.forallE A B d f))
-  -- **`lam`'s clause, with a first component alongside** (§5.1b).  The
-  -- second component is a graph, so each of its entries is typed at the
-  -- codomain read at *that entry's own* input, through the same generator
-  -- `g₀`; there is no dominating first component, and joins are unions
-  -- the second component is typed at the code the Σ's codomain graph
-  -- gives at the pair's own name `a`, read at a **dominator** `xd` of the
-  -- first component.  The dominator is what keeps typing lower-closed
+  -- **A pair is two components, not a graph** (§4.7f).  The first is
+  -- typed at the Σ's domain; the second at the code the Σ's codomain
+  -- graph gives at the pair's own name `a`, read at a **dominator** `xd`
+  -- of the first component.  The dominator is what keeps typing lower-closed
   -- (§4.7b): shrinking either component keeps the same `xd` and the same
-  -- code.  Join-closure is what it costs, and `sound_join` pays it with
-  -- provenance instead (§5.1b (γ)): two values of *one term* have
-  -- dominators that approximate `fst p`, hence compatible by `dir`
+  -- code.  Join-closure is what it costs, and `TShape.Dom`'s `sg`
+  -- clause, which reads the code at the first component itself, is what
+  -- supplies it where it is needed
   | pair {n n'} {A₀ a : Term} {x y : Shape n} {f : ShapeFun n'}
       {A B : Term} {d : Shape n'} {xd c : TShape} :
     HasType Δ d.T .type →
