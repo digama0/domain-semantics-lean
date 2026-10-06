@@ -245,6 +245,32 @@ codomain's or motive's `Pinned`); and `eq` needs all three while `ty` and
 `dom` need `eq`, because `symm` rebuilds them for the other side with
 `SoundTy.of_eq` and `SoundDom.of_eq`.
 
+### What can be merged
+
+`SoundTy` is **implied by** `SoundDom` plus the syntactic typing
+(`SoundTy.of_dom`), so wherever `dom` is proved on its own the `ty`
+conclusion is a corollary rather than an obligation. At `lam`,
+`natCase` and `tr` it was being proved twice, and those cases now read
+`ty` off their own `dom`. The implication runs the other way at the type
+formers, where `dom` comes from `SoundDom.of_sort` applied to `ty`, so
+nothing is saved there; and at `pair` and `Y` the `SoundTy` is also read
+for its `typedAt` inside the `Pinned` components.
+
+`CodeCanon` and `ValCanon` look like the best candidate for
+intermingling, since they are two recursions on the same shape with
+complementary heads: `ValCanon` at a type-former shape *is* `CodeCanon`,
+and `CodeCanon` at a value-former shape is `True`. One predicate would
+replace two families of closure lemmas. It does not work, and the reason
+is exactly the §4.7 obstruction. `CodeCanon.mono`, downward closure, is
+consumed; the merged predicate would have to have it; and `ValCanon` is
+not downward closed at `lam`. A smaller λ-shape's entry is reached by a
+lookup at a *definitionally equal* label, so its output names
+`app t e'.tm` where the bigger one names `app t e.tm`, and moving a
+value's name along that equality is `ValCanon.defeq`, which needs the
+code the value is `Dom`-typed at. `mono` does not have one. That is why
+`ValCanon` has `defeq`, `subst`, `lift`, `join` and `toCode` but no
+`mono`, and why the two predicates stay apart.
+
 Two things are known to be separable, and both were separated. **`dir`**
 is its own induction, proved before soundness and under the weaker
 `Valuation.WF`; that works because `IsDefEq.dir` never instantiates a
