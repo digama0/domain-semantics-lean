@@ -326,6 +326,9 @@ def Shape.CodeCanonS (Γ : List Term) (T : Term) : ∀ {n}, Shape n → Prop
   | _+1, .succ _ => True
   | _+1, .refl => True
 
+@[simp] theorem Shape.CodeCanonS.bot {Δ : List Term} {T : Term} {n} :
+    Shape.CodeCanonS Δ T (Shape.bot (n := n)) := by cases n <;> trivial
+
 /-- Every label occurring in the shape is well-typed in `Γ`. -/
 def Shape.WF (Γ : List Term) : ∀ {n}, Shape n → Prop
   | 0, .bot | 0, .sort _ | _+1, .bot | _+1, .sort _ | _+1, .unit _ | _+1, .nat | _+1, .zero | _+1, .refl => True
@@ -607,6 +610,32 @@ theorem Shape.WF.pair_dom {A a : Term} {x y : Shape n}
 /-- The domain label of a well-formed λ-shape is a type. -/
 theorem Shape.WF.dom {A : Term} {f : ShapeFun n}
     (h : Shape.WF (n := n+1) Γ (.lam A f)) : TyEq Γ A A := h.2.2.2
+
+/-- **Shallow canonicity is downward closed.**  The order keeps a head's
+labels up to definitional equality, so a smaller code names whatever the
+bigger one does. -/
+theorem Shape.CodeCanonS.mono {Δ : List Term} (hΔ : ⊢ Δ) :
+    ∀ {n} {T : Term} {x y : Shape n},
+      Shape.LE Δ x y → Shape.CodeCanonS Δ T y → Shape.CodeCanonS Δ T x := by
+  intro n
+  cases n with
+  | zero =>
+    intro T x y h hC
+    cases x <;> cases y <;>
+      first | trivial | exact absurd h id | (cases h; exact hC)
+  | succ n =>
+    intro T x y h hC
+    cases x <;> cases y <;>
+      first
+        | trivial
+        | exact absurd h id
+        | (cases h; exact hC)
+        | exact hC.trans ⟨_, (IsDefEq.forallEDF₀ hΔ h.1.1.choose_spec
+            h.1.2.choose_spec).symm⟩
+        | exact hC.trans ⟨_, (IsDefEq.sigmaDF₀ hΔ h.1.1.choose_spec
+            h.1.2.choose_spec).symm⟩
+        | (cases h.1
+           exact hC.trans ⟨_, (IsDefEq.idDF h.2.1.choose_spec h.2.2.1 h.2.2.2).symm⟩)
 
 /-- **The order carries the well-formedness of its lower bound.**
 

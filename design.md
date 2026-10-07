@@ -117,11 +117,14 @@ naming conjunct it is no longer admissible. (Machine-checked at commit
 `248147c`, and again as `ce_not_adm` before that file was dropped as
 documentation rather than a deliverable.)
 
-**`Shape.CodeCanon Δ T s`**: the code `s` names its type `T`. Entry-based
-on graphs, with `⊥`-outputs exempt, because a dead entry can come alive
-after substitution. Closed under conversion, lift, join, downward
-inclusion and substitution, and needing no injectivity, since codes
-compare both their labels.
+**`Shape.CodeCanonS Δ T s`**: the code `s` names its type `T`, and only
+at `s`'s own head — a Σ-code carries labels `A B` with `T ≡ Σ A B`, and
+nothing is said below. It has no recursion of its own because
+`Shape.WF` carries one of these at every Π and Σ node it descends
+through; the hereditary reading is `WF` plus this. It lives in
+`Shape.lean` for that reason, and its whole theory (conversion, join,
+lift, downward inclusion, substitution, and two graph-level companions)
+is a handful of lines, since there is nothing to push through.
 
 **`Shape.ValCanon Δ t s`**: the value `s` names its own projections. A
 pair is named by `fst t` and its components name `fst t` and `snd t`; a
@@ -256,11 +259,11 @@ formers, where `dom` comes from `SoundDom.of_sort` applied to `ty`, so
 nothing is saved there; and at `pair` and `Y` the `SoundTy` is also read
 for its `typedAt` inside the `Pinned` components.
 
-`CodeCanon` and `ValCanon` look like the obvious candidate for
+`CodeCanonS` and `ValCanon` look like the obvious candidate for
 intermingling, since they are two recursions on the same shape with
-complementary heads: `ValCanon` at a type-former shape *is* `CodeCanon`,
-and `CodeCanon` at a value-former shape is `True`. That merge does not
-work, and the reason is the §4.7 obstruction. `CodeCanon.mono`, downward
+complementary heads: `ValCanon` at a type-former shape *is* `CodeCanonS`,
+and `CodeCanonS` at a value-former shape is `True`. That merge does not
+work, and the reason is the §4.7 obstruction. `CodeCanonS.mono`, downward
 closure, is consumed; the merged predicate would have to have it; and
 `ValCanon` is not downward closed at `lam`. A smaller λ-shape's entry is
 reached by a lookup at a *definitionally equal* label, so its output
@@ -277,27 +280,32 @@ code has its head determined by that code, so the recursions line up
 clause for clause. Folding the naming in needs three observations. At a
 code that only filters, a typed shape is never a `lam` or a `pair`
 (`ValCanon.of_code`), so the only naming left is a code naming its type,
-and `CodeCanon` is `True` on the numerals and on `refl`. At a Π, an
+and `CodeCanonS` is `True` on the numerals and on `refl`. At a Π, an
 entry's input names the entry's own label term and its output names the
 application, which is exactly `ValCanon`'s `lam` clause. At a Σ, the
 components name the projections, with the equation read at the Σ's
 domain label rather than the pair shape's, the two being definitionally
 equal because `HasType.pair` says so.
 
-What is left over, `CodeCanon`, does not merge in, and the reason is not
+What is left over, `CodeCanonS`, does not merge in, and the reason is not
 an obstruction but a type error: `Named` is a statement about the value
-`x`, `CodeCanon` one about the *code* `d`. Different subjects, so no
+`x`, `CodeCanonS` one about the *code* `d`. Different subjects, so no
 single induction carries both. The slot condition is therefore exactly
 two notions (`Slot.iff`), and `Slot` itself is their conjunction.
 
-**And `CodeCanon` folds into `Shape.WF`.** Not as a conjunction and not
+**And `CodeCanonS` folds into `Shape.WF`.** Not as a conjunction and not
 as a second recursion: the hereditary half moves into well-formedness,
 which was already walking the same shapes, and what is left at the head
 is a *shallow* predicate `Shape.CodeCanonS Γ T s` saying only that `s`'s
 own labels name `T`. `Shape.WF` asks for one of these at every Π and Σ
 node it descends through — the domain's, and one per entry output at the
 instantiated codomain — and then for a well-formed shape the deep
-condition adds nothing: `CodeCanon.iff_shallow`.
+condition adds nothing, so the deep recursion was deleted outright: what
+used to be `CodeCanon` is now this, and `Canon.lean` lost 235 lines with
+it. The API shed hypotheses too — `mono` no longer needs the bigger
+shape's `WF`, `join` needs neither `WF` nor `Compat`, `CodeAt.of_top`
+drops a `WF`, and `CodeAt.forallE`/`CodeAt.sigma` are one line each
+because the codomain recursion they used to perform is `WF`'s job.
 
 `Shape.LE` needs the same two conjuncts, and that is the only subtle
 part. `LE` already carries `WF` of both sides by fiat (the label
@@ -319,11 +327,11 @@ ingredients are hoisted above the `WF` and used twice.
 
 Note what this does *not* buy. Indexing the naming by the code does not
 make `defeq` free on its own: moving a pair's name along `t ≡ t'` needs
-the Σ labels to be the type of `t`, which is `CodeCanon`. The transport
+the Σ labels to be the type of `t`, which is `CodeCanonS`. The transport
 needs the bundle, not the indexing, which is why `Slot.defeq` is the
 form it takes. And the fold is not free: `Dom`'s term argument has to be
 supplied at every one of its ~170 sites, and `Dom.of_isType` and
-`Dom.of_not_binder` would each gain a `CodeCanon` hypothesis. `Named`
+`Dom.of_not_binder` would each gain a `CodeCanonS` hypothesis. `Named`
 is proved and unused; the propagation is a separate job.
 
 Two things are known to be separable, and both were separated. **`dir`**

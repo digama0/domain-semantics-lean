@@ -19,7 +19,7 @@ What closed `fst_snd` (§4.7i) is a change to admissibility, not a proof
 trick: `Adm` now asks every slot to **name the term it stands for**
 (`TShape.ValCanon`: a pair is named by the term's first projection, its
 components name the projections, a λ's outputs name the applications),
-and its code to name the slot's type (`TShape.CodeCanon`).  Without it
+and its code to name the slot's type (`TShape.CodeCanonS`).  Without it
 the η-equation is false: in `Γ = [Σ nat nat]` the valuation whose only
 slot is `pair nat nat (succ zero) zero zero` is well formed and
 hereditarily typed at a Σ-code, is an approximant of `#0`, and is not
