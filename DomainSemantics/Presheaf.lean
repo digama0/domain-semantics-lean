@@ -1511,13 +1511,13 @@ theorem sound_lam_dom {Γ : List Term} {A B b : Term} {u v : Bool}
       (P := fun (e : Entry (Shape n)) (p : TShape × TShape) =>
         Interp Δ (A :: Γ) b (σ.cons e.tm) (ρ.push e.inp.T) p.1 ∧
         TShape.LE Δ e.out.T p.1 ∧
-        Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push e.inp.T) p.2 ∧ TShape.Named Δ p.2 p.1 none ∧
-        TShape.WF Δ p.2 (some (B.subst (σ.cons e.tm))) ∧
-        TShape.ValCanon Δ (b.subst (σ.cons e.tm)) p.1)
+        Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push e.inp.T) p.2 ∧
+        TShape.Named Δ p.2 p.1 (some (b.subst (σ.cons e.tm))) ∧
+        TShape.WF Δ p.2 (some (B.subst (σ.cons e.tm))))
       (fun e he => by
         obtain ⟨m', c, hm', hle', hc, hNV, hcc⟩ :=
           ihbdom hΔ (hstage e he).1 (hstage e he).2 (hbody e he)
-        exact ⟨(m', c), hm', hle', hc, hNV.forget, hcc, hNV.val⟩)
+        exact ⟨(m', c), hm', hle', hc, hNV, hcc⟩)
     -- the enlarged graph, at one level
     obtain ⟨k, hkn, hkc⟩ : ∃ k, n ≤ k ∧ ∀ p ∈ gs, ((Prod.snd p).1 : TShape).1 ≤ k :=
       ⟨levelMax (fun p => ((Prod.snd p).1 : TShape).1) n gs, le_levelMax,
@@ -1615,7 +1615,7 @@ theorem sound_lam_dom {Γ : List Term} {A B b : Term} {u v : Bool}
           · exact TShape.HasType.mono_l hΔ (hall p hp).2.2.2.1.hasType
               (TShape.LE.lift_le hΔ (m := ((Prod.snd p).1 : TShape)) (hkc p hp)
                 (hswf p hp))
-          · exact TShape.Named.lift_subject hΔ (hall p hp).2.2.2.1 (hkc p hp))
+          · exact (TShape.Named.lift_subject hΔ (hall p hp).2.2.2.1 (hkc p hp)).forget)
     -- and the codes, entry by entry, are what `Named` asks for
     obtain ⟨cs₀, hcsmap, hcsall⟩ := List.exists_pairs (β := TShape)
       (P := fun (e : Entry (Shape k)) (c : TShape) =>
@@ -1649,9 +1649,8 @@ theorem sound_lam_dom {Γ : List Term} {A B b : Term} {u v : Bool}
         (hwf.2.2.1.1 p.1 hq).2.1
       have hβ := IsDefEq.beta₀ hΔ hbσ htm
       rw [inst_lift_cons, inst_lift_cons] at hβ
-      exact (Shape.ValCanon.lift hΔ (hkc p hp)).2
-        (TShape.ValCanon.defeq hΔ (hall p hp).2.2.2.1 (hall p hp).2.2.2.2.1
-          (hall p hp).2.2.2.2.2 hβ.symm)
+      exact ((((hall p hp).2.2.2.1).defeq hΔ (hall p hp).2.2.2.2
+        hβ.symm).lift_subject hΔ (hkc p hp)).val
 
 /-- One direction of the `SoundEq` half of `lamDF`.
 
@@ -2656,8 +2655,6 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
   | @app _ _ _ _ _ _ n g x y A₁ hF hx hev hw hle hst =>
     -- saturate the function
     obtain ⟨F', P, hF', hFle, hP, hNV, hPc⟩ := hfdom hΔ W hAdm hF
-    have hFdom := hNV.forget
-    have hF'c := hNV.val
     -- its code is a Π-shape: `F'` dominates a λ-shape, so neither is `⊥`
     have hPpi : P.IsPi := by
       rcases (show P.2 = Shape.bot ∨ P.IsPi from by
@@ -2665,10 +2662,10 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
           | bot => exact .inl rfl
           | forallE _ _ _ _ _ _ hlep _ _ => exact TShape.isPi_or_bot_of_le hlep trivial)
         with hb | h
-      · exact absurd (TShape.le_bot hΔ (TShape.HasType.bot_r hΔ hb hFdom.hasType) hFle)
+      · exact absurd (TShape.le_bot hΔ (TShape.HasType.bot_r hΔ hb hNV.hasType) hFle)
           (by simp [Shape.bot])
       · exact h
-    cases hFdom with
+    cases hNV with
     | base hnb _ => exact absurd hPpi.isBinder hnb
     | sg _ _ _ _ _ => exact absurd trivial hPpi.not_sigma
     | @pi _ nP A' B' dP fP _ cs hty hent hin hevc hout =>
@@ -2716,13 +2713,13 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
           have hA'ty : Δ ⊢ A' : .sort hwPi.1.choose := hwPi.1.choose_spec
           have key : ∀ {w : TShape}, TEvaluates Δ G A₁ (a.subst σ) x w →
               ∃ w' c, TEvaluates Δ G A₁ (a.subst σ) x w' ∧ TShape.LE Δ w w' ∧
-                Interp Δ Γ (B.inst a) σ ρ c ∧ TShape.Named Δ c w' none ∧
-                TShape.ValCanon Δ ((Term.app f a).subst σ) w' := by
+                Interp Δ Γ (B.inst a) σ ρ c ∧
+                TShape.Named Δ c w' (some ((Term.app f a).subst σ)) := by
             intro w hw'
             induction hw' with
             | bot =>
               exact ⟨TShape.bot, TShape.bot, .bot, TShape.LE.refl trivial, .bot,
-                TShape.Named.bot (.bot (.bot .sort)), TShape.ValCanon.of_bot rfl⟩
+                TShape.Named.bot (.bot (.bot .sort))⟩
             | @entry q hq hlabq hinq =>
               -- the entry's output is `Named` at its code, which is an
               -- approximant of `B[a]` once moved to the canonical query
@@ -2740,7 +2737,7 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
               rw [hpceq] at hcode hdomq
               have hqA' : TyEq Δ A₁ A' := hA₁.trans (TyEq.symm hPiLab.1)
               refine ⟨q.out.T, pc.2, .entry q hq hlabq hinq, TShape.LE.refl
-                (TShape.WF.T.2 (hwG.2.2.1.1 q hq).2.2.2), ?_, hdomq, ?_⟩
+                (TShape.WF.T.2 (hwG.2.2.1.1 q hq).2.2.2), ?_, ?_⟩
               · refine toI (TEvaluates.mono hΔ ?_ hinq hcode)
                 exact ⟨hPiLab.1, hqA'.choose_spec.defeqDF hlabq.2⟩
               · -- the entry's output names `app f q.tm`, which the label
@@ -2756,13 +2753,13 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
                 have hqa : Δ ⊢ q.tm ≡ a.subst σ : A.subst σ :=
                   hA₁.choose_spec.defeqDF hlabq.2
                 have happ := IsDefEq.appDF₀ hΔ hfσ hqa
-                exact TShape.ValCanon.defeq hΔ hdomq hcc' (hF'c q hq).2 happ
+                exact hdomq.defeq hΔ hcc' happ
             | lower hle' _ ih =>
-              obtain ⟨w', c, hw'', hlew, hIc, hdc, hwc⟩ := ih
-              exact ⟨w', c, hw'', TShape.LE.trans hΔ hle' hlew, hIc, hdc, hwc⟩
+              obtain ⟨w', c, hw'', hlew, hIc, hdc⟩ := ih
+              exact ⟨w', c, hw'', TShape.LE.trans hΔ hle' hlew, hIc, hdc⟩
             | @join w₁ w₂ hcj hv₁ hv₂ ih₁ ih₂ =>
-              obtain ⟨w₁', c₁, hv₁', hle₁, hI₁, hd₁, hc₁⟩ := ih₁
-              obtain ⟨w₂', c₂, hv₂', hle₂, hI₂, hd₂, hc₂⟩ := ih₂
+              obtain ⟨w₁', c₁, hv₁', hle₁, hI₁, hd₁⟩ := ih₁
+              obtain ⟨w₂', c₂, hv₂', hle₂, hI₂, hd₂⟩ := ih₂
               -- the two values join, being lookups in one coherent graph
               have hcw : TShape.Compat Δ w₁' w₂' :=
                 TEvaluates.compat hΔ (hwG.2.2.1.2.retype (TyEq.symm (TShape.LE.lam_dom hFle)))
@@ -2775,15 +2772,13 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
               refine ⟨w₁'.join w₂', c, .join hcw hv₁' hv₂',
                 TShape.join_le hΔ (TShape.LE.trans hΔ hle₁
                   (TShape.le_join hΔ (TEvaluates.wf hΔ hwout hv₁')
-                    (TEvaluates.wf hΔ hwout hv₂') hcw).1) ?_, hIc, ?_, ?_⟩
+                    (TEvaluates.wf hΔ hwout hv₂') hcw).1) ?_, hIc, ?_⟩
               · exact TShape.LE.trans hΔ hle₂
                   (TShape.le_join hΔ (TEvaluates.wf hΔ hwout hv₁')
                     (TEvaluates.wf hΔ hwout hv₂') hcw).2
               · exact TShape.Named.join hΔ hcw (TShape.Named.mono_r hΔ hd₁ hlc₁ hcty)
                   (TShape.Named.mono_r hΔ hd₂ hlc₂ hcty)
-              · exact TShape.ValCanon.join hΔ (TEvaluates.wf hΔ hwout hv₁')
-                  (TEvaluates.wf hΔ hwout hv₂') hcw hc₁ hc₂
-          obtain ⟨y', c, hy', hyle, hIc, hdc, hyc⟩ := key hevG
+          obtain ⟨y', c, hy', hyle, hIc, hdc⟩ := key hevG
           -- the saturated function's own label, which the clause reads at
           have hA'' : TyEq Δ A₁ A'' :=
             hA₁.trans (Interp.lam_label_ty hΔ W hAdm hfty hF').symm
@@ -2792,7 +2787,7 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
             .app hF' hx
               (TEvaluates.label ⟨hA'', hA₁.symm.choose_spec.defeqDF haσ⟩ hy') hwy'
               (TShape.LE.refl hwy') (hst.retype hA''),
-            TShape.LE.trans hΔ hle hyle, hIc, .name hdc hyc,
+            TShape.LE.trans hΔ hle hyle, hIc, hdc,
             hBad.codeAt hΔ W hAdm hIc⟩
 
 /-- The `SoundEq` half of `appDF`: the same shape is read out of the same
