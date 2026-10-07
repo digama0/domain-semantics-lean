@@ -194,7 +194,7 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       | @lam _ _ _ _ _ f A B d _ _ _ hwl hwf _ _ _ _ hA₀A
       cases hD with
       | base hnb _ => exact absurd trivial hnb
-      | @pi _ _ _ _ _ _ cs _ hent _ _ hev hout
+      | @pi _ _ _ _ _ _ cs _ hent _ hev hout
       have hT := hC
       have hCd := hwf.2.2.2.2.1
       have hCf := hwf.2.2.2.2.2
@@ -404,11 +404,11 @@ Three observations make the fold go through:
 `Option Term` index is the name: at `none` this is `TShape.Dom`, at
 `some t` it is "and `x` names `t`".
 
-The index threads only where the name depends on `t`.  An entry's
-*input* names the entry's own label, which is intrinsic to the shape, so
-it sits at `some p.1.tm` whatever the index; an entry's *output* names
-the application, and a Σ's components the projections, which is where
-the index is real. -/
+The index threads through every recursive position, so that `none`
+recovers hereditary typing alone and `some t` recovers naming as well.
+An entry's *input* is named at the entry's own label, which is intrinsic
+to the shape; an entry's *output* names the application, and a Σ's
+components the projections. -/
 inductive TShape.NamedO (Δ : List Term) : Option Term → TShape → TShape → Prop where
   | base {o} {d x : TShape} : ¬ d.IsBinder → TShape.HasType Δ x d →
     (∀ t ∈ o, Shape.CodeCanonS Δ t x.2) → NamedO Δ o d x
@@ -416,7 +416,7 @@ inductive TShape.NamedO (Δ : List Term) : Option Term → TShape → TShape →
       {cs : List (Entry TShape × TShape)} :
     TShape.HasType Δ x (Shape.T (n := n+1) (ShapeS.forallE A B d f)) →
     x.entries = cs.map (·.1) →
-    (∀ p ∈ cs, NamedO Δ (some p.1.tm) d.T p.1.inp) →
+    (∀ p ∈ cs, NamedO Δ (o.map fun _ => p.1.tm) d.T p.1.inp) →
     (∀ p ∈ cs, TEvaluates Δ f A p.1.tm p.1.inp p.2) →
     (∀ p ∈ cs, NamedO Δ (o.map fun t => Term.app t p.1.tm) p.2 p.1.out) →
     NamedO Δ o (Shape.T (n := n+1) (ShapeS.forallE A B d f)) x
@@ -457,7 +457,7 @@ theorem TShape.NamedO.dom {Δ : List Term} {o} {d x : TShape}
   induction h with
   | base hnb hty _ => exact .base hnb hty
   | @pi _ _ _ _ _ _ _ _ hty hent hin hev _ ihin ihout =>
-    exact .pi hty hent ihin (fun p hp => (hin p hp).shallow _ rfl) hev ihout
+    exact .pi hty hent ihin hev ihout
   | sg hty hps _ _ hev _ ihx ihy => exact .sg hty hps ihx hev ihy
 
 /-- At a code that only filters, a typed shape is never a `lam` or a
@@ -481,6 +481,22 @@ theorem TShape.ValCanon.of_code {Δ : List Term} {t : Term} {d x : TShape}
   | forallE _ _ _ => exact hc
   | sigma _ _ _ => exact hc
 
+/-- **And back.**  At `none` nothing is asked beyond hereditary typing,
+so `NamedO ... none` and `TShape.Dom` are the same thing, which is what
+lets everything downstream speak only of `NamedO`. -/
+theorem TShape.Dom.toNamedO {Δ : List Term} {d x : TShape}
+    (h : TShape.Dom Δ d x) : TShape.NamedO Δ none d x := by
+  induction h with
+  | base hnb hty => exact .base hnb hty nofun
+  | @pi _ _ _ _ _ _ _ hty hent _ hev _ ihin ihout =>
+    exact .pi hty hent ihin hev ihout
+  | @sg _ _ _ _ _ _ _ _ hty hps _ hev _ ihx ihy =>
+    exact .sg hty hps (fun _ _ => nofun) ihx hev ihy
+
+theorem TShape.NamedO.iff_none {Δ : List Term} {d x : TShape} :
+    TShape.NamedO Δ none d x ↔ TShape.Dom Δ d x :=
+  ⟨TShape.NamedO.dom, TShape.Dom.toNamedO⟩
+
 /-- **`Named` carries the naming.**  Each clause's per-part conditions
 are exactly what `ValCanon` asks of the corresponding head. -/
 theorem TShape.NamedO.val {Δ : List Term} {o} {d x : TShape}
@@ -499,7 +515,7 @@ theorem TShape.NamedO.val {Δ : List Term} {o} {d x : TShape}
         simp only [TShape.entries, Shape.graph, List.mem_map]
         exact ⟨e, he, rfl⟩
       obtain ⟨p, hp, hpe⟩ := List.mem_map.1 hmem
-      have h1 := ihin p hp p.1.tm rfl
+      have h1 := ihin p hp p.1.tm (by simp [Option.mem_def] at ht ⊢; simp [ht])
       have h2 := ihout p hp (Term.app t p.1.tm) (by simp [Option.mem_def] at ht ⊢; simp [ht])
       simp only [hpe] at h1 h2
       exact ⟨h1, h2⟩
@@ -527,7 +543,7 @@ theorem TShape.Named.of_dom {Δ : List Term} {d x : TShape} {t : Term}
   revert hV
   induction hD generalizing t with
   | base hnb hty => exact fun hV => .base hnb hty (by intro _ h; simp only [Option.mem_def, Option.some.injEq] at h; subst h; exact Shape.ValCanon.toCode hV)
-  | @pi n A B d f x cs hty hent _ _ hev _ ihin ihout =>
+  | @pi n A B d f x cs hty hent _ hev _ ihin ihout =>
     intro hV
     have hall : ∀ p ∈ cs, TShape.ValCanon Δ p.1.tm p.1.inp ∧
         TShape.ValCanon Δ (Term.app t p.1.tm) p.1.out := by
@@ -571,6 +587,66 @@ theorem TShape.Named.of_dom {Δ : List Term} {d x : TShape} {t : Term}
     exact .sg hty hps (fun p hp => by intro _ h; simp only [Option.mem_def, Option.some.injEq] at h; subst h; exact (hall p hp).1)
       (fun p hp => ihx p hp (hall p hp).2.1) hev
       (fun p hp => ihy p hp (hall p hp).2.2)
+
+/-! ### `NamedO`'s theory, once
+
+Each closure lemma is the corresponding `Dom` one on the index-free half
+and the corresponding `ValCanon` one on the name, glued by `reindex`.
+Downstream speaks only of `NamedO`; `TShape.Dom` is its `none` case and
+lives upstream with its own induction. -/
+
+/-- **Re-indexing**: a `NamedO` moves to any index whose name the shape
+can supply. -/
+theorem TShape.NamedO.reindex {Δ : List Term} {o o' : Option Term} {d x : TShape}
+    (h : TShape.NamedO Δ o d x) (hV : ∀ t ∈ o', TShape.ValCanon Δ t x) :
+    TShape.NamedO Δ o' d x := by
+  cases o' with
+  | none => exact h.dom.toNamedO
+  | some t => exact TShape.Named.of_dom h.dom (hV t rfl)
+
+theorem TShape.NamedO.hasType {Δ : List Term} {o} {d x : TShape}
+    (h : TShape.NamedO Δ o d x) : TShape.HasType Δ x d := h.dom.hasType
+
+theorem TShape.NamedO.bot {Δ : List Term} {o} {d : TShape} {n}
+    (h : TShape.HasType Δ (Shape.T (n := n) .bot) d) :
+    TShape.NamedO Δ o d (Shape.T (n := n) .bot) :=
+  (TShape.Dom.bot h).toNamedO.reindex fun _ _ => TShape.ValCanon.of_bot rfl
+
+theorem TShape.NamedO.of_not_binder {Δ : List Term} {d x : TShape} (hnb : ¬ d.IsBinder)
+    (h : TShape.HasType Δ x d) : TShape.NamedO Δ none d x := .base hnb h nofun
+
+theorem TShape.NamedO.of_isType {Δ : List Term} {x : TShape}
+    (h : TShape.HasType Δ x TShape.type) : TShape.NamedO Δ none TShape.type x :=
+  .base (fun h => h) h nofun
+
+theorem TShape.NamedO.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) {o} {d x : TShape} (h : TShape.NamedO Δ o d x) :
+    TShape.NamedO Θ (o.map (·.subst τ)) (d.subst τ) (x.subst τ) :=
+  (h.dom.subst hΘ W).toNamedO.reindex (by
+    intro t ht
+    cases o with
+    | none => simp at ht
+    | some u =>
+      simp only [Option.map_some, Option.mem_def, Option.some.injEq] at ht
+      subst ht; exact Shape.ValCanon.subst hΘ W (h.val u rfl))
+
+theorem TShape.NamedO.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape}
+    (h : TShape.NamedO Δ o d x) {k} (hk : x.1 ≤ k) :
+    TShape.NamedO Δ o d (x.lift k) :=
+  (h.dom.lift_subject hΔ hk).toNamedO.reindex fun t ht =>
+    (TShape.ValCanon.lift_iff hΔ hk).1 (h.val t ht)
+
+theorem TShape.NamedO.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {o} {d d' x : TShape}
+    (h : TShape.NamedO Δ o d x) (hle : TShape.LE Δ d d')
+    (hty : TShape.HasType Δ d' TShape.type) : TShape.NamedO Δ o d' x :=
+  (h.dom.mono_r hΔ hle hty).toNamedO.reindex h.val
+
+theorem TShape.NamedO.join {Δ : List Term} (hΔ : ⊢ Δ) {o} {y z d : TShape}
+    (hwy : TShape.WF Δ y) (hwz : TShape.WF Δ z) (hc : TShape.Compat Δ y z)
+    (hy : TShape.NamedO Δ o d y) (hz : TShape.NamedO Δ o d z) :
+    TShape.NamedO Δ o d (y.join z) :=
+  (TShape.Dom.join hΔ hc hy.dom hz.dom).toNamedO.reindex fun t ht =>
+    TShape.ValCanon.join hΔ hwy hwz hc (hy.val t ht) (hz.val t ht)
 
 /-- **The merge, as an equivalence.** -/
 theorem TShape.Named.iff {Δ : List Term} {d x : TShape} {t : Term} :
