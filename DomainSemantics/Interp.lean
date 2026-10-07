@@ -1814,8 +1814,7 @@ def Adm (Δ : List Term) (_Γ₀ Γ : List Term) (σ : Subst) (ρ : Valuation) :
 hypothesis every inversion theorem is run under; with the base context
 now vestigial it holds at any. -/
 theorem Adm.bot {Δ Γ : List Term} {σ : Subst} : Adm Δ Γ Γ σ Valuation.nil :=
-  ⟨fun _ => trivial, fun _ => ⟨TShape.bot, .bot, TShape.Dom.bot (TShape.HasType.bot_bot rfl),
-    TShape.CodeCanonS.bot, TShape.ValCanon.of_bot rfl⟩⟩
+  ⟨fun _ => trivial, fun _ => ⟨TShape.bot, .bot, TShape.Named.bot, Shape.CodeCanonS.bot⟩⟩
 
 /-- Admissible valuations are well formed, slotwise. -/
 theorem Adm.wf {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) : Valuation.WF Δ ρ := h.1
@@ -1849,10 +1848,10 @@ theorem Adm.cons {Δ Γ₀ Γ : List Term} {A : Term} {σ ρ x a} (h : Adm Δ Γ
   intro i A' hl
   cases hl with
   | zero =>
-    exact ⟨a, Interp.weak_one hΓ (.skip .refl) ha, hxa.dom, by rwa [lift_subst], hxa.val⟩
+    exact ⟨a, Interp.weak_one hΓ (.skip .refl) ha, hxa, by rwa [lift_subst]⟩
   | succ hl =>
-    obtain ⟨b, hb, hty, hbc, hsc⟩ := h.2 hl
-    exact ⟨b, Interp.weak_one hΓ (.skip .refl) hb, hty, by rwa [lift_subst], hsc⟩
+    obtain ⟨b, hb, hn, hbc⟩ := h.2 hl
+    exact ⟨b, Interp.weak_one hΓ (.skip .refl) hb, hn, by rwa [lift_subst]⟩
 
 /-! ## What the substitution lemma needs that the term does not say
 
@@ -2045,9 +2044,9 @@ theorem Adm.unlift {Δ Γ₀ Γ Γ' : List Term} {l σ ρ} (hΔ : ⊢ Δ) (hΓ :
     (WΓ : Ctx.Lift' l Γ Γ') (W : Ctx.SubstEq Δ σ σ Γ') (h : Adm Δ Γ₀ Γ' σ ρ) :
     Adm Δ Γ₀ Γ (σ.lift_l l) (fun i => ρ (Lift.liftVar l i)) := by
   refine ⟨fun i => h.wf _, fun {i A} hlk => ?_⟩
-  obtain ⟨a, ha, hty, hac, hsc⟩ := h.2 (hlk.weak' WΓ)
+  obtain ⟨a, ha, hn, hac⟩ := h.2 (hlk.weak' WΓ)
   exact ⟨a, Interp.unweak hΔ hΓ (Ctx.WF.lookup hΓ hlk).choose_spec.annot.1 WΓ W
-    (fun _ => rfl) ha, hty, by rwa [subst_lift'] at hac, hsc⟩
+    (fun _ => rfl) ha, hn, by rwa [subst_lift'] at hac⟩
 
 theorem IsTypeAt.weak' {Γ Γ' : List Term} {l : Lift} {A : Term} (hΓ : ⊢ Γ)
     (hA : A.Annot Γ) (WΓ : Ctx.Lift' l Γ Γ') (h : IsTypeAt Γ A) :

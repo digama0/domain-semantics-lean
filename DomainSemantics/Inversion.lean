@@ -33,11 +33,11 @@ theorem forallE_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {s : Bool}
 
 /-! ## The rest of the inversion principles
 
-`Consequences.lean` is built on these.  Each is the same four-step argument as `forallE_inv`: regularity gives a
-label-only probe, soundness moves it to the other side at the identity
-stage and the `⊥` valuation, and the order reads the label back.  For the
-no-confusion family the last step is trivial, since the order between two
-different heads is `False`; those need no regularity lemma either, only a
+`Consequences.lean` is built on these.  Each is the same four-step argument as
+`forallE_inv`: regularity gives a label-only probe, soundness moves it to the
+other side at the identity stage and the `⊥` valuation, and the order reads the
+label back.  For the no-confusion family the last step is trivial, since the order
+between two different heads is `False`; those need no regularity lemma either, only a
 probe for one of the two heads. -/
 
 /-- Two sorts that are definitionally equal are the same sort.  The probe

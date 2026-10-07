@@ -379,39 +379,6 @@ theorem TShape.ValCanon.of_bot {Δ : List Term} {t : Term} {x : TShape} (h : x.2
   show Shape.ValCanon Δ t s
   rw [show s = Shape.bot from h]; exact Shape.ValCanon.bot
 
-/-! ## The slot condition
-
-The three facts above never travel alone.  Wherever the model records
-what a valuation slot (or a dominator, or a transported value) *is*, it
-records all three: the shape is hereditarily typed at a code, the code
-names the type, and the shape names the term.  `Slot` is that bundle.
-
-Its point is `Slot.defeq`: moving the name along a definitional equality
-needs the other two, and with them bundled the transport takes no extra
-arguments.  That is the code-indexed form of canonicity, got by
-conjunction rather than by a new recursion. -/
-
-/-- `x` is hereditarily typed at the code `d`, which names the type `T`,
-and `x` names the term `t`. -/
-def TShape.Slot (Δ : List Term) (T : Term) (d : TShape) (t : Term) (x : TShape) : Prop :=
-  TShape.Dom Δ d x ∧ TShape.CodeCanonS Δ T d ∧ TShape.ValCanon Δ t x
-
-
-
-
-
-/-- **The transport, with nothing to pass in.**  This is what the bundle
-is for: `ValCanon.defeq` needs the code and its naming, and here they are
-the slot's own fields. -/
-theorem TShape.Slot.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x : TShape}
-    (h : TShape.Slot Δ T d t x) (ht : Δ ⊢ t ≡ t' : T) : TShape.Slot Δ T d t' x :=
-  ⟨h.1, h.2.1, TShape.ValCanon.defeq hΔ h.1 h.2.1 h.2.2 ht⟩
-
-/-- Conversion in the type: the code's naming is the only field that sees it. -/
-theorem TShape.Slot.conv {Δ : List Term} {T T' t : Term} {d x : TShape}
-    (h : TShape.Slot Δ T d t x) (hT : TyEq Δ T' T) : TShape.Slot Δ T' d t x :=
-  ⟨h.1, h.2.1.conv hT, h.2.2⟩
-
 
 /-! ## Merging the slot condition into one recursion
 
@@ -571,14 +538,6 @@ theorem TShape.Named.iff {Δ : List Term} {d x : TShape} {t : Term} :
     TShape.Named Δ d t x ↔ TShape.Dom Δ d x ∧ TShape.ValCanon Δ t x :=
   ⟨fun h => ⟨h.dom, h.val⟩, fun h => .of_dom h.1 h.2⟩
 
-/-- **So the slot condition is two notions, not three.**  What is left
-over does not merge in, and for a reason: `Named` is a statement about
-the value `x`, while `CodeCanonS` is a statement about the *code* `d`.
-They have different subjects, so no single induction carries both. -/
-theorem TShape.Slot.iff {Δ : List Term} {T t : Term} {d x : TShape} :
-    TShape.Slot Δ T d t x ↔ TShape.Named Δ d t x ∧ TShape.CodeCanonS Δ T d :=
-  ⟨fun h => ⟨.of_dom h.1 h.2.2, h.2.1⟩, fun h => ⟨h.1.dom, h.2, h.1.val⟩⟩
-
 /-! ### `Named`'s closure properties
 
 Each is the corresponding `Dom` lemma paired with the `ValCanon` one;
@@ -601,13 +560,39 @@ theorem TShape.Named.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x 
     (ht : Δ ⊢ t ≡ t' : T) : TShape.Named Δ d t' x :=
   .of_dom h.dom (TShape.ValCanon.defeq hΔ h.dom hC h.val ht)
 
-/-! ## The fold, as an equivalence
+/-- `⊥` names anything, at `⊥`. -/
+theorem TShape.Named.bot {Δ : List Term} {t : Term} :
+    TShape.Named Δ TShape.bot t TShape.bot :=
+  .base (fun h => h) (TShape.HasType.bot_bot rfl) Shape.CodeCanonS.bot
 
-`Shape.WF` carries a `Shape.CodeCanonS` at every Π and Σ node it
-descends through, so for a well-formed shape the hereditary condition
-`Shape.CodeCanonS` adds nothing beyond its own head equation.  That is
-what putting the shallow name inside `WF` was for: the recursion below
-is `WF`'s, not canonicity's. -/
+/-- The typing half, directly. -/
+theorem TShape.Named.hasType {Δ : List Term} {d x : TShape} {t : Term}
+    (h : TShape.Named Δ d t x) : TShape.HasType Δ x d := h.dom.hasType
 
+/-! ## The slot condition
 
+A slot is one notion applied twice.  `Named` says a shape is hereditarily
+typed at a code and names a term; a *slot* is that for the value,
+together with the same for its code — read at a sort, where `Named`
+degenerates to `Shape.CodeCanonS`, the code naming its type.  There is no
+third conjunct, and no bundle: `Dom` and `ValCanon` are not separate
+notions any more, so there is nothing left to bundle.
 
+Its point is `Slot.defeq`: the hereditary typing travels with the name,
+so moving the name along a definitional equality of the subject takes
+nothing beyond what the slot already holds. -/
+
+/-- `x` is hereditarily typed at the code `d` and names the term `t`, and
+`d` names the type `T`. -/
+def TShape.Slot (Δ : List Term) (T : Term) (d : TShape) (t : Term) (x : TShape) : Prop :=
+  TShape.Named Δ d t x ∧ Shape.CodeCanonS Δ T d.2
+
+/-- **The transport, with nothing to pass in.** -/
+theorem TShape.Slot.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x : TShape}
+    (h : TShape.Slot Δ T d t x) (ht : Δ ⊢ t ≡ t' : T) : TShape.Slot Δ T d t' x :=
+  ⟨h.1.defeq hΔ h.2 ht, h.2⟩
+
+/-- Conversion in the type: the code's naming is the only field that sees it. -/
+theorem TShape.Slot.conv {Δ : List Term} {T T' t : Term} {d x : TShape}
+    (h : TShape.Slot Δ T d t x) (hT : TyEq Δ T' T) : TShape.Slot Δ T' d t x :=
+  ⟨h.1, Shape.CodeCanonS.conv h.2 hT⟩

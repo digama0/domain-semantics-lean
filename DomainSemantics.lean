@@ -144,12 +144,9 @@ open DomainSemantics
 /-- info: 'DomainSemantics.Interp.tr_stuck_bot' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms Interp.tr_stuck_bot
 
--- **The two merges are faithful.**  `Named` is hereditary typing and
--- naming in one induction, and it is exactly their conjunction; `Slot`
--- is that together with the code's own naming, and is exactly the three
--- facts a valuation slot was always asked for.
+-- **The merge is faithful**: `Named` is hereditary typing and naming in
+-- one induction, and it is exactly the conjunction of the two notions it
+-- replaced.  (`Slot` needs no such statement: it *is* `Named` twice, once
+-- for the value and once for its code.)
 /-- info: 'DomainSemantics.TShape.Named.iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms TShape.Named.iff
-
-/-- info: 'DomainSemantics.TShape.Slot.iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms TShape.Slot.iff
