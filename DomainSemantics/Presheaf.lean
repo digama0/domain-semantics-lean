@@ -537,7 +537,7 @@ theorem sound_forallE_eq_of {Γ : List Term} {A A' B B' : Term} {u v : Bool}
           (fun e he => (ShapeFun.WF.canon hwf.2.2.2.1 e he).conv
             ⟨_, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm
               (hAσ.defeqDF ((hwf.2.2.2.1.1 e he).2.1))⟩), trivial⟩
-      (fun e he => .name (hdom e he) (hcan e he)) (fun e he => ?_) hw
+      hNV (fun e he => ?_) hw
       (hle.trans hΔ (TShape.LE.T.2
         ⟨⟨⟨_, hAσ⟩, _, hBσ⟩, .refl (Shape.WF.forget hwf.2.2.1),
           .refl (ShapeFun.WF.forget hwf.2.2.2.1),
@@ -656,7 +656,7 @@ theorem sound_sigma_eq_of {Γ : List Term} {A A' B B' : Term} {u v : Bool}
           (fun e he => (ShapeFun.WF.canon hwf.2.2.2.1 e he).conv
             ⟨_, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm
               (hAσ.defeqDF ((hwf.2.2.2.1.1 e he).2.1))⟩), trivial⟩
-      (fun e he => .name (hdom e he) (hcan e he)) (fun e he => ?_) hw
+      hNV (fun e he => ?_) hw
       (hle.trans hΔ (TShape.LE.T.2
         ⟨⟨⟨_, hAσ⟩, _, hBσ⟩, .refl (Shape.WF.forget hwf.2.2.1),
           .refl (ShapeFun.WF.forget hwf.2.2.2.1),
@@ -946,19 +946,15 @@ theorem sound_forallE_dir {Γ : List Term} {A B : Term} {u v : Bool}
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | forallE hA₁ hd₁ hwf₁ hNV hbody₁ hw₁ hle₁ hAt hBt =>
-    have hdom₁ := fun e he => (hNV e he).forget
-    have hcan₁ := fun e he => (hNV e he).val
+  | forallE hA₁ hd₁ hwf₁ hNV₁ hbody₁ hw₁ hle₁ hAt hBt =>
     cases h₂ with
     | bot =>
       refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
       · exact hwf₁
-      · exact .forallE hA₁ hd₁  hwf₁ (fun e he => .name (hdom₁ e he) (hcan₁ e he)) hbody₁ hwf₁ (TShape.LE.refl hwf₁) hAt hBt
-    | forallE hA₂ hd₂ hwf₂ hNV hbody₂ hw₂ hle₂ _ _ =>
-      have hdom₂ := fun e he => (hNV e he).forget
-      have hcan₂ := fun e he => (hNV e he).val
+      · exact .forallE hA₁ hd₁  hwf₁ hNV₁ hbody₁ hwf₁ (TShape.LE.refl hwf₁) hAt hBt
+    | forallE hA₂ hd₂ hwf₂ hNV₂ hbody₂ hw₂ hle₂ _ _ =>
       obtain ⟨s, hws, hs, hs₁, hs₂⟩ := sound_forallE_ub hΓ hAty hB ihAdir ihBdir
-        hΔ W hwρ hA₁ hd₁ hwf₁ (fun e he => .name (hdom₁ e he) (hcan₁ e he)) hbody₁ hA₂ hd₂ hwf₂ (fun e he => .name (hdom₂ e he) (hcan₂ e he)) hbody₂
+        hΔ W hwρ hA₁ hd₁ hwf₁ hNV₁ hbody₁ hA₂ hd₂ hwf₂ hNV₂ hbody₂
       exact ⟨s, hws, hs, TShape.LE.trans hΔ hle₁ hs₁, TShape.LE.trans hΔ hle₂ hs₂⟩
 
 /-- The common upper bound of two Σ-shapes: same labels (both come from
@@ -1140,19 +1136,15 @@ theorem sound_sigma_dir {Γ : List Term} {A B : Term} {u v : Bool}
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | sigma hA₁ hd₁ hwf₁ hNV hbody₁ hw₁ hle₁ hAt hBt =>
-    have hdom₁ := fun e he => (hNV e he).forget
-    have hcan₁ := fun e he => (hNV e he).val
+  | sigma hA₁ hd₁ hwf₁ hNV₁ hbody₁ hw₁ hle₁ hAt hBt =>
     cases h₂ with
     | bot =>
       refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
       · exact hwf₁
-      · exact .sigma hA₁ hd₁  hwf₁ (fun e he => .name (hdom₁ e he) (hcan₁ e he)) hbody₁ hwf₁ (TShape.LE.refl hwf₁) hAt hBt
-    | sigma hA₂ hd₂ hwf₂ hNV hbody₂ hw₂ hle₂ _ _ =>
-      have hdom₂ := fun e he => (hNV e he).forget
-      have hcan₂ := fun e he => (hNV e he).val
+      · exact .sigma hA₁ hd₁  hwf₁ hNV₁ hbody₁ hwf₁ (TShape.LE.refl hwf₁) hAt hBt
+    | sigma hA₂ hd₂ hwf₂ hNV₂ hbody₂ hw₂ hle₂ _ _ =>
       obtain ⟨s, hws, hs, hs₁, hs₂⟩ := sound_sigma_ub hΓ hAty hB ihAdir ihBdir
-        hΔ W hwρ hA₁ hd₁ hwf₁ (fun e he => .name (hdom₁ e he) (hcan₁ e he)) hbody₁ hA₂ hd₂ hwf₂ (fun e he => .name (hdom₂ e he) (hcan₂ e he)) hbody₂
+        hΔ W hwρ hA₁ hd₁ hwf₁ hNV₁ hbody₁ hA₂ hd₂ hwf₂ hNV₂ hbody₂
       exact ⟨s, hws, hs, TShape.LE.trans hΔ hle₁ hs₁, TShape.LE.trans hΔ hle₂ hs₂⟩
 
 /-! ## λ
@@ -1301,19 +1293,15 @@ theorem sound_lam_dir {Γ : List Term} {A B b : Term} {u : Bool}
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | lam hA₁ hd₁ hwf₁ hNV hbody₁ hw₁ hle₁ hAt =>
-    have hdom₁ := fun e he => (hNV e he).forget
-    have hcan₁ := fun e he => (hNV e he).val
+  | lam hA₁ hd₁ hwf₁ hNV₁ hbody₁ hw₁ hle₁ hAt =>
     cases h₂ with
     | bot =>
       refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
       · exact hwf₁
-      · exact .lam hA₁ hd₁ hwf₁ (fun e he => .name (hdom₁ e he) (hcan₁ e he)) hbody₁ hwf₁ (TShape.LE.refl hwf₁) hAt
-    | lam hA₂ hd₂ hwf₂ hNV hbody₂ hw₂ hle₂ _ =>
-      have hdom₂ := fun e he => (hNV e he).forget
-      have hcan₂ := fun e he => (hNV e he).val
+      · exact .lam hA₁ hd₁ hwf₁ hNV₁ hbody₁ hwf₁ (TShape.LE.refl hwf₁) hAt
+    | lam hA₂ hd₂ hwf₂ hNV₂ hbody₂ hw₂ hle₂ _ =>
       obtain ⟨s, hws, hs, hs₁, hs₂⟩ := sound_lam_ub hΓ hAty hb ihAdir ihbdir
-        hΔ W hwρ hA₁ hd₁ hwf₁ (fun e he => .name (hdom₁ e he) (hcan₁ e he)) hbody₁ hA₂ hd₂ hwf₂ (fun e he => .name (hdom₂ e he) (hcan₂ e he)) hbody₂
+        hΔ W hwρ hA₁ hd₁ hwf₁ hNV₁ hbody₁ hA₂ hd₂ hwf₂ hNV₂ hbody₂
       exact ⟨s, hws, hs, TShape.LE.trans hΔ hle₁ hs₁, TShape.LE.trans hΔ hle₂ hs₂⟩
 
 /-! ### Choosing a code for every entry
@@ -1431,7 +1419,7 @@ theorem lam_pi_code {Γ Γ₀ Δ : List Term} {A B : Term} {u v : Bool} {σ ρ}
   have hcan := fun e he => (hNV e he).val
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hAty⟩
   have hwρ := hAdm.wf
-  have hstage := lam_stage hAty ihAd hΔ W hAdm hA hwf (fun e he => .name (hdom e he) (hcan e he))
+  have hstage := lam_stage hAty ihAd hΔ W hAdm hA hwf hNV
   -- the codes, collected and brought to one level
   obtain ⟨g₀, hmap, hall⟩ := List.exists_pairs (β := TShape) hcodes
   obtain ⟨k, hkn, hkd, hkc⟩ : ∃ k, n ≤ k ∧ d.1 ≤ k ∧ ∀ p ∈ g₀, (Prod.snd p : TShape).1 ≤ k :=
@@ -1565,7 +1553,7 @@ theorem sound_lam_dom {Γ : List Term} {A B b : Term} {u v : Bool}
   | @lam _ _ _ _ n g d _ _ hA hd hwf hNV hbody hw hle hAt =>
     have hdom := fun e he => (hNV e he).forget
     have hcan := fun e he => (hNV e he).val
-    have hstage := lam_stage hAty ihAd hΔ W hAdm hA hwf (fun e he => .name (hdom e he) (hcan e he))
+    have hstage := lam_stage hAty ihAd hΔ W hAdm hA hwf hNV
     -- saturate every body, and bring the enlarged outputs to one level
     obtain ⟨gs, hmap, hall⟩ := List.exists_pairs (β := TShape × TShape)
       (P := fun (e : Entry (Shape n)) (p : TShape × TShape) =>
@@ -1737,7 +1725,7 @@ theorem sound_lam_eq_of {Γ : List Term} {A A' b b' : Term} {u : Bool}
     have hcan := fun e he => (hNV e he).val
     have hwf' : Shape.WF Δ (Shape.lam (A'.subst σ) _) :=
       ⟨hwf.1, hwf.2.1, hwf.2.2.1.retype hAσ, hAσ.refl_r⟩
-    refine .lam ((ihA hΔ W hAdm).1 hA) hd hwf' (fun e he => .name (hdom e he) (hcan e he)) (fun e he => ?_) hw
+    refine .lam ((ihA hΔ W hAdm).1 hA) hd hwf' hNV (fun e he => ?_) hw
       (hle.trans hΔ (TShape.LE.T.2
         ⟨ShapeFun.LE.refl hwf.2.2.1, hwf.1, hwf.2.1, hAσ, hwf.2.2.2⟩))
       ⟨u, hAA'.hasType.2⟩
