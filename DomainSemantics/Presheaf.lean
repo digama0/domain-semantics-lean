@@ -2385,8 +2385,7 @@ theorem sound_pair_dom {Γ : List Term} {A B a b : Term} {u v : Bool}
   | @pair _ _ _ _ n x y d c _ _ _ _ ha hb hA hd _ hdc hwp hcode hcty hw hle hAt hat' =>
     -- the second component, saturated, with its code
     obtain ⟨y', cb, hy', hyle, hcb, hNV, hcbc⟩ := ihbdom hΔ W hAdm hb
-    have hdy' := hNV.forget
-    have hy'c := hNV.val
+    have hdy' := hNV
     -- that code is `B` read at a slot approximating `a`
     obtain ⟨x₀, hbody₀, hx₀⟩ :=
       (Interp.inst (A := A) (b := B) hΔ hΓ hAty hat hB hPB W hAdm
@@ -2395,8 +2394,7 @@ theorem sound_pair_dom {Γ : List Term} {A B a b : Term} {u v : Bool}
     -- joined with the given first component, then saturated
     obtain ⟨x₁, _, hx₁, hxx₁, hx₀x₁⟩ := ihadir hΔ W hwρ ha hx₀
     obtain ⟨x', d', hx', hx₁x', hd', hNV, hd'c⟩ := ihadom hΔ W hAdm hx₁
-    have hdx' := hNV.forget
-    have hx'c := hNV.val
+    have hdx' := hNV
     have hd'ty : TShape.HasType Δ d' TShape.type := ihAty.isType hΔ W hAdm hd'
     -- one level for both components
     obtain ⟨k, hkx, hky⟩ : ∃ k, x'.1 ≤ k ∧ y'.1 ≤ k :=
@@ -2423,27 +2421,31 @@ theorem sound_pair_dom {Γ : List Term} {A B a b : Term} {u v : Bool}
       have h := Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ,
         (hx₀x₁.trans hΔ hx₁x').trans hΔ (TShape.LE.le_lift hΔ hkx hx'.wf)⟩) hbody₀
       rwa [Subst.one_comp] at h
-    have hdxL : TShape.Named Δ d' (Shape.T (x'.2.lift k)) none := TShape.Named.lift_subject hΔ hdx' hkx
-    have hdyL : TShape.Named Δ cb (Shape.T (y'.2.lift k)) none := TShape.Named.lift_subject hΔ hdy' hky
-    have hxcL : Shape.ValCanon Δ (a.subst σ) (x'.2.lift k) := (Shape.ValCanon.lift hΔ hkx).2 hx'c
+    have hdxL : TShape.Named Δ d' (Shape.T (x'.2.lift k)) (some (a.subst σ)) :=
+      TShape.Named.lift_subject hΔ hdx' hkx
+    have hdyL : TShape.Named Δ cb (Shape.T (y'.2.lift k)) (some (b.subst σ)) :=
+      TShape.Named.lift_subject hΔ hdy' hky
     have hP : Interp Δ Γ (.pair A B a b) σ ρ
         (Shape.T (n := k+1) (ShapeS.pair (A.subst σ) (a.subst σ) (x'.2.lift k) (y'.2.lift k))) :=
-      .pair (Interp.lift hΔ hkx hx') (Interp.lift hΔ hky hy') hd' hd'ty (.name hdxL hxcL) hd'c hwP
-        hcodeL hdyL (TShape.WF.T.2 hwP) (TShape.LE.refl (TShape.WF.T.2 hwP)) hAt hat'
+      .pair (Interp.lift hΔ hkx hx') (Interp.lift hΔ hky hy') hd' hd'ty hdxL hd'c hwP
+        hcodeL hdyL.forget (TShape.WF.T.2 hwP) (TShape.LE.refl (TShape.WF.T.2 hwP)) hAt hat'
     have hPle := TShape.LE.pair_mk hΔ hxle hyle' hwp.1 (TyEq.refl hAσ) hwp.2.1
     obtain ⟨kS, dS, fS, hSg, hty, _, hdfst, ⟨cc, hlook, _, hccdom⟩, hScan⟩ :=
       pair_sigma_code hΓ hAty hB ihAty ihAd.codeAt ihAdir ihaty ihBty ihBc ihBdir hΔ W hAdm
-        (Interp.lift hΔ hkx hx') hd' hd'ty (.name hdxL hxcL) hd'c hwP hcodeL hdyL
+        (Interp.lift hΔ hkx hx') hd' hd'ty hdxL hd'c hwP hcodeL hdyL.forget
     -- the two β-rules, at the stage
     have hfst : Δ ⊢ (Term.fst (.pair A B a b)).subst σ ≡ a.subst σ : A.subst σ :=
       (IsDefEq.pair_fst₀ hΓ hB hat hbt).subst hΔ W
     have hsnd : Δ ⊢ (Term.snd (.pair A B a b)).subst σ ≡ b.subst σ : (B.inst a).subst σ :=
       (IsDefEq.pair_snd₀ hΓ hB hat hbt).subst hΔ W
-    exact ⟨_, _, hP, hle.trans hΔ hPle, hSg, (.name (.sg (ps := some (a.subst σ, Shape.T (x'.2.lift k), Shape.T (y'.2.lift k))) (c := cc) hty rfl (fun _ _ => nofun)
-        (fun p hp => by cases hp; exact hdfst)
-        (fun p hp => by cases hp; exact hlook)
-        (fun p hp => by cases hp; exact hccdom)) (⟨hfst.symm, Shape.ValCanon.defeq hΔ hdxL hd'c hxcL hfst.symm,
-        Shape.ValCanon.defeq hΔ hdyL hcbc ((Shape.ValCanon.lift hΔ hky).2 hy'c) hsnd.symm⟩)),
+    exact ⟨_, _, hP, hle.trans hΔ hPle, hSg,
+      (.name (.sg (ps := some (a.subst σ, Shape.T (x'.2.lift k), Shape.T (y'.2.lift k)))
+          (c := cc) hty rfl (fun _ _ => nofun)
+          (fun p hp => by cases hp; exact hdfst)
+          (fun p hp => by cases hp; exact hlook)
+          (fun p hp => by cases hp; exact hccdom))
+        ⟨hfst.symm, (hdxL.defeq hΔ hd'c hfst.symm).val,
+          (hdyL.defeq hΔ hcbc hsnd.symm).val⟩),
       hScan⟩
 
 /-- One direction of the `SoundEq` half of `pairDF`.  A pair-shape's only
