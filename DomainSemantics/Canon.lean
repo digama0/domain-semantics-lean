@@ -314,40 +314,6 @@ Three observations make the fold go through:
   rather than the pair shape's, the two being definitionally equal
   because `HasType.pair` says so. -/
 
-/-- **Hereditary typing, with a name when one is asked for.**  The
-`Option Term` index is the name: at `none` this is `TShape.Dom`, at
-`some t` it is "and `x` names `t`".
-
-The index threads through every recursive position, so that `none`
-recovers hereditary typing alone and `some t` recovers naming as well.
-An entry's *input* is named at the entry's own label, which is intrinsic
-to the shape; an entry's *output* names the application, and a Σ's
-components the projections. -/
-inductive TShape.NamedO (Δ : List Term) : Option Term → TShape → TShape → Prop where
-  | base {o} {d x : TShape} : ¬ d.IsBinder → TShape.HasType Δ x d →
-    (∀ t ∈ o, Shape.CodeCanonS Δ t x.2) → NamedO Δ o d x
-  | pi {o} {n} {A B : Term} {d : Shape n} {f : ShapeFun n} {x : TShape}
-      {cs : List (Entry TShape × TShape)} :
-    TShape.HasType Δ x (Shape.T (n := n+1) (ShapeS.forallE A B d f)) →
-    x.entries = cs.map (·.1) →
-    (∀ p ∈ cs, NamedO Δ (o.map fun _ => p.1.tm) d.T p.1.inp) →
-    (∀ p ∈ cs, TEvaluates Δ f A p.1.tm p.1.inp p.2) →
-    (∀ p ∈ cs, NamedO Δ (o.map fun t => Term.app t p.1.tm) p.2 p.1.out) →
-    NamedO Δ o (Shape.T (n := n+1) (ShapeS.forallE A B d f)) x
-  | sg {o} {n} {A B : Term} {d : Shape n} {f : ShapeFun n} {x : TShape}
-      {ps : Option (Term × TShape × TShape)} {c : TShape} :
-    TShape.HasType Δ x (Shape.T (n := n+1) (ShapeS.sigma A B d f)) →
-    x.pairParts = ps →
-    (∀ p ∈ ps, ∀ t ∈ o, Δ ⊢ p.1 ≡ Term.fst t : A) →
-    (∀ p ∈ ps, NamedO Δ (o.map Term.fst) d.T p.2.1) →
-    (∀ p ∈ ps, TEvaluates Δ f A p.1 p.2.1 c) →
-    (∀ p ∈ ps, NamedO Δ (o.map Term.snd) c p.2.2) →
-    NamedO Δ o (Shape.T (n := n+1) (ShapeS.sigma A B d f)) x
-
-/-- `x` is hereditarily typed at the code `d` **and names `t`**. -/
-abbrev TShape.Named (Δ : List Term) (d : TShape) (t : Term) (x : TShape) : Prop :=
-  TShape.NamedO Δ (some t) d x
-
 /-- **The extraction.**  A name's shallow half, which is what building a
 `Shape.WF` at a named index needs: at a `lam` or a `pair` it is `True`,
 and at any other head the `base` clause carries it. -/
