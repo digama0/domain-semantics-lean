@@ -3071,3 +3071,42 @@ domain label types its name, which is what Σ's η reads; `unit`'s
 relevance flag decides which sorts it inhabits; a λ's domain label is
 read by `Interp.lam_label_ty` and pins the lookup at non-admissible
 stages.
+
+## 7. Canonicity folded into well-formedness (2026-10-07)
+
+§4.7i above describes `CodeCanon` as a hereditary predicate of its own,
+recursing through a Π- or Σ-code's domain and its codomain graph's
+outputs. That recursion is gone. `Shape.WF` was already walking exactly
+those shapes, so it now carries the *shallow* claim `Shape.CodeCanonS Γ T
+s` — this head's own labels name `T` — at every Π and Σ node it descends
+through: `CodeCanonS Γ A d` for the domain and one per entry output at
+the instantiated codomain. For a well-formed shape the hereditary
+reading is then `WF` plus the head equation and nothing more, so the deep
+predicate was deleted and every use is the shallow one.
+
+`Shape.LE` carries the same two conjuncts. It had to: `LE` already
+carries `WF` of both sides by fiat (the label equalities, the graph's
+`WF`, the λ clause's non-degeneracy), which is why `Shape.LE.wf` can
+produce a `WF` from an order fact alone. Strengthening `WF` on its own
+would make that lemma false, since the order cannot know what type a code
+names; giving `LE` the conjuncts repairs it with no signature change.
+
+What this bought, beyond deleting a recursion: the shallow theory is a
+handful of lines (conversion, join, lift, downward inclusion,
+substitution, two graph companions) because there is nothing to push
+through, and the lemmas need less. `mono` no longer wants the bigger
+shape's `WF`, `join` wants neither `WF` nor `Compat`, `CodeAt.of_top`
+drops a `WF`, and `CodeAt.forallE`/`CodeAt.sigma` are one line each.
+
+What it cost: `Shape.WF` is no longer purely structural, so a lemma that
+*fabricates* a shape out of an arbitrary approximant must know that the
+approximant names its type. Three do — `Interp.forallE_single`,
+`Interp.sigma_single` and `SoundEq.sigma_dom` — and `SoundEq.forallE_cod`,
+`sigma_cod` and `inst_cod` thread it up to `Strong.lean`, where soundness
+supplies it.
+
+Also in this round: `TShape.Dom` and `ValCanon` merged into
+`TShape.Named` (hereditarily typed at a code *and* naming a term), whose
+`Named.defeq` is the transport with the code's naming as its only extra
+argument; and `CodeCanon`'s `⊥`-output exemption was dropped, having
+always been implied by `CodeCanon` at `⊥` being `True`.
