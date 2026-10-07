@@ -21,9 +21,10 @@ code is what `Dom` already carries. -/
 
 namespace DomainSemantics
 
-/-- A code names its type, hereditarily.  Entry-based: a dead entry (one
-whose output is `⊥`) says nothing, since the order can hand it to a
-smaller code with any label type. -/
+/-- A code names its type, hereditarily.  Entry-based, and a dead entry
+(one whose output is `⊥`) says nothing of its own accord: `CodeCanon` at
+`⊥` is `True`, so no exemption has to be written into the Π and Σ
+clauses. -/
 def Shape.CodeCanon (Δ : List Term) : ∀ {n}, Term → Shape n → Prop
   | 0, _, .bot => True
   | 0, T, .sort r => TyEq Δ T (.sort r)
@@ -34,10 +35,10 @@ def Shape.CodeCanon (Δ : List Term) : ∀ {n}, Term → Shape n → Prop
   | _+1, T, .id r A a b => TyEq Δ T (.id r A a b)
   | _+1, T, .sigma A B d f =>
       TyEq Δ T (.sigma A B) ∧ CodeCanon Δ A d ∧
-      ∀ e ∈ f, e.out = .bot ∨ CodeCanon Δ (B.inst e.tm) e.out
+      ∀ e ∈ f, CodeCanon Δ (B.inst e.tm) e.out
   | _+1, T, .forallE A B d f =>
       TyEq Δ T (.forallE A B) ∧ CodeCanon Δ A d ∧
-      ∀ e ∈ f, e.out = .bot ∨ CodeCanon Δ (B.inst e.tm) e.out
+      ∀ e ∈ f, CodeCanon Δ (B.inst e.tm) e.out
   | _+1, _, .lam .. => True
   | _+1, _, .pair .. => True
   | _+1, _, .zero => True
@@ -153,8 +154,8 @@ theorem Shape.CodeCanon.lift {Δ : List Term} (hΔ : ⊢ Δ) :
       ⟨Shape.lift_eq_bot hΔ h', fun h => h ▸ Shape.lift_bot⟩
     have hf (A B : Term) (f : ShapeFun n) :
         (∀ e ∈ ShapeFun.lift (Shape.lift m) f,
-            e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out) ↔
-        (∀ e ∈ f, e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out) := by
+            Shape.CodeCanon Δ (B.inst e.tm) e.out) ↔
+        (∀ e ∈ f, Shape.CodeCanon Δ (B.inst e.tm) e.out) := by
       constructor
       · intro H e he
         have := H ⟨e.tm, e.inp.lift m, e.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
@@ -191,13 +192,11 @@ theorem Shape.CodeCanon.join {Δ : List Term} (hΔ : ⊢ Δ) :
     -- the right-hand entries of a Π/Σ graph, moved to the left labels
     have hent {A B A' B' : Term} {u : Bool} {f' : ShapeFun n} (hl : PiLabelEq Δ A B A' B')
         (hA : Δ ⊢ A : .sort u) (hw' : ShapeFun.WF Δ A' (Shape.WF Δ) f')
-        (hz' : ∀ e ∈ f', e.out = .bot ∨ Shape.CodeCanon Δ (B'.inst e.tm) e.out) :
-        ∀ e ∈ f', e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out := by
+        (hz' : ∀ e ∈ f', Shape.CodeCanon Δ (B'.inst e.tm) e.out) :
+        ∀ e ∈ f', Shape.CodeCanon Δ (B.inst e.tm) e.out := by
       intro e he
-      rcases hz' e he with h | hC
-      · exact .inl h
-      · have htm : Δ ⊢ e.tm : A := ((hw'.retype (TyEq.symm hl.1)).1 e he).2.1
-        exact .inr (hC.conv (TyEq.inst hΔ hA hl.2.choose_spec htm))
+      have htm : Δ ⊢ e.tm : A := ((hw'.retype (TyEq.symm hl.1)).1 e he).2.1
+      exact (hz' e he).conv (TyEq.inst hΔ hA hl.2.choose_spec htm)
     cases y with
     | bot => simpa using hz
     | sigma A B d f =>
@@ -248,39 +247,27 @@ theorem Shape.CodeCanon.mono {Δ : List Term} (hΔ : ⊢ Δ) :
     have hgraph {A B : Term} {u v : Bool} {f f' : ShapeFun n} (hA : Δ ⊢ A : .sort u)
         (hB : A :: Δ ⊢ B : .sort v)
         (hff : ShapeFun.LE Δ (Shape.LE Δ) (Shape.WF Δ) A f' f)
-        (hf : ∀ e ∈ f, e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out) :
-        ∀ e ∈ f', e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out := by
+        (hf : ∀ e ∈ f, Shape.CodeCanon Δ (B.inst e.tm) e.out) :
+        ∀ e ∈ f', Shape.CodeCanon Δ (B.inst e.tm) e.out := by
       intro e' he'
       have hwo : ∀ e ∈ f, Shape.WF Δ e.out := fun e he => (hff.2.2.1 e he).2.2.2
       have hev := hff.1 e' he'
       generalize e'.out = w at hev ⊢
       induction hev with
-      | bot => exact .inl rfl
-      | entry e he hlab _ =>
-        rcases hf e he with h | hC
-        · exact .inl h
-        · exact .inr (hC.conv (TyEq.inst hΔ hA hB hlab.2.symm))
-      | lower hyz hz ihz =>
-        rcases ihz with h | hC
-        · subst h; exact .inl (Shape.le_bot_iff.1 hyz)
-        · exact .inr (ih hyz (ShapeFun.Eval.wf hΔ hwo hz) hC)
+      | bot => exact Shape.CodeCanon.bot
+      | entry e he hlab _ => exact (hf e he).conv (TyEq.inst hΔ hA hB hlab.2.symm)
+      | lower hyz hz ihz => exact ih hyz (ShapeFun.Eval.wf hΔ hwo hz) ihz
       | @join y z hcyz hy hz ihy ihz =>
-        rcases ihy with hy0 | hCy
-        · subst hy0; simpa using ihz
-        rcases ihz with hz0 | hCz
-        · subst hz0; simpa using Or.inr hCy
-        exact .inr (Shape.CodeCanon.join hΔ (ShapeFun.Eval.wf hΔ hwo hy)
-          (ShapeFun.Eval.wf hΔ hwo hz) hcyz hCy hCz)
+        exact Shape.CodeCanon.join hΔ (ShapeFun.Eval.wf hΔ hwo hy)
+          (ShapeFun.Eval.wf hΔ hwo hz) hcyz ihy ihz
     -- the labels of the smaller code, from the bigger's
     have hmove {A B A' B' : Term} {f' : ShapeFun n} (hl : PiLabelEq Δ A' B' A B)
         (hw' : ShapeFun.WF Δ A' (Shape.WF Δ) f')
-        (hf' : ∀ e ∈ f', e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out) :
-        ∀ e ∈ f', e.out = .bot ∨ Shape.CodeCanon Δ (B'.inst e.tm) e.out := by
+        (hf' : ∀ e ∈ f', Shape.CodeCanon Δ (B.inst e.tm) e.out) :
+        ∀ e ∈ f', Shape.CodeCanon Δ (B'.inst e.tm) e.out := by
       intro e he
-      rcases hf' e he with h | hCe
-      · exact .inl h
-      · exact .inr (hCe.conv
-          (TyEq.inst hΔ hl.1.choose_spec.hasType.1 hl.2.choose_spec (hw'.1 e he).2.1))
+      exact (hf' e he).conv
+        (TyEq.inst hΔ hl.1.choose_spec.hasType.1 hl.2.choose_spec (hw'.1 e he).2.1)
     cases x with
     | bot => cases Shape.le_bot_iff.1 hle; trivial
     | lam | pair | zero | succ | refl =>
@@ -341,7 +328,7 @@ definition because the definition has to survive substitution, and an
 entry that is dead at one stage can be live at a later one. -/
 theorem TShape.CodeCanon.lookup {Δ : List Term} (hΔ : ⊢ Δ) {n} {A B q : Term} {u v : Bool}
     {f : ShapeFun n} (hw : ShapeFun.WF Δ A (Shape.WF Δ) f)
-    (hf : ∀ e ∈ f, e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out)
+    (hf : ∀ e ∈ f, Shape.CodeCanon Δ (B.inst e.tm) e.out)
     (hA : Δ ⊢ A : .sort u) (hB : A :: Δ ⊢ B : .sort v) {x : TShape} :
     ∀ {c : TShape}, TEvaluates Δ f A q x c → TShape.CodeCanon Δ (B.inst q) c := by
   intro c h
@@ -349,9 +336,7 @@ theorem TShape.CodeCanon.lookup {Δ : List Term} (hΔ : ⊢ Δ) {n} {A B q : Ter
   induction h with
   | bot => exact Shape.CodeCanon.bot
   | entry e he hlab _ =>
-    rcases hf e he with h0 | hC
-    · show Shape.CodeCanon Δ _ e.out; rw [h0]; exact Shape.CodeCanon.bot
-    · exact hC.conv (TyEq.inst hΔ hA hB hlab.2.symm)
+    exact (hf e he).conv (TyEq.inst hΔ hA hB hlab.2.symm)
   | lower hle hz ih => exact TShape.CodeCanon.mono hΔ hle (TEvaluates.wf hΔ hwo hz) ih
   | join hc hy hz ihy ihz =>
     exact TShape.CodeCanon.join hΔ (TEvaluates.wf hΔ hwo hy) (TEvaluates.wf hΔ hwo hz) hc ihy ihz
@@ -459,16 +444,14 @@ theorem Shape.CodeCanon.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
   | succ n ih =>
     intro T s h
     have hf {B : Term} {f : ShapeFun n}
-        (hf : ∀ e ∈ f, e.out = .bot ∨ Shape.CodeCanon Δ (B.inst e.tm) e.out) :
+        (hf : ∀ e ∈ f, Shape.CodeCanon Δ (B.inst e.tm) e.out) :
         ∀ e ∈ ShapeFun.subst (Shape.subst · τ) τ f,
-          e.out = .bot ∨ Shape.CodeCanon Θ ((B.subst τ.lift).inst e.tm) e.out := by
+          Shape.CodeCanon Θ ((B.subst τ.lift).inst e.tm) e.out := by
       intro e' he'
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
-      rcases hf e he with h0 | hC
-      · exact .inl (by simp [h0])
-      · have := ih hC
-        rw [subst_inst] at this
-        exact .inr this
+      have := ih (hf e he)
+      rw [subst_inst] at this
+      exact this
     cases s with
     | bot | lam | pair | zero | succ | refl => trivial
     | sort r | unit r | nat | id => exact TyEq.subst hΘ W h
@@ -840,3 +823,42 @@ They have different subjects, so no single induction carries both. -/
 theorem TShape.Slot.iff {Δ : List Term} {T t : Term} {d x : TShape} :
     TShape.Slot Δ T d t x ↔ TShape.Named Δ d t x ∧ TShape.CodeCanon Δ T d :=
   ⟨fun h => ⟨.of_dom h.1 h.2.2, h.2.1⟩, fun h => ⟨h.1.dom, h.2, h.1.val⟩⟩
+
+/-! ### `Named`'s closure properties
+
+Each is the corresponding `Dom` lemma paired with the `ValCanon` one;
+`Named.iff` is what makes that a proof. -/
+
+theorem TShape.Named.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) {d x : TShape} {t : Term} (h : TShape.Named Δ d t x) :
+    TShape.Named Θ (d.subst τ) (t.subst τ) (x.subst τ) :=
+  .of_dom (h.dom.subst hΘ W) (Shape.ValCanon.subst hΘ W h.val)
+
+theorem TShape.Named.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {d x : TShape} {t : Term}
+    (h : TShape.Named Δ d t x) {k} (hk : x.1 ≤ k) : TShape.Named Δ d t (x.lift k) :=
+  .of_dom (h.dom.lift_subject hΔ hk) ((TShape.ValCanon.lift_iff hΔ hk).1 h.val)
+
+theorem TShape.Named.join {Δ : List Term} (hΔ : ⊢ Δ) {y z d : TShape} {t : Term}
+    (hwy : TShape.WF Δ y) (hwz : TShape.WF Δ z) (hc : TShape.Compat Δ y z)
+    (hy : TShape.Named Δ d t y) (hz : TShape.Named Δ d t z) :
+    TShape.Named Δ d t (y.join z) :=
+  .of_dom (TShape.Dom.join hΔ hc hy.dom hz.dom)
+    (TShape.ValCanon.join hΔ hwy hwz hc hy.val hz.val)
+
+theorem TShape.Named.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {d d' x : TShape} {t : Term}
+    (h : TShape.Named Δ d t x) (hle : TShape.LE Δ d d')
+    (hty : TShape.HasType Δ d' TShape.type) : TShape.Named Δ d' t x :=
+  .of_dom (h.dom.mono_r hΔ hle hty) h.val
+
+theorem TShape.Named.bot {Δ : List Term} {d : TShape} {t : Term} {n}
+    (h : TShape.HasType Δ (Shape.T (n := n) .bot) d) :
+    TShape.Named Δ d t (Shape.T (n := n) .bot) :=
+  .of_dom (TShape.Dom.bot h) (TShape.ValCanon.of_bot rfl)
+
+/-- **The transport, on the merged notion.**  This is what the merge
+buys: the hereditary typing travels with the name, so moving the name
+along a definitional equality needs only the code's own naming. -/
+theorem TShape.Named.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x : TShape}
+    (h : TShape.Named Δ d t x) (hC : TShape.CodeCanon Δ T d)
+    (ht : Δ ⊢ t ≡ t' : T) : TShape.Named Δ d t' x :=
+  .of_dom h.dom (TShape.ValCanon.defeq hΔ h.dom hC h.val ht)

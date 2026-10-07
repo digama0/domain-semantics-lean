@@ -64,8 +64,11 @@ the labelled model's soundness. -/
 #guard_msgs in #print axioms sound_join
 
 -- **Strengthening**: an interpretation moves into a smaller context, the
--- clauses' premises coming back from the term's annotations.
-/-- info: 'DomainSemantics.Interp.unweak' depends on axioms: [propext, Quot.sound] -/
+-- clauses' premises coming back from the term's annotations.  This was
+-- choice-free until the clauses started carrying `TShape.Named`:
+-- building one at a Σ moves the name along the pair label's `TyEq`,
+-- whose witness is a `choose_spec`.
+/-- info: 'DomainSemantics.Interp.unweak' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms Interp.unweak
 
 -- **Stage invariance**: the labels move with the stage, each clause
