@@ -434,7 +434,7 @@ theorem ShapeFun.Eval.toT {Δ : List Term} {n} {f : ShapeFun n} {A a : Term}
 /-- A graph covers itself: each entry is its own lookup.  The label and
 input reflexivities are exactly what `ShapeFun.WF` supplies. -/
 theorem TEvaluates.refl {Δ : List Term} {n} {f : ShapeFun n}
-    (hw : ShapeFun.WF Δ Ty oB (fun o s => Shape.WFO Δ o s) f) :
+    (hw : ShapeFun.WF Δ Ty oB (@Shape.WF Δ _) f) :
     ∀ e ∈ f, TEvaluates Δ f Ty e.tm e.inp.T e.out.T := by
   intro e he
   obtain ⟨⟨u, hty⟩, htm, hin, _⟩ := hw.1 e he
@@ -444,26 +444,26 @@ theorem TEvaluates.refl {Δ : List Term} {n} {f : ShapeFun n}
 neither an input nor an output, as a `TShape`.  Used where a clause's graph
 is compared at a level above both. -/
 theorem TEvaluates.lift_cover {Δ : List Term} (hΔ : ⊢ Δ) {n n'} {g : ShapeFun n}
-    {f' : ShapeFun n'} {k} (hk : n ≤ k) (hw : ShapeFun.WF Δ Ty oB (fun o s => Shape.WFO Δ o s) g)
+    {f' : ShapeFun n'} {k} (hk : n ≤ k) (hw : ShapeFun.WF Δ Ty oB (@Shape.WF Δ _) g)
     (hg : ∀ e ∈ g, TEvaluates Δ f' Ty e.tm e.inp.T e.out.T) :
     ∀ e ∈ ShapeFun.lift (Shape.lift k) g,
       TEvaluates Δ f' Ty e.tm e.inp.T e.out.T := by
   intro e he
   obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_lift.1 he
   have hwe := hw.1 e₀ he₀
-  exact .lower (TShape.LE.lift_le hΔ (m := e₀.out.T) hk (Shape.WFO.wf hwe.2.2.2))
+  exact .lower (TShape.LE.lift_le hΔ (m := e₀.out.T) hk (Shape.WF.forget hwe.2.2.2))
     (TEvaluates.mono_inp hΔ (TShape.LE.le_lift hΔ (m := e₀.inp.T) hk hwe.2.2.1)
       (hg e₀ he₀))
 
 /-- And back: coverage of the lift is coverage of the graph. -/
 theorem TEvaluates.lower_cover {Δ : List Term} (hΔ : ⊢ Δ) {n n'} {g : ShapeFun n}
-    {f' : ShapeFun n'} {k} (hk : n ≤ k) (hw : ShapeFun.WF Δ Ty oB (fun o s => Shape.WFO Δ o s) g)
+    {f' : ShapeFun n'} {k} (hk : n ≤ k) (hw : ShapeFun.WF Δ Ty oB (@Shape.WF Δ _) g)
     (hg : ∀ e ∈ ShapeFun.lift (Shape.lift k) g,
       TEvaluates Δ f' Ty e.tm e.inp.T e.out.T) :
     ∀ e ∈ g, TEvaluates Δ f' Ty e.tm e.inp.T e.out.T := by
   intro e he
   have hwe := hw.1 e he
-  exact .lower (TShape.LE.le_lift hΔ (m := e.out.T) hk (Shape.WFO.wf hwe.2.2.2))
+  exact .lower (TShape.LE.le_lift hΔ (m := e.out.T) hk (Shape.WF.forget hwe.2.2.2))
     (TEvaluates.mono_inp hΔ (TShape.LE.lift_le hΔ (m := e.inp.T) hk hwe.2.2.1)
       (hg _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)))
 
@@ -473,7 +473,7 @@ is what a `Shape.LE` between two λ-shapes, read at a level above both,
 hands back to the `lam` clause. -/
 theorem TEvaluates.of_cover_lift {Δ : List Term} (hΔ : ⊢ Δ) {j k n'} (hjk : j ≤ k)
     {g' : ShapeFun j} {g : ShapeFun k} {f' : ShapeFun n'}
-    (hw : ShapeFun.WF Δ Ty oB (fun o s => Shape.WFO Δ o s) g')
+    (hw : ShapeFun.WF Δ Ty oB (@Shape.WF Δ _) g')
     (hcov : ∀ e ∈ ShapeFun.lift (Shape.lift k) g',
       ShapeFun.Eval Δ (Shape.LE Δ) g Ty e.tm e.inp e.out)
     (hg : ∀ e ∈ g, TEvaluates Δ f' Ty e.tm e.inp.T e.out.T) :
@@ -482,7 +482,7 @@ theorem TEvaluates.of_cover_lift {Δ : List Term} (hΔ : ⊢ Δ) {j k n'} (hjk :
   have hwe := hw.1 e he
   have h2 := TEvaluates.trans hΔ hg
     (ShapeFun.Eval.toT (hcov _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)))
-  exact .lower (TShape.LE.le_lift hΔ (m := e.out.T) hjk (Shape.WFO.wf hwe.2.2.2))
+  exact .lower (TShape.LE.le_lift hΔ (m := e.out.T) hjk (Shape.WF.forget hwe.2.2.2))
     (TEvaluates.mono_inp hΔ (TShape.LE.lift_le hΔ (m := e.inp.T) hjk hwe.2.2.1) h2)
 
 /-! ### The `_decomp` family
@@ -666,7 +666,7 @@ inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
   -- graph gives at the pair's own name `a`, read at a **dominator** `xd`
   -- of the first component.  The dominator is what keeps typing lower-closed
   -- (§4.7b): shrinking either component keeps the same `xd` and the same
-  -- code.  Join-closure is what it costs, and `TShape.NamedO`'s `sg`
+  -- code.  Join-closure is what it costs, and `TShape.Named`'s `sg`
   -- clause, which reads the code at the first component itself, is what
   -- supplies it where it is needed
   | pair {n n'} {A₀ a : Term} {x y : Shape n} {f : ShapeFun n'}
@@ -1659,7 +1659,7 @@ at.  Both are what the original's Π-decoder does — `arrow Q P F = λX. Q
 FunctionRetraction.lean`) -- and `x : a ↔ p_a x = x` is its per-point
 form.
 
-`Dom` is an **inductive** relation rather than a recursion on the code:
+`Named` is an **inductive** relation rather than a recursion on the code:
 the codomain code an entry's output is read at is a *lookup* in the Π's
 graph, so it is not a subterm of the code, and a least fixed point says
 what is wanted without a measure.  It is deliberately **not** downward
@@ -1690,7 +1690,7 @@ def TShape.IsBinder : TShape → Prop
   | ⟨_+1, .sigma ..⟩ => True
   | ⟨_+1, _⟩ => False
 
-/-- Membership in a mapped `Option`, in the form the `Dom` proofs use. -/
+/-- Membership in a mapped `Option`, in the form the `Named` proofs use. -/
 theorem Option.exists_of_mem_map {α β : Type} {o : Option α} {f : α → β} {b : β}
     (h : b ∈ o.map f) : ∃ a ∈ o, b = f a := by
   cases o with
@@ -1700,43 +1700,41 @@ theorem Option.exists_of_mem_map {α β : Type} {o : Option α} {f : α → β} 
 /-- **Hereditary typing, with a name when one is asked for.**  The
 `Option Term` index is the name: at `none` it is hereditary typing
 alone, and at `some t` it is that together with "`x` names `t`"
-(`TShape.Named`, and `Named.iff` for the equivalence with the
-conjunction).
+(`Named.iff` is the equivalence with the conjunction).  The index is the
+last argument and defaults to `none`, so `Named Δ d x` is hereditary
+typing and `Named Δ d x (some t)` is that together with the naming.
 
 The index threads through every recursive position, so that `none`
 recovers hereditary typing alone and `some t` recovers naming as well.
 An entry's *input* is named at the entry's own label, which is intrinsic
 to the shape; an entry's *output* names the application, and a Σ's
 components the projections. -/
-inductive TShape.NamedO (Δ : List Term) : Option Term → TShape → TShape → Prop where
+inductive TShape.Named (Δ : List Term) :
+    TShape → TShape → (o : Option Term := none) → Prop where
   | base {o} {d x : TShape} : ¬ d.IsBinder → TShape.HasType Δ x d →
-    (∀ t ∈ o, Shape.CodeCanonS Δ t x.2) → NamedO Δ o d x
+    (∀ t ∈ o, Shape.CodeCanonS Δ t x.2) → Named Δ d x o
   | pi {o} {n} {A B : Term} {d : Shape n} {f : ShapeFun n} {x : TShape}
       {cs : List (Entry TShape × TShape)} :
     TShape.HasType Δ x (Shape.T (n := n+1) (ShapeS.forallE A B d f)) →
     x.entries = cs.map (·.1) →
-    (∀ p ∈ cs, NamedO Δ (o.map fun _ => p.1.tm) d.T p.1.inp) →
+    (∀ p ∈ cs, Named Δ d.T p.1.inp (o.map fun _ => p.1.tm)) →
     (∀ p ∈ cs, TEvaluates Δ f A p.1.tm p.1.inp p.2) →
-    (∀ p ∈ cs, NamedO Δ (o.map fun t => Term.app t p.1.tm) p.2 p.1.out) →
-    NamedO Δ o (Shape.T (n := n+1) (ShapeS.forallE A B d f)) x
+    (∀ p ∈ cs, Named Δ p.2 p.1.out (o.map fun t => Term.app t p.1.tm)) →
+    Named Δ (Shape.T (n := n+1) (ShapeS.forallE A B d f)) x o
   | sg {o} {n} {A B : Term} {d : Shape n} {f : ShapeFun n} {x : TShape}
       {ps : Option (Term × TShape × TShape)} {c : TShape} :
     TShape.HasType Δ x (Shape.T (n := n+1) (ShapeS.sigma A B d f)) →
     x.pairParts = ps →
     (∀ p ∈ ps, ∀ t ∈ o, Δ ⊢ p.1 ≡ Term.fst t : A) →
-    (∀ p ∈ ps, NamedO Δ (o.map Term.fst) d.T p.2.1) →
+    (∀ p ∈ ps, Named Δ d.T p.2.1 (o.map Term.fst)) →
     (∀ p ∈ ps, TEvaluates Δ f A p.1 p.2.1 c) →
-    (∀ p ∈ ps, NamedO Δ (o.map Term.snd) c p.2.2) →
-    NamedO Δ o (Shape.T (n := n+1) (ShapeS.sigma A B d f)) x
-
-/-- `x` is hereditarily typed at the code `d` **and names `t`**. -/
-abbrev TShape.Named (Δ : List Term) (d : TShape) (t : Term) (x : TShape) : Prop :=
-  TShape.NamedO Δ (some t) d x
+    (∀ p ∈ ps, Named Δ c p.2.2 (o.map Term.snd)) →
+    Named Δ (Shape.T (n := n+1) (ShapeS.sigma A B d f)) x o
 
 /-- **The extraction**: a name's shallow half, which is `True` at a `lam`
 or a `pair` and carried by the `base` clause at every other head. -/
-theorem TShape.NamedO.shallow {Δ : List Term} {o} {d x : TShape}
-    (h : TShape.NamedO Δ o d x) : ∀ t ∈ o, Shape.CodeCanonS Δ t x.2 := by
+theorem TShape.Named.canon_mem {Δ : List Term} {o} {d x : TShape}
+    (h : TShape.Named Δ d x o) : ∀ t ∈ o, Shape.CodeCanonS Δ t x.2 := by
   cases h with
   | base _ _ hc => exact hc
   | @pi _ _ _ _ _ _ _ _ hty _ _ _ _ =>
@@ -1744,15 +1742,15 @@ theorem TShape.NamedO.shallow {Δ : List Term} {o} {d x : TShape}
   | @sg _ _ _ _ _ _ _ _ _ hty _ _ _ _ _ =>
     intro _ _; cases hty <;> first | trivial | exact Shape.CodeCanonS.bot
 
-theorem TShape.NamedO.hasType {Δ : List Term} {o} {d x : TShape}
-    (h : TShape.NamedO Δ o d x) : TShape.HasType Δ x d := by cases h <;> assumption
+theorem TShape.Named.hasType {Δ : List Term} {o} {d x : TShape}
+    (h : TShape.Named Δ d x o) : TShape.HasType Δ x d := by cases h <;> assumption
 
 @[simp] theorem TShape.entries_bot {n} : (Shape.T (n := n) Shape.bot).entries = [] := by
   cases n <;> rfl
 
-theorem TShape.NamedO.bot {Δ : List Term} {o} {d : TShape} {n}
+theorem TShape.Named.bot {Δ : List Term} {o} {d : TShape} {n}
     (h : TShape.HasType Δ (Shape.T (n := n) .bot) d) :
-    TShape.NamedO Δ o d (Shape.T (n := n) .bot) := by
+    TShape.Named Δ d (Shape.T (n := n) .bot) o := by
   obtain ⟨m, c⟩ := d
   cases m with
   | zero => exact .base (fun h => h) h (by intro _ _; cases n <;> trivial)
@@ -1767,16 +1765,16 @@ theorem TShape.NamedO.bot {Δ : List Term} {o} {d : TShape} {n}
       exact .base (fun h => h) h (by intro _ _; cases n <;> trivial)
 
 /-- The same, for a subject that is `⊥` only up to its level. -/
-theorem TShape.NamedO.bot_subject {Δ : List Term} {o} {d x : TShape} (hx : x.2 = Shape.bot)
-    (h : TShape.HasType Δ x d) : TShape.NamedO Δ o d x := by
+theorem TShape.Named.bot_subject {Δ : List Term} {o} {d x : TShape} (hx : x.2 = Shape.bot)
+    (h : TShape.HasType Δ x d) : TShape.Named Δ d x o := by
   obtain ⟨n, s⟩ := x
   cases n with
   | zero => cases s with
-    | bot => exact TShape.NamedO.bot h
+    | bot => exact TShape.Named.bot h
     | sort r => exact absurd hx (by simp [Shape.bot])
   | succ n =>
     cases s <;> first
-      | exact TShape.NamedO.bot (n := n+1) h
+      | exact TShape.Named.bot (n := n+1) h
       | exact absurd hx (by simp [Shape.bot])
 
 @[simp] theorem TShape.entries_subst {x : TShape} {τ : Subst} :
@@ -1799,9 +1797,9 @@ theorem TShape.IsBinder.subst {d : TShape} {τ : Subst} (h : ¬ d.IsBinder) :
 
 /-- It transports along a typed substitution, like `HasType`, carrying
 the index along with it. -/
-theorem TShape.NamedO.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
-    (W : Ctx.SubstEq Θ τ τ Δ) {o} {d x : TShape} (h : TShape.NamedO Δ o d x) :
-    TShape.NamedO Θ (o.map (·.subst τ)) (d.subst τ) (x.subst τ) := by
+theorem TShape.Named.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) {o} {d x : TShape} (h : TShape.Named Δ d x o) :
+    TShape.Named Θ (d.subst τ) (x.subst τ) (o.map (·.subst τ)) := by
   induction h with
   | @base o d' x' hnb hty hc =>
     exact .base (TShape.IsBinder.subst hnb) (TShape.HasType.subst hΘ W hty) (by
@@ -1896,10 +1894,10 @@ theorem TShape.pairParts_level {x : TShape} {ps} (hps : x.pairParts = ps)
     | .lam _ _ | .forallE .. | .sigma .. =>
       exact absurd hp (by simp [TShape.pairParts])
 
-/-- `Dom` survives lifting the subject: its entries lift with it, one
+/-- `Named` survives lifting the subject: its entries lift with it, one
 level down, and a lifted query reads the same codes. -/
-theorem TShape.NamedO.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape}
-    (h : TShape.NamedO Δ o d x) : ∀ {k}, x.1 ≤ k → TShape.NamedO Δ o d (x.lift k) := by
+theorem TShape.Named.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape}
+    (h : TShape.Named Δ d x o) : ∀ {k}, x.1 ≤ k → TShape.Named Δ d (x.lift k) o := by
   induction h with
   | base hnb hty hc =>
     exact fun hk => .base hnb (hty.lift_subject hΔ hk)
@@ -1924,7 +1922,7 @@ theorem TShape.NamedO.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TS
         refine TEvaluates.mono_inp hΔ ?_ (hev q hq)
         exact TShape.LE.le_lift hΔ (by
           have := TShape.entries_level (x := x) (e := q.1) (by rw [hent]; exact List.mem_map_of_mem hq)
-          omega) (TShape.NamedO.hasType (hin q hq)).wf.1
+          omega) (TShape.Named.hasType (hin q hq)).wf.1
       · intro p hp
         obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
         refine ihout q hq ?_
@@ -1951,13 +1949,13 @@ theorem TShape.NamedO.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TS
         obtain ⟨q, hq, rfl⟩ := Option.exists_of_mem_map hp
         refine TEvaluates.mono_inp hΔ ?_ (hev q hq)
         exact TShape.LE.le_lift hΔ (by have := TShape.pairParts_level hps hq; omega)
-          (TShape.NamedO.hasType (hx q hq)).wf.1
+          (TShape.Named.hasType (hx q hq)).wf.1
       · intro p hp
         obtain ⟨q, hq, rfl⟩ := Option.exists_of_mem_map hp
         exact ihy q hq (by have := TShape.pairParts_level hps hq; omega)
 
 /-- A code below a binder code is a binder code, or `⊥`: the order pins
-the head.  This is what lets `Dom`'s `base` clause stay disjoint from the
+the head.  This is what lets `Named`'s `base` clause stay disjoint from the
 other two under `mono_r`. -/
 theorem TShape.IsBinder.of_le {Δ : List Term} {d d' : TShape}
     (hle : TShape.LE Δ d d') (hb : d'.IsBinder) (hnb : d.2 ≠ Shape.bot) : d.IsBinder := by
@@ -1994,17 +1992,17 @@ theorem TShape.IsBinder.of_le {Δ : List Term} {d d' : TShape}
       | _, .bot | _, .sort _ | _, .unit _ | _, .nat | _, .zero | _, .succ _
       | _, .refl | _, .id .. | _, .lam .. | _, .pair .. => exact absurd hb (fun x => x)
 
-/-- **`Dom` grows with the code.**  The Π and Σ orders are covariant in
+/-- **`Named` grows with the code.**  The Π and Σ orders are covariant in
 the domain, so the hereditary conditions move up with them; where the
 head changes the smaller code is `⊥`, and then the subject is too. -/
-theorem TShape.NamedO.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape}
-    (h : TShape.NamedO Δ o d x) : ∀ {d' : TShape}, TShape.LE Δ d d' →
-      TShape.HasType Δ d' TShape.type → TShape.NamedO Δ o d' x := by
+theorem TShape.Named.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape}
+    (h : TShape.Named Δ d x o) : ∀ {d' : TShape}, TShape.LE Δ d d' →
+      TShape.HasType Δ d' TShape.type → TShape.Named Δ d' x o := by
   induction h with
   | @base o d x hnb hty0 hc =>
     intro d' hle hty
     by_cases hb : d.2 = Shape.bot
-    · exact TShape.NamedO.bot_subject (TShape.HasType.bot_r hΔ hb hty0)
+    · exact TShape.Named.bot_subject (TShape.HasType.bot_r hΔ hb hty0)
         (TShape.HasType.mono_r hΔ hty0 _ hle hty)
     · exact .base (fun hbind => hnb (TShape.IsBinder.of_le hle hbind hb))
         (TShape.HasType.mono_r hΔ hty0 _ hle hty) hc
@@ -2050,14 +2048,14 @@ theorem TShape.NamedO.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape}
       | .lam _ _ | .forallE .. | .pair _ _ _ _ => exact absurd h2 (fun x => x)
 
 /-- A code typed at a sort is hereditarily typed there: a sort filters. -/
-theorem TShape.NamedO.of_isType {Δ : List Term} {x : TShape}
-    (h : TShape.HasType Δ x TShape.type) : TShape.NamedO Δ none TShape.type x :=
+theorem TShape.Named.of_isType {Δ : List Term} {x : TShape}
+    (h : TShape.HasType Δ x TShape.type) : TShape.Named Δ TShape.type x none :=
   .base (fun h => h) h nofun
 
 /-- At a code that only filters — anything but a Π or a Σ — typing is all
 there is. -/
-theorem TShape.NamedO.of_not_binder {Δ : List Term} {d x : TShape} (hnb : ¬ d.IsBinder)
-    (h : TShape.HasType Δ x d) : TShape.NamedO Δ none d x := .base hnb h nofun
+theorem TShape.Named.of_not_binder {Δ : List Term} {d x : TShape} (hnb : ¬ d.IsBinder)
+    (h : TShape.HasType Δ x d) : TShape.Named Δ d x none := .base hnb h nofun
 
 theorem Shape.graph_join {n} {x y : Shape (n+1)} :
     (x.join y).graph = x.graph ++ y.graph ∨ (x.join y).graph = x.graph ∨
@@ -2072,15 +2070,14 @@ theorem TShape.entries_join {n} {x y : Shape (n+1)} :
   rcases Shape.graph_join (x := x) (y := y) with h | h | h <;>
     simp [TShape.entries, h]
 
-/-- **Inverting `Dom` at a Σ**: the first component is hereditarily typed
+/-- **Inverting `Named` at a Σ**: the first component is hereditarily typed
 at the domain, and the second at the codomain read at the pair's own name
 and first component. -/
-theorem TShape.NamedO.sg_inv {Δ : List Term} {o} {n k} {A B A₀ a : Term} {d : Shape n}
+theorem TShape.Named.sg_inv {Δ : List Term} {o} {n k} {A B A₀ a : Term} {d : Shape n}
     {f : ShapeFun n} {x y : Shape k}
-    (h : TShape.NamedO Δ o (Shape.T (n := n+1) (ShapeS.sigma A B d f))
-      (Shape.T (n := k+1) (ShapeS.pair A₀ a x y))) :
-    ∃ c, TShape.NamedO Δ (o.map Term.fst) d.T x.T ∧ TEvaluates Δ f A a x.T c ∧
-      TShape.NamedO Δ (o.map Term.snd) c y.T := by
+    (h : TShape.Named Δ (Shape.T (n := n+1) (ShapeS.sigma A B d f)) (Shape.T (n := k+1) (ShapeS.pair A₀ a x y)) o) :
+    ∃ c, TShape.Named Δ d.T x.T (o.map Term.fst) ∧ TEvaluates Δ f A a x.T c ∧
+      TShape.Named Δ c y.T (o.map Term.snd) := by
   cases h with
   | base hnb _ _ => exact absurd trivial hnb
   | @sg _ _ _ _ _ _ _ ps c hty hps _ hx hev hy =>
@@ -2103,7 +2100,7 @@ and `lam`/`pair` append their graphs and concatenate their generators,
 lifted to a common level. -/
 theorem TShape.HasType.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
     ∀ {n} {o} {y z : Shape n} {c : TShape}, Shape.Compat Δ y z →
-      TShape.NamedO Δ o c y.T → TShape.NamedO Δ o c z.T →
+      TShape.Named Δ c y.T o → TShape.Named Δ c z.T o →
       TShape.HasType Δ (y.join z).T c := by
   intro n
   induction n with
@@ -2179,29 +2176,29 @@ theorem TShape.HasType.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
               (TEvaluates.join hcc hev₁' hev₂') ?_ hdom
             have hcty := TEvaluates.tHasType (c := TShape.type) hΔ rfl
               (fun e he => hfo e he) (TEvaluates.join hcc hev₁' hev₂')
-            have hjc := TShape.le_join hΔ (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (Shape.WFO.wf (hwSg.2.2.2.1.1 e he).2.2.2)) hev₁')
-              (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (Shape.WFO.wf (hwSg.2.2.2.1.1 e he).2.2.2)) hev₂') hcc
-            exact ih hc.2.2.2 (TShape.NamedO.mono_r hΔ hdy₁ hjc.1 hcty)
-              (TShape.NamedO.mono_r hΔ hdy₂ hjc.2 hcty)
+            have hjc := TShape.le_join hΔ (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (Shape.WF.forget (hwSg.2.2.2.1.1 e he).2.2.2)) hev₁')
+              (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (Shape.WF.forget (hwSg.2.2.2.1.1 e he).2.2.2)) hev₂') hcc
+            exact ih hc.2.2.2 (TShape.Named.mono_r hΔ hdy₁ hjc.1 hcty)
+              (TShape.Named.mono_r hΔ hdy₂ hjc.2 hcty)
       | _ => exact absurd hc (fun x => x)
 
 /-- The same at the total level: lift both subjects to the common level
 and join there. -/
 theorem TShape.HasType.join {Δ : List Term} (hΔ : ⊢ Δ) {y z c : TShape}
-    {o} (hc : TShape.Compat Δ y z) (hy : TShape.NamedO Δ o c y) (hz : TShape.NamedO Δ o c z) :
+    {o} (hc : TShape.Compat Δ y z) (hy : TShape.Named Δ c y o) (hz : TShape.Named Δ c z o) :
     TShape.HasType Δ (y.join z) c :=
   TShape.HasType.join_at hΔ
     ((TShape.Compat.def (Nat.le_max_left ..) (Nat.le_max_right ..)).1 hc)
     (hy.lift_subject hΔ (Nat.le_max_left ..)) (hz.lift_subject hΔ (Nat.le_max_right ..))
 
-/-- **`Dom` is closed under the join**, at one level: the joined graph's
+/-- **`Named` is closed under the join**, at one level: the joined graph's
 entries are the two graphs' entries, so the generators concatenate.  This
 is what lets a slot grow — `dir`'s upper bound dominates the join, and
 `Interp` is downward closed, so the join is an approximant too. -/
-theorem TShape.NamedO.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
+theorem TShape.Named.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
     ∀ {n} {o} {y z : Shape n} {d : TShape}, Shape.Compat Δ y z →
-      TShape.NamedO Δ o d y.T → TShape.NamedO Δ o d z.T →
-      TShape.NamedO Δ o d (y.join z).T := by
+      TShape.Named Δ d y.T o → TShape.Named Δ d z.T o →
+      TShape.Named Δ d (y.join z).T o := by
   intro n
   induction n with
   | zero =>
@@ -2215,7 +2212,7 @@ theorem TShape.NamedO.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
       TShape.HasType.join_at hΔ hc hy hz
     cases hy with
     | base hnb _ hcy =>
-      exact .base hnb hty fun t ht => Shape.CodeCanonS.join (hcy t ht) (hz.shallow t ht)
+      exact .base hnb hty fun t ht => Shape.CodeCanonS.join (hcy t ht) (hz.canon_mem t ht)
     | @pi _ _ A B d₀ f _ csy htyy henty hiny hevy houty =>
       cases hz with
       | base hnb _ => exact absurd trivial hnb
@@ -2243,9 +2240,9 @@ theorem TShape.NamedO.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
           exact .sg (ps := psy) (c := cy) hty hpsy hnamey hxy hevy hyy
         | .pair A₁ a₁ x₁ y₁, .pair A₂ a₂ x₂ y₂, hc, hpsy, hpsz, hty, htyy =>
           obtain ⟨c₁, hdx₁, hev₁, hdy₁⟩ :=
-            TShape.NamedO.sg_inv (.sg (ps := psy) (c := cy) htyy hpsy hnamey hxy hevy hyy)
+            TShape.Named.sg_inv (.sg (ps := psy) (c := cy) htyy hpsy hnamey hxy hevy hyy)
           obtain ⟨c₂, hdx₂, hev₂, hdy₂⟩ :=
-            TShape.NamedO.sg_inv (.sg (ps := psz) (c := cz) htyz hpsz hnamez hxz hevz hyz)
+            TShape.Named.sg_inv (.sg (ps := psz) (c := cz) htyz hpsz hnamez hxz hevz hyz)
           cases htyy with | @pair _ _ _ _ _ _ _ _ _ _ _ _ hd hfo hwp hwSg _ _ _ _ hdomA =>
           have hwp' := (TShape.HasType.wf htyz).1
           have hjx := Shape.le_join hΔ hwp.2.2.2.1 hwp'.2.2.2.1 hc.2.2.1
@@ -2265,10 +2262,10 @@ theorem TShape.NamedO.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
           · exact TEvaluates.join hcc hev₁' hev₂'
           · have hcty := TEvaluates.tHasType (c := TShape.type) hΔ rfl
               (fun e he => hfo e he) (TEvaluates.join hcc hev₁' hev₂')
-            have hjc := TShape.le_join hΔ (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (Shape.WFO.wf (hwSg.2.2.2.1.1 e he).2.2.2)) hev₁')
-              (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (Shape.WFO.wf (hwSg.2.2.2.1.1 e he).2.2.2)) hev₂') hcc
-            exact ih hc.2.2.2 (TShape.NamedO.mono_r hΔ hdy₁ hjc.1 hcty)
-              (TShape.NamedO.mono_r hΔ hdy₂ hjc.2 hcty)
+            have hjc := TShape.le_join hΔ (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (Shape.WF.forget (hwSg.2.2.2.1.1 e he).2.2.2)) hev₁')
+              (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (Shape.WF.forget (hwSg.2.2.2.1.1 e he).2.2.2)) hev₂') hcc
+            exact ih hc.2.2.2 (TShape.Named.mono_r hΔ hdy₁ hjc.1 hcty)
+              (TShape.Named.mono_r hΔ hdy₂ hjc.2 hcty)
         | .refl, z, hc, _, _, _, htyy =>
           refine absurd htyy ?_
           intro h
@@ -2291,10 +2288,10 @@ theorem TShape.NamedO.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
           exact absurd hc id
 
 /-- The join, with the two sides at their own levels. -/
-theorem TShape.NamedO.join {Δ : List Term} (hΔ : ⊢ Δ) {o} {y z d : TShape}
-    (hc : TShape.Compat Δ y z) (hy : TShape.NamedO Δ o d y) (hz : TShape.NamedO Δ o d z) :
-    TShape.NamedO Δ o d (y.join z) :=
-  TShape.NamedO.join_at hΔ
+theorem TShape.Named.join {Δ : List Term} (hΔ : ⊢ Δ) {o} {y z d : TShape}
+    (hc : TShape.Compat Δ y z) (hy : TShape.Named Δ d y o) (hz : TShape.Named Δ d z o) :
+    TShape.Named Δ d (y.join z) o :=
+  TShape.Named.join_at hΔ
     ((TShape.Compat.def (Nat.le_max_left ..) (Nat.le_max_right ..)).1 hc)
     (hy.lift_subject hΔ (Nat.le_max_left ..)) (hz.lift_subject hΔ (Nat.le_max_right ..))
 
@@ -2405,14 +2402,14 @@ comparison between λ-shapes needs, since `Eval` is closed under `lower`.
 The `join` case is where the graph's coherence comes in
 (`ShapeFun.Eval.compat`). -/
 theorem TEvaluates.toEval {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term}
-    {x : Shape n} (hwf : ShapeFun.WF Δ A oB (fun o s => Shape.WFO Δ o s) f) (hx : Shape.WF Δ x) :
+    {x : Shape n} (hwf : ShapeFun.WF Δ A oB (@Shape.WF Δ _) f) (hx : Shape.WF Δ x) :
     ∀ {c : TShape}, TEvaluates Δ f A a x.T c →
       ∃ c' : Shape n, TShape.LE Δ c c'.T ∧ ShapeFun.Eval Δ (Shape.LE Δ) f A a x c' := by
   intro c h
   induction h with
   | bot => exact ⟨.bot, TShape.bot_le' rfl, .bot⟩
   | entry e he hlab hin =>
-    refine ⟨e.out, TShape.LE.refl (TShape.WF.T.2 (Shape.WFO.wf (hwf.1 e he).2.2.2)), ?_⟩
+    refine ⟨e.out, TShape.LE.refl (TShape.WF.T.2 (Shape.WF.forget (hwf.1 e he).2.2.2)), ?_⟩
     exact .entry e he hlab (TShape.LE.T.1 hin)
   | lower hle _ ih =>
     obtain ⟨c', hc', hev⟩ := ih
@@ -2420,8 +2417,8 @@ theorem TEvaluates.toEval {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {
   | join hc _ _ ih₁ ih₂ =>
     obtain ⟨c₁, hc₁, hev₁⟩ := ih₁
     obtain ⟨c₂, hc₂, hev₂⟩ := ih₂
-    have hw₁ := ShapeFun.Eval.wf hΔ (fun e he => (Shape.WFO.wf (hwf.1 e he).2.2.2)) hev₁
-    have hw₂ := ShapeFun.Eval.wf hΔ (fun e he => (Shape.WFO.wf (hwf.1 e he).2.2.2)) hev₂
+    have hw₁ := ShapeFun.Eval.wf hΔ (fun e he => (Shape.WF.forget (hwf.1 e he).2.2.2)) hev₁
+    have hw₂ := ShapeFun.Eval.wf hΔ (fun e he => (Shape.WF.forget (hwf.1 e he).2.2.2)) hev₂
     have hcc : Shape.Compat Δ c₁ c₂ :=
       ShapeFun.Eval.compat hΔ hwf.2 hx.coherent hev₁ hev₂
     obtain ⟨hj₁, hj₂⟩ := Shape.le_join hΔ hw₁ hw₂ hcc

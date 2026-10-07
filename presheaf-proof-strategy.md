@@ -3213,3 +3213,42 @@ hands them to `WF.name` and `ShapeFun.WF.name`.
 substitutes with the shape, `TyEqO.subst`), `Shape.lift_wf` is now stated
 at an arbitrary index, and `Shape.WF.subst` is the `none` instance of the
 first, so no downstream call site changed.
+
+### 9a. The index as a defaulted trailing argument
+
+Both indices are the **last** argument and default to `none`:
+
+```
+Shape.WF (Γ : List Term) : ∀ {n}, Shape n → (o : Option Term := none) → Prop
+TShape.Named (Δ : List Term) : TShape → TShape → (o : Option Term := none) → Prop
+```
+
+so `Shape.WF Δ s` and `Named Δ d x` *are* the index-free notions, written
+exactly as before, and the named ones are `Shape.WF Δ s (some T)` and
+`Named Δ d x (some t)`. The `Shape.WFO`/`Shape.WF` pair collapses to one
+name and so does `NamedO`/`Named`; nothing is left standing in for a
+`none` case, and the ~450 index-free `Shape.WF` sites did not change.
+
+Lean accepts a defaulted trailing argument in an inductive's index
+position as well as in a recursive `def`, which is what makes this work at
+all. Two consequences are worth knowing:
+
+* a partially applied `Shape.WF Γ` has the default *inserted*, so it
+  elaborates at `Shape n → Prop`, not `Shape n → Option Term → Prop`.
+  Where the predicate is passed to `ShapeFun.WF` the `@` form
+  `(@Shape.WF Γ _)` is needed; where it is passed to the index-free
+  `ShapeFun.WFE`, plain `Shape.WF Γ` is right.
+* `Shape.WF.subst` now has conclusion index `o.map (·.subst τ)`, and its
+  `none` instance needs no separate lemma: `o` is determined by the
+  hypothesis, so `none.map _` is checked against `none` by reduction
+  rather than by unification.
+
+The last of the `Dom` vocabulary went with it: `Named.dom` is
+`Named.forget` and `Named.of_dom` is `Named.name`, matching
+`Shape.WF.forget`/`Shape.WF.name`. Those 270 references could not be
+renamed textually, because `.dom` is also `Shape.WF.dom`,
+`TShape.LE.pair_dom` and the `IsDefEq.*_dom` projections. They were
+renamed by reading the resolved references out of Lake's `.ilean` files
+(`references[<const>].usages` gives exact spans; the fifth field of a
+usage is the *containing* declaration, not the referent) and rewriting
+only those spans.

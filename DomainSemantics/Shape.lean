@@ -298,9 +298,9 @@ produce well-typed labels), unlike the saturation conditions of the old
 output is then well formed **naming** `B.inst e.tm`, which is what a Π-
 or Σ-code's graph asks and a λ's does not. -/
 def ShapeFun.WF (Γ : List Term) (T : Term) (oB : Option Term)
-    (W : Option Term → Shape n → Prop) (f : ShapeFun n) : Prop :=
+    (W : Shape n → Option Term → Prop) (f : ShapeFun n) : Prop :=
   (∀ e ∈ f, (∃ u, Γ ⊢ T : .sort u) ∧ Γ ⊢ e.tm : T ∧
-      W none e.inp ∧ W (oB.map (·.inst e.tm)) e.out) ∧
+      W e.inp none ∧ W e.out (oB.map (·.inst e.tm))) ∧
   ShapeFun.Compat Shape.Compat Γ T f f
 
 /-- The entries' shapes are well formed — `WF`'s first half, without the
@@ -333,7 +333,7 @@ def Shape.CodeCanonS (Γ : List Term) (T : Term) : ∀ {n}, Shape n → Prop
   | _+1, .refl => True
 
 /-- `TyEqO Γ o T'` is `TyEq Γ T T'` when a name `T` is asked for and
-`True` when none is.  It is the one place `Shape.WFO`'s index is read, so
+`True` when none is.  It is the one place `Shape.WF`'s index is read, so
 at `none` every clause reduces to the structural one. -/
 abbrev TyEqO (Γ : List Term) (o : Option Term) (T' : Term) : Prop :=
   match o with
@@ -351,28 +351,28 @@ The `Option Term` index is what used to be two conjuncts bolted onto the
 Π and Σ clauses: a domain code is now well formed *at `A`* and an entry's
 output *at `B.inst e.tm`*, so the recursion carries canonicity instead of
 restating it.  At `none` nothing is asked beyond the structure, which is
-`Shape.WF`, and `Shape.WFO.iff` says the two halves separate. -/
-def Shape.WFO (Γ : List Term) (o : Option Term) : ∀ {n}, Shape n → Prop
-  | 0, .bot | _+1, .bot | _+1, .zero | _+1, .refl => True
-  | 0, .sort r | _+1, .sort r => TyEqO Γ o (.sort r)
-  | _+1, .unit r => TyEqO Γ o (.unit r)
-  | _+1, .nat => TyEqO Γ o .nat
-  | _+1, .succ v => WFO Γ none v
-  | _+1, .id r A a b =>
+`Shape.WF`, and `Shape.WF.iff` says the two halves separate. -/
+def Shape.WF (Γ : List Term) : ∀ {n}, Shape n → (o : Option Term := none) → Prop
+  | 0, .bot, _ | _+1, .bot, _ | _+1, .zero, _ | _+1, .refl, _ => True
+  | 0, .sort r, o | _+1, .sort r, o => TyEqO Γ o (.sort r)
+  | _+1, .unit r, o => TyEqO Γ o (.unit r)
+  | _+1, .nat, o => TyEqO Γ o .nat
+  | _+1, .succ v, _ => WF Γ v
+  | _+1, .id r A a b, o =>
       (∃ u, Γ ⊢ A : .sort u) ∧ (Γ ⊢ a : A) ∧ (Γ ⊢ b : A) ∧
         TyEqO Γ o (.id r A a b)
-  | _+1, .forallE A B d f =>
+  | _+1, .forallE A B d f, o =>
       (∃ u, Γ ⊢ A : .sort u) ∧ (∃ v, A :: Γ ⊢ B : .sort v) ∧
-        WFO Γ (some A) d ∧ ShapeFun.WF Γ A (some B) (fun o s => WFO Γ o s) f ∧
+        WF Γ d (some A) ∧ ShapeFun.WF Γ A (some B) (@WF Γ _) f ∧
         TyEqO Γ o (.forallE A B)
-  | _+1, .sigma A B d f =>
+  | _+1, .sigma A B d f, o =>
       (∃ u, Γ ⊢ A : .sort u) ∧ (∃ v, A :: Γ ⊢ B : .sort v) ∧
-        WFO Γ (some A) d ∧ ShapeFun.WF Γ A (some B) (fun o s => WFO Γ o s) f ∧
+        WF Γ d (some A) ∧ ShapeFun.WF Γ A (some B) (@WF Γ _) f ∧
         TyEqO Γ o (.sigma A B)
   -- the two components, with the first's name; the non-degeneracy
   -- conjunct keeps `⊥` the only bottom
-  | _+1, .pair A a x y =>
-      ¬ (x.IsBot ∧ y.IsBot) ∧ (Γ ⊢ a : A) ∧ TyEq Γ A A ∧ WFO Γ none x ∧ WFO Γ none y
+  | _+1, .pair A a x y, _ =>
+      ¬ (x.IsBot ∧ y.IsBot) ∧ (Γ ⊢ a : A) ∧ TyEq Γ A A ∧ WF Γ x ∧ WF Γ y
   -- master's `NonZero`, strengthened to every entry: a well-formed λ-shape
   -- carries real information, so `IsBot` collapses to `= .bot` and the
   -- collapse clauses disappear from `LE`, `Compat` and `join`
@@ -384,67 +384,64 @@ def Shape.WFO (Γ : List Term) (o : Option Term) : ∀ {n}, Shape n → Prop
   -- interpretation will carry anyway.
   -- the last conjunct is the domain label's own typing, which the empty
   -- graph would otherwise leave unconstrained
-  | _+1, .lam A f =>
-      f ≠ [] ∧ (∀ e ∈ f, ¬ e.out.IsBot) ∧ ShapeFun.WF Γ A none (fun o s => WFO Γ o s) f ∧ TyEq Γ A A
-
-/-- Well-formedness with nothing named: the structural half. -/
-abbrev Shape.WF (Γ : List Term) {n} (s : Shape n) : Prop := Shape.WFO Γ none s
+  | _+1, .lam A f, _ =>
+      f ≠ [] ∧ (∀ e ∈ f, ¬ e.out.IsBot) ∧ ShapeFun.WF Γ A none (@WF Γ _) f ∧ TyEq Γ A A
 
 /-- **The index separates.**  It is read only at the head, so being well
 formed *named `T`* is being well formed and naming `T`, and nothing
 more — the `Shape.WF` analogue of `TShape.Named.iff`. -/
-theorem Shape.WFO.iff {Γ : List Term} {o : Option Term} : ∀ {n} {s : Shape n},
-    Shape.WFO Γ o s ↔ (∀ T ∈ o, Shape.CodeCanonS Γ T s) ∧ Shape.WF Γ s := by
+theorem Shape.WF.iff {Γ : List Term} {o : Option Term} : ∀ {n} {s : Shape n},
+    Shape.WF Γ s o ↔ (∀ T ∈ o, Shape.CodeCanonS Γ T s) ∧ Shape.WF Γ s := by
   intro n s
   cases o <;> cases n <;> cases s <;>
-    simp [Shape.WFO, Shape.WF, Shape.CodeCanonS, TyEqO, and_comm, and_assoc, and_left_comm]
+    simp [Shape.WF, Shape.CodeCanonS, TyEqO, and_comm, and_assoc, and_left_comm]
 
 /-- **The extraction**: the head's own naming, which is what building a
-`Shape.WFO` at a named index somewhere else needs. -/
-theorem Shape.WFO.shallow {Γ : List Term} {o} {n} {s : Shape n}
-    (h : Shape.WFO Γ o s) : ∀ T ∈ o, Shape.CodeCanonS Γ T s := (Shape.WFO.iff.1 h).1
+`Shape.WF` at a named index somewhere else needs. -/
+theorem Shape.WF.canon_mem {Γ : List Term} {o} {n} {s : Shape n}
+    (h : Shape.WF Γ s o) : ∀ T ∈ o, Shape.CodeCanonS Γ T s := (Shape.WF.iff.1 h).1
 
 /-- **Forgetting the name.** -/
-theorem Shape.WFO.wf {Γ : List Term} {o} {n} {s : Shape n}
-    (h : Shape.WFO Γ o s) : Shape.WF Γ s := (Shape.WFO.iff.1 h).2
+theorem Shape.WF.forget {Γ : List Term} {o} {n} {s : Shape n}
+    (h : Shape.WF Γ s o) : Shape.WF Γ s := (Shape.WF.iff.1 h).2
 
 /-- **And back.** -/
 theorem Shape.WF.named {Γ : List Term} {o} {n} {s : Shape n}
-    (h : Shape.WF Γ s) (hc : ∀ T ∈ o, Shape.CodeCanonS Γ T s) : Shape.WFO Γ o s :=
-  Shape.WFO.iff.2 ⟨hc, h⟩
+    (h : Shape.WF Γ s) (hc : ∀ T ∈ o, Shape.CodeCanonS Γ T s) : Shape.WF Γ s o :=
+  Shape.WF.iff.2 ⟨hc, h⟩
 
-/-- `shallow` at a name that is there. -/
-theorem Shape.WFO.canon {Γ : List Term} {T : Term} {n} {s : Shape n}
-    (h : Shape.WFO Γ (some T) s) : Shape.CodeCanonS Γ T s := h.shallow T rfl
+/-- `canon_mem` at a name that is there. -/
+theorem Shape.WF.canon {Γ : List Term} {T : Term} {n} {s : Shape n}
+    (h : Shape.WF Γ s (some T)) : Shape.CodeCanonS Γ T s := h.canon_mem T rfl
 
 /-- `named` at a name that is there. -/
 theorem Shape.WF.name {Γ : List Term} {T : Term} {n} {s : Shape n}
-    (h : Shape.WF Γ s) (hc : Shape.CodeCanonS Γ T s) : Shape.WFO Γ (some T) s :=
+    (h : Shape.WF Γ s) (hc : Shape.CodeCanonS Γ T s) : Shape.WF Γ s (some T) :=
   h.named (by intro _ h; simp only [Option.mem_def, Option.some.injEq] at h; subst h; exact hc)
 
 /-- A graph is well formed at a codomain exactly when it is well formed
 and every output names the codomain read at the entry's label. -/
 theorem ShapeFun.WF.name {Δ : List Term} {n} {T B : Term} {f : ShapeFun n}
-    (h : ShapeFun.WF Δ T none (fun o s => Shape.WFO Δ o s) f)
+    (h : ShapeFun.WF Δ T none (@Shape.WF Δ _) f)
     (hc : ∀ e ∈ f, Shape.CodeCanonS Δ (B.inst e.tm) e.out) :
-    ShapeFun.WF Δ T (some B) (fun o s => Shape.WFO Δ o s) f :=
+    ShapeFun.WF Δ T (some B) (@Shape.WF Δ _) f :=
   ⟨fun e he =>
     have ⟨hty, htm, hin, hout⟩ := h.1 e he
     ⟨hty, htm, hin, Shape.WF.name hout (hc e he)⟩, h.2⟩
 
 /-- The per-entry naming a graph's index carries. -/
 theorem ShapeFun.WF.canon {Δ : List Term} {n} {T B : Term} {f : ShapeFun n}
-    (h : ShapeFun.WF Δ T (some B) (fun o s => Shape.WFO Δ o s) f) :
+    (h : ShapeFun.WF Δ T (some B) (@Shape.WF Δ _) f) :
     ∀ e ∈ f, Shape.CodeCanonS Δ (B.inst e.tm) e.out :=
-  fun e he => Shape.WFO.canon (h.1 e he).2.2.2
+  fun e he => Shape.WF.canon (h.1 e he).2.2.2
 
 /-- And back. -/
 theorem ShapeFun.WF.forget {Δ : List Term} {n} {T : Term} {oB : Option Term} {f : ShapeFun n}
-    (h : ShapeFun.WF Δ T oB (fun o s => Shape.WFO Δ o s) f) :
-    ShapeFun.WF Δ T none (fun o s => Shape.WFO Δ o s) f :=
+    (h : ShapeFun.WF Δ T oB (@Shape.WF Δ _) f) :
+    ShapeFun.WF Δ T none (@Shape.WF Δ _) f :=
   ⟨fun e he =>
     have ⟨hty, htm, hin, hout⟩ := h.1 e he
-    ⟨hty, htm, hin, Shape.WFO.wf hout⟩, h.2⟩
+    ⟨hty, htm, hin, Shape.WF.forget hout⟩, h.2⟩
 
 
 /-- Only the head equation mentions the type, so a shallow name moves
@@ -554,13 +551,13 @@ covering graph well formed and coherent, and with this conjunct
 `lift_le_lift`'s own hypothesis supplies them, so its statement does not
 have to. -/
 def ShapeFun.LE (Δ : List Term) (R : Shape n → Shape n → Prop)
-    (W : Option Term → Shape n → Prop) (T : Term) (f f' : ShapeFun n) : Prop :=
+    (W : Shape n → Option Term → Prop) (T : Term) (f f' : ShapeFun n) : Prop :=
   (∀ e ∈ f, ShapeFun.Eval Δ R f' T e.tm e.inp e.out) ∧
   ShapeFun.WF Δ T none W f ∧ ShapeFun.WF Δ T none W f'
 
 /-- Appending two mutually coherent well-formed graphs. -/
 theorem ShapeFun.WF.append {Δ : List Term} {n} {Ty : Term} {oB : Option Term}
-    {W : Option Term → Shape n → Prop} {f f' : ShapeFun n}
+    {W : Shape n → Option Term → Prop} {f f' : ShapeFun n}
     (hf : ShapeFun.WF Δ Ty oB W f) (hf' : ShapeFun.WF Δ Ty oB W f')
     (hx : ShapeFun.Compat Shape.Compat Δ Ty f f')
     (hx' : ShapeFun.Compat Shape.Compat Δ Ty f' f) : ShapeFun.WF Δ Ty oB W (f ++ f') := by
@@ -609,7 +606,7 @@ theorem ShapeFun.Compat.retype {R : List Term → Shape n → Shape n → Prop} 
     h e he e' he' Θ τ hΘ W (LabelEq.retype (hT.subst hΘ W).symm hlab) hin
 
 theorem ShapeFun.WF.retype {Γ : List Term} {T T' : Term} {oB : Option Term}
-    {W : Option Term → Shape n → Prop}
+    {W : Shape n → Option Term → Prop}
     {f : ShapeFun n} (hT : TyEq Γ T T') (h : ShapeFun.WF Γ T oB W f) :
     ShapeFun.WF Γ T' oB W f :=
   ⟨fun e he =>
@@ -627,7 +624,7 @@ theorem ShapeFun.Eval.retype {Δ : List Term} {R : Shape n → Shape n → Prop}
   | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
 
 theorem ShapeFun.LE.retype {Δ : List Term} {R : Shape n → Shape n → Prop}
-    {W : Option Term → Shape n → Prop} {T T' : Term} {f f' : ShapeFun n} (hT : TyEq Δ T T')
+    {W : Shape n → Option Term → Prop} {T T' : Term} {f f' : ShapeFun n} (hT : TyEq Δ T T')
     (h : ShapeFun.LE Δ R W T f f') : ShapeFun.LE Δ R W T' f f' :=
   ⟨fun e he => (h.1 e he).retype hT, h.2.1.retype hT, h.2.2.retype hT⟩
 
@@ -658,12 +655,12 @@ def Shape.LE (Γ : List Term) : ∀ {n}, Shape n → Shape n → Prop
   | _+1, .id r A a b, .id r' A' a' b' => r = r' ∧ IdLabelEq Γ A a b A' a' b'
   | _+1, .forallE A B d f, .forallE A' B' d' f'
   | _+1, .sigma A B d f, .sigma A' B' d' f' =>
-    PiLabelEq Γ A B A' B' ∧ LE Γ d d' ∧ ShapeFun.LE Γ (LE Γ) (fun o s => WFO Γ o s) A f f' ∧
+    PiLabelEq Γ A B A' B' ∧ LE Γ d d' ∧ ShapeFun.LE Γ (LE Γ) (@WF Γ _) A f f' ∧
       CodeCanonS Γ A d ∧ ∀ e ∈ f, CodeCanonS Γ (B.inst e.tm) e.out
   | _+1, .pair A a x y, .pair A' a' x' y' =>
     LE Γ x x' ∧ LE Γ y y' ∧ ¬ (x.IsBot ∧ y.IsBot) ∧ TyEq Γ A A' ∧ (Γ ⊢ a ≡ a' : A)
   | _+1, .lam A f, .lam A' f' =>
-    ShapeFun.LE Γ (LE Γ) (fun o s => WFO Γ o s) A f f' ∧ f ≠ [] ∧ (∀ e ∈ f, ¬ e.out.IsBot) ∧
+    ShapeFun.LE Γ (LE Γ) (@WF Γ _) A f f' ∧ f ≠ [] ∧ (∀ e ∈ f, ¬ e.out.IsBot) ∧
       TyEq Γ A A' ∧ TyEq Γ A A
   | _+1, _, _ => False
 
@@ -767,8 +764,8 @@ theorem Shape.LE.refl {n} {s : Shape n} (hs : Shape.WF Γ s) : Shape.LE Γ s s :
   | zero => cases s <;> trivial
   | succ n ih =>
     have hfun {Ty : Term} {f : ShapeFun n}
-        (hf : ShapeFun.WF Γ Ty none (fun o s => Shape.WFO Γ o s) f) :
-        ShapeFun.LE Γ (Shape.LE Γ) (fun o s => Shape.WFO Γ o s) Ty f f :=
+        (hf : ShapeFun.WF Γ Ty none (@Shape.WF Γ _) f) :
+        ShapeFun.LE Γ (Shape.LE Γ) (@Shape.WF Γ _) Ty f f :=
       ⟨fun e he =>
         have ⟨⟨_, hty⟩, htm, hin, _⟩ := hf.1 e he
         .entry e he (LabelEq.refl hty htm) (ih hin), hf, hf⟩
@@ -782,11 +779,11 @@ theorem Shape.LE.refl {n} {s : Shape n} (hs : Shape.WF Γ s) : Shape.LE Γ s s :
       exact ⟨rfl, .refl hA ha hb⟩
     | forallE A B d f =>
       have ⟨⟨_, hA⟩, ⟨_, hB⟩, hd, hf, _⟩ := hs
-      exact ⟨.refl hA hB, ih (Shape.WFO.wf hd), hfun (ShapeFun.WF.forget hf), Shape.WFO.canon hd, fun e he => Shape.WFO.canon (hf.1 e he).2.2.2⟩
+      exact ⟨.refl hA hB, ih (Shape.WF.forget hd), hfun (ShapeFun.WF.forget hf), Shape.WF.canon hd, fun e he => Shape.WF.canon (hf.1 e he).2.2.2⟩
     | sigma A B d f =>
       have ⟨⟨_, hA⟩, ⟨_, hB⟩, hd, hf, _⟩ := hs
-      exact ⟨.refl hA hB, ih (Shape.WFO.wf hd), hfun (ShapeFun.WF.forget hf), Shape.WFO.canon hd,
-        fun e he => Shape.WFO.canon (hf.1 e he).2.2.2⟩
+      exact ⟨.refl hA hB, ih (Shape.WF.forget hd), hfun (ShapeFun.WF.forget hf), Shape.WF.canon hd,
+        fun e he => Shape.WF.canon (hf.1 e he).2.2.2⟩
     | pair A a x y =>
       exact ⟨ih hs.2.2.2.1, ih hs.2.2.2.2, hs.1, hs.pair_dom, hs.2.1⟩
     | lam => exact ⟨hfun hs.2.2.1, hs.1, hs.2.1, hs.dom, hs.2.2.2⟩
@@ -857,7 +854,7 @@ theorem Shape.le_forallE {Δ : List Term} {n} {A B : Term} {d : Shape n} {f : Sh
     {s : Shape (n+1)} (h : Shape.LE Δ s (ShapeS.forallE A B d f)) :
     s = Shape.bot ∨ ∃ A' B' d' f', s = ShapeS.forallE A' B' d' f' ∧
       PiLabelEq Δ A' B' A B ∧ Shape.LE Δ d' d ∧
-      ShapeFun.LE Δ (Shape.LE Δ) (fun o s => Shape.WFO Δ o s) A' f' f := by
+      ShapeFun.LE Δ (Shape.LE Δ) (@Shape.WF Δ _) A' f' f := by
   cases s with
   | bot => exact .inl rfl
   | forallE A' B' d' f' => exact .inr ⟨A', B', d', f', rfl, h.1, h.2.1, h.2.2.1⟩
@@ -867,7 +864,7 @@ theorem Shape.le_sigma {Δ : List Term} {n} {A B : Term} {d : Shape n} {f : Shap
     {s : Shape (n+1)} (h : Shape.LE Δ s (ShapeS.sigma A B d f)) :
     s = Shape.bot ∨ ∃ A' B' d' f', s = ShapeS.sigma A' B' d' f' ∧
       PiLabelEq Δ A' B' A B ∧ Shape.LE Δ d' d ∧
-      ShapeFun.LE Δ (Shape.LE Δ) (fun o s => Shape.WFO Δ o s) A' f' f := by
+      ShapeFun.LE Δ (Shape.LE Δ) (@Shape.WF Δ _) A' f' f := by
   cases s with
   | bot => exact .inl rfl
   | sigma A' B' d' f' => exact .inr ⟨A', B', d', f', rfl, h.1, h.2.1, h.2.2.1⟩
@@ -999,7 +996,7 @@ theorem ShapeFun.codeCanonS_lift_iff {n m} (h : n ≤ m) {Δ : List Term} {B : T
 
 /-- Lifting *up* preserves and reflects well-formedness. -/
 theorem Shape.lift_wf {n m} (h : n ≤ m) {o} {s : Shape n} :
-    Shape.WFO Δ o (s.lift m) ↔ Shape.WFO Δ o s := by
+    Shape.WF Δ (s.lift m) o ↔ Shape.WF Δ s o := by
   induction n generalizing m o with
   | zero =>
     cases m with
@@ -1008,8 +1005,8 @@ theorem Shape.lift_wf {n m} (h : n ≤ m) {o} {s : Shape n} :
   | succ n ih =>
     let m+1 := m; have h' := Nat.le_of_succ_le_succ h
     have ihf {Ty : Term} {oB : Option Term} {f : ShapeFun n} :
-        ShapeFun.WF Δ Ty oB (fun o s => Shape.WFO Δ o s) (ShapeFun.lift (Shape.lift m) f) ↔
-        ShapeFun.WF Δ Ty oB (fun o s => Shape.WFO Δ o s) f := by
+        ShapeFun.WF Δ Ty oB (@Shape.WF Δ _) (ShapeFun.lift (Shape.lift m) f) ↔
+        ShapeFun.WF Δ Ty oB (@Shape.WF Δ _) f := by
       refine and_congr ?_ (ShapeFun.lift_compat h')
       constructor
       · intro H e he
@@ -1048,8 +1045,8 @@ theorem Shape.lift_wf {n m} (h : n ≤ m) {o} {s : Shape n} :
 /-- The same for a graph.  Extracted from `Shape.lift_wf`'s own `ihf`,
 which cannot be reused directly because it is local to that induction. -/
 theorem ShapeFun.lift_wf {n m} (h : n ≤ m) {Δ : List Term} {f : ShapeFun n} :
-    ShapeFun.WF Δ Ty oB (fun o s => Shape.WFO Δ o s) (ShapeFun.lift (Shape.lift m) f) ↔
-    ShapeFun.WF Δ Ty oB (fun o s => Shape.WFO Δ o s) f := by
+    ShapeFun.WF Δ Ty oB (@Shape.WF Δ _) (ShapeFun.lift (Shape.lift m) f) ↔
+    ShapeFun.WF Δ Ty oB (@Shape.WF Δ _) f := by
   refine and_congr ?_ (ShapeFun.lift_compat h)
   constructor
   · intro H e he
@@ -1150,8 +1147,8 @@ uniqueness of the middle term's type, which is the theorem this model
 exists to prove. -/
 theorem ShapeFun.LE.trans_of {Γ : List Term} {n} {f f' f'' : ShapeFun n}
     (ih : ∀ {a b c : Shape n}, Shape.LE Γ a b → Shape.LE Γ b c → Shape.LE Γ a c)
-    (h₁ : ShapeFun.LE Γ (Shape.LE Γ) (fun o s => Shape.WFO Γ o s) Ty f f') (h₂ : ShapeFun.LE Γ (Shape.LE Γ) (fun o s => Shape.WFO Γ o s) Ty f' f'') :
-    ShapeFun.LE Γ (Shape.LE Γ) (fun o s => Shape.WFO Γ o s) Ty f f'' := by
+    (h₁ : ShapeFun.LE Γ (Shape.LE Γ) (@Shape.WF Γ _) Ty f f') (h₂ : ShapeFun.LE Γ (Shape.LE Γ) (@Shape.WF Γ _) Ty f' f'') :
+    ShapeFun.LE Γ (Shape.LE Γ) (@Shape.WF Γ _) Ty f f'' := by
   exact ⟨fun e he => ShapeFun.Eval.trans (R := Shape.LE Γ)
       (fun _ _ _ h h' => ih h h') (h₁.2.1.1 e he).1 h₂.1 (h₁.1 e he), h₁.2.1, h₂.2.2⟩
 
@@ -1213,9 +1210,9 @@ the order is reflexive only on well-formed shapes. -/
 theorem ShapeFun.LE.append {Δ : List Term} {n} {f f' g : ShapeFun n}
     (hx : ShapeFun.Compat Shape.Compat Δ Ty f f')
     (hx' : ShapeFun.Compat Shape.Compat Δ Ty f' f)
-    (h₁ : ShapeFun.LE Δ (Shape.LE Δ) (fun o s => Shape.WFO Δ o s) Ty f g)
-    (h₂ : ShapeFun.LE Δ (Shape.LE Δ) (fun o s => Shape.WFO Δ o s) Ty f' g) :
-    ShapeFun.LE Δ (Shape.LE Δ) (fun o s => Shape.WFO Δ o s) Ty (f ++ f') g := by
+    (h₁ : ShapeFun.LE Δ (Shape.LE Δ) (@Shape.WF Δ _) Ty f g)
+    (h₂ : ShapeFun.LE Δ (Shape.LE Δ) (@Shape.WF Δ _) Ty f' g) :
+    ShapeFun.LE Δ (Shape.LE Δ) (@Shape.WF Δ _) Ty (f ++ f') g := by
   refine ⟨fun e he => ?_, ShapeFun.WF.append h₁.2.1 h₂.2.1 hx hx', h₁.2.2⟩
   match List.mem_append.1 he with
   | .inl he => exact h₁.1 e he
@@ -1346,9 +1343,9 @@ theorem Shape.Compat.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
 
 theorem ShapeFun.WF.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f : ShapeFun n}
     (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
-    (ih : ∀ {o} {a : Shape n}, Shape.WFO Δ o a → Shape.WFO Θ (o.map (·.subst τ)) (a.subst τ))
-    (hf : ShapeFun.WF Δ Ty oB (fun o s => Shape.WFO Δ o s) f) :
-    ShapeFun.WF Θ (Ty.subst τ) (oB.map (·.subst τ.lift)) (fun o s => Shape.WFO Θ o s)
+    (ih : ∀ {o} {a : Shape n}, Shape.WF Δ a o → Shape.WF Θ (a.subst τ) (o.map (·.subst τ)))
+    (hf : ShapeFun.WF Δ Ty oB (@Shape.WF Δ _) f) :
+    ShapeFun.WF Θ (Ty.subst τ) (oB.map (·.subst τ.lift)) (@Shape.WF Θ _)
       (ShapeFun.subst (Shape.subst · τ) τ f) := by
   refine ⟨fun d hd => ?_, ShapeFun.Compat.subst W hf.2⟩
   obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
@@ -1376,8 +1373,8 @@ theorem TyEqO.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.Sub
   | none => trivial
   | some T => exact TyEq.subst hΘ W h
 
-theorem Shape.WFO.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
-    ∀ {n} {o} {s : Shape n}, Shape.WFO Δ o s → Shape.WFO Θ (o.map (·.subst τ)) (s.subst τ) := by
+theorem Shape.WF.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
+    ∀ {n} {o} {s : Shape n}, Shape.WF Δ s o → Shape.WF Θ (s.subst τ) (o.map (·.subst τ)) := by
   intro n
   induction n with
   | zero => intro o s hs; cases s <;> first | trivial | exact TyEqO.subst hΘ W hs
@@ -1408,10 +1405,6 @@ theorem Shape.WFO.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx
         have hΘA : ⊢ A.subst τ :: Θ := ⟨hΘ, _, hA'⟩
         exact ⟨⟨u, hA'⟩, ⟨v, hB.subst hΘA (W.lift hA hA')⟩, ih hd,
           ShapeFun.WF.subst_of hΘ W ih hf, TyEqO.subst hΘ W hn⟩
-
-theorem Shape.WF.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
-    {n} {s : Shape n} (h : Shape.WF Δ s) : Shape.WF Θ (s.subst τ) :=
-  Shape.WFO.subst hΘ W (o := none) h
 
 theorem Shape.join_subst {τ : Subst} {n} {x y : Shape n} :
     (x.join y).subst τ = (x.subst τ).join (y.subst τ) := by
@@ -1528,11 +1521,11 @@ theorem ShapeFun.Eval.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f : ShapeFu
 theorem ShapeFun.LE.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f f' : ShapeFun n}
     (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
     (ih : ∀ {a b : Shape n}, Shape.LE Δ a b → Shape.LE Θ (a.subst τ) (b.subst τ))
-    (h : ShapeFun.LE Δ (Shape.LE Δ) (fun o s => Shape.WFO Δ o s) Ty f f') :
-    ShapeFun.LE Θ (Shape.LE Θ) (fun o s => Shape.WFO Θ o s) (Ty.subst τ) (ShapeFun.subst (Shape.subst · τ) τ f)
+    (h : ShapeFun.LE Δ (Shape.LE Δ) (@Shape.WF Δ _) Ty f f') :
+    ShapeFun.LE Θ (Shape.LE Θ) (@Shape.WF Θ _) (Ty.subst τ) (ShapeFun.subst (Shape.subst · τ) τ f)
       (ShapeFun.subst (Shape.subst · τ) τ f') := by
-  refine ⟨fun d hd => ?_, ShapeFun.WF.subst_of hΘ W (Shape.WFO.subst hΘ W) h.2.1,
-    ShapeFun.WF.subst_of hΘ W (Shape.WFO.subst hΘ W) h.2.2⟩
+  refine ⟨fun d hd => ?_, ShapeFun.WF.subst_of hΘ W (Shape.WF.subst hΘ W) h.2.1,
+    ShapeFun.WF.subst_of hΘ W (Shape.WF.subst hΘ W) h.2.2⟩
   obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
   exact ShapeFun.Eval.subst_of hΘ W ih (h.1 e he)
 
@@ -1846,8 +1839,8 @@ wrapper any more — that would ask for the λ non-degeneracy of graphs which
 need not have it — so it goes through `anti_right_of` directly. -/
 theorem ShapeFun.Compat.of_common_upper {n} {Δ : List Term} {f f' g : ShapeFun n}
     (hg : ShapeFun.Compat Shape.Compat Δ Ty g g)
-    (h₁ : ShapeFun.LE Δ (Shape.LE Δ) (fun o s => Shape.WFO Δ o s) Ty f g)
-    (h₂ : ShapeFun.LE Δ (Shape.LE Δ) (fun o s => Shape.WFO Δ o s) Ty f' g) :
+    (h₁ : ShapeFun.LE Δ (Shape.LE Δ) (@Shape.WF Δ _) Ty f g)
+    (h₂ : ShapeFun.LE Δ (Shape.LE Δ) (@Shape.WF Δ _) Ty f' g) :
     ShapeFun.Compat Shape.Compat Δ Ty f f' :=
   have anti : ∀ {Θ : List Term} {a b b' : Shape n}, ⊢ Θ →
       Shape.Compat Θ a b → Shape.LE Θ b' b → Shape.Compat Θ a b' :=
@@ -2007,23 +2000,23 @@ theorem Shape.join_le (hΔ : ⊢ Δ) : ∀ {n} {x y w : Shape n},
 
 
 theorem ShapeFun.LE.refl {Δ : List Term} {n} {f : ShapeFun n}
-    (hf : ShapeFun.WF Δ Ty none (fun o s => Shape.WFO Δ o s) f) : ShapeFun.LE Δ (Shape.LE Δ) (fun o s => Shape.WFO Δ o s) Ty f f :=
+    (hf : ShapeFun.WF Δ Ty none (@Shape.WF Δ _) f) : ShapeFun.LE Δ (Shape.LE Δ) (@Shape.WF Δ _) Ty f f :=
   ⟨fun e he =>
     have ⟨⟨_, hty⟩, htm, hin, _⟩ := hf.1 e he
     .entry e he (LabelEq.refl hty htm) (.refl hin), hf, hf⟩
 
 theorem ShapeFun.LE.append_left {Δ : List Term} {n} {f f' : ShapeFun n}
-    (hf : ShapeFun.WF Δ Ty none (fun o s => Shape.WFO Δ o s) f)
-    (hfg : ShapeFun.WF Δ Ty none (fun o s => Shape.WFO Δ o s) (f ++ f')) :
-    ShapeFun.LE Δ (Shape.LE Δ) (fun o s => Shape.WFO Δ o s) Ty f (f ++ f') :=
+    (hf : ShapeFun.WF Δ Ty none (@Shape.WF Δ _) f)
+    (hfg : ShapeFun.WF Δ Ty none (@Shape.WF Δ _) (f ++ f')) :
+    ShapeFun.LE Δ (Shape.LE Δ) (@Shape.WF Δ _) Ty f (f ++ f') :=
   ⟨fun e he =>
     have ⟨⟨_, hty⟩, htm, hin, _⟩ := hf.1 e he
     .entry e (List.mem_append.2 (.inl he)) (LabelEq.refl hty htm) (.refl hin), hf, hfg⟩
 
 theorem ShapeFun.LE.append_right {Δ : List Term} {n} {f f' : ShapeFun n}
-    (hf' : ShapeFun.WF Δ Ty none (fun o s => Shape.WFO Δ o s) f')
-    (hfg : ShapeFun.WF Δ Ty none (fun o s => Shape.WFO Δ o s) (f ++ f')) :
-    ShapeFun.LE Δ (Shape.LE Δ) (fun o s => Shape.WFO Δ o s) Ty f' (f ++ f') :=
+    (hf' : ShapeFun.WF Δ Ty none (@Shape.WF Δ _) f')
+    (hfg : ShapeFun.WF Δ Ty none (@Shape.WF Δ _) (f ++ f')) :
+    ShapeFun.LE Δ (Shape.LE Δ) (@Shape.WF Δ _) Ty f' (f ++ f') :=
   ⟨fun e he =>
     have ⟨⟨_, hty⟩, htm, hin, _⟩ := hf'.1 e he
     .entry e (List.mem_append.2 (.inr he)) (LabelEq.refl hty htm) (.refl hin), hf', hfg⟩
@@ -2069,12 +2062,12 @@ theorem Shape.le_join (hΔ : ⊢ Δ) : ∀ {n} {x y : Shape n}, Shape.WF Δ x �
         have hyf := ShapeFun.WF.forget hy.2.2.2.1
         have hfg := ShapeFun.WF.append hxf (hyf.retype (TyEq.symm h.1.1)) h.2.2
           (ShapeFun.Compat.symm h.2.2)
-        have hle := ih (Shape.WFO.wf hd) (Shape.WFO.wf hy.2.2.1) h.2.1
+        have hle := ih (Shape.WF.forget hd) (Shape.WF.forget hy.2.2.1) h.2.1
         exact ⟨⟨PiLabelEq.refl hA hB, hle.1,
-            ShapeFun.LE.append_left hxf hfg, Shape.WFO.canon hd, ShapeFun.WF.canon hff⟩,
+            ShapeFun.LE.append_left hxf hfg, Shape.WF.canon hd, ShapeFun.WF.canon hff⟩,
           ⟨h.1.symm hΔ, hle.2,
             ShapeFun.LE.append_right hyf (hfg.retype h.1.1),
-            Shape.WFO.canon hy.2.2.1, ShapeFun.WF.canon hy.2.2.2.1⟩⟩
+            Shape.WF.canon hy.2.2.1, ShapeFun.WF.canon hy.2.2.2.1⟩⟩
       | _ => exact absurd h id
     | sigma A B d f =>
       cases y with
@@ -2086,12 +2079,12 @@ theorem Shape.le_join (hΔ : ⊢ Δ) : ∀ {n} {x y : Shape n}, Shape.WF Δ x �
         have hyf := ShapeFun.WF.forget hy.2.2.2.1
         have hfg := ShapeFun.WF.append hxf (hyf.retype (TyEq.symm h.1.1)) h.2.2
           (ShapeFun.Compat.symm h.2.2)
-        have hle := ih (Shape.WFO.wf hd) (Shape.WFO.wf hy.2.2.1) h.2.1
+        have hle := ih (Shape.WF.forget hd) (Shape.WF.forget hy.2.2.1) h.2.1
         exact ⟨⟨PiLabelEq.refl hA hB, hle.1,
-            ShapeFun.LE.append_left hxf hfg, Shape.WFO.canon hd, ShapeFun.WF.canon hff⟩,
+            ShapeFun.LE.append_left hxf hfg, Shape.WF.canon hd, ShapeFun.WF.canon hff⟩,
           ⟨h.1.symm hΔ, hle.2,
             ShapeFun.LE.append_right hyf (hfg.retype h.1.1),
-            Shape.WFO.canon hy.2.2.1, ShapeFun.WF.canon hy.2.2.2.1⟩⟩
+            Shape.WF.canon hy.2.2.1, ShapeFun.WF.canon hy.2.2.2.1⟩⟩
       | _ => exact absurd h id
     | succ v =>
       cases y with
@@ -2176,9 +2169,9 @@ theorem Shape.WF.join : ∀ {n} {Δ : List Term} {y z : Shape n}, ⊢ Δ →
       | bot => exact hy
       | forallE A' B' d' g =>
         refine ⟨hy.1, hy.2.1,
-          Shape.WF.name (ih hΔ hc.2.1 (Shape.WFO.wf hy.2.2.1) (Shape.WFO.wf hz.2.2.1))
-            (Shape.CodeCanonS.join (Shape.WFO.canon hy.2.2.1)
-              ((Shape.WFO.canon hz.2.2.1).conv hc.1.1)),
+          Shape.WF.name (ih hΔ hc.2.1 (Shape.WF.forget hy.2.2.1) (Shape.WF.forget hz.2.2.1))
+            (Shape.CodeCanonS.join (Shape.WF.canon hy.2.2.1)
+              ((Shape.WF.canon hz.2.2.1).conv hc.1.1)),
           ShapeFun.WF.name (ShapeFun.WF.append (ShapeFun.WF.forget hy.2.2.2.1)
             ((ShapeFun.WF.forget hz.2.2.2.1).retype (TyEq.symm hc.1.1)) hc.2.2
             (ShapeFun.Compat.symm hc.2.2)) ?_, trivial⟩
@@ -2191,9 +2184,9 @@ theorem Shape.WF.join : ∀ {n} {Δ : List Term} {y z : Shape n}, ⊢ Δ →
       | bot => exact hy
       | sigma A' B' d' g =>
         refine ⟨hy.1, hy.2.1,
-          Shape.WF.name (ih hΔ hc.2.1 (Shape.WFO.wf hy.2.2.1) (Shape.WFO.wf hz.2.2.1))
-            (Shape.CodeCanonS.join (Shape.WFO.canon hy.2.2.1)
-              ((Shape.WFO.canon hz.2.2.1).conv hc.1.1)),
+          Shape.WF.name (ih hΔ hc.2.1 (Shape.WF.forget hy.2.2.1) (Shape.WF.forget hz.2.2.1))
+            (Shape.CodeCanonS.join (Shape.WF.canon hy.2.2.1)
+              ((Shape.WF.canon hz.2.2.1).conv hc.1.1)),
           ShapeFun.WF.name (ShapeFun.WF.append (ShapeFun.WF.forget hy.2.2.2.1)
             ((ShapeFun.WF.forget hz.2.2.2.1).retype (TyEq.symm hc.1.1)) hc.2.2
             (ShapeFun.Compat.symm hc.2.2)) ?_, trivial⟩
@@ -2237,10 +2230,10 @@ theorem Shape.WF.coherent : ∀ {n} {s : Shape n},
     | lam Af f => exact ⟨hs.dom, hs.2.2.1.2⟩
     | forallE A B d f =>
       have ⟨⟨_, hA⟩, ⟨_, hB⟩, hd, hf, _⟩ := hs
-      exact ⟨PiLabelEq.refl hA hB, ih (Shape.WFO.wf hd), hf.2⟩
+      exact ⟨PiLabelEq.refl hA hB, ih (Shape.WF.forget hd), hf.2⟩
     | sigma A B d f =>
       have ⟨⟨_, hA⟩, ⟨_, hB⟩, hd, hf, _⟩ := hs
-      exact ⟨PiLabelEq.refl hA hB, ih (Shape.WFO.wf hd), hf.2⟩
+      exact ⟨PiLabelEq.refl hA hB, ih (Shape.WF.forget hd), hf.2⟩
 
 /-! ## The lookup's own theory, and reflection of the order along `lift`
 
@@ -2304,7 +2297,7 @@ the two reflected values are compatible (`Eval.compat`) and well formed
 theorem ShapeFun.Eval.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) {f : ShapeFun n}
     {A a : Term} {x : Shape n}
     (ihlift : ∀ {u v : Shape n}, Shape.LE Δ (u.lift k) (v.lift k) ↔ Shape.LE Δ u v)
-    (hwf : ShapeFun.WF Δ A oB (fun o s => Shape.WFO Δ o s) f) (hco : ShapeFun.Compat Shape.Compat Δ A f f)
+    (hwf : ShapeFun.WF Δ A oB (@Shape.WF Δ _) f) (hco : ShapeFun.Compat Shape.Compat Δ A f f)
     (hwx : Shape.WF Δ x) :
     ∀ {c' : Shape k},
       ShapeFun.Eval Δ (Shape.LE Δ) (ShapeFun.lift (Shape.lift k) f) A a (x.lift k) c' →
@@ -2314,7 +2307,7 @@ theorem ShapeFun.Eval.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k
   | bot => exact ⟨.bot, by rw [Shape.lift_bot]; exact .bot, .bot⟩
   | entry e' he' hlab hin =>
     obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'
-    exact ⟨e.out, Shape.LE.refl ((Shape.lift_wf h).2 (Shape.WFO.wf (hwf.1 e he).2.2.2)),
+    exact ⟨e.out, Shape.LE.refl ((Shape.lift_wf h).2 (Shape.WF.forget (hwf.1 e he).2.2.2)),
       .entry e he hlab (ihlift.1 hin)⟩
   | lower hle _ ih =>
     have ⟨c, hc, hev⟩ := ih
@@ -2322,7 +2315,7 @@ theorem ShapeFun.Eval.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k
   | join _ _ _ ih₁ ih₂ =>
     have ⟨c₁, hc₁, hev₁⟩ := ih₁
     have ⟨c₂, hc₂, hev₂⟩ := ih₂
-    have houts : ∀ e ∈ f, Shape.WF Δ e.out := fun e he => Shape.WFO.wf (hwf.1 e he).2.2.2
+    have houts : ∀ e ∈ f, Shape.WF Δ e.out := fun e he => Shape.WF.forget (hwf.1 e he).2.2.2
     have hcc : Shape.Compat Δ c₁ c₂ :=
       ShapeFun.Eval.compat hΔ hco hwx.coherent hev₁ hev₂
     have hw₁ := ShapeFun.Eval.wf hΔ houts hev₁
@@ -2347,8 +2340,8 @@ theorem Shape.lift_le_lift (hΓ : ⊢ Γ) {n m} (h : n ≤ m) {s t : Shape n} :
   | succ n ih
   let m+1 := m; have h' := Nat.le_of_succ_le_succ h
   have hwfiff : ∀ {Ty : Term} {oB : Option Term} {f : ShapeFun n},
-      ShapeFun.WF Γ Ty oB (fun o s => Shape.WFO Γ o s) (ShapeFun.lift (Shape.lift m) f) ↔
-      ShapeFun.WF Γ Ty oB (fun o s => Shape.WFO Γ o s) f := by
+      ShapeFun.WF Γ Ty oB (@Shape.WF Γ _) (ShapeFun.lift (Shape.lift m) f) ↔
+      ShapeFun.WF Γ Ty oB (@Shape.WF Γ _) f := by
     intro Ty oB f
     refine and_congr ?_ (ShapeFun.lift_compat h')
     constructor
@@ -2364,9 +2357,9 @@ theorem Shape.lift_le_lift (hΓ : ⊢ Γ) {n m} (h : n ≤ m) {s t : Shape n} :
   -- The well-formedness both of those want is not a hypothesis of this
   -- lemma: the order on graphs carries it, so `H` supplies it itself.
   have ihf : ∀ {Ty : Term} {f f' : ShapeFun n},
-      ShapeFun.LE Γ (Shape.LE Γ) (fun o s => Shape.WFO Γ o s) Ty (ShapeFun.lift (Shape.lift m) f)
+      ShapeFun.LE Γ (Shape.LE Γ) (@Shape.WF Γ _) Ty (ShapeFun.lift (Shape.lift m) f)
         (ShapeFun.lift (Shape.lift m) f') ↔
-      ShapeFun.LE Γ (Shape.LE Γ) (fun o s => Shape.WFO Γ o s) Ty f f' := by
+      ShapeFun.LE Γ (Shape.LE Γ) (@Shape.WF Γ _) Ty f f' := by
     intro Ty f f'
     refine ⟨fun H => ⟨fun e he => ?_, hwfiff.1 H.2.1, hwfiff.1 H.2.2⟩,
       fun H => ⟨fun e' he' => ?_, hwfiff.2 H.2.1, hwfiff.2 H.2.2⟩⟩
@@ -2420,14 +2413,14 @@ theorem Shape.lift_le {n m} (h : n ≤ m) :
     | succ m => cases s <;> cases t <;> first | exact H | trivial | exact absurd H id
   | succ n ih
   let m+1 := m; have h' := Nat.le_of_succ_le_succ h
-  have hwf {Ty : Term} {oB : Option Term} {f : ShapeFun n} (H : ShapeFun.WF Γ Ty oB (fun o s => Shape.WFO Γ o s) f) :
-      ShapeFun.WF Γ Ty oB (fun o s => Shape.WFO Γ o s) (ShapeFun.lift (Shape.lift m) f) := by
+  have hwf {Ty : Term} {oB : Option Term} {f : ShapeFun n} (H : ShapeFun.WF Γ Ty oB (@Shape.WF Γ _) f) :
+      ShapeFun.WF Γ Ty oB (@Shape.WF Γ _) (ShapeFun.lift (Shape.lift m) f) := by
     refine ⟨fun e' he' => ?_, (ShapeFun.lift_compat h').2 H.2⟩
     obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'
     have ⟨hty, htm, hin, hout⟩ := H.1 e he
     exact ⟨hty, htm, (Shape.lift_wf h').2 hin, (Shape.lift_wf h').2 hout⟩
-  have hfun {Ty : Term} {f f' : ShapeFun n} (H : ShapeFun.LE Γ (Shape.LE Γ) (fun o s => Shape.WFO Γ o s) Ty f f') :
-      ShapeFun.LE Γ (Shape.LE Γ) (fun o s => Shape.WFO Γ o s) Ty (ShapeFun.lift (Shape.lift m) f)
+  have hfun {Ty : Term} {f f' : ShapeFun n} (H : ShapeFun.LE Γ (Shape.LE Γ) (@Shape.WF Γ _) Ty f f') :
+      ShapeFun.LE Γ (Shape.LE Γ) (@Shape.WF Γ _) Ty (ShapeFun.lift (Shape.lift m) f)
         (ShapeFun.lift (Shape.lift m) f') := by
     refine ⟨fun e' he' => ?_, hwf H.2.1, hwf H.2.2⟩
     obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he'
@@ -2494,7 +2487,7 @@ theorem LE.def {Δ : List Term} (hΔ : ⊢ Δ) {a b : TShape} {k} (h1 : a.1 ≤ 
 
 theorem WF.def {Δ : List Term} {a : TShape} {k} (h : a.1 ≤ k) :
     TShape.WF Δ a ↔ Shape.WF Δ (a.2.lift k) := by
-  rw [show Shape.WF Δ (a.2.lift k) = Shape.WFO Δ none (a.2.lift k) from rfl,
+  rw [show Shape.WF Δ (a.2.lift k) = Shape.WF Δ (a.2.lift k) none from rfl,
     Shape.lift_wf h]; exact Iff.rfl
 
 theorem Compat.def {Δ : List Term} {a b : TShape} {k} (h1 : a.1 ≤ k) (h2 : b.1 ≤ k) :

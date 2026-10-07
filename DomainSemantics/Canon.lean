@@ -21,9 +21,9 @@ The point of the file is `Shape.ValCanon.defeq`: canonicity moves along a
 definitional equality of the subject, **given the code the value is typed
 at and that code's canonicity**.  The three doors of §4.7d were all ways
 of asking the value to know its own type; here the code knows it, and the
-code is what `Dom` already carries.
+code is what hereditary typing already carries.
 
-`TShape.Named` merges `Dom` with `ValCanon`, and `Slot` is that together
+`TShape.Named` merges hereditary typing with `ValCanon`, and `Slot` is that together
 with the code's own naming — the three facts a valuation slot carries. -/
 
 namespace DomainSemantics
@@ -119,12 +119,12 @@ reading of the entry-based condition; it is a theorem rather than the
 definition because the definition has to survive substitution, and an
 entry that is dead at one stage can be live at a later one. -/
 theorem TShape.CodeCanonS.lookup {Δ : List Term} (hΔ : ⊢ Δ) {n} {A B q : Term} {u v : Bool}
-    {f : ShapeFun n} (hw : ShapeFun.WF Δ A oB (fun o s => Shape.WFO Δ o s) f)
+    {f : ShapeFun n} (hw : ShapeFun.WF Δ A oB (@Shape.WF Δ _) f)
     (hf : ∀ e ∈ f, Shape.CodeCanonS Δ (B.inst e.tm) e.out)
     (hA : Δ ⊢ A : .sort u) (hB : A :: Δ ⊢ B : .sort v) {x : TShape} :
     ∀ {c : TShape}, TEvaluates Δ f A q x c → TShape.CodeCanonS Δ (B.inst q) c := by
   intro c h
-  have hwo : ∀ e ∈ f, TShape.WF Δ e.out.T := fun e he => Shape.WFO.wf (hw.1 e he).2.2.2
+  have hwo : ∀ e ∈ f, TShape.WF Δ e.out.T := fun e he => Shape.WF.forget (hw.1 e he).2.2.2
   induction h with
   | bot => exact Shape.CodeCanonS.bot
   | entry e he hlab _ =>
@@ -298,7 +298,7 @@ theorem TShape.ValCanon.of_bot {Δ : List Term} {t : Term} {x : TShape} (h : x.2
 
 `Slot` above is the conjunction.  `Named` below is the same thing stated
 as one relation, by one induction on the code, with the naming conjuncts
-folded into its clauses — `NamedO`, in `HasType.lean`, whose `Option
+folded into its clauses — `Named`, in `HasType.lean`, whose `Option
 Term` index is the name.  The two agree (`Named.iff`), which is what says
 the merge is sound; what it costs is that the name has to be supplied at
 every site.
@@ -315,9 +315,9 @@ Three observations make the fold go through:
   rather than the pair shape's, the two being definitionally equal
   because `HasType.pair` says so. -/
 
-theorem TShape.Named.shallow {Δ : List Term} {d x : TShape} {t : Term}
-    (h : TShape.Named Δ d t x) : Shape.CodeCanonS Δ t x.2 :=
-  TShape.NamedO.shallow h t rfl
+theorem TShape.Named.canon {Δ : List Term} {d x : TShape} {t : Term}
+    (h : TShape.Named Δ d x (some t)) : Shape.CodeCanonS Δ t x.2 :=
+  TShape.Named.canon_mem h t rfl
 
 /-- At a code that only filters, a typed shape is never a `lam` or a
 `pair`, and on every other head `ValCanon` *is* `CodeCanonS`.  This is
@@ -342,8 +342,8 @@ theorem TShape.ValCanon.of_code {Δ : List Term} {t : Term} {d x : TShape}
 
 /-- **`Named` carries the naming.**  Each clause's per-part conditions
 are exactly what `ValCanon` asks of the corresponding head. -/
-theorem TShape.NamedO.val {Δ : List Term} {o} {d x : TShape}
-    (h : TShape.NamedO Δ o d x) : ∀ t ∈ o, TShape.ValCanon Δ t x := by
+theorem TShape.Named.val_mem {Δ : List Term} {o} {d x : TShape}
+    (h : TShape.Named Δ d x o) : ∀ t ∈ o, TShape.ValCanon Δ t x := by
   induction h with
   | base hnb hty hc => exact fun t ht => TShape.ValCanon.of_code hnb hty (hc t ht)
   | @pi o n A B d f x cs hty hent _ hev _ ihin ihout =>
@@ -375,15 +375,15 @@ theorem TShape.NamedO.val {Δ : List Term} {o} {d x : TShape}
       · exact ihy _ rfl (Term.snd t) (by simp [Option.mem_def] at ht ⊢; simp [ht])
 
 theorem TShape.Named.val {Δ : List Term} {d x : TShape} {t : Term}
-    (h : TShape.Named Δ d t x) : TShape.ValCanon Δ t x :=
-  TShape.NamedO.val h t rfl
+    (h : TShape.Named Δ d x (some t)) : TShape.ValCanon Δ t x :=
+  TShape.Named.val_mem h t rfl
 
-/-- **Re-indexing.**  A `NamedO` moves to any index whose name the shape
+/-- **Re-indexing.**  A `Named` moves to any index whose name the shape
 can supply; at `none` nothing is supplied and nothing is asked.  This is
-the one induction the merged notion needs, and it needs no `Dom`. -/
-theorem TShape.NamedO.reindex {Δ : List Term} {o : Option Term} {d x : TShape}
-    (h : TShape.NamedO Δ o d x) : ∀ {o' : Option Term},
-      (∀ t ∈ o', TShape.ValCanon Δ t x) → TShape.NamedO Δ o' d x := by
+the one induction the merged notion needs. -/
+theorem TShape.Named.reindex {Δ : List Term} {o : Option Term} {d x : TShape}
+    (h : TShape.Named Δ d x o) : ∀ {o' : Option Term},
+      (∀ t ∈ o', TShape.ValCanon Δ t x) → TShape.Named Δ d x o' := by
   induction h with
   | base hnb hty _ =>
     intro o' hV; exact .base hnb hty fun t ht => Shape.ValCanon.toCode (hV t ht)
@@ -451,30 +451,25 @@ theorem TShape.NamedO.reindex {Δ : List Term} {o : Option Term} {d x : TShape}
 
 /-- **Forgetting the name**: the index-free half of the merged notion,
 which is what a consumer that does not care about the name wants. -/
-theorem TShape.NamedO.dom {Δ : List Term} {o} {d x : TShape}
-    (h : TShape.NamedO Δ o d x) : TShape.NamedO Δ none d x := h.reindex nofun
+theorem TShape.Named.forget {Δ : List Term} {o} {d x : TShape}
+    (h : TShape.Named Δ d x o) : TShape.Named Δ d x none := h.reindex nofun
 
 /-- **And it asks for nothing more**: the merged notion at `some t` is
 hereditary typing together with the naming. -/
-theorem TShape.Named.of_dom {Δ : List Term} {d x : TShape} {t : Term}
-    (hD : TShape.NamedO Δ none d x) (hV : TShape.ValCanon Δ t x) :
-    TShape.Named Δ d t x :=
+theorem TShape.Named.name {Δ : List Term} {d x : TShape} {t : Term}
+    (hD : TShape.Named Δ d x none) (hV : TShape.ValCanon Δ t x) :
+    TShape.Named Δ d x (some t) :=
   hD.reindex (o' := some t) (by
     intro _ h; simp only [Option.mem_def, Option.some.injEq] at h; subst h; exact hV)
 
 /-- **The merge, as an equivalence.** -/
 theorem TShape.Named.iff {Δ : List Term} {d x : TShape} {t : Term} :
-    TShape.Named Δ d t x ↔ TShape.NamedO Δ none d x ∧ TShape.ValCanon Δ t x :=
-  ⟨fun h => ⟨h.reindex (o' := none) nofun, h.val⟩, fun h => .of_dom h.1 h.2⟩
+    TShape.Named Δ d x (some t) ↔ TShape.Named Δ d x none ∧ TShape.ValCanon Δ t x :=
+  ⟨fun h => ⟨h.reindex (o' := none) nofun, h.val⟩, fun h => .name h.1 h.2⟩
 
 /-! ### `Named`'s closure properties
 
-Each is `NamedO`'s, read at `some t`. -/
-
-theorem TShape.Named.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
-    (W : Ctx.SubstEq Θ τ τ Δ) {d x : TShape} {t : Term} (h : TShape.Named Δ d t x) :
-    TShape.Named Θ (d.subst τ) (t.subst τ) (x.subst τ) :=
-  TShape.NamedO.subst hΘ W h
+Each is `Named`'s, read at `some t`. -/
 
 
 
@@ -487,7 +482,7 @@ canonicity.  The code knows the type (`T ≡ Σ A B`), so `fstDF`/`sndDF`/
 are canonical for the sub-types; and the recursion is on the value. -/
 theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
     ∀ {n} {x : Shape n} {d : TShape} {T t t' : Term},
-      TShape.NamedO Δ none d x.T → TShape.CodeCanonS Δ T d → Shape.ValCanon Δ t x →
+      TShape.Named Δ d x.T none → TShape.CodeCanonS Δ T d → Shape.ValCanon Δ t x →
       (Δ ⊢ t ≡ t' : T) → Shape.ValCanon Δ t' x := by
   intro n
   induction n with
@@ -519,10 +514,10 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
     | pair A₀ a x y =>
       cases hD.hasType with
       | @pair _ _ _ _ _ _ f A B d _ _ _ _ _ hws _ _ _ _ hA₀A
-      obtain ⟨c, hx₁, hev, hy₁⟩ := TShape.NamedO.sg_inv hD
+      obtain ⟨c, hx₁, hev, hy₁⟩ := TShape.Named.sg_inv hD
       have hwd := (TShape.HasType.wf hD.hasType).2
       have hT := hC
-      have hCd := Shape.WFO.canon hwd.2.2.1
+      have hCd := Shape.WF.canon hwd.2.2.1
       have hCf := ShapeFun.WF.canon hwd.2.2.2.1
       obtain ⟨hname, hVx, hVy⟩ := hV
       have ht' : Δ ⊢ t ≡ t' : .sigma A B := hT.choose_spec.defeqDF ht
@@ -541,7 +536,7 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       | base hnb _ => exact absurd trivial hnb
       | @pi _ _ _ _ _ _ _ cs _ hent _ hev hout
       have hT := hC
-      have hCd := Shape.WFO.canon hwf.2.2.1
+      have hCd := Shape.WF.canon hwf.2.2.1
       have hCf := ShapeFun.WF.canon hwf.2.2.2.1
       have hA := hwf.1.choose_spec
       have hB := hwf.2.1.choose_spec
@@ -562,7 +557,7 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       exact ih houtp (TShape.CodeCanonS.lookup hΔ hwf.2.2.2.1 hCf hA hB hevp) hVout happ
 
 theorem TShape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) {x d : TShape} {T t t' : Term}
-    (hD : TShape.NamedO Δ none d x) (hC : TShape.CodeCanonS Δ T d) (hV : TShape.ValCanon Δ t x)
+    (hD : TShape.Named Δ d x none) (hC : TShape.CodeCanonS Δ T d) (hV : TShape.ValCanon Δ t x)
     (ht : Δ ⊢ t ≡ t' : T) : TShape.ValCanon Δ t' x :=
   Shape.ValCanon.defeq hΔ (x := x.2) hD hC hV ht
 
@@ -570,14 +565,9 @@ theorem TShape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) {x d : TShape} {T 
 buys: the hereditary typing travels with the name, so moving the name
 along a definitional equality needs only the code's own naming. -/
 theorem TShape.Named.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x : TShape}
-    (h : TShape.Named Δ d t x) (hC : TShape.CodeCanonS Δ T d)
-    (ht : Δ ⊢ t ≡ t' : T) : TShape.Named Δ d t' x :=
-  .of_dom h.dom (TShape.ValCanon.defeq hΔ h.dom hC h.val ht)
-
-/-- `⊥` names anything, at `⊥`. -/
-theorem TShape.Named.bot {Δ : List Term} {t : Term} :
-    TShape.Named Δ TShape.bot t TShape.bot :=
-  .base (fun h => h) (TShape.HasType.bot_bot rfl) (by intro _ h; simp only [Option.mem_def, Option.some.injEq] at h; subst h; exact Shape.CodeCanonS.bot)
+    (h : TShape.Named Δ d x (some t)) (hC : TShape.CodeCanonS Δ T d)
+    (ht : Δ ⊢ t ≡ t' : T) : TShape.Named Δ d x (some t') :=
+  .name h.forget (TShape.ValCanon.defeq hΔ h.forget hC h.val ht)
 
 /-! ## The slot condition
 
@@ -585,7 +575,7 @@ A slot is one notion applied twice.  `Named` says a shape is hereditarily
 typed at a code and names a term; a *slot* is that for the value,
 together with the same for its code — read at a sort, where `Named`
 degenerates to `Shape.CodeCanonS`, the code naming its type.  There is no
-third conjunct, and no bundle: `Dom` and `ValCanon` are not separate
+third conjunct, and no bundle: hereditary typing and `ValCanon` are not separate
 notions any more, so there is nothing left to bundle.
 
 Its point is `Slot.defeq`: the hereditary typing travels with the name,
@@ -595,7 +585,7 @@ nothing beyond what the slot already holds. -/
 /-- `x` is hereditarily typed at the code `d` and names the term `t`, and
 `d` names the type `T`. -/
 def TShape.Slot (Δ : List Term) (T : Term) (d : TShape) (t : Term) (x : TShape) : Prop :=
-  TShape.Named Δ d t x ∧ Shape.CodeCanonS Δ T d.2
+  TShape.Named Δ d x (some t) ∧ Shape.CodeCanonS Δ T d.2
 
 /-- **The transport, with nothing to pass in.** -/
 theorem TShape.Slot.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x : TShape}

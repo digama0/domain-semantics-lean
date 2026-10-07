@@ -84,7 +84,7 @@ Lower-closed: a smaller shape is still typed. That is what the `pair`
 clause pays for by reading the second component's code at a **dominator**
 of the first rather than at the first itself.
 
-**`TShape.NamedO Δ o d x`** (`HasType.lean`), hereditary typing, with an
+**`TShape.Named Δ d x o`** (`HasType.lean`), hereditary typing, with an
 `Option Term` index carrying the name (§3.3). An inductive, not a
 recursion on the code, because at Π the codomain code is a *lookup* in
 the Π's graph and a premise may not existentially quantify the inductive
@@ -277,7 +277,7 @@ code the value is hereditarily typed at. `mono` does not have one. That is why
 `mono`.
 
 **`ValCanon` merges with hereditary typing instead** (`TShape.Named`,
-which is `NamedO` at `some t`, and `Named.iff` for the equivalence). The
+which is `Named … (some t)`, and `Named.iff` for the equivalence). The
 two are the same induction: hereditary typing
 recurses on the code and `ValCanon` on the shape, but a shape typed at a
 code has its head determined by that code, so the recursions line up
@@ -309,13 +309,12 @@ used to be `CodeCanon` is now this, and `Canon.lean` lost 235 lines with
 it.
 
 Those two asks are no longer conjuncts. Well-formedness carries an
-`Option Term` index of its own (`Shape.WFO Γ o s`, with `Shape.WF` its
-`none` case), read only at the head, through `TyEqO Γ o T'` — `True` at
+`Option Term` index of its own (`Shape.WF Γ s o`, defaulting to `none`), read only at the head, through `TyEqO Γ o T'` — `True` at
 `none`, `TyEq Γ T T'` at `some T`. The domain code is then well formed
 *at `A`* and an entry's output *at `B.inst e.tm`*, so the recursion
-carries canonicity instead of restating it, and `Shape.WFO.iff` says the
-index separates: `WFO Γ (some T) s ↔ CodeCanonS Γ T s ∧ WF Γ s`. Going
-down is `WFO.wf` and `WFO.canon`, coming back up is `WF.name`, and a
+carries canonicity instead of restating it, and `Shape.WF.iff` says the
+index separates: `WF Γ s (some T) ↔ CodeCanonS Γ T s ∧ WF Γ s`. Going
+down is `WF.forget` and `WF.canon`, coming back up is `WF.name`, and a
 graph has the same pair (`ShapeFun.WF.forget`/`.canon`/`.name`). The API shed hypotheses too — `mono` no longer needs the bigger
 shape's `WF`, `join` needs neither `WF` nor `Compat`, `CodeAt.of_top`
 drops a `WF`, and `CodeAt.forallE`/`CodeAt.sigma` are one line each
@@ -356,12 +355,13 @@ the Σ labels to be the type of `t`, which is `CodeCanonS`. The transport
 needs the bundle, not the indexing, which is why `Slot.defeq` is the
 form it takes. And the fold is not free: the name has to be supplied at
 every one of the relation's ~170 sites. What makes it cheap in the end is
-that the name is an **index** rather than an argument: `NamedO Δ o d x`
-takes an `Option Term`, `Named` is its `some` case and the index-free
-notion its `none` case, so one inductive and one copy of each closure
-lemma serve both, and `NamedO.of_isType` and `NamedO.of_not_binder` land
-at `none` with no `CodeCanonS` hypothesis at all. The separate `Dom`
-inductive and its eleven lemmas are gone.
+that the name is an **index** rather than an argument: `Named Δ d x o`
+takes an `Option Term` last, defaulting to `none`, so one inductive and
+one copy of each closure lemma serve both, `Named Δ d x` is the index-free
+notion with no syntactic cost at all, and `Named.of_isType` and
+`Named.of_not_binder` land at `none` with no `CodeCanonS` hypothesis.
+The separate `TShape.Dom` inductive and its eleven lemmas are gone, and
+so is the `Named` abbreviation that stood in for the `some` case.
 
 Two things are known to be separable, and both were separated. **`dir`**
 is its own induction, proved before soundness and under the weaker

@@ -54,7 +54,7 @@ file `DomainSemantics.lean` using `#guard_msgs`. They are stated for
 A second section of the same file is the board for the model's own
 internals — the subject join, stage invariance, strengthening,
 substitution, saturation, directedness, Σ's η, and the two statements
-that say the `Named` and `Shape.WFO` indices are faithful. Each line pins the
+that say the `Named` and `Shape.WF` indices are faithful. Each line pins the
 expected axiom list to exactly `[propext, Classical.choice, Quot.sound]`
 (one is tighter). Any `sorryAx` or project-specific axiom that leaks into
 a dependency changes the printed output and fails the build, so a
@@ -78,15 +78,15 @@ The library is a strict dependency chain. Lines are of Lean source.
 | [`Regular.lean`](DomainSemantics/Regular.lean) | 165 | Regularity: the subterms of a well-typed term are well typed, read off the judgment's own premises. |
 | [`Annot.lean`](DomainSemantics/Annot.lean) | 171 | `Term.Annot`: the typing data a term's own annotations carry, which strengthening needs and which `IsDefEq.annot` supplies. |
 | [`Label.lean`](DomainSemantics/Label.lean) | 220 | Equality of the syntactic labels a shape carries, and `Stable`. |
-| [`Shape.lean`](DomainSemantics/Shape.lean) | 2834 | The domain: level-graded `Shape n`, graphs as labelled `Entry` lists, the total `TShape`, and the order, compatibility, join, lift, substitution and graph lookup (`ShapeFun.Eval`).  `Shape.WFO` is well-formedness indexed by an optional name (`Shape.WF` is its `none` case), so `CodeCanonS`, the shallow half of canonicity, rides the recursion; `Shape.LE` carries the same two facts as conjuncts. |
-| [`HasType.lean`](DomainSemantics/HasType.lean) | 2483 | `TShape.HasType`, typing of shapes, one inductive over `TShape`; the total-level lookup `TEvaluates`; `TShape.NamedO`, hereditary typing indexed by an optional name; the subject join. |
-| [`Canon.lean`](DomainSemantics/Canon.lean) | 608 | Canonicity: `ValCanon` (a value names its projections), its merge with hereditary typing as `TShape.Named` — `HasType.lean`'s `NamedO` at `some t` — with `Named.defeq`, and `Slot`, the three facts a valuation slot carries.  A code's naming is `Shape.CodeCanonS`, which lives in `Shape.lean` because `Shape.WF` carries it. |
+| [`Shape.lean`](DomainSemantics/Shape.lean) | 2827 | The domain: level-graded `Shape n`, graphs as labelled `Entry` lists, the total `TShape`, and the order, compatibility, join, lift, substitution and graph lookup (`ShapeFun.Eval`).  `Shape.WF` carries an optional name as its last argument, defaulting to `none`, so `CodeCanonS`, the shallow half of canonicity, rides the recursion; `Shape.LE` carries the same two facts as conjuncts. |
+| [`HasType.lean`](DomainSemantics/HasType.lean) | 2480 | `TShape.HasType`, typing of shapes, one inductive over `TShape`; the total-level lookup `TEvaluates`; `TShape.Named`, hereditary typing indexed by an optional name; the subject join. |
+| [`Canon.lean`](DomainSemantics/Canon.lean) | 598 | Canonicity: `ValCanon` (a value names its projections), its merge with hereditary typing as `HasType.lean`'s `TShape.Named` at `some t`, with `Named.defeq`, and `Slot`, the three facts a valuation slot carries.  A code's naming is `Shape.CodeCanonS`, which lives in `Shape.lean` because `Shape.WF` carries it. |
 | [`Interp.lean`](DomainSemantics/Interp.lean) | 2799 | `Interp`, the interpretation relation, with one clause per former; admissibility `Adm`; stage invariance, strengthening and substitution. |
-| [`Presheaf.lean`](DomainSemantics/Presheaf.lean) | 5498 | `IsDefEq.sound`: five conclusions (equality, typing, both `Pinned`s, saturation) in one induction, every rule, Σ's η included. |
+| [`Presheaf.lean`](DomainSemantics/Presheaf.lean) | 5492 | `IsDefEq.sound`: five conclusions (equality, typing, both `Pinned`s, saturation) in one induction, every rule, Σ's η included. |
 | [`Strong.lean`](DomainSemantics/Strong.lean) | 241 | `StrongSound.uniq`, the semantic half of type uniqueness. |
 | [`Inversion.lean`](DomainSemantics/Inversion.lean) | 272 | Π-, Σ- and Id-injectivity, fifteen no-confusion principles, and `zero_ne_succ_zero`, all four steps from soundness and none from adequacy. |
 | [`Consequences.lean`](DomainSemantics/Consequences.lean) | 980 | Type uniqueness, sort uniqueness, `IsDefEq.iff`, canonical forms, subject reduction, progress, `not_UIP`. |
-| [`DomainSemantics.lean`](DomainSemantics.lean) | 160 | Umbrella: the axiom board, headline theorems and internals. |
+| [`DomainSemantics.lean`](DomainSemantics.lean) | 161 | Umbrella: the axiom board, headline theorems and internals. |
 
 `presheaf-proof-strategy.md` is the design record, including what the
 labels buy (§4.7) and what the domain no longer carries (§6).
