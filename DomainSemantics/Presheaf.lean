@@ -4674,8 +4674,6 @@ theorem sound_eta_of {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
     {m : TShape} (hm : Interp Δ Γ e σ ρ m) :
     Interp Δ Γ (.lam A (.app e.lift (.bvar 0))) σ ρ m := by
   obtain ⟨m', p, hm', hle, hp, hNV, _⟩ := ihedom hΔ W hAdm hm
-  have hcanm := hNV.val
-  have hdom := hNV.forget
   have hmbot : m.2 = Shape.bot → Interp Δ Γ (.lam A (.app e.lift (.bvar 0))) σ ρ m := by
     intro hb
     obtain ⟨k, s⟩ := m
@@ -4690,8 +4688,8 @@ theorem sound_eta_of {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
     cases hp with
     | bot => exact .inl rfl
     | forallE _ _ _ _ _ _ hlep _ _ => exact TShape.isPi_or_bot_of_le hlep trivial
-  cases hdom with
-  | base hnb hty =>
+  cases hNV with
+  | base hnb hty _ =>
     -- not a Π-shape, so `⊥` — and then so is the subject
     have hb : p.2 = Shape.bot := hpi.resolve_right (fun h => hnb h.isBinder)
     exact hmbot (TShape.le_bot hΔ (TShape.HasType.bot_r hΔ hb hty) hle)
@@ -4719,7 +4717,7 @@ theorem sound_eta_of {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
         -- the λ-shape, relabelled at the syntactic domain
         have hwg' : Shape.WF Δ (Shape.lam (A.subst σ) g) :=
           ⟨hwg.1, hwg.2.1, hwg.2.2.1.retype hAσ, hAσ.refl_r⟩
-        refine .lam hdA hd hwg' (fun q hq => .name ?_ ((hcanm q hq).1)) (fun q hq => ?_)
+        refine .lam hdA hd hwg' (fun q hq => ?_) (fun q hq => ?_)
           hm.wf ?_ ⟨u, hA⟩
         · -- the inputs: saturation put them there
           obtain ⟨pc, hpc, hpceq⟩ : ∃ pc ∈ cs, pc.1 = ⟨q.tm, q.inp.T, q.out.T⟩ := by
