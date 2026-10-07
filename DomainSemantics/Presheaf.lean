@@ -2025,8 +2025,6 @@ theorem sound_pair_fst {Γ : List Term} {A B a b : Term} {u : Bool}
   · intro h
     -- the first component has to be hereditarily typed, so saturate it
     obtain ⟨⟨k, s'⟩, d, hs', hle', hd, hNV, hdc'⟩ := ihadom hΔ W hAdm h
-    have hdom' := hNV.forget
-    have hsc' := hNV.val
     by_cases hb : s'.IsBot
     · rw [show s = Shape.bot from
         TShape.le_bot hΔ (Shape.WF.eq_bot_of_isBot hs'.wf hb) hle']
@@ -2034,7 +2032,7 @@ theorem sound_pair_fst {Γ : List Term} {A B a b : Term} {u : Bool}
     · have hwf : Shape.WF (n := k+1) Δ
           (ShapeS.pair (A.subst σ) (a.subst σ) s' Shape.bot) :=
         ⟨fun hbb => hb hbb.1, IsDefEq.subst hΔ W ha, TyEq.refl hAσ, hs'.wf, Shape.WF.bot⟩
-      exact .fst (.pair (c := TShape.bot) hs' .bot hd (ihAty.isType hΔ W hAdm hd) (.name hdom' hsc') hdc'
+      exact .fst (.pair (c := TShape.bot) hs' .bot hd (ihAty.isType hΔ W hAdm hd) hNV hdc'
         hwf
         .bot (TShape.Named.bot (TShape.HasType.bot_bot rfl)) hwf (TShape.LE.refl hwf) ⟨u, hA⟩ ha)
         h.wf hle'
@@ -4916,8 +4914,6 @@ theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢
   have hAσ : Δ ⊢ A.subst σ : .sort u := hA.subst hΔ W
   have hfσ : Δ ⊢ (Term.fst p).subst σ : A.subst σ := hfst.subst hΔ W
   obtain ⟨P, S, hP, hle, hS, hNV, hScan⟩ := ihpdom hΔ W hAdm hm
-  have hPcan := hNV.val
-  have hPdom := hNV.forget
   -- `⊥` is an approximant of anything
   have hbot : m.2 = Shape.bot → Interp Δ Γ (.pair A B (.fst p) (.snd p)) σ ρ m := by
     intro hb
@@ -4931,16 +4927,16 @@ theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢
     cases hS with
     | bot => exact .inl rfl
     | sigma _ _ _ _ _ _ hles _ _ => exact TShape.isSigma_or_bot_of_le hles trivial
-  cases hPdom with
-  | base hnb hty =>
+  cases hNV with
+  | base hnb hty _ =>
     rcases hSsg with hb | hsg
     · exact hbot (TShape.le_bot hΔ (TShape.HasType.bot_r hΔ hb hty) hle)
     · exact absurd hsg.isBinder hnb
-  | pi _ _ _ _ =>
+  | pi _ _ _ _ _ =>
     rcases hSsg with hb | hsg
     · exact absurd hb (TShape.IsPi.not_bot (p := Shape.T _) trivial)
     · exact absurd hsg (TShape.IsPi.not_sigma trivial)
-  | @sg _ nS A' B' dS fS _ ps cc hty hps _ hxd' hevc hout =>
+  | @sg _ nS A' B' dS fS _ ps cc hty hps hnm hxd' hevc hout =>
     cases hty with
     | bot hb => exact hbot (TShape.le_bot hΔ rfl hle)
     | refl hleid hAty' =>
@@ -4958,7 +4954,10 @@ theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢
         have hyw : TShape.WF Δ (Shape.T y) := TShape.WF.T.2 hwP.2.2.2.2
         have hAlab : TyEq Δ A₀ (A.subst σ) := Interp.pair_label_ty hΔ W hAdm ihpty hP
         -- the name is the subject's own first projection
-        have hname : Δ ⊢ a₀ ≡ (Term.fst p).subst σ : A₀ := hPcan.1
+        have hname : Δ ⊢ a₀ ≡ (Term.fst p).subst σ : A₀ := by
+          have h := hSgLab.1.choose_spec.defeqDF
+            (hnm _ (show _ ∈ _ by rw [← hps]; rfl) _ rfl)
+          simpa using hAlab.choose_spec.symm.defeqDF h
         -- the two components are the projections' approximants
         have hxI : Interp Δ Γ (.fst p) σ ρ (Shape.T x) := .fst hP hxw (TShape.LE.refl hxw)
         have hyI : Interp Δ Γ (.snd p) σ ρ (Shape.T y) :=
@@ -4980,9 +4979,9 @@ theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢
         refine Interp.pair (c := cc) hxI hyI
           (Interp.mono hΔ (TShape.HasType.wf hd).1 hdle hAint)
           (TShape.HasType.mono_l hΔ hdty hdle)
-          (.name (by simpa using hxd' _ (show _ ∈ _ by rw [← hps]; rfl)) hPcan.2.1)
+          (by simpa using hxd' _ (show _ ∈ _ by rw [← hps]; rfl))
           (Shape.WF.conv hwSg.2.2.1 (TyEq.symm hSgLab.1))
-          hwf hIc (by simpa using hout _ (show _ ∈ _ by rw [← hps]; rfl))
+          hwf hIc (by simpa using (hout _ (show _ ∈ _ by rw [← hps]; rfl)).forget)
           hm.wf ?_ ⟨u, hA⟩ hfst
         · -- and it dominates `m`, the name moved to `fst p`
           refine TShape.LE.trans hΔ hle (TShape.LE.T.2
