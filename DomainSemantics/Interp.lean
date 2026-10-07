@@ -1190,8 +1190,6 @@ theorem Interp.unweak {Δ : List Term} (hΔ : ⊢ Δ) :
       intro Γ₂ t' σ₂ ρ₂ m H
       induction H with
       | @Y Γ₂ σ₂ ρ₂ m A₂ b₂ x d hx hwx hAd hdty hNV hdc hbody _ _ ihx _ _ =>
-        have hDom := hNV.forget
-        have hxc := hNV.val
         intro l ρ ht' WΓ hd hρ
         cases ht'
         have hYsub : ((A.lift' l).Y (b.lift' l.cons)).subst σ₂
@@ -1201,7 +1199,7 @@ theorem Interp.unweak {Δ : List Term} (hΔ : ⊢ Δ) :
           .cons hd (hA.weak' WΓ)
             (hYsub ▸ IsDefEq.subst hΔ hd (hYt.weak' WΓ))
         refine .Y (ihx rfl WΓ hd hρ) hwx (ihA hΓ hAA WΓ hd hρ hAd) hdty
-          (.name hDom (hYsub ▸ hxc))
+          (hYsub ▸ hNV)
           (by simpa only [subst_lift'] using hdc) ?_ ⟨u, hA⟩ hYt
         rw [Subst.lift_l_cons]
         refine ihb ⟨hΓ, _, hA⟩ hAb WΓ.cons hd' (fun i => ?_) (hYsub ▸ hbody)
@@ -2479,8 +2477,6 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
       induction H with
       | bot => exact fun _ _ _ _ _ _ _ _ => ⟨Valuation.nil, .bot, .nil⟩
       | @Y Γ₂ σ₂ ρ₂ m A₂ b₂ x d hx hwx hAd hdty hNV hdc hbody _ _ ihx _ _ =>
-        have hDom := hNV.forget
-        have hxc := hNV.val
         intro ht' hΓ₂ hgood₂ Wθ₂ Wσ₂ hAdm₂ hSat₂ hθ₂
         cases ht'
         have hAθ : Γ₂ ⊢ A.subst θ ≡ A.subst θ : Term.sort u := hA.subst hΓ₂ Wθ₂
@@ -2526,7 +2522,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         obtain ⟨hAj, hlj, hld⟩ := Valuation.Approx.join hΔ hθ₂ hAj₀ hApd
         refine ⟨_, .Y (Interp.mono_val hΔ (fun i => (hl₁ i).trans hΔ (hlj i)) hx') hwx
           (Interp.mono_val hΔ hld hd') hdty
-          (.name hDom (by rw [← subst_subst (e := Term.Y A b)]; exact hxc))
+          (by rw [← subst_subst (e := Term.Y A b)]; exact hNV)
           (by rw [← subst_subst]; exact hdc) ?_ ⟨u, hA⟩ hYt, hAj⟩
         have hb' := hbody' () (by simp)
         rw [show ((Term.Y A b).subst θ).subst σ₂ = (Term.Y A b).subst (θ.comp σ₂) from

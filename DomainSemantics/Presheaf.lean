@@ -3820,20 +3820,18 @@ theorem sound_Y_dom_aux {Δ : List Term} (hΔ : ⊢ Δ) {Γ₀ Γ : List Term} {
         Interp Δ Γ A σ ρ c ∧
         TShape.Slot Δ (A.subst σ) c ((Term.Y A b).subst σ) m' := by
   induction H with
-  | @Y Γ' σ' ρ' m' A b x d hx hwx hd hdty hNV hdcY hbody hAt hYt _ _ _ =>
-    have hDom := hNV.forget
-    have hxcY := hNV.val
+  | @Y Γ' σ' ρ' m' A b x d hx hwx hd hdty hNVY hdcY hbody hAt hYt _ _ _ =>
     rintro A' b' u ⟨⟩ hΓ hA hY W hAdm ihA hbt ihbdom
     have WY : Ctx.SubstEq Δ (σ'.cons ((Term.Y A b).subst σ'))
         (σ'.cons ((Term.Y A b).subst σ')) (A :: Γ') := .cons W hA (hY.subst hΔ W)
     have hAdm' : Adm Δ Γ₀ (A :: Γ') (σ'.cons ((Term.Y A b).subst σ')) (ρ'.push _) :=
-      .cons hAdm W.wf hd hwx (.name hDom hxcY) hdcY
+      .cons hAdm W.wf hd hwx hNVY hdcY
     obtain ⟨mb, c, hmb, hmle, hc, hNV, hcc⟩ := ihbdom hΔ WY hAdm' hbody
     rw [lift_subst_cons] at hcc
     -- the body's value names `b[Y A b]`, which is `Y A b` by unfolding
     have hunf := (IsDefEq.Y_unfold₀ hΓ hA hbt).subst hΔ W
     rw [subst_inst, inst_lift_cons] at hunf
-    exact ⟨mb, c, .Y hx hwx hd hdty (.name hDom hxcY) hdcY hmb hAt hYt, hmle,
+    exact ⟨mb, c, .Y hx hwx hd hdty hNVY hdcY hmb hAt hYt, hmle,
       Interp.unweak (Δ := Δ) hΔ hΓ hA.annot.1 (Γ' := A :: Γ') (l := .skip .refl)
         (.skip .refl) WY (fun i => rfl) hc,
       hNV.defeq hΔ hcc hunf.symm, hcc⟩
@@ -4039,12 +4037,10 @@ theorem sound_tr_dom {Γ : List Term} {A a b C X H : Term} {r u v : Bool} (hΓ :
   cases hm with
   | bot => exact ⟨TShape.bot, TShape.bot, .bot, TShape.bot_le' rfl, .bot, (TShape.Named.bot (.bot (.bot .sort))), TShape.WF.bot⟩
   | tr hw hle hX' ha' hbv hAv hwv hNV hvc hCv hcb hNV2 hcbc hH heq hAt hat hbt =>
-    have hm' := hNV2.forget
-    have hmc := hNV2.val
     have hcb' := hcbc
     rw [← inst_lift_cons, ← subst_inst] at hcb'
-    refine ⟨_, _, .tr hm'.hasType.wf.1 (TShape.LE.refl hm'.hasType.wf.1) hX' ha' hbv hAv
-        hwv (hNV) hvc hCv hcb (.name hm' hmc) hcbc hH heq hAt hat hbt, hle,
+    refine ⟨_, _, .tr hNV2.hasType.wf.1 (TShape.LE.refl hNV2.hasType.wf.1) hX' ha' hbv hAv
+        hwv hNV hvc hCv hcb hNV2 hcbc hH heq hAt hat hbt, hle,
       (Interp.inst (A := A) (b := C) hΔ hΓ hA hb hC hPC W hAdm
         (Subst.Saturates.one hΔ hΓ W hAdm ihbdom)
         (ihbdir hΔ W hwρ) hwρ).2 ⟨_, ?_, hbv⟩,
@@ -4071,9 +4067,7 @@ theorem sound_tr_refl_eq {Γ : List Term} {A a C X : Term} {u v : Bool} {r : Boo
     | bot => exact .bot
     | tr hw hle hX _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ => exact Interp.mono hΔ hw hle hX
   · intro h
-    obtain ⟨mX, c, hmX, hmle, hc, hNV, hcc⟩ := ihxdom hΔ W hAdm h
-    have hdc := hNV.forget
-    have hmXc := hNV.val
+    obtain ⟨mX, c, hmX, hmle, hc, hNVX, hcc⟩ := ihxdom hΔ W hAdm h
     obtain ⟨x₀, hC₀, ha₀⟩ :=
       (Interp.inst (A := A) (b := C) hΔ hΓ hA ha hC hPC W hAdm
         (Subst.Saturates.one hΔ hΓ W hAdm ihadom)
@@ -4081,8 +4075,6 @@ theorem sound_tr_refl_eq {Γ : List Term} {A a C X : Term} {u v : Bool} {r : Boo
     rw [Subst.one_comp] at hC₀
     -- the slot is the argument's approximant, hereditarily typed
     obtain ⟨x, vA, ha', hlex, hvA, hNV, hvAc⟩ := ihadom hΔ W hAdm ha₀
-    have hdom := hNV.forget
-    have hxc := hNV.val
     have hC : Interp Δ (A :: Γ) C ((Subst.one a).comp σ) (ρ.push x) c :=
       Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hlex⟩)
         (by rw [Subst.one_comp]; exact hC₀)
@@ -4090,13 +4082,13 @@ theorem sound_tr_refl_eq {Γ : List Term} {A a C X : Term} {u v : Bool} {r : Boo
     have Wa : Ctx.SubstEq Δ (σ.cons (a.subst σ)) (σ.cons (a.subst σ)) (A :: Γ) :=
       .cons W hA (ha.subst hΔ W)
     have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons (a.subst σ)) (ρ.push x) :=
-      .cons hAdm W.wf hvA ha'.wf (.name hdom hxc) hvAc
+      .cons hAdm W.wf hvA ha'.wf hNV hvAc
     have hcc' : TShape.WF Δ c (some (C.subst (σ.cons (a.subst σ)))) := by
       rw [subst_inst, inst_lift_cons] at hcc; exact hcc
     have hAσ : Δ ⊢ A.subst σ : .sort u := hA.subst hΔ W
     have haσ : Δ ⊢ a.subst σ : A.subst σ := ha.subst hΔ W
-    refine .tr h.wf hmle hmX ha' ha' hvA ha'.wf (.name hdom hxc) hvAc hC
-      (ihC.isType hΔ Wa hAdm' hC) (.name hdc hmXc) hcc' ?_ haσ ⟨u, hA⟩ ha ha
+    refine .tr h.wf hmle hmX ha' ha' hvA ha'.wf hNV hvAc hC
+      (ihC.isType hΔ Wa hAdm' hC) hNVX hcc' ?_ haσ ⟨u, hA⟩ ha ha
     rintro rfl
     exact IsDefEq.reflDF hAσ haσ (IsDefEq.idDF hAσ haσ haσ)
 
