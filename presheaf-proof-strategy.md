@@ -3379,3 +3379,42 @@ axiom board; the board is 25 guards now. The merge it certified is no
 longer a merge of two notions, so there is nothing left for it to say, but
 it did certify that the inductive neither strengthened nor weakened what it
 replaced, and that certificate is not replaced by anything.
+
+## 12. The development is choice-free (2026-10-07)
+
+Every board entry now pins `[propext, Quot.sound]`; nothing in the library
+uses `Classical.choice`. There were exactly two sources, and both were
+avoidable rather than essential.
+
+**`Exists.choose` on a hidden sort level.** `TyEq Δ A A' := ∃ u, Δ ⊢ A ≡ A'
+: .sort u`, and 72 sites reached the equation as `h.choose_spec`. `choose`
+*is* choice; `Exists.elim` into a `Prop` is not, and the existing `TyEq`
+API was already written by pattern matching (`| ⟨u, h⟩ => …`) — the
+`choose_spec` habit had simply spread alongside it. What the sites needed:
+
+* 40 of them wanted `h.choose_spec.defeqDF`, whose conclusion does not
+  mention the level, so one choice-free `TyEq.defeqDF` replaced all of
+  them. For dot notation to find it, `PiLabelEq` and `IdLabelEq` now *say*
+  `TyEq` where they spelled out `∃ u, …` longhand.
+* 5 were `have hA := E.choose_spec`, i.e. `obtain ⟨_, hA⟩ := E`.
+* 3 built a label equality back up (`IsDefEq.forallEDF₀ hΔ h.1.1.choose_spec
+  h.1.2.choose_spec` wrapped in `⟨_, ·⟩`), which is `PiLabelEq.forallE`,
+  `PiLabelEq.sigma` and `IdLabelEq.id` — each a one-line pattern match.
+* 4 passed the pair `(hA, hAA', hBB')` to `ShapeFun.codeCanonS_append`,
+  which now takes the `PiLabelEq` and destructures once.
+* the rest were term-mode `let`/`.cons` applications, rewritten as `match`
+  or a tactic `obtain`, plus a `TyEq.inst'` taking the codomain equation
+  packaged.
+
+**One classical case split.** `Named.mono_r` did `by_cases hb : d.2 =
+Shape.bot`. Shapes carry `Term`s, so equality is not decidable and
+`by_cases` fell back to `Classical.em`. `Shape.IsBot` *is* decidable
+(`Shape.decIsBot`), and for a well-formed shape the two agree
+(`Shape.WF.eq_bot_of_isBot`), so the split moves to `IsBot` — the other
+four `by_cases` in the development were already on `IsBot`. That single
+line was what kept soundness, `IsDefEq.iff`, Π-injectivity, type
+uniqueness, subject reduction, progress and `not_UIP` all choice-dependent.
+
+Worth noting what this does *not* mean. `Quot.sound` remains, and so does
+`propext`; the claim is only that no choice principle is used. And the
+result was free: nothing had to be reproved, only restated.

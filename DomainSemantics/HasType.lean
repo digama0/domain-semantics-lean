@@ -1374,7 +1374,7 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
         refine .pair hd hf hwp' hwSg (ihxd hx') (TShape.LE.trans hΔ hx' hxle) ?_
           (ihy hy') (hA'.trans hdom)
         exact TEvaluates.label ⟨hdom.symm.trans hdom,
-          (hA'.trans hdom).choose_spec.defeqDF ha'.symm⟩ hev
+          (hA'.trans hdom).defeqDF ha'.symm⟩ hev
       | _ => exact absurd h2 (fun x => x)
   | refl hc hA _ =>
     exact fun {m'} h => by
@@ -2034,10 +2034,16 @@ theorem TShape.Named.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape}
   induction h with
   | @base o d x hnb hty0 hc =>
     intro d' hle hty
-    by_cases hb : d.2 = Shape.bot
-    · exact TShape.Named.bot_subject (TShape.HasType.bot_r hΔ hb hty0)
+    -- the split is on `IsBot`, which is decidable, rather than on equality
+    -- with `⊥`, which would need `Classical.em`; for a well-formed shape the
+    -- two agree
+    by_cases hb : d.2.IsBot
+    · exact TShape.Named.bot_subject
+        (TShape.HasType.bot_r hΔ
+          (Shape.WF.eq_bot_of_isBot (TShape.HasType.wf hty0).2 hb) hty0)
         (TShape.HasType.mono_r hΔ hty0 _ hle hty)
-    · exact .base (fun hbind => hnb (TShape.IsBinder.of_le hle hbind hb))
+    · exact .base (fun hbind => hnb (TShape.IsBinder.of_le hle hbind
+        (fun he => hb (by rw [he]; cases d.1 <;> trivial))))
         (TShape.HasType.mono_r hΔ hty0 _ hle hty) hc
   | @pi o n A B d f x cs hty0 hent hin hev hout ihin ihout =>
     intro d' hle hty
@@ -2073,7 +2079,7 @@ theorem TShape.Named.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape}
         obtain ⟨hlab, _, hcov⟩ := TShape.LE.sigma_decomp hΔ hle
           (TShape.HasType.wf hty0).2 hw₂ (fun e he => TEvaluates.refl hw₂.2.2.2.1 e he)
         exact .sg (c := c) (TShape.HasType.mono_r hΔ hty0 _ hle hty) hps
-          (fun p hp t ht => hlab.1.choose_spec.defeqDF (hname p hp t ht))
+          (fun p hp t ht => hlab.1.defeqDF (hname p hp t ht))
           (fun p hp => ihx p hp hdle hd₂)
           (fun p hp => TEvaluates.retype hlab.1 (TEvaluates.trans hΔ hcov (hev p hp)))
           (fun p hp => hy p hp)
@@ -2140,7 +2146,7 @@ theorem TShape.Named.defeq_mem {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape
           Shape.WF Δ x.2 (some t') := by
         subst hd
         have hT : TyEq Δ T (.sort j) := TShape.WF.sort_iff.1 hC
-        exact Shape.WF.conv hc ⟨_, (hT.choose_spec.defeqDF (ht t rfl)).symm⟩
+        exact Shape.WF.conv hc ⟨_, (hT.defeqDF (ht t rfl)).symm⟩
       refine .base hnb hty ?_
       cases hty <;>
         first
@@ -2154,8 +2160,8 @@ theorem TShape.Named.defeq_mem {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape
     | some t =>
       have hT := hC.2.2.2.2
       have hwf := (TShape.HasType.wf hty).2
-      have hA := hwf.1.choose_spec
-      have hB := hwf.2.1.choose_spec
+      obtain ⟨_, hA⟩ := hwf.1
+      obtain ⟨_, hB⟩ := hwf.2.1
       have htm : ∀ p ∈ cs, Δ ⊢ p.1.tm : A := by
         cases hty with
         | bot _ =>
@@ -2173,14 +2179,14 @@ theorem TShape.Named.defeq_mem {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape
           rw [← hent] at hmem
           simp only [TShape.entries, Shape.graph, List.mem_map] at hmem
           obtain ⟨e, he, hpe⟩ := hmem
-          exact hpe ▸ hA₀A.choose_spec.defeqDF (hwl.2.2.1.1 e he).2.1
+          exact hpe ▸ hA₀A.defeqDF (hwl.2.2.1.1 e he).2.1
       refine .pi hty hent (fun p hp => hin p hp) hev (fun p hp => ?_)
       refine ihout p hp (TShape.WF.lookup hΔ hwf.2.2.2.1
         (ShapeFun.WF.canon hwf.2.2.2.1) hA hB (hev p hp)) ?_
       intro u hu
       simp only [Option.map_some, Option.mem_def, Option.some.injEq] at hu
       subst hu
-      exact IsDefEq.appDF₀ hΔ (hT.choose_spec.defeqDF (ht t rfl)) (htm p hp)
+      exact IsDefEq.appDF₀ hΔ (hT.defeqDF (ht t rfl)) (htm p hp)
   | @sg o n A B d f x ps c hty hps hname hx hev hy ihx ihy =>
     intro T t' hC ht
     cases o with
@@ -2188,9 +2194,9 @@ theorem TShape.Named.defeq_mem {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape
     | some t =>
       have hT := hC.2.2.2.2
       have hwf := (TShape.HasType.wf hty).2
-      have hA := hwf.1.choose_spec
-      have hB := hwf.2.1.choose_spec
-      have ht' : Δ ⊢ t ≡ t' : .sigma A B := hT.choose_spec.defeqDF (ht t rfl)
+      obtain ⟨_, hA⟩ := hwf.1
+      obtain ⟨_, hB⟩ := hwf.2.1
+      have ht' : Δ ⊢ t ≡ t' : .sigma A B := hT.defeqDF (ht t rfl)
       have hfst : Δ ⊢ Term.fst t ≡ Term.fst t' : A := IsDefEq.fstDF₀ hΔ ht'
       have hsnd : Δ ⊢ Term.snd t ≡ Term.snd t' : B.inst (Term.fst t) :=
         IsDefEq.sndDF₀ hΔ ht'
@@ -2207,7 +2213,7 @@ theorem TShape.Named.defeq_mem {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape
         intro u hu
         simp only [Option.map_some, Option.mem_def, Option.some.injEq] at hu
         subst hu
-        exact (TyEq.inst hΔ hA hB (hname p hp t rfl).symm).choose_spec.defeqDF hsnd
+        exact (TyEq.inst hΔ hA hB (hname p hp t rfl).symm).defeqDF hsnd
 
 /-- The transport at a name that is there. -/
 theorem TShape.Named.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x : TShape}
@@ -2313,7 +2319,7 @@ theorem TShape.HasType.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
             have hjx := Shape.le_join hΔ hwp.2.2.2.1 hwp'.2.2.2.1 hc.2.2.1
             have hev₁' := TEvaluates.mono_inp hΔ (TShape.LE.T.2 hjx.1) hev₁
             have hev₂' := TEvaluates.label ⟨hdom.symm.trans hdom,
-                (hdom.choose_spec.defeqDF hc.2.1).symm⟩
+                (hdom.defeqDF hc.2.1).symm⟩
               (TEvaluates.mono_inp hΔ (TShape.LE.T.2 hjx.2) hev₂)
             have hcc := TEvaluates.compat hΔ hwSg.2.2.2.1.2 (TShape.WF.T.2 (Shape.WF.join hΔ hc.2.2.1 hwp.2.2.2.1 hwp'.2.2.2.1)) hev₁' hev₂'
             refine .pair hd hfo (Shape.WF.join hΔ hc hwp hwp') hwSg
@@ -2394,7 +2400,7 @@ theorem TShape.Named.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
           have hjx := Shape.le_join hΔ hwp.2.2.2.1 hwp'.2.2.2.1 hc.2.2.1
           have hev₁' := TEvaluates.mono_inp hΔ (TShape.LE.T.2 hjx.1) hev₁
           have hev₂' := TEvaluates.label ⟨hdomA.symm.trans hdomA,
-              (hdomA.choose_spec.defeqDF hc.2.1).symm⟩
+              (hdomA.defeqDF hc.2.1).symm⟩
             (TEvaluates.mono_inp hΔ (TShape.LE.T.2 hjx.2) hev₂)
           have hcc := TEvaluates.compat hΔ hwSg.2.2.2.1.2 (TShape.WF.T.2 (Shape.WF.join hΔ hc.2.2.1 hwp.2.2.2.1 hwp'.2.2.2.1)) hev₁' hev₂'
           refine .sg (ps := some (a₁, (x₁.join x₂).T, (y₁.join y₂).T)) (c := c₁.join c₂)

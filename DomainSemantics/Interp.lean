@@ -1404,7 +1404,7 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
     | @pair _ _ _ _ _ _ _ _ _ _ _ _ _ hainp hbout hAint hdty hNV hdc hwf hcode hcty hw hle 
         _ _ =>
       have hwf' := show Shape.WF (n := _+1) Δ (ShapeS.pair (A.subst σ₂) (a.subst σ₂) _ _) from
-        ⟨hwf.1, hAσ.choose_spec.defeqDF (haσ.symm.trans haσ), TyEq.refl_r hAσ,
+        ⟨hwf.1, hAσ.defeqDF (haσ.symm.trans haσ), TyEq.refl_r hAσ,
           hwf.2.2.2.1, hwf.2.2.2.2⟩
       have hle'₀ := show Shape.LE (n := _+1) Δ (ShapeS.pair (A.subst σ) (a.subst σ) _ _)
           (ShapeS.pair (A.subst σ₂) (a.subst σ₂) _ _) from
@@ -1956,7 +1956,8 @@ theorem Adm.unlift {Δ Γ₀ Γ Γ' : List Term} {l σ ρ} (hΔ : ⊢ Δ) (hΓ :
     Adm Δ Γ₀ Γ (σ.lift_l l) (fun i => ρ (Lift.liftVar l i)) := by
   refine ⟨fun i => h.wf _, fun {i A} hlk => ?_⟩
   obtain ⟨a, ha, hn, hac⟩ := h.2 (hlk.weak' WΓ)
-  exact ⟨a, Interp.unweak hΔ hΓ (Ctx.WF.lookup hΓ hlk).choose_spec.annot.1 WΓ W
+  obtain ⟨_, hlkty⟩ := Ctx.WF.lookup hΓ hlk
+  exact ⟨a, Interp.unweak hΔ hΓ hlkty.annot.1 WΓ W
     (fun _ => rfl) ha, hn, by rwa [subst_lift'] at hac⟩
 
 theorem IsTypeAt.weak' {Γ Γ' : List Term} {l : Lift} {A : Term} (hΓ : ⊢ Γ)

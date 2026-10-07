@@ -27,11 +27,11 @@ def TyEq (Δ : List Term) (A A' : Term) : Prop := ∃ u, Δ ⊢ A ≡ A' : .sort
 /-- Equality of Π/Σ labels `(A, B)`. Componentwise, which is a priori finer
 than `Δ ⊢ Π A B ≡ Π A' B'`; that the two agree is the inversion theorem. -/
 def PiLabelEq (Δ : List Term) (A B A' B' : Term) : Prop :=
-  (∃ u, Δ ⊢ A ≡ A' : .sort u) ∧ ∃ v, A :: Δ ⊢ B ≡ B' : .sort v
+  TyEq Δ A A' ∧ TyEq (A :: Δ) B B'
 
 /-- Equality of Id labels `(A, a, b)`. -/
 def IdLabelEq (Δ : List Term) (A a b A' a' b' : Term) : Prop :=
-  (∃ u, Δ ⊢ A ≡ A' : .sort u) ∧ Δ ⊢ a ≡ a' : A ∧ Δ ⊢ b ≡ b' : A
+  TyEq Δ A A' ∧ Δ ⊢ a ≡ a' : A ∧ Δ ⊢ b ≡ b' : A
 
 namespace LabelEq
 
@@ -77,7 +77,44 @@ theorem subst (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
     TyEq Δ A A' → TyEq Θ (A.subst τ) (A'.subst τ)
   | ⟨u, h⟩ => ⟨u, h.subst hΘ W⟩
 
+/-- **Retyping along the equation.**  The conclusion does not mention the
+sort level, so the witness is destructured rather than chosen — which is
+what keeps this choice-free, unlike `h.defeqDF`. -/
+theorem defeqDF : TyEq Δ A A' → (Δ ⊢ a ≡ b : A) → Δ ⊢ a ≡ b : A'
+  | ⟨_, h⟩ => h.defeqDF
+
+/-- Either side is a type.  Again the level is re-hidden. -/
+theorem isType_l : TyEq Δ A A' → ∃ u, Δ ⊢ A : .sort u
+  | ⟨u, h⟩ => ⟨u, h.hasType.1⟩
+
+theorem isType_r : TyEq Δ A A' → ∃ u, Δ ⊢ A' : .sort u
+  | ⟨u, h⟩ => ⟨u, h.hasType.2⟩
+
 end TyEq
+
+namespace PiLabelEq
+
+/-- The label equality packaged as one equation of Π types.  Choice-free:
+both witnesses are destructured and the result re-hides its own level. -/
+theorem forallE (hΔ : ⊢ Δ) :
+    PiLabelEq Δ A B A' B' → TyEq Δ (.forallE A B) (.forallE A' B')
+  | ⟨⟨_, h1⟩, ⟨_, h2⟩⟩ => ⟨_, IsDefEq.forallEDF₀ hΔ h1 h2⟩
+
+/-- The same for Σ. -/
+theorem sigma (hΔ : ⊢ Δ) :
+    PiLabelEq Δ A B A' B' → TyEq Δ (.sigma A B) (.sigma A' B')
+  | ⟨⟨_, h1⟩, ⟨_, h2⟩⟩ => ⟨_, IsDefEq.sigmaDF₀ hΔ h1 h2⟩
+
+end PiLabelEq
+
+namespace IdLabelEq
+
+/-- And for the identity type. -/
+theorem id {r : Bool} :
+    IdLabelEq Δ A a b A' a' b' → TyEq Δ (.id r A a b) (.id r A' a' b')
+  | ⟨⟨_, h1⟩, h2, h3⟩ => ⟨_, IsDefEq.idDF h1 h2 h3⟩
+
+end IdLabelEq
 
 namespace PiLabelEq
 
@@ -147,7 +184,7 @@ theorem of_typed (ha : Γ ⊢ a : A₀) (hTy : TyEq Δ A (A₀.subst σ)) :
   intro Θ τ σ₂ hΘ V W
   have hT : TyEq Θ (A.subst τ) (A₀.subst (σ.comp τ)) := by
     have := TyEq.subst hΘ V hTy; rwa [subst_subst] at this
-  exact hT.choose_spec.symm.defeqDF (IsDefEq.subst' hΘ W ha)
+  exact hT.symm.defeqDF (IsDefEq.subst' hΘ W ha)
 
 /-- What the clauses use it for: the query term moves with the stage. -/
 theorem move (hΔ : ⊢ Δ) (H : Stable Δ Γ σ a A) (W : Ctx.SubstEq Δ σ σ₂ Γ) :
@@ -157,7 +194,7 @@ theorem move (hΔ : ⊢ Δ) (H : Stable Δ Γ σ a A) (W : Ctx.SubstEq Δ σ σ�
 
 /-- The label moves by a `TyEq`. -/
 theorem retype (hTy : TyEq Δ A A') (H : Stable Δ Γ σ a A) : Stable Δ Γ σ a A' :=
-  fun _ _ _ hΘ V W => (TyEq.subst hΘ V hTy).choose_spec.defeqDF (H hΘ V W)
+  fun _ _ _ hΘ V W => (TyEq.subst hΘ V hTy).defeqDF (H hΘ V W)
 
 /-- Along a substitution of the ambient context — immediate, since that is
 what the definition quantifies over. -/

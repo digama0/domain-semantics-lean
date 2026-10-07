@@ -54,10 +54,15 @@ file `DomainSemantics.lean` using `#guard_msgs`. They are stated for
 
 A second section of the same file is the board for the model's own
 internals — the subject join, stage invariance, strengthening,
-substitution, saturation, directedness, Σ's η, and the two statements
-the model's own machinery. Each line pins the
-expected axiom list to exactly `[propext, Classical.choice, Quot.sound]`
-(one is tighter). Any `sorryAx` or project-specific axiom that leaks into
+substitution, saturation, directedness and Σ's η. Each line pins the
+expected axiom list to exactly `[propext, Quot.sound]` (one is tighter).
+**The development is choice-free**: nothing in it uses `Classical.choice`.
+The two places that would have — the sort level hidden inside
+`TyEq Δ A A' := ∃ u, Δ ⊢ A ≡ A' : .sort u`, and a case split on whether a
+shape is `⊥` — are handled by destructuring the witness instead of
+`Exists.choose`, and by splitting on the decidable `Shape.IsBot`.
+
+Any `sorryAx` or project-specific axiom that leaks into
 a dependency changes the printed output and fails the build, so a
 successful `lake build` is the validation step. There are no `sorry`s and
 no project axioms.

@@ -450,8 +450,8 @@ clause conditions under. -/
 theorem Subst.Saturates.one {Γ Γ₀ Δ : List Term} {A a : Term} {σ ρ}
     (hΔ : ⊢ Δ) (hΓ : ⊢ Γ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ) (hadom : SoundDom Γ a A) :
     Subst.Saturates Δ Γ₀ (A :: Γ) Γ (Subst.one a) σ ρ := fun hρ' =>
-  let h := Valuation.Approx.canon_one hΔ hΓ W hAdm hadom hρ'
-  ⟨_, h.choose_spec.1, h.choose_spec.2.1, h.choose_spec.2.2⟩
+  match Valuation.Approx.canon_one hΔ hΓ W hAdm hadom hρ' with
+  | ⟨_, h1, h2, h3⟩ => ⟨_, h1, h2, h3⟩
 
 theorem sound_forallE_ty {Γ : List Term} {A B : Term} {u v : Bool} (ihAd : SoundDom Γ A (.sort u))
     (ihB : SoundTy (A :: Γ) B (.sort v))
@@ -1758,8 +1758,9 @@ theorem dir_pair_ub {Γ : List Term} {A B a b : Term}
     Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, (TShape.le_join hΔ hwx₁ hwx₂ hcx).2⟩
   have hcode₁' := Interp.mono_val hΔ hle₁ hcode₁
   have hcode₂' := Interp.mono_val hΔ hle₂ hcode₂
-  have Wcons : Ctx.SubstEq Δ (σ.cons (a.subst σ)) (σ.cons (a.subst σ)) (A :: Γ) :=
-    .cons W hAt.choose_spec (IsDefEq.subst hΔ W hat)
+  have Wcons : Ctx.SubstEq Δ (σ.cons (a.subst σ)) (σ.cons (a.subst σ)) (A :: Γ) := by
+    obtain ⟨_, hAt⟩ := hAt
+    exact .cons W hAt (IsDefEq.subst hΔ W hat)
   obtain ⟨hcc, hjc⟩ :=
     (ihB hΔ Wcons (Valuation.WF.push hwρ (TShape.WF.join hΔ hcx hwx₁ hwx₂))).join hΔ
       hcode₁' hcode₂'
@@ -1989,7 +1990,7 @@ theorem dir_snd {Γ : List Term} {p : Term} (h : SoundDir Γ p) : SoundDir Γ (.
       refine ⟨Shape.T y', hwy, .snd hz ?_ hwy (TShape.LE.refl hwy)
           (hty₁.retype (TShape.LE.pair_dom hz₁)),
         hle₁.trans hΔ hy₁, hle₂.trans hΔ hy₂⟩
-      exact hA₁.choose_spec.defeqDF (ha₁.symm.trans hlab₁)
+      exact hA₁.defeqDF (ha₁.symm.trans hlab₁)
 
 /-! ## The β-rules of Σ
 
@@ -2443,8 +2444,9 @@ theorem sound_pair_dom {Γ : List Term} {A B a b : Term} {u v : Bool}
         (fun p hp => by
           cases hp
           have hlk : TShape.WF Δ cc (some ((B.subst σ.lift).inst (a.subst σ))) :=
+            have ⟨_, hBσ'⟩ := hScan.2.1
             TShape.WF.lookup hΔ hScan.2.2.2.1 (ShapeFun.WF.canon hScan.2.2.2.1)
-              hAσ hScan.2.1.choose_spec hlook
+              hAσ hBσ' hlook
           have h := hccdom.defeq hΔ hlk (by simpa [subst_inst] using hsnd.symm)
           simpa using h),
       hScan⟩
@@ -2470,7 +2472,7 @@ theorem sound_pair_eq_of {Γ : List Term} {A A' B B' a a' b b' : Term} {u v : Bo
   | @pair _ _ _ _ n x y d c _ _ _ _ ha hb hA hd hNV hdc hwp hcode hcty hw hle hAt hat =>
     have hwp' : Shape.WF (n := n+1) Δ
         (ShapeS.pair (A'.subst σ) (a'.subst σ) x y) :=
-      ⟨hwp.1, hAσ.choose_spec.defeqDF (haσ.symm.trans haσ), TyEq.refl_r hAσ,
+      ⟨hwp.1, hAσ.defeqDF (haσ.symm.trans haσ), TyEq.refl_r hAσ,
         hwp.2.2.2.1, hwp.2.2.2.2⟩
     have W' : Ctx.SubstEq Δ (σ.cons (a.subst σ)) (σ.cons (a.subst σ)) (A :: Γ) :=
       .cons W hAA'.hasType.1 hwp.2.1
@@ -2485,7 +2487,7 @@ theorem sound_pair_eq_of {Γ : List Term} {A A' B B' a a' b b' : Term} {u v : Bo
     have hcode'' : Interp Δ (A' :: Γ) B' (σ.cons (a'.subst σ)) (ρ.push (Shape.T x)) c :=
       IsDefEq.stage (show ⊢ (A' :: Γ) from ⟨W.wf, _, hAA'.hasType.2⟩) hB'ty hΔ
         (Ctx.SubstEq.cons (σ := σ.cons (a.subst σ)) (σ' := σ.cons (a'.subst σ)) W
-          hAA'.hasType.2 (hAσ.choose_spec.defeqDF haσ)) hcode'
+          hAA'.hasType.2 (hAσ.defeqDF haσ)) hcode'
     exact .pair ((iha hΔ W hAdm).1 ha) ((ihb hΔ W hAdm).1 hb) ((ihA hΔ W hAdm).1 hA)
       hd (hNV.defeq hΔ hdc haσ)
       (TShape.WF.conv hdc (TyEq.symm hAσ)) hwp' hcode'' hcty hw
@@ -2533,14 +2535,14 @@ theorem sound_graph_lookup {Γ Δ : List Term} {A B : Term} {σ ρ} {u : Bool}
     ∀ {c : TShape}, TEvaluates Δ g ty tm x c →
       Interp Δ (A :: Γ) B (σ.cons tm) (ρ.push x) c := by
   have Wtm : Ctx.SubstEq Δ (σ.cons tm) (σ.cons tm) (A :: Γ) :=
-    .cons W hA (hty.choose_spec.defeqDF hq)
+    .cons W hA (hty.defeqDF hq)
   intro c hc
   induction hc with
   | bot => exact .bot
   | @entry ej hej hlabj hin =>
     obtain ⟨_, htmj⟩ := hlabj
     have Wcons : Ctx.SubstEq Δ (σ.cons ej.tm) (σ.cons tm) (A :: Γ) :=
-      .cons W hA (hty.choose_spec.defeqDF htmj)
+      .cons W hA (hty.defeqDF htmj)
     exact Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hin⟩)
       (IsDefEq.stage hΓA hB hΔ Wcons (hbody ej hej))
   | lower hle' _ ih => exact ih.mono hΔ hle'.wf hle'
@@ -2709,7 +2711,8 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
             TShape.WF.T.2 (hwG.2.2.1.1 e he).2.2.2
           -- the code's labels are the type's, by the order
           have hfσ : Δ ⊢ f.subst σ : (Term.forallE A B).subst σ := hfty.typed.subst hΔ W
-          have hA'ty : Δ ⊢ A' : .sort hwPi.1.choose := hwPi.1.choose_spec
+          obtain ⟨_, hA'ty⟩ := hwPi.1
+          obtain ⟨_, hB'ty⟩ := hwPi.2.1
           have key : ∀ {w : TShape}, TEvaluates Δ G A₁ (a.subst σ) x w →
               ∃ w' c, TEvaluates Δ G A₁ (a.subst σ) x w' ∧ TShape.LE Δ w w' ∧
                 Interp Δ Γ (B.inst a) σ ρ c ∧
@@ -2738,19 +2741,18 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
               refine ⟨q.out.T, pc.2, .entry q hq hlabq hinq, TShape.LE.refl
                 (TShape.WF.T.2 (hwG.2.2.1.1 q hq).2.2.2), ?_, ?_⟩
               · refine toI (TEvaluates.mono hΔ ?_ hinq hcode)
-                exact ⟨hPiLab.1, hqA'.choose_spec.defeqDF hlabq.2⟩
+                exact ⟨hPiLab.1, hqA'.defeqDF hlabq.2⟩
               · -- the entry's output names `app f q.tm`, which the label
                 -- equation moves to `app f a`, through the entry's own code
                 have hwq := (hwG.2.2.1.1 q hq)
-                have hqtm : Δ ⊢ q.tm : A' := hlabG.choose_spec.defeqDF hwq.2.1
+                have hqtm : Δ ⊢ q.tm : A' := hlabG.defeqDF hwq.2.1
                 have hcc : TShape.WF Δ pc.2 (some (B'.inst q.tm)) :=
-                  TShape.WF.lookup hΔ hwPi.2.2.2.1 (ShapeFun.WF.canon hwPi.2.2.2.1) hA'ty hwPi.2.1.choose_spec
-                    hcode
+                  TShape.WF.lookup hΔ hwPi.2.2.2.1 (ShapeFun.WF.canon hwPi.2.2.2.1)
+                    hA'ty hB'ty hcode
                 have hcc' : TShape.WF Δ pc.2 (some ((B.subst σ.lift).inst q.tm)) :=
-                  hcc.conv (TyEq.inst hΔ hA'ty hPiLab.2.choose_spec
-                    (hqtm.symm.trans hqtm)).symm
+                  hcc.conv (TyEq.inst' hΔ hA'ty hPiLab.2 (hqtm.symm.trans hqtm)).symm
                 have hqa : Δ ⊢ q.tm ≡ a.subst σ : A.subst σ :=
-                  hA₁.choose_spec.defeqDF hlabq.2
+                  hA₁.defeqDF hlabq.2
                 have happ := IsDefEq.appDF₀ hΔ hfσ hqa
                 exact hdomq.defeq hΔ hcc' happ
             | lower hle' _ ih =>
@@ -2784,7 +2786,7 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
           have hwy' := TEvaluates.wf hΔ hwout hy'
           exact ⟨y', c,
             .app hF' hx
-              (TEvaluates.label ⟨hA'', hA₁.symm.choose_spec.defeqDF haσ⟩ hy') hwy'
+              (TEvaluates.label ⟨hA'', hA₁.symm.defeqDF haσ⟩ hy') hwy'
               (TShape.LE.refl hwy') (hst.retype hA''),
             TShape.LE.trans hΔ hle hyle, hIc, hdc,
             hBad.codeAt hΔ W hAdm hIc⟩
@@ -2806,7 +2808,7 @@ theorem sound_app_eq_of {Γ : List Term} {A B f f' a a' : Term}
     refine .app ((ihf hΔ W hAdm).1 hF) ((iha hΔ W hAdm).1 hx) ?_ hw hle
       (Stable.of_typed haa'.hasType.2 hA₁)
     exact TEvaluates.mono hΔ
-      ⟨hA₁.refl_l, hA₁.choose_spec.symm.defeqDF (haa'.subst hΔ W)⟩
+      ⟨hA₁.refl_l, hA₁.symm.defeqDF (haa'.subst hΔ W)⟩
       (TShape.LE.refl hx.wf) hev
 
 /-- The `SoundEq` half of `appDF`. -/
@@ -2892,7 +2894,7 @@ theorem sound_snd_dom {Γ : List Term} {A B p : Term} {u v : Bool}
           have hA₀' : TyEq Δ A₀' (A.subst σ) := Interp.pair_label_ty hΔ W hAdm hpty hP'
           obtain ⟨hAle, hale, hxle, hyle⟩ := TShape.LE.pair_decomp hΔ hPle
           have hlab' : Δ ⊢ a₀' ≡ (Term.fst p).subst σ : A₀' :=
-            hAle.choose_spec.defeqDF (hale.symm.trans hlab)
+            hAle.defeqDF (hale.symm.trans hlab)
           -- the code that types the dominator's second component is a
           -- lookup at that name, hence an approximant of `B[fst p]`
           have hcode : TEvaluates Δ fS A' a₀' (Shape.T x') cc := hevc _ (by rw [← hps]; rfl)
@@ -2904,10 +2906,10 @@ theorem sound_snd_dom {Γ : List Term} {A B p : Term} {u v : Bool}
               (hfdir hΔ W hwρ) hwρ).2 ⟨Shape.T x', ?_, hx'I⟩
             rw [Subst.one_comp]
             refine sound_graph_lookup hΓA hA hB hΔ W hbodyc hx'w hBdir hwρ
-              ((TyEq.symm hSgLab.1).choose_spec.defeqDF hfσ) hSgLab.1 ?_
+              ((TyEq.symm hSgLab.1).defeqDF hfσ) hSgLab.1 ?_
             refine TEvaluates.label (A := A') (a := a₀')
               ⟨TyEq.refl_l hSgLab.1,
-                (TyEq.trans hA₀' (TyEq.symm hSgLab.1)).choose_spec.defeqDF hlab'⟩ ?_
+                (TyEq.trans hA₀' (TyEq.symm hSgLab.1)).defeqDF hlab'⟩ ?_
             exact TEvaluates.trans hΔ hcovc hcode
           exact ⟨Shape.T y', cc,
             .snd hP' hlab' (TShape.WF.T.2 hwP.2.2.2.2)
@@ -2938,7 +2940,7 @@ theorem sound_snd_eq_of {Γ : List Term} {A B p p' : Term} {u v : Bool}
     refine .snd ((ihp hΔ W hAdm).1 hp) ?_ hw hle
       (Stable.of_typed (IsDefEq.fstDF hA hB hpp').hasType.2 hA₀)
     -- the name now points at `fst p'`, along `fst p ≡ fst p'`
-    exact hlab.trans (hA₀.choose_spec.symm.defeqDF
+    exact hlab.trans (hA₀.symm.defeqDF
       ((IsDefEq.fstDF hA hB hpp').subst hΔ W))
 
 /-- The `SoundEq` half of `sndDF`. -/
@@ -4805,7 +4807,7 @@ theorem sound_eta_to {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
       have h2 := TEvaluates.mono_inp hΔ hxle (TEvaluates.trans hΔ hcov hev)
       refine TEvaluates.label ?_ h2
       have hAq : TyEq Δ Aq (A.subst σ) := Interp.lam_label_ty hΔ W hAdm ihety hEq
-      exact ⟨hAq, hAq.symm.choose_spec.defeqDF (hwf.2.2.1.1 q hq).2.1⟩
+      exact ⟨hAq, hAq.symm.defeqDF (hwf.2.2.1.1 q hq).2.1⟩
     -- one approximant of `e` above all of them
     obtain ⟨g₀, hmap, hall⟩ := List.exists_pairs hent'
     obtain ⟨E, hwE, hE, hleE⟩ :=
@@ -4897,9 +4899,9 @@ theorem PairCanon.of_dom {Γ : List Term} {A B p : Term} (h : SoundDom Γ p (.si
       have hlab : TyEq Δ A' A₁ := by
         cases hty
         assumption
-      exact hlab.choose_spec.symm.defeqDF
+      exact hlab.symm.defeqDF
         (hnm _ (show _ ∈ _ by rw [← hps]; rfl) _ rfl)
-  exact haa.trans (hAA.choose_spec.symm.defeqDF hname)
+  exact haa.trans (hAA.symm.defeqDF hname)
 
 /-- **Σ's η, the hard direction**: an approximant of `p` is one of
 `⟨fst p, snd p⟩`.  Saturation hands a pair-approximant `P` above it; its
@@ -4961,9 +4963,9 @@ theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢
         have hAlab : TyEq Δ A₀ (A.subst σ) := Interp.pair_label_ty hΔ W hAdm ihpty hP
         -- the name is the subject's own first projection
         have hname : Δ ⊢ a₀ ≡ (Term.fst p).subst σ : A₀ := by
-          have h := hSgLab.1.choose_spec.defeqDF
+          have h := hSgLab.1.defeqDF
             (hnm _ (show _ ∈ _ by rw [← hps]; rfl) _ rfl)
-          simpa using hAlab.choose_spec.symm.defeqDF h
+          simpa using hAlab.symm.defeqDF h
         -- the two components are the projections' approximants
         have hxI : Interp Δ Γ (.fst p) σ ρ (Shape.T x) := .fst hP hxw (TShape.LE.refl hxw)
         have hyI : Interp Δ Γ (.snd p) σ ρ (Shape.T y) :=
@@ -4973,9 +4975,9 @@ theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢
             (ρ.push (Shape.T x)) cc := by
           refine Interp.stage hΔ hΓA hB.annot.1
             (Ctx.SubstEq.cons (σ := σ.cons a₀) W hA ?_) ?_
-          · exact hAlab.choose_spec.defeqDF hname
+          · exact hAlab.defeqDF hname
           · refine sound_graph_lookup hΓA hA hB hΔ W hbodyc hxw ihBdir hwρ
-              (show Δ ⊢ a₀ : A' from hlabP.choose_spec.defeqDF hwP.2.1)
+              (show Δ ⊢ a₀ : A' from hlabP.defeqDF hwP.2.1)
               hSgLab.1 (TEvaluates.trans hΔ hcov (hevc _ (by rw [← hps]; rfl)))
         -- the expansion's pair, on the dominator's own components
         have hwf : Shape.WF (n := nP+1) Δ
@@ -5022,14 +5024,14 @@ theorem sound_fst_snd_to {Γ : List Term} {A B p : Term} {u v : Bool}
         refine Interp.mono hΔ hw (TShape.LE.trans hΔ hle ?_) hP₂
         have hAP := Interp.pair_label_ty hΔ W hAdm ihpty hP₂
         exact TShape.LE.pair_mk hΔ (TShape.bot_le' rfl) hle₂ hwf.1 (TyEq.symm hAP)
-          (hAP.choose_spec.defeqDF (hcanon hP₂).symm)
+          (hAP.defeqDF (hcanon hP₂).symm)
     | fst hP₁ hwx hlex =>
       cases hy with
       | bot =>
         refine Interp.mono hΔ hw (TShape.LE.trans hΔ hle ?_) hP₁
         have hAP := Interp.pair_label_ty hΔ W hAdm ihpty hP₁
         exact TShape.LE.pair_mk hΔ hlex (TShape.bot_le' rfl) hwf.1 (TyEq.symm hAP)
-          (hAP.choose_spec.defeqDF (hcanon hP₁).symm)
+          (hAP.defeqDF (hcanon hP₁).symm)
       | snd hP₂ hlab₂ hwy hley hst₂ =>
         -- one pair-approximant above both
         obtain ⟨P, hwP, hP, hleP₁, hleP₂⟩ := ihpdir hΔ W hwρ hP₁ hP₂
@@ -5040,7 +5042,7 @@ theorem sound_fst_snd_to {Γ : List Term} {A B p : Term} {u v : Bool}
         have hAP := Interp.pair_label_ty hΔ W hAdm ihpty hP
         exact TShape.LE.pair_mk hΔ (TShape.LE.trans hΔ hlex hx₁)
           (TShape.LE.trans hΔ hley hy₂) hwf.1 (TyEq.symm hAP)
-          (hAP.choose_spec.defeqDF (hcanon hP).symm)
+          (hAP.defeqDF (hcanon hP).symm)
 
 /-- The four conclusions proved by the induction itself.  `Sound` adds
 saturation on top, which is where the remaining work is (§4.5g). -/
@@ -5233,7 +5235,7 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
     -- not yet give: a pair-approximant's name is the subject's own first
     -- projection (§4.7a, `PairCanon`)
     obtain ⟨hAty, hpA, hpB, hpa, hpb⟩ := (ihpair hΓ).pin
-    have hSg := (hp.isType hΓ).choose_spec
+    obtain ⟨_, hSg⟩ := (hp.isType hΓ)
     obtain ⟨u, hA⟩ := IsDefEq.sigma_dom hSg
     obtain ⟨v, hB⟩ := IsDefEq.sigma_cod hSg
     have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩

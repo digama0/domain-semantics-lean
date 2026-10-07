@@ -457,15 +457,16 @@ def Shape.join : ∀ {n}, Shape n → Shape n → Shape n
 are read at `B'` and wanted at `B`, which the Π label equality supplies
 once the entry's term is typed at `A`. -/
 theorem ShapeFun.codeCanonS_append {n} {Δ : List Term} (hΔ : ⊢ Δ) {A A' B B' : Term}
-    {u v : Bool} {f g : ShapeFun n} (hA : Δ ⊢ A : .sort u) (hAA' : Δ ⊢ A ≡ A' : .sort u)
-    (hBB' : A :: Δ ⊢ B ≡ B' : .sort v) (hg : ∀ e ∈ g, Δ ⊢ e.tm : A')
+    {f g : ShapeFun n} (hlab : PiLabelEq Δ A B A' B') (hg : ∀ e ∈ g, Δ ⊢ e.tm : A')
     (hcf : ∀ e ∈ f, Shape.WF Δ e.out (some (B.inst e.tm)))
     (hcg : ∀ e ∈ g, Shape.WF Δ e.out (some (B'.inst e.tm))) :
     ∀ e ∈ f ++ g, Shape.WF Δ e.out (some (B.inst e.tm)) := by
+  obtain ⟨⟨u, hAA'⟩, v, hBB'⟩ := hlab
   intro e he
   rcases List.mem_append.1 he with h | h
   · exact hcf e h
-  · exact (hcg e h).conv ⟨v, hA.instDF hΔ .sort hBB' (hAA'.symm.defeqDF (hg e h))⟩
+  · exact (hcg e h).conv
+      ⟨v, hAA'.hasType.1.instDF hΔ .sort hBB' (hAA'.symm.defeqDF (hg e h))⟩
 
 /-! ## The order
 
@@ -726,14 +727,12 @@ theorem Shape.WF.mono_mem {Δ : List Term} (hΔ : ⊢ Δ) :
         | exact absurd h id
         | (cases h; exact hC)
         | exact ⟨hw.1, hw.2.1, hw.2.2.1, hw.2.2.2.1,
-            hC.2.2.2.2.trans ⟨_, (IsDefEq.forallEDF₀ hΔ h.1.1.choose_spec
-              h.1.2.choose_spec).symm⟩⟩
+            hC.2.2.2.2.trans (PiLabelEq.forallE hΔ h.1).symm⟩
         | exact ⟨hw.1, hw.2.1, hw.2.2.1, hw.2.2.2.1,
-            hC.2.2.2.2.trans ⟨_, (IsDefEq.sigmaDF₀ hΔ h.1.1.choose_spec
-              h.1.2.choose_spec).symm⟩⟩
+            hC.2.2.2.2.trans (PiLabelEq.sigma hΔ h.1).symm⟩
         | (cases h.1
            exact ⟨hw.1, hw.2.1, hw.2.2.1,
-             hC.2.2.2.trans ⟨_, (IsDefEq.idDF h.2.1.choose_spec h.2.2.1 h.2.2.2).symm⟩⟩)
+             hC.2.2.2.trans (IdLabelEq.id h.2).symm⟩)
 
 theorem Shape.LE.refl {n} {s : Shape n} (hs : Shape.WF Γ s) : Shape.LE Γ s s := by
   induction n with
@@ -1145,7 +1144,7 @@ theorem Shape.LE.trans (hΓ : ⊢ Γ) {n} {s t u : Shape n}
     cases u <;> try exact absurd h₂ id
     exact ⟨ih h₁.1 h₂.1, ih h₁.2.1 h₂.2.1, h₁.2.2.1,
       h₁.2.2.2.1.trans h₂.2.2.2.1,
-      h₁.2.2.2.2.trans ((h₁.2.2.2.1.symm).choose_spec.defeqDF h₂.2.2.2.2)⟩
+      h₁.2.2.2.2.trans ((h₁.2.2.2.1.symm).defeqDF h₂.2.2.2.2)⟩
   | id =>
     cases t <;> cases h₁
     cases u <;> cases h₂
@@ -1442,7 +1441,7 @@ theorem Shape.Compat.symm {n} {Δ : List Term} {a b : Shape n} (hΔ : ⊢ Δ)
     | refl => cases b with | bot => trivial | refl => trivial | _ => cases h
     | pair A a x y =>
       cases b with | bot => trivial | pair A' a' x' y' => ?_ | _ => cases h
-      exact ⟨h.1.symm, h.1.choose_spec.defeqDF h.2.1.symm, ih hΔ h.2.2.1,
+      exact ⟨h.1.symm, h.1.defeqDF h.2.1.symm, ih hΔ h.2.2.1,
         ih hΔ h.2.2.2⟩
     | id r A a' b' =>
       cases b with | bot => trivial | id r' A'' a'' b'' => ?_ | _ => cases h
@@ -1697,7 +1696,7 @@ theorem Shape.Compat.anti_right : ∀ {n} {Δ : List Term} {a b b' : Shape n}, �
         | bot => trivial
         | pair A' a' x' y' =>
           refine ⟨h.1.trans hb.2.2.2.1.symm, ?_, ih hΔ h.2.2.1 hb.1, ih hΔ h.2.2.2 hb.2.1⟩
-          exact h.2.1.trans ((h.1.trans hb.2.2.2.1.symm).symm.choose_spec.defeqDF
+          exact h.2.1.trans ((h.1.trans hb.2.2.2.1.symm).symm.defeqDF
             (hb.2.2.2.2.symm))
         | _ => exact absurd hb id
       | _ => exact absurd h id
@@ -1920,8 +1919,7 @@ theorem Shape.join_le (hΔ : ⊢ Δ) : ∀ {n} {x y w : Shape n},
                Shape.WF.join_of (Shape.LE.wf (ih h₁.2.1 h₂.2.1)) h₁.2.2.2.1
                  (Shape.WF.conv h₂.2.2.2.1 hpi.1)),
               (have hpi := h₁.1.trans hΔ (h₂.1.symm hΔ)
-               ShapeFun.codeCanonS_append hΔ hpi.1.choose_spec.hasType.1 hpi.1.choose_spec
-                 hpi.2.choose_spec
+               ShapeFun.codeCanonS_append hΔ hpi
                  (fun e he => ((Shape.LE.wf h₂).2.2.2.1.1 e he).2.1)
                  h₁.2.2.2.2 h₂.2.2.2.2)⟩
       | _ => exact h₁
@@ -1940,8 +1938,7 @@ theorem Shape.join_le (hΔ : ⊢ Δ) : ∀ {n} {x y w : Shape n},
                Shape.WF.join_of (Shape.LE.wf (ih h₁.2.1 h₂.2.1)) h₁.2.2.2.1
                  (Shape.WF.conv h₂.2.2.2.1 hpi.1)),
               (have hpi := h₁.1.trans hΔ (h₂.1.symm hΔ)
-               ShapeFun.codeCanonS_append hΔ hpi.1.choose_spec.hasType.1 hpi.1.choose_spec
-                 hpi.2.choose_spec
+               ShapeFun.codeCanonS_append hΔ hpi
                  (fun e he => ((Shape.LE.wf h₂).2.2.2.1.1 e he).2.1)
                  h₁.2.2.2.2 h₂.2.2.2.2)⟩
       | _ => exact h₁
@@ -2082,7 +2079,7 @@ theorem Shape.le_join (hΔ : ⊢ Δ) : ∀ {n} {x y : Shape n}, Shape.WF Δ x �
         have hyy := ih hx.2.2.2.2 hy.2.2.2.2 h.2.2.2
         refine ⟨⟨hxx.1, hyy.1, hx.1, hx.pair_dom, hx.2.1⟩,
           ⟨hxx.2, hyy.2, hy.1, h.1.symm, ?_⟩⟩
-        exact h.1.choose_spec.defeqDF h.2.1.symm
+        exact h.1.defeqDF h.2.1.symm
       | _ => exact absurd h id
     | sort r =>
       cases y with
@@ -2149,8 +2146,7 @@ theorem Shape.WF.join : ∀ {n} {Δ : List Term} {y z : Shape n}, ⊢ Δ →
           ShapeFun.WF.name (ShapeFun.WF.append (ShapeFun.WF.forget hy.2.2.2.1)
             ((ShapeFun.WF.forget hz.2.2.2.1).retype (TyEq.symm hc.1.1)) hc.2.2
             (ShapeFun.Compat.symm hc.2.2)) ?_, trivial⟩
-        exact ShapeFun.codeCanonS_append hΔ hc.1.1.choose_spec.hasType.1 hc.1.1.choose_spec
-          hc.1.2.choose_spec (fun e he => (hz.2.2.2.1.1 e he).2.1)
+        exact ShapeFun.codeCanonS_append hΔ hc.1 (fun e he => (hz.2.2.2.1.1 e he).2.1)
           (ShapeFun.WF.canon hy.2.2.2.1) (ShapeFun.WF.canon hz.2.2.2.1)
       | _ => exact hy
     | sigma A B d f =>
@@ -2163,8 +2159,7 @@ theorem Shape.WF.join : ∀ {n} {Δ : List Term} {y z : Shape n}, ⊢ Δ →
           ShapeFun.WF.name (ShapeFun.WF.append (ShapeFun.WF.forget hy.2.2.2.1)
             ((ShapeFun.WF.forget hz.2.2.2.1).retype (TyEq.symm hc.1.1)) hc.2.2
             (ShapeFun.Compat.symm hc.2.2)) ?_, trivial⟩
-        exact ShapeFun.codeCanonS_append hΔ hc.1.1.choose_spec.hasType.1 hc.1.1.choose_spec
-          hc.1.2.choose_spec (fun e he => (hz.2.2.2.1.1 e he).2.1)
+        exact ShapeFun.codeCanonS_append hΔ hc.1 (fun e he => (hz.2.2.2.1.1 e he).2.1)
           (ShapeFun.WF.canon hy.2.2.2.1) (ShapeFun.WF.canon hz.2.2.2.1)
       | _ => exact hy
     | succ v => cases z with | bot => exact hy | succ w => exact ih hΔ hc hy hz | _ => exact hy
@@ -2657,6 +2652,14 @@ theorem TyEq.inst {Δ : List Term} (hΔ : ⊢ Δ) {A B B' a a' : Term} {u v : Bo
     (hA : Δ ⊢ A : .sort u) (hB : A :: Δ ⊢ B ≡ B' : .sort v) (ha : Δ ⊢ a ≡ a' : A) :
     TyEq Δ (B.inst a) (B'.inst a') :=
   ⟨v, hA.instDF hΔ .sort hB ha⟩
+
+/-- The same with the codomain equation packaged, so the level stays
+hidden. -/
+theorem TyEq.inst' {Δ : List Term} (hΔ : ⊢ Δ) {A B B' a a' : Term} {u : Bool}
+    (hA : Δ ⊢ A : .sort u) (hB : TyEq (A :: Δ) B B') (ha : Δ ⊢ a ≡ a' : A) :
+    TyEq Δ (B.inst a) (B'.inst a') :=
+  match hB with
+  | ⟨_, hB⟩ => TyEq.inst hΔ hA hB ha
 
 /-- A sort-shaped code names a sort, at every level. -/
 theorem TShape.WF.sort_iff {Δ : List Term} {T : Term} {k} {j : Bool} :
