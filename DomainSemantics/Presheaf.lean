@@ -1367,7 +1367,7 @@ theorem lam_pi_code {Γ Γ₀ Δ : List Term} {A B : Term} {u v : Bool} {σ ρ}
       TShape.HasType Δ (Shape.T (n := n+1) (.lam (A.subst σ) g))
         (Shape.T (n := k+1) (.forallE (A.subst σ) (B.subst σ.lift) dk f)) ∧
       TShape.HasType Δ (Shape.T dk) TShape.type ∧
-      (∀ e ∈ g, TShape.Named Δ (Shape.T dk) e.inp.T none) ∧
+      (∀ e ∈ g, TShape.Named Δ (Shape.T dk) e.inp.T (some e.tm)) ∧
       (∀ e ∈ g, ∃ c, TEvaluates Δ f (A.subst σ) e.tm e.inp.T c ∧
         TShape.HasType Δ c TShape.type ∧ Q e c) ∧
       TShape.WF Δ (Shape.T (n := k+1) (.forallE (A.subst σ) (B.subst σ.lift) dk f)) (some ((Term.forallE A B).subst σ)) := by
@@ -1472,8 +1472,8 @@ theorem lam_pi_code {Γ Γ₀ Δ : List Term} {A B : Term} {u v : Bool} {σ ρ}
     exact TEvaluates.lower
       (TShape.LE.le_lift hΔ (m := (Prod.snd p : TShape)) (hkc p hp) (hpwf p hp))
       (hlook p hp)
-  · -- the inputs are hereditarily typed at the lifted domain
-    exact (TShape.Named.mono_r hΔ (hNV e he) hdle hdty).forget
+  · -- the inputs are hereditarily typed at the lifted domain, and named
+    exact TShape.Named.mono_r hΔ (hNV e he) hdle hdty
   · -- and the code of each entry is looked up at it
     obtain ⟨p, hp, rfl⟩ : ∃ p ∈ g₀, p.1 = e := by
       rw [← hmap, List.mem_map] at he
@@ -1600,7 +1600,8 @@ theorem sound_lam_dom {Γ : List Term} {A B b : Term} {u v : Bool}
         (Shape.LE.refl ((Shape.lift_wf hkn).2 (hwf.2.2.1.1 p.1 (hgsg p hp)).2.2.1))
     -- the Π-approximant, with the saturation's codes
     obtain ⟨kP, dP, f, hPi, hty, hdtyP, hinP, hcodes, hcanPi⟩ :=
-      lam_pi_code (Q := fun e c => TShape.Named Δ c e.out.T none)
+      lam_pi_code (Q := fun e c =>
+          TShape.Named Δ c e.out.T (some (Term.app ((Term.lam A b).subst σ) e.tm)))
         hΓ hAty hB ihAd ihBty ihBc ihBdir hΔ W hAdm hA hd hwf'
         (fun e he => by
           obtain ⟨p, hp, rfl⟩ := (hg' e).1 he
@@ -1615,19 +1616,27 @@ theorem sound_lam_dom {Γ : List Term} {A B b : Term} {u v : Bool}
           · exact TShape.HasType.mono_l hΔ (hall p hp).2.2.2.1.hasType
               (TShape.LE.lift_le hΔ (m := ((Prod.snd p).1 : TShape)) (hkc p hp)
                 (hswf p hp))
-          · exact (TShape.Named.lift_subject hΔ (hall p hp).2.2.2.1 (hkc p hp)).forget)
+          · have hAσ : Δ ⊢ A.subst σ : .sort u := hAty.subst hΔ W
+            have hbσ : A.subst σ :: Δ ⊢ b.subst σ.lift : B.subst σ.lift :=
+              hb.subst ⟨hΔ, _, hAσ⟩ (W.lift hAty hAσ)
+            have htm : Δ ⊢ p.1.tm : A.subst σ := (hwf.2.2.1.1 p.1 (hgsg p hp)).2.1
+            have hβ := IsDefEq.beta₀ hΔ hbσ htm
+            rw [inst_lift_cons, inst_lift_cons] at hβ
+            exact (((hall p hp).2.2.2.1.defeq hΔ (hall p hp).2.2.2.2
+              hβ.symm).lift_subject hΔ (hkc p hp)))
     -- and the codes, entry by entry, are what `Named` asks for
     obtain ⟨cs₀, hcsmap, hcsall⟩ := List.exists_pairs (β := TShape)
       (P := fun (e : Entry (Shape k)) (c : TShape) =>
-        TEvaluates Δ f (A.subst σ) e.tm e.inp.T c ∧ TShape.Named Δ c e.out.T none)
+        TEvaluates Δ f (A.subst σ) e.tm e.inp.T c ∧
+          TShape.Named Δ c e.out.T (some (Term.app ((Term.lam A b).subst σ) e.tm)))
       (fun e he => by
         obtain ⟨c, hc, _, hdc⟩ := hcodes e he
         exact ⟨c, hc, hdc⟩)
     have hcsg : ∀ p ∈ cs₀, p.1 ∈ g' := fun p hp => hcsmap ▸ List.mem_map.2 ⟨p, hp, rfl⟩
     refine ⟨Shape.T (n := k+1) (.lam (A.subst σ) g'), _, hlamI,
       TShape.LE.trans hΔ hle hlamle, hPi,
-      .name (.pi (cs := cs₀.map (fun p => ((⟨p.1.tm, p.1.inp.T, p.1.out.T⟩ : Entry TShape),
-        p.2))) hty ?_ (fun p hp => ?_) (fun p hp => ?_) (fun p hp => ?_)) ?_, hcanPi⟩
+      .pi (cs := cs₀.map (fun p => ((⟨p.1.tm, p.1.inp.T, p.1.out.T⟩ : Entry TShape),
+        p.2))) hty ?_ (fun p hp => ?_) (fun p hp => ?_) (fun p hp => ?_), hcanPi⟩
     · show g'.map (fun e => (⟨e.tm, e.inp.T, e.out.T⟩ : Entry TShape)) = _
       rw [← hcsmap]
       simp [List.map_map, Function.comp_def]
@@ -1637,20 +1646,6 @@ theorem sound_lam_dom {Γ : List Term} {A B b : Term} {u v : Bool}
       exact (hcsall q hq).1
     · obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
       exact (hcsall q hq).2
-    · -- each output names the application, by β at its own label
-      have hAσ : Δ ⊢ A.subst σ : .sort u := hAty.subst hΔ W
-      have hbσ : A.subst σ :: Δ ⊢ b.subst σ.lift : B.subst σ.lift :=
-        hb.subst ⟨hΔ, _, hAσ⟩ (W.lift hAty hAσ)
-      intro e he
-      obtain ⟨p, hp, rfl⟩ := (hg' e).1 he
-      have hq := hgsg p hp
-      refine ⟨((hNV p.1 hq).lift_subject hΔ hkn).val, ?_⟩
-      have htm : Δ ⊢ p.1.tm : A.subst σ :=
-        (hwf.2.2.1.1 p.1 hq).2.1
-      have hβ := IsDefEq.beta₀ hΔ hbσ htm
-      rw [inst_lift_cons, inst_lift_cons] at hβ
-      exact ((((hall p hp).2.2.2.1).defeq hΔ (hall p hp).2.2.2.2
-        hβ.symm).lift_subject hΔ (hkc p hp)).val
 
 /-- One direction of the `SoundEq` half of `lamDF`.
 
@@ -2863,8 +2858,6 @@ theorem sound_snd_dom {Γ : List Term} {A B p : Term} {u v : Bool}
   | @snd _ _ _ _ _ n A₀ a₀ x y hp hlab hw hle hst =>
     -- saturate the pair; its second component is the projection's
     obtain ⟨P', S, hP', hPle, hS, hNV, _⟩ := hpdom hΔ W hAdm hp
-    have hPcan := hNV.val
-    have hPdom := hNV.forget
     have hSsg : S.IsSigma := by
       rcases (show S.2 = Shape.bot ∨ S.IsSigma from by
           cases hS with
@@ -4890,10 +4883,23 @@ theorem PairCanon.of_dom {Γ : List Term} {A B p : Term} (h : SoundDom Γ p (.si
     PairCanon Δ Γ σ ρ p := by
   intro n A₀ a₀ x y hP
   obtain ⟨P', _, _, hle, _, hNV, _⟩ := h hΔ W hAdm hP
-  have hcan := hNV.val
   obtain ⟨k, A', a', x', y', rfl⟩ := TShape.LE.pair_ub hle
   obtain ⟨hAA, haa, _, _⟩ := TShape.LE.pair_decomp hΔ hle
-  exact haa.trans (hAA.choose_spec.symm.defeqDF hcan.1)
+  -- the saturated pair's own name equation, read off `Named`'s Σ clause;
+  -- the other two clauses cannot type a pair
+  have hname : Δ ⊢ a' ≡ (Term.fst p).subst σ : A' := by
+    cases hNV with
+    | base hnb hty _ =>
+      cases hty
+      exact absurd trivial hnb
+    | @pi _ _ _ _ _ _ _ _ hty _ _ _ _ => cases hty
+    | @sg _ _ A₁ _ _ _ _ ps _ hty hps hnm _ _ _ =>
+      have hlab : TyEq Δ A' A₁ := by
+        cases hty
+        assumption
+      exact hlab.choose_spec.symm.defeqDF
+        (hnm _ (show _ ∈ _ by rw [← hps]; rfl) _ rfl)
+  exact haa.trans (hAA.choose_spec.symm.defeqDF hname)
 
 /-- **Σ's η, the hard direction**: an approximant of `p` is one of
 `⟨fst p, snd p⟩`.  Saturation hands a pair-approximant `P` above it; its
