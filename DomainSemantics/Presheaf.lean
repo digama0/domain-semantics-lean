@@ -2075,8 +2075,6 @@ theorem sound_pair_snd {Γ : List Term} {A B a b : Term} {u v : Bool}
           (Subst.Saturates.one hΔ hΓ W hAdm ihadom)
           (ihadir hΔ W hwρ) hwρ).1 hc
       obtain ⟨x, d, hx, hlex, hd, hNV, hdcx⟩ := ihadom hΔ W hAdm hx₀
-      have hxd := hNV.forget
-      have hxcx := hNV.val
       have hbody : Interp Δ (A :: Γ) B ((Subst.one a).comp σ) (ρ.push x) c :=
         Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hlex⟩) hbody₀
       obtain ⟨k, hkx, hkn⟩ : ∃ k, x.1 ≤ k ∧ nb ≤ k :=
@@ -2097,8 +2095,7 @@ theorem sound_pair_snd {Γ : List Term} {A B a b : Term} {u v : Bool}
         rw [← Subst.one_comp]; exact hbody
       exact .snd (.pair (c := c) (Interp.lift hΔ hkx hx)
           (Interp.lift (m := ⟨nb, sb⟩) hΔ hkn hmb) hd (ihAty.isType hΔ W hAdm hd)
-          (.name (TShape.Named.lift_subject hΔ hxd hkx)
-            ((Shape.ValCanon.lift hΔ hkx).2 hxcx)) hdcx
+          (TShape.Named.lift_subject hΔ hNV hkx) hdcx
           hwf hbody'
           (TShape.Named.lift_subject hΔ hdc hkn) hwf (TShape.LE.refl hwf) ⟨u, hA⟩ ha)
         (IsDefEq.subst hΔ W hfst.symm) h.wf
@@ -2223,8 +2220,6 @@ theorem pair_sigma_code {Γ Γ₀ Δ : List Term} {A B a : Term} {u v : Bool} {�
       (∃ cc, TEvaluates Δ f (A.subst σ) (a.subst σ) (Shape.T x) cc ∧
         TShape.HasType Δ cc TShape.type ∧ TShape.Named Δ cc (Shape.T y) none) ∧
       TShape.WF Δ (Shape.T (n := k+1) (.sigma (A.subst σ) (B.subst σ.lift) dk f)) (some ((Term.sigma A B).subst σ)) := by
-  have hdx := hNV.forget
-  have hxc := hNV.val
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hAty⟩
   have hwρ := hAdm.wf
   have hAσ : Δ ⊢ A.subst σ : .sort u := hAty.subst hΔ W
@@ -2267,11 +2262,12 @@ theorem pair_sigma_code {Γ Γ₀ Δ : List Term} {A B a : Term} {u v : Bool} {�
     rw [hfmem e he]
     exact ⟨⟨u, hAσ⟩, hwp.2.1, (Shape.lift_wf hkn).2 hwp.2.2.2.1,
       (Shape.lift_wf hkc).2 hcwf⟩
-  have hfdom : ∀ e ∈ f, TShape.Named Δ (Shape.T ((d.join c₀).2.lift k)) e.inp.T none := by
+  have hfdom : ∀ e ∈ f,
+      TShape.Named Δ (Shape.T ((d.join c₀).2.lift k)) e.inp.T (some e.tm) := by
     intro e he
     rw [hfmem e he]
     exact TShape.Named.mono_r hΔ
-      (TShape.Named.lift_subject hΔ (TShape.Named.mono_r hΔ hdx hled hdjty) hkn) hdle hdty
+      (TShape.Named.lift_subject hΔ (TShape.Named.mono_r hΔ hNV hled hdjty) hkn) hdle hdty
   have hfbody : ∀ e ∈ f,
       Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push e.inp.T) e.out.T := by
     intro e he
@@ -2303,7 +2299,7 @@ theorem pair_sigma_code {Γ Γ₀ Δ : List Term} {A B a : Term} {u v : Bool} {�
         (TShape.LE.lift_le hΔ (m := d.join c₀) hkd hdjty.wf.1) hdj)
       hdty hwfSg
       (fun e he => by
-        exact .name (hfdom _ he) (by rw [hfmem e he]; exact (Shape.ValCanon.lift hΔ hkn).2 hxc))
+        exact hfdom _ he)
       hfbody hwfSg (TShape.LE.refl hwfSg) ⟨u, hAty⟩ ⟨v, hB⟩
   -- the code is the lookup at the pair's own name and first component
   have hlook : TEvaluates Δ f (A.subst σ) (a.subst σ) (Shape.T x)
@@ -2318,7 +2314,7 @@ theorem pair_sigma_code {Γ Γ₀ Δ : List Term} {A B a : Term} {u v : Bool} {�
         (TShape.LE.le_lift hΔ (m := c) hkc hcwf) hcodety')
       (TyEq.refl hAσ),
     hdty,
-    TShape.Named.mono_r hΔ (TShape.Named.mono_r hΔ hdx hled hdjty) hdle hdty,
+    (TShape.Named.mono_r hΔ (TShape.Named.mono_r hΔ hNV hled hdjty) hdle hdty).forget,
     ⟨_, hlook, hcodety',
       TShape.Named.mono_r hΔ hcty (TShape.LE.le_lift hΔ (m := c) hkc hcwf) hcodety'⟩, ?_⟩
   -- the Σ-code names `Σ A B`: its domain joins two approximants of `A`,
@@ -3438,8 +3434,6 @@ theorem sound_beta {Γ : List Term} {A B e e' : Term} {u : Bool}
       -- the argument's approximant, enlarged until hereditarily typed:
       -- that is what the λ-clause's slot asks of it
       obtain ⟨x, d, hx, hlex, hd, hNV, _⟩ := ihe'dom hΔ W hAdm hx₀
-      have hxd := hNV.forget
-      have hxc := hNV.val
       have hbody : Interp Δ (A :: Γ) e ((Subst.one e').comp σ) (ρ.push x) ⟨n, s⟩ :=
         Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hlex⟩) hbody₀
       -- one entry, at a level above both the argument's shape and the value
@@ -3471,8 +3465,7 @@ theorem sound_beta {Γ : List Term} {A B e e' : Term} {u : Bool}
         · intro e₀ he₀
           cases he₀ with
           | head =>
-            exact .name (TShape.Named.lift_subject hΔ hxd hkx)
-              ((Shape.ValCanon.lift hΔ hkx).2 hxc)
+            exact TShape.Named.lift_subject hΔ hNV hkx
           | tail _ h => nomatch h
         · intro e₀ he₀
           cases he₀ with
