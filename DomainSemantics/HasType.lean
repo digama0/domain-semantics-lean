@@ -1746,10 +1746,10 @@ theorem TShape.Named.wf {Δ : List Term} {o} {d x : TShape}
       exact Shape.WF.named (TShape.HasType.wf hty).1
         (fun _ _ => by cases hty <;> first | trivial | exact Shape.CodeCanonS.bot)
 
-/-- Its shallow half. -/
-theorem TShape.Named.canon_mem {Δ : List Term} {o} {d x : TShape}
-    (h : TShape.Named Δ d x o) : ∀ t ∈ o, Shape.CodeCanonS Δ t x.2 :=
-  Shape.WF.canon_mem h.wf
+/-- The same at a name that is there. -/
+theorem TShape.Named.wf_mem {Δ : List Term} {o} {d x : TShape}
+    (h : TShape.Named Δ d x o) : ∀ t ∈ o, Shape.WF Δ x.2 (some t) :=
+  Shape.WF.mem h.wf
 
 theorem TShape.Named.hasType {Δ : List Term} {o} {d x : TShape}
     (h : TShape.Named Δ d x o) : TShape.HasType Δ x d := by cases h <;> assumption

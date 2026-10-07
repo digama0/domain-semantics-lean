@@ -47,9 +47,6 @@ def Shape.ValCanon (Δ : List Term) : ∀ {n}, Term → Shape n → Prop
   | _+1, t, s@(.sigma ..) => CodeCanonS Δ t s
   | _+1, t, s@(.forallE ..) => CodeCanonS Δ t s
 
-def TShape.CodeCanonS (Δ : List Term) (T : Term) (x : TShape) : Prop :=
-  Shape.CodeCanonS Δ T x.2
-
 def TShape.ValCanon (Δ : List Term) (t : Term) (x : TShape) : Prop :=
   Shape.ValCanon Δ t x.2
 
@@ -61,8 +58,8 @@ def TShape.ValCanon (Δ : List Term) (t : Term) (x : TShape) : Prop :=
   | succ n => trivial
 
 /-- A sort-shaped code names a sort, at every level. -/
-theorem TShape.CodeCanonS.sort_iff {Δ : List Term} {T : Term} {k} {j : Bool} :
-    TShape.CodeCanonS Δ T (Shape.T (n := k) (Shape.sort j)) ↔ TyEq Δ T (.sort j) := by
+theorem TShape.WF.sort_iff {Δ : List Term} {T : Term} {k} {j : Bool} :
+    TShape.WF Δ (Shape.T (n := k) (Shape.sort j)) (some T) ↔ TyEq Δ T (.sort j) := by
   cases k <;> exact Iff.rfl
 
 
@@ -83,10 +80,6 @@ theorem TyEq.inst {Δ : List Term} (hΔ : ⊢ Δ) {A B B' a a' : Term} {u v : Bo
 /-! ## Lifting -/
 
 
-theorem TShape.CodeCanonS.lift_iff {Δ : List Term} (_hΔ : ⊢ Δ) {T : Term} {a : TShape} {k}
-    (h : a.1 ≤ k) : TShape.CodeCanonS Δ T a ↔ Shape.CodeCanonS Δ T (a.2.lift k) :=
-  (Shape.CodeCanonS.lift_iff h).symm
-
 /-! ## The join -/
 
 
@@ -94,22 +87,13 @@ theorem TShape.CodeCanonS.lift_iff {Δ : List Term} (_hΔ : ⊢ Δ) {T : Term} {
 
 
 /-- The total-level order. -/
-theorem TShape.CodeCanonS.mono {Δ : List Term} (hΔ : ⊢ Δ) {T : Term} {x x' : TShape}
-    (hle : TShape.LE Δ x' x) (hC : TShape.CodeCanonS Δ T x) :
-    TShape.CodeCanonS Δ T x' := by
+theorem TShape.WF.mono {Δ : List Term} (hΔ : ⊢ Δ) {T : Term} {x x' : TShape}
+    (hle : TShape.LE Δ x' x) (hC : TShape.WF Δ x (some T)) :
+    TShape.WF Δ x' (some T) := by
   have h := TShape.LE.def_mp (Nat.le_max_left x'.1 x.1) (Nat.le_max_right x'.1 x.1) hle
-  rw [TShape.CodeCanonS.lift_iff hΔ (Nat.le_max_right x'.1 x.1)] at hC
-  rw [TShape.CodeCanonS.lift_iff hΔ (Nat.le_max_left x'.1 x.1)]
-  exact Shape.CodeCanonS.mono hΔ h hC
-
-/-- The total-level join. -/
-theorem TShape.CodeCanonS.join {Δ : List Term} (hΔ : ⊢ Δ) {T : Term} {y z : TShape}
-    (hy : TShape.CodeCanonS Δ T y) (hz : TShape.CodeCanonS Δ T z) :
-    TShape.CodeCanonS Δ T (TShape.join y z) := by
-  have h1 := Nat.le_max_left y.1 z.1; have h2 := Nat.le_max_right y.1 z.1
-  rw [TShape.CodeCanonS.lift_iff hΔ (k := max y.1 z.1) (Nat.le_refl _), TShape.join.def h1 h2]
-  exact Shape.CodeCanonS.join ((TShape.CodeCanonS.lift_iff hΔ h1).1 hy)
-    ((TShape.CodeCanonS.lift_iff hΔ h2).1 hz)
+  rw [TShape.WF.def (Nat.le_max_right x'.1 x.1)] at hC
+  rw [TShape.WF.def (Nat.le_max_left x'.1 x.1)]
+  exact Shape.WF.mono_mem hΔ h hC
 
 /-! ## The lookup
 
@@ -118,20 +102,19 @@ canonical code of the family at that query.  This is the query-based
 reading of the entry-based condition; it is a theorem rather than the
 definition because the definition has to survive substitution, and an
 entry that is dead at one stage can be live at a later one. -/
-theorem TShape.CodeCanonS.lookup {Δ : List Term} (hΔ : ⊢ Δ) {n} {A B q : Term} {u v : Bool}
+theorem TShape.WF.lookup {Δ : List Term} (hΔ : ⊢ Δ) {n} {A B q : Term} {u v : Bool}
     {f : ShapeFun n} (hw : ShapeFun.WF Δ A oB (@Shape.WF Δ _) f)
-    (hf : ∀ e ∈ f, Shape.CodeCanonS Δ (B.inst e.tm) e.out)
+    (hf : ∀ e ∈ f, Shape.WF Δ e.out (some (B.inst e.tm)))
     (hA : Δ ⊢ A : .sort u) (hB : A :: Δ ⊢ B : .sort v) {x : TShape} :
-    ∀ {c : TShape}, TEvaluates Δ f A q x c → TShape.CodeCanonS Δ (B.inst q) c := by
+    ∀ {c : TShape}, TEvaluates Δ f A q x c → TShape.WF Δ c (some (B.inst q)) := by
   intro c h
   have hwo : ∀ e ∈ f, TShape.WF Δ e.out.T := fun e he => Shape.WF.forget (hw.1 e he).2.2.2
   induction h with
-  | bot => exact Shape.CodeCanonS.bot
+  | bot => exact Shape.WF.bot_mem
   | entry e he hlab _ =>
-    exact (hf e he).conv (TyEq.inst hΔ hA hB hlab.2.symm)
-  | lower hle hz ih => exact TShape.CodeCanonS.mono hΔ hle  ih
-  | join hc hy hz ihy ihz =>
-    exact TShape.CodeCanonS.join hΔ    ihy ihz
+    exact Shape.WF.conv (hf e he) (TyEq.inst hΔ hA hB hlab.2.symm)
+  | lower hle hz ih => exact TShape.WF.mono hΔ hle ih
+  | join hc hy hz ihy ihz => exact TShape.WF.join hΔ hc ihy ihz
 
 /-! ## The transport, along the subject -/
 
@@ -162,11 +145,6 @@ theorem Shape.ValCanon.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 he'
       obtain ⟨hin, hout⟩ := h e he
       exact ⟨ih hin, ih hout⟩
-
-theorem TShape.CodeCanonS.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
-    (W : Ctx.SubstEq Θ τ τ Δ) {T : Term} {x : TShape} (h : TShape.CodeCanonS Δ T x) :
-    TShape.CodeCanonS Θ (T.subst τ) (x.subst τ) :=
-  Shape.CodeCanonS.subst hΘ W h
 
 
 /-! ## Values: the bridge, lifting and the join -/
@@ -278,14 +256,11 @@ theorem TShape.ValCanon.join {Δ : List Term} (hΔ : ⊢ Δ) {t : Term} {y z : T
     ((TShape.ValCanon.lift_iff hΔ h2).1 hz)
 
 theorem TShape.ValCanon.toCode {Δ : List Term} {t : Term} {x : TShape}
-    (h : TShape.ValCanon Δ t x) : TShape.CodeCanonS Δ t x := Shape.ValCanon.toCode h
+    (h : TShape.ValCanon Δ t x) : Shape.CodeCanonS Δ t x.2 := Shape.ValCanon.toCode h
 
-theorem TShape.CodeCanonS.conv {Δ : List Term} {T T' : Term} {x : TShape}
-    (h : TShape.CodeCanonS Δ T x) (hT : TyEq Δ T' T) : TShape.CodeCanonS Δ T' x :=
-  Shape.CodeCanonS.conv h hT
-
-@[simp] theorem TShape.CodeCanonS.bot {Δ : List Term} {T : Term} {n} :
-    TShape.CodeCanonS Δ T (Shape.T (n := n) Shape.bot) := Shape.CodeCanonS.bot
+theorem TShape.WF.conv {Δ : List Term} {T T' : Term} {x : TShape}
+    (h : TShape.WF Δ x (some T)) (hT : TyEq Δ T' T) : TShape.WF Δ x (some T') :=
+  Shape.WF.conv h hT
 
 theorem TShape.ValCanon.of_bot {Δ : List Term} {t : Term} {x : TShape} (h : x.2 = Shape.bot) :
     TShape.ValCanon Δ t x := by
@@ -315,15 +290,11 @@ Three observations make the fold go through:
   rather than the pair shape's, the two being definitionally equal
   because `HasType.pair` says so. -/
 
-theorem TShape.Named.canon {Δ : List Term} {d x : TShape} {t : Term}
-    (h : TShape.Named Δ d x (some t)) : Shape.CodeCanonS Δ t x.2 :=
-  TShape.Named.canon_mem h t rfl
-
 /-- At a code that only filters, a typed shape is never a `lam` or a
 `pair`, and on every other head `ValCanon` *is* `CodeCanonS`.  This is
 what lets `Named`'s `base` clause carry only the code's naming. -/
 theorem TShape.ValCanon.of_code {Δ : List Term} {t : Term} {d x : TShape}
-    (hnb : ¬ d.IsBinder) (hty : TShape.HasType Δ x d) (hc : TShape.CodeCanonS Δ t x) :
+    (hnb : ¬ d.IsBinder) (hty : TShape.HasType Δ x d) (hc : TShape.WF Δ x (some t)) :
     TShape.ValCanon Δ t x := by
   obtain ⟨n, s⟩ := x
   cases hty with
@@ -333,12 +304,12 @@ theorem TShape.ValCanon.of_code {Δ : List Term} {t : Term} {d x : TShape}
   | zero => trivial
   | succ _ => trivial
   | refl _ _ => trivial
-  | sort => cases n <;> exact hc
-  | unit _ => exact hc
-  | nat => exact hc
-  | id _ _ => exact hc
-  | forallE _ _ _ => exact hc
-  | sigma _ _ _ => exact hc
+  | sort => cases n <;> exact Shape.WF.canon hc
+  | unit _ => exact Shape.WF.canon hc
+  | nat => exact Shape.WF.canon hc
+  | id _ _ => exact Shape.WF.canon hc
+  | forallE _ _ _ => exact Shape.WF.canon hc
+  | sigma _ _ _ => exact Shape.WF.canon hc
 
 /-- **`Named` carries the naming.**  Each clause's per-part conditions
 are exactly what `ValCanon` asks of the corresponding head. -/
@@ -346,7 +317,7 @@ theorem TShape.Named.val_mem {Δ : List Term} {o} {d x : TShape}
     (h : TShape.Named Δ d x o) : ∀ t ∈ o, TShape.ValCanon Δ t x := by
   induction h with
   | base hnb hty hc =>
-    exact fun t ht => TShape.ValCanon.of_code hnb hty (Shape.WF.canon_mem hc t ht)
+    exact fun t ht => TShape.ValCanon.of_code hnb hty (Shape.WF.mem hc t ht)
   | @pi o n A B d f x cs hty hent _ hev _ ihin ihout =>
     intro t ht
     cases hty with
@@ -485,7 +456,7 @@ canonicity.  The code knows the type (`T ≡ Σ A B`), so `fstDF`/`sndDF`/
 are canonical for the sub-types; and the recursion is on the value. -/
 theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
     ∀ {n} {x : Shape n} {d : TShape} {T t t' : Term},
-      TShape.Named Δ d x.T none → TShape.CodeCanonS Δ T d → Shape.ValCanon Δ t x →
+      TShape.Named Δ d x.T none → TShape.WF Δ d (some T) → Shape.ValCanon Δ t x →
       (Δ ⊢ t ≡ t' : T) → Shape.ValCanon Δ t' x := by
   intro n
   induction n with
@@ -496,7 +467,7 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
     | sort r =>
       cases hD.hasType with
       | sort =>
-        have hT : TyEq Δ T (.sort true) := TShape.CodeCanonS.sort_iff.1 hC
+        have hT : TyEq Δ T (.sort true) := TShape.WF.sort_iff.1 hC
         exact Shape.CodeCanonS.conv (n := 0) hV ⟨_, (hT.choose_spec.defeqDF ht).symm⟩
   | succ n ih =>
     intro x d T t t' hD hC hV ht
@@ -504,7 +475,7 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
     have hcode {k : Nat} {j : Bool} (hd : d = Shape.T (n := k) (Shape.sort j))
         (hV' : Shape.CodeCanonS Δ t x) : Shape.CodeCanonS Δ t' x := by
       subst hd
-      have hT : TyEq Δ T (.sort j) := TShape.CodeCanonS.sort_iff.1 hC
+      have hT : TyEq Δ T (.sort j) := TShape.WF.sort_iff.1 hC
       exact hV'.conv ⟨_, (hT.choose_spec.defeqDF ht).symm⟩
     cases x with
     | bot | zero | succ | refl => trivial
@@ -519,8 +490,8 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       | @pair _ _ _ _ _ _ f A B d _ _ _ _ _ hws _ _ _ _ hA₀A
       obtain ⟨c, hx₁, hev, hy₁⟩ := TShape.Named.sg_inv hD
       have hwd := (TShape.HasType.wf hD.hasType).2
-      have hT := hC
-      have hCd := Shape.WF.canon hwd.2.2.1
+      have hT := Shape.WF.canon hC
+      have hCd := hwd.2.2.1
       have hCf := ShapeFun.WF.canon hwd.2.2.2.1
       obtain ⟨hname, hVx, hVy⟩ := hV
       have ht' : Δ ⊢ t ≡ t' : .sigma A B := hT.choose_spec.defeqDF ht
@@ -530,7 +501,7 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       have hB := hws.2.1.choose_spec
       have hname' : Δ ⊢ a ≡ .fst t : A := hA₀A.choose_spec.defeqDF hname
       refine ⟨hname.trans (hA₀A.choose_spec.symm.defeqDF hfst), ih hx₁ hCd hVx hfst, ?_⟩
-      refine ih hy₁ (TShape.CodeCanonS.lookup hΔ hws.2.2.2.1 hCf hA hB hev) hVy ?_
+      refine ih hy₁ (TShape.WF.lookup hΔ hws.2.2.2.1 hCf hA hB hev) hVy ?_
       exact (TyEq.inst hΔ hA hB hname'.symm).choose_spec.defeqDF hsnd
     | lam A₀ g =>
       cases hD.hasType with
@@ -538,8 +509,8 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       cases hD with
       | base hnb _ => exact absurd trivial hnb
       | @pi _ _ _ _ _ _ _ cs _ hent _ hev hout
-      have hT := hC
-      have hCd := Shape.WF.canon hwf.2.2.1
+      have hT := Shape.WF.canon hC
+      have hCd := hwf.2.2.1
       have hCf := ShapeFun.WF.canon hwf.2.2.2.1
       have hA := hwf.1.choose_spec
       have hB := hwf.2.1.choose_spec
@@ -557,10 +528,10 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       have htm : Δ ⊢ e.tm : A := hA₀A.choose_spec.defeqDF (hwl.2.2.1.1 e he).2.1
       have happ : Δ ⊢ .app t e.tm ≡ .app t' e.tm : B.inst e.tm :=
         IsDefEq.appDF₀ hΔ (hT.choose_spec.defeqDF ht) htm
-      exact ih houtp (TShape.CodeCanonS.lookup hΔ hwf.2.2.2.1 hCf hA hB hevp) hVout happ
+      exact ih houtp (TShape.WF.lookup hΔ hwf.2.2.2.1 hCf hA hB hevp) hVout happ
 
 theorem TShape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) {x d : TShape} {T t t' : Term}
-    (hD : TShape.Named Δ d x none) (hC : TShape.CodeCanonS Δ T d) (hV : TShape.ValCanon Δ t x)
+    (hD : TShape.Named Δ d x none) (hC : TShape.WF Δ d (some T)) (hV : TShape.ValCanon Δ t x)
     (ht : Δ ⊢ t ≡ t' : T) : TShape.ValCanon Δ t' x :=
   Shape.ValCanon.defeq hΔ (x := x.2) hD hC hV ht
 
@@ -568,7 +539,7 @@ theorem TShape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) {x d : TShape} {T 
 buys: the hereditary typing travels with the name, so moving the name
 along a definitional equality needs only the code's own naming. -/
 theorem TShape.Named.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x : TShape}
-    (h : TShape.Named Δ d x (some t)) (hC : TShape.CodeCanonS Δ T d)
+    (h : TShape.Named Δ d x (some t)) (hC : TShape.WF Δ d (some T))
     (ht : Δ ⊢ t ≡ t' : T) : TShape.Named Δ d x (some t') :=
   .name h.forget (TShape.ValCanon.defeq hΔ h.forget hC h.val ht)
 
@@ -588,7 +559,7 @@ nothing beyond what the slot already holds. -/
 /-- `x` is hereditarily typed at the code `d` and names the term `t`, and
 `d` names the type `T`. -/
 def TShape.Slot (Δ : List Term) (T : Term) (d : TShape) (t : Term) (x : TShape) : Prop :=
-  TShape.Named Δ d x (some t) ∧ Shape.CodeCanonS Δ T d.2
+  TShape.Named Δ d x (some t) ∧ Shape.WF Δ d.2 (some T)
 
 /-- **The transport, with nothing to pass in.** -/
 theorem TShape.Slot.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x : TShape}
@@ -598,4 +569,4 @@ theorem TShape.Slot.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x :
 /-- Conversion in the type: the code's naming is the only field that sees it. -/
 theorem TShape.Slot.conv {Δ : List Term} {T T' t : Term} {d x : TShape}
     (h : TShape.Slot Δ T d t x) (hT : TyEq Δ T' T) : TShape.Slot Δ T' d t x :=
-  ⟨h.1, Shape.CodeCanonS.conv h.2 hT⟩
+  ⟨h.1, Shape.WF.conv h.2 hT⟩

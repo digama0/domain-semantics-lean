@@ -185,7 +185,7 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
       Interp Δ Γ A σ ρ d →
       TShape.HasType Δ d TShape.type →
       TShape.Named Δ d (Shape.T x) (some (a.subst σ)) →
-      TShape.CodeCanonS Δ (A.subst σ) d →
+      TShape.WF Δ d (some (A.subst σ)) →
       Shape.WF (n := n+1) Δ (ShapeS.pair (A.subst σ) (a.subst σ) x y) →
       Interp Δ (A :: Γ) B (σ.cons (a.subst σ)) (ρ.push (Shape.T x)) c →
       TShape.Named Δ c (Shape.T y) none →
@@ -240,7 +240,7 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
     Interp Δ Γ A σ ρ d →
     TShape.HasType Δ d TShape.type →
     TShape.Named Δ d x (some ((A.Y b).subst σ)) →
-    TShape.CodeCanonS Δ (A.subst σ) d →
+    TShape.WF Δ d (some (A.subst σ)) →
     Interp Δ (A :: Γ) b (σ.cons ((A.Y b).subst σ)) (ρ.push x) m →
     (∃ u, Γ ⊢ A : .sort u) → (Γ ⊢ Term.Y A b : A) →
     Interp Δ Γ (.Y A b) σ ρ m
@@ -290,11 +290,11 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
     Interp Δ Γ A σ ρ vA →
     TShape.WF Δ v →
     TShape.Named Δ vA v (some (b.subst σ)) →
-    TShape.CodeCanonS Δ (A.subst σ) vA →
+    TShape.WF Δ vA (some (A.subst σ)) →
     Interp Δ (A :: Γ) C (σ.cons (b.subst σ)) (ρ.push v) cb →
     TShape.HasType Δ cb TShape.type →
     TShape.Named Δ cb m' (some (X.subst σ)) →
-    TShape.CodeCanonS Δ (C.subst (σ.cons (b.subst σ))) cb →
+    TShape.WF Δ cb (some (C.subst (σ.cons (b.subst σ)))) →
     (r = true → Δ ⊢ H.subst σ ≡ .refl true (a.subst σ) :
       .id true (A.subst σ) (a.subst σ) (b.subst σ)) →
     Δ ⊢ a.subst σ ≡ b.subst σ : A.subst σ →
@@ -745,7 +745,7 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
     exact .pair (iha hΘ W) (ihb hΘ W) (ihA hΘ W)
       (TShape.HasType.subst hΘ W hd)
       (by simpa [subst_subst] using TShape.Named.subst hΘ W hNV)
-      (by simpa [subst_subst] using TShape.CodeCanonS.subst hΘ W hdc)
+      (by simpa [subst_subst] using TShape.WF.subst hΘ W hdc)
       hwf' hcode' (by simpa using TShape.Named.subst hΘ W hcty)
       (hw.subst hΘ W) h1' hAt hat
   | fst _ hw h1 ihp => exact .fst (ihp hΘ W) (hw.subst hΘ W) (h1.subst hΘ W)
@@ -767,7 +767,7 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
     refine .Y (ihself hΘ W) (hwx.subst hΘ W) (ihA hΘ W)
       (TShape.HasType.subst hΘ W hdty)
       (by simpa [subst_subst] using TShape.Named.subst hΘ W hNV)
-      (by simpa [subst_subst] using TShape.CodeCanonS.subst hΘ W hdc) ?_ hAt hYt
+      (by simpa [subst_subst] using TShape.WF.subst hΘ W hdc) ?_ hAt hYt
     have := ihb hΘ W
     rwa [Subst.cons_comp, subst_subst, Valuation.subst_push] at this
   | id hw h1 hAt hat hbt =>
@@ -781,11 +781,11 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
     refine .tr (hw.subst hΘ W) (hle.subst hΘ W) (ihX hΘ W) (iha hΘ W) (ihb hΘ W) (ihA hΘ W)
       (hwv.subst hΘ W)
       (by simpa [subst_subst] using TShape.Named.subst hΘ W hNV)
-      (by simpa [subst_subst] using TShape.CodeCanonS.subst hΘ W hvc)
+      (by simpa [subst_subst] using TShape.WF.subst hΘ W hvc)
       ?_ (hcb.subst hΘ W)
       (by simpa [subst_subst] using TShape.Named.subst hΘ W hNV2)
-      (by have h := TShape.CodeCanonS.subst hΘ W hcbc
-          rwa [subst_subst, Subst.cons_comp, subst_subst] at h)
+      (by have h := TShape.WF.subst hΘ W hcbc
+          simpa [subst_subst, Subst.cons_comp] using h)
       (fun hr => by simpa [subst_subst, Term.subst] using (hH hr).subst hΘ W) heq' hAt hat hbt
     have := ihC hΘ W
     rwa [Subst.cons_comp, subst_subst, Valuation.subst_push] at this
@@ -1444,7 +1444,7 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
         (hle.trans hΔ (TShape.LE.T.2
           ⟨⟨⟨u, hAσ⟩, v, hBσ⟩, .refl (Shape.WF.forget hwf.2.2.1),
             .refl (ShapeFun.WF.forget hwf.2.2.2.1),
-            Shape.WF.canon hwf.2.2.1, ShapeFun.WF.canon hwf.2.2.2.1⟩))
+            hwf.2.2.1, ShapeFun.WF.canon hwf.2.2.2.1⟩))
         ⟨u, hA⟩ ⟨v, hB⟩
       have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ₂.cons e.tm) (A :: Γ) :=
         .cons W hA (hwf.2.2.2.1.1 e he).2.1
@@ -1474,7 +1474,7 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
         (hle.trans hΔ (TShape.LE.T.2
           ⟨⟨⟨u, hAσ⟩, v, hBσ⟩, .refl (Shape.WF.forget hwf.2.2.1),
             .refl (ShapeFun.WF.forget hwf.2.2.2.1),
-            Shape.WF.canon hwf.2.2.1, ShapeFun.WF.canon hwf.2.2.2.1⟩))
+            hwf.2.2.1, ShapeFun.WF.canon hwf.2.2.2.1⟩))
         ⟨u, hA⟩ ⟨v, hB⟩
       have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ₂.cons e.tm) (A :: Γ) :=
         .cons W hA (hwf.2.2.2.1.1 e he).2.1
@@ -1502,7 +1502,7 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
         .cons W hA haσ
       exact .pair (iha hΓ hAa W hainp) (ihb hΓ hAb W hbout)
         (ihA hΓ hAA W hAint) hdty ((TShape.Named.name hdx hxc).defeq hΔ hdc haσ)
-        (TShape.CodeCanonS.conv hdc (TyEq.symm hAσ)) hwf' (ihB hΓA hAB W' hcode) hcty hw
+        (TShape.WF.conv hdc (TyEq.symm hAσ)) hwf' (ihB hΓA hAB W' hcode) hcty hw
         (hle.trans hΔ hle') ⟨u, hA⟩ hat
   | fst p ih =>
     intro Γ σ σ₂ ρ m hΓ hAnn W H
@@ -1551,7 +1551,7 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
         have W' : Ctx.SubstEq Δ (σ'.cons ((Term.Y A b).subst σ'))
             (σ₃.cons ((Term.Y A b).subst σ₃)) (A :: Γ₂) := .cons W₂ hA hYσ
         exact .Y (ihx rfl hΓ₂ ⟨⟨u, hA⟩, hYt, hAA, hAb⟩ W₂) hwx (ihA hΓ₂ hAA W₂ hAd) hdty ((TShape.Named.name hDom hxc).defeq hΔ hdc hYσ)
-          (TShape.CodeCanonS.conv hdc (TyEq.symm ⟨u, IsDefEq.subst' hΔ W₂ hA⟩))
+          (TShape.WF.conv hdc (TyEq.symm ⟨u, IsDefEq.subst' hΔ W₂ hA⟩))
           (ihb ⟨hΓ₂, _, hA⟩ hAb W' hbody) ⟨u, hA⟩ hYt
       | bot => intro σ₃ _ _ _ _; exact .bot
       | _ => intro σ₃ ht' _ _ _; simp at ht'
@@ -1589,10 +1589,10 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
       have hAσ : Δ ⊢ A.subst σ ≡ A.subst σ₂ : .sort u := IsDefEq.subst' hΔ W hA
       refine .tr hw hle (ihX hΓ hAX W hX) (iha hΓ hAa W ha) (ihb hΓ hAb W hb)
         (ihA hΓ hAA W hAint) hwv ((TShape.Named.name hvA hbc).defeq hΔ hvc hbσ)
-        (TShape.CodeCanonS.conv hvc (TyEq.symm ⟨u, hAσ⟩)) (ihC hΓA hAC WC hC) hcb
+        (TShape.WF.conv hvc (TyEq.symm ⟨u, hAσ⟩)) (ihC hΓA hAC WC hC) hcb
         ((TShape.Named.name hm' hmc).defeq hΔ
           (hcbc.conv (TyEq.tr_motive hΔ W.left hA ha₀ hC₀ heq)) (IsDefEq.subst' hΔ W hx₀))
-        (TShape.CodeCanonS.conv hcbc ⟨v₀, (IsDefEq.subst' hΔ WC hC₀.hasType.2).symm⟩)
+        (TShape.WF.conv hcbc ⟨v₀, (IsDefEq.subst' hΔ WC hC₀.hasType.2).symm⟩)
         (fun hr => ?_) ?_ ⟨u, hA⟩ hat hbt
       · -- the proof's equation moves with the stage, retyped at the new one
         have hHσ := IsDefEq.subst' hΔ W hht
@@ -1818,7 +1818,7 @@ def Adm (Δ : List Term) (_Γ₀ Γ : List Term) (σ : Subst) (ρ : Valuation) :
 hypothesis every inversion theorem is run under; with the base context
 now vestigial it holds at any. -/
 theorem Adm.bot {Δ Γ : List Term} {σ : Subst} : Adm Δ Γ Γ σ Valuation.nil :=
-  ⟨fun _ => trivial, fun _ => ⟨TShape.bot, .bot, TShape.Named.bot (TShape.HasType.bot_bot rfl), Shape.CodeCanonS.bot⟩⟩
+  ⟨fun _ => trivial, fun _ => ⟨TShape.bot, .bot, TShape.Named.bot (TShape.HasType.bot_bot rfl), Shape.WF.bot_mem⟩⟩
 
 /-- Admissible valuations are well formed, slotwise. -/
 theorem Adm.wf {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) : Valuation.WF Δ ρ := h.1
@@ -1846,7 +1846,7 @@ re-read one binder up (`Interp.weak_one`).  It does *not* ask that the
 type's approximants be types: `Adm` has no clause that would read it. -/
 theorem Adm.cons {Δ Γ₀ Γ : List Term} {A : Term} {σ ρ x a} (h : Adm Δ Γ₀ Γ σ.tail ρ)
     (hΓ : ⊢ Γ) (ha : Interp Δ Γ A σ.tail ρ a) (hx : TShape.WF Δ x)
-    (hxa : TShape.Named Δ a x (some (σ 0))) (hac : TShape.CodeCanonS Δ (A.subst σ.tail) a) :
+    (hxa : TShape.Named Δ a x (some (σ 0))) (hac : TShape.WF Δ a (some (A.subst σ.tail))) :
     Adm Δ Γ₀ (A :: Γ) σ (ρ.push x) := by
   refine ⟨Valuation.WF.push h.wf hx, ?_⟩
   intro i A' hl
@@ -1897,7 +1897,7 @@ that `Interp.lean` stays below it. -/
 def IsTypeAt (Γ : List Term) (A : Term) : Prop :=
   ∀ {Δ Γ₀ : List Term} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
     ∀ {c}, Interp Δ Γ A σ ρ c →
-      TShape.HasType Δ c TShape.type ∧ TShape.CodeCanonS Δ (A.subst σ) c
+      TShape.HasType Δ c TShape.type ∧ TShape.WF Δ c (some (A.subst σ))
 
 /-- Every approximant of `t` at an admissible stage is typed at an
 approximant of `A`: `SoundTy Γ t A`'s `approx` half.  Needed at the two
@@ -1955,7 +1955,7 @@ def Term.Pinned : Term → List Term → Prop
 theorem IsTypeAt.nat {Γ : List Term} : IsTypeAt Γ Term.nat := by
   intro _ _ _ _ hΔ _ _ _ hb
   refine ⟨TShape.HasType.mono_l hΔ .nat (Interp.le_nat hb), ?_⟩
-  exact TShape.CodeCanonS.mono hΔ (Interp.le_nat hb) (x := TShape.nat)
+  exact TShape.WF.mono hΔ (Interp.le_nat hb) (x := TShape.nat)
     (show TyEq _ _ _ from TyEq.refl .nat)
 
 /-- `zero` is a numeral at every stage. -/
@@ -2266,7 +2266,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         exact (hwf.2.2.1.1 e he).2.1
       -- the source-side `isType`, through the `Γ`-side one
       have hisTypeSrc' : ∀ b, Interp Δ Γ' (A.subst θ) σ ρ b →
-          TShape.HasType Δ b TShape.type ∧ TShape.CodeCanonS Δ ((A.subst θ).subst σ) b := by
+          TShape.HasType Δ b TShape.type ∧ TShape.WF Δ b (some ((A.subst θ).subst σ)) := by
         intro b hb
         obtain ⟨ρ_b, hb', hApb⟩ := ihA hΓ hAA hPA hΓ' hgood Wθ Wσ hAdm hSat hθ hb
         obtain ⟨ρ_s, hles, hAps, hAdms⟩ := hSat hApb
@@ -2326,7 +2326,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         rw [subst_subst]
         exact (hwf.2.2.2.1.1 e he).2.1
       have hisTypeSrc' : ∀ b, Interp Δ Γ' (A.subst θ) σ ρ b →
-          TShape.HasType Δ b TShape.type ∧ TShape.CodeCanonS Δ ((A.subst θ).subst σ) b := by
+          TShape.HasType Δ b TShape.type ∧ TShape.WF Δ b (some ((A.subst θ).subst σ)) := by
         intro b hb
         obtain ⟨ρ_b, hb', hApb⟩ := ihA hΓ hAA hPA hΓ' hgood Wθ Wσ hAdm hSat hθ hb
         obtain ⟨ρ_s, hles, hAps, hAdms⟩ := hSat hApb
@@ -2386,7 +2386,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         rw [subst_subst]
         exact (hwf.2.2.2.1.1 e he).2.1
       have hisTypeSrc' : ∀ b, Interp Δ Γ' (A.subst θ) σ ρ b →
-          TShape.HasType Δ b TShape.type ∧ TShape.CodeCanonS Δ ((A.subst θ).subst σ) b := by
+          TShape.HasType Δ b TShape.type ∧ TShape.WF Δ b (some ((A.subst θ).subst σ)) := by
         intro b hb
         obtain ⟨ρ_b, hb', hApb⟩ := ihA hΓ hAA hPA hΓ' hgood Wθ Wσ hAdm hSat hθ hb
         obtain ⟨ρ_s, hles, hAps, hAdms⟩ := hSat hApb
@@ -2446,7 +2446,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
       have hcons : Ctx.SubstEq Δ (σ.cons ((a.subst θ).subst σ))
           (σ.cons ((a.subst θ).subst σ)) (A.subst θ :: Γ') := .cons Wσ hAθ htm
       have hisTypeSrc' : ∀ b, Interp Δ Γ' (A.subst θ) σ ρ b →
-          TShape.HasType Δ b TShape.type ∧ TShape.CodeCanonS Δ ((A.subst θ).subst σ) b := by
+          TShape.HasType Δ b TShape.type ∧ TShape.WF Δ b (some ((A.subst θ).subst σ)) := by
         intro b hb
         obtain ⟨ρ_b, hb', hApb⟩ := ihA hΓ hAA hPA hΓ' hgood Wθ Wσ hAdm hSat hθ hb
         obtain ⟨ρ_s, hles, hAps, hAdms⟩ := hSat hApb
@@ -2586,7 +2586,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         obtain ⟨ρ₁, hx', hAp₁⟩ := ihx rfl hΓ₂ hgood₂ Wθ₂ Wσ₂ hAdm₂ hSat₂ hθ₂
         obtain ⟨ρ_d, hd', hApd⟩ := ihA hΓ hAA hPA hΓ₂ hgood₂ Wθ₂ Wσ₂ hAdm₂ hSat₂ hθ₂ hAd
         have hisTypeSrc' : ∀ c, Interp Δ Γ₂ (A.subst θ) σ₂ ρ₂ c →
-            TShape.HasType Δ c TShape.type ∧ TShape.CodeCanonS Δ ((A.subst θ).subst σ₂) c := by
+            TShape.HasType Δ c TShape.type ∧ TShape.WF Δ c (some ((A.subst θ).subst σ₂)) := by
           intro c hc
           obtain ⟨ρ_c, hc', hApc⟩ := ihA hΓ hAA hPA hΓ₂ hgood₂ Wθ₂ Wσ₂ hAdm₂ hSat₂ hθ₂ hc
           obtain ⟨ρ_t, hlet, hApt, hAdmt⟩ := hSat₂ hApc
@@ -2654,7 +2654,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
       obtain ⟨ρ₃, hb', hAp₃⟩ := ihb hΓ hAb hPb hΓ' hgood Wθ Wσ hAdm hSat hθ hb
       obtain ⟨ρ₄, hA', hAp₄⟩ := ihA hΓ hAA hPA hΓ' hgood Wθ Wσ hAdm hSat hθ hAint
       have hisTypeSrc' : ∀ c, Interp Δ Γ' (A.subst θ) σ ρ c →
-          TShape.HasType Δ c TShape.type ∧ TShape.CodeCanonS Δ ((A.subst θ).subst σ) c := by
+          TShape.HasType Δ c TShape.type ∧ TShape.WF Δ c (some ((A.subst θ).subst σ)) := by
         intro c hc
         obtain ⟨ρ_c, hc', hApc⟩ := ihA hΓ hAA hPA hΓ' hgood Wθ Wσ hAdm hSat hθ hc
         obtain ⟨ρ_t, hlet, hApt, hAdmt⟩ := hSat hApc
