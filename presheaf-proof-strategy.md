@@ -3158,3 +3158,58 @@ hypothesis, which was the cost §7 anticipated and which the indexing
 avoids. `Interp` and `Presheaf` mention only `Named` and `Slot`; nothing
 outside `HasType.lean` mentions the index-free case except through
 `NamedO.dom`.
+
+## 9. Well-formedness indexed by the name (2026-10-07)
+
+§8 gave hereditary typing an `Option Term` index. `Shape.WF` gets the
+same treatment, for the same reason: §7 folded canonicity into it by
+bolting two conjuncts onto the Π and Σ clauses,
+
+```
+WF Γ (forallE A B d f) := … ∧ WF Γ d ∧ ShapeFun.WF Γ A (WF Γ) f ∧
+  CodeCanonS Γ A d ∧ ∀ e ∈ f, CodeCanonS Γ (B.inst e.tm) e.out
+```
+
+and those two say exactly "the sub-shapes are well formed *at the labels
+the node already names*". That is an index, not a conjunct:
+
+```
+WFO Γ o (forallE A B d f) := … ∧ WFO Γ (some A) d ∧
+  ShapeFun.WF Γ A (some B) (WFO Γ) f ∧ TyEqO Γ o (forallE A B)
+```
+
+with `Shape.WF Γ s := Shape.WFO Γ none s`. `ShapeFun.WF` gains the
+codomain as `oB : Option Term` and asks an entry's output to be well
+formed at `oB.map (·.inst e.tm)` — `some (B.inst e.tm)` under a code,
+`none` under a λ, whose outputs are values and name nothing.
+
+Three things are worth recording.
+
+**The index is read through `TyEqO`, not `∀ T ∈ o`.** `TyEqO Γ o T'`
+matches on `o` and is `True` at `none`, so every clause *reduces* to the
+structural one there and the hundreds of existing `trivial`s keep
+working. With `∀ T ∈ o, …` they would all have become `nofun`. This is
+the one place the `WF` refactor differs from the `NamedO` one, and it is
+because `WF` is a definition that gets unfolded everywhere rather than an
+inductive that gets `cases`d.
+
+**`Shape.WFO.iff` is a `cases`, not an induction**, because the index is
+read only at the head: `WFO Γ o s ↔ (∀ T ∈ o, CodeCanonS Γ T s) ∧ WF Γ s`.
+It is choice-free, and it is what `WFO.wf`, `WFO.canon` and `WF.name`
+(with the graph-level `ShapeFun.WF.forget`/`.canon`/`.name`) are built
+from. Those six are the whole migration cost at the use sites.
+
+**The order cannot be indexed, and that is not an oversight.** `Shape.LE`
+relates shapes whose labels agree only up to definitional equality, so
+`LE.trans` would need `ShapeFun.LE` at `some B₁` on the left and
+`some B₃` on the right with `some B₂` in the middle — three different
+terms. `ShapeFun.LE`'s well-formedness conjuncts therefore stay at
+`none`, and `Shape.LE`'s Π/Σ clauses keep `CodeCanonS Γ A d` and
+`∀ e ∈ f, CodeCanonS Γ (B.inst e.tm) e.out` written out. `LE.wf` is where
+the two representations meet: it reads the conjuncts off the order and
+hands them to `WF.name` and `ShapeFun.WF.name`.
+
+`Shape.WFO.subst` replaces `Shape.WF.subst` as the real lemma (the index
+substitutes with the shape, `TyEqO.subst`), `Shape.lift_wf` is now stated
+at an arbitrary index, and `Shape.WF.subst` is the `none` instance of the
+first, so no downstream call site changed.

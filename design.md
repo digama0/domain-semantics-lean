@@ -306,18 +306,39 @@ node it descends through — the domain's, and one per entry output at the
 instantiated codomain — and then for a well-formed shape the deep
 condition adds nothing, so the deep recursion was deleted outright: what
 used to be `CodeCanon` is now this, and `Canon.lean` lost 235 lines with
-it. The API shed hypotheses too — `mono` no longer needs the bigger
+it.
+
+Those two asks are no longer conjuncts. Well-formedness carries an
+`Option Term` index of its own (`Shape.WFO Γ o s`, with `Shape.WF` its
+`none` case), read only at the head, through `TyEqO Γ o T'` — `True` at
+`none`, `TyEq Γ T T'` at `some T`. The domain code is then well formed
+*at `A`* and an entry's output *at `B.inst e.tm`*, so the recursion
+carries canonicity instead of restating it, and `Shape.WFO.iff` says the
+index separates: `WFO Γ (some T) s ↔ CodeCanonS Γ T s ∧ WF Γ s`. Going
+down is `WFO.wf` and `WFO.canon`, coming back up is `WF.name`, and a
+graph has the same pair (`ShapeFun.WF.forget`/`.canon`/`.name`). The API shed hypotheses too — `mono` no longer needs the bigger
 shape's `WF`, `join` needs neither `WF` nor `Compat`, `CodeAt.of_top`
 drops a `WF`, and `CodeAt.forallE`/`CodeAt.sigma` are one line each
 because the codomain recursion they used to perform is `WF`'s job.
 
 `Shape.LE` needs the same two conjuncts, and that is the only subtle
-part. `LE` already carries `WF` of both sides by fiat (the label
+part — and it keeps them as conjuncts, because the index does not reach
+it. `LE` already carries `WF` of both sides by fiat (the label
 equalities, the graph's `WF`, the λ clause's non-degeneracy), which is
 why `Shape.LE.wf` can produce a `WF` from an order fact alone. Making
 `WF` stronger would falsify that lemma, since the order cannot know what
 type a code names; giving `LE` the same conjuncts repairs it with no
-signature change, because `LE.wf` then reads them straight off.
+signature change, because `LE.wf` then reads them straight off — now
+through `WF.name` and `ShapeFun.WF.name`, which is where the order's
+conjuncts turn back into the index.
+
+Indexing the order itself does not work, and the reason is sharp: `LE`
+relates two shapes whose labels are only *definitionally equal*, so a
+transitivity step would have to carry a `some B₁` on the left and a
+`some B₃` on the right with a `some B₂` in the middle, and the two inner
+indices are different terms. The order's `ShapeFun.WF` conjuncts
+therefore sit at `none`, and the Π clause's `CodeCanonS Γ A d` stays
+written out.
 
 The price is that `Shape.WF` is no longer purely structural. A lemma
 that *fabricates* a shape out of an arbitrary approximant now has to

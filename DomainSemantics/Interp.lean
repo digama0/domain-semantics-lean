@@ -1433,16 +1433,18 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
       have hdom := fun e he => (hNV e he).dom
       have hcan := fun e he => (hNV e he).val
       refine .forallE (ihA hΓ hAA W hAint) hdty
-        ⟨⟨u, hAσ.hasType.2⟩, ⟨v, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩, hwf.2.2.1,
-          hwf.2.2.2.1.retype ⟨u, hAσ⟩,
-          hwf.2.2.2.2.1.conv ⟨u, hAσ.symm⟩,
-          fun e he => (hwf.2.2.2.2.2 e he).conv
-            ⟨v, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm
-              (hAσ.defeqDF ((hwf.2.2.2.1.1 e he).2.1))⟩⟩
+        ⟨⟨u, hAσ.hasType.2⟩, ⟨v, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩,
+          Shape.WF.name (Shape.WFO.wf hwf.2.2.1)
+            ((Shape.WFO.canon hwf.2.2.1).conv ⟨u, hAσ.symm⟩),
+          ShapeFun.WF.name ((ShapeFun.WF.forget hwf.2.2.2.1).retype ⟨u, hAσ⟩)
+            (fun e he => (ShapeFun.WF.canon hwf.2.2.2.1 e he).conv
+              ⟨v, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm
+                (hAσ.defeqDF ((hwf.2.2.2.1.1 e he).2.1))⟩), trivial⟩
         (fun e he => .of_dom (hdom e he) (hcan e he)) (fun e he => ?_) hw
         (hle.trans hΔ (TShape.LE.T.2
-          ⟨⟨⟨u, hAσ⟩, v, hBσ⟩, .refl hwf.2.2.1, .refl hwf.2.2.2.1,
-            hwf.2.2.2.2.1, hwf.2.2.2.2.2⟩))
+          ⟨⟨⟨u, hAσ⟩, v, hBσ⟩, .refl (Shape.WFO.wf hwf.2.2.1),
+            .refl (ShapeFun.WF.forget hwf.2.2.2.1),
+            Shape.WFO.canon hwf.2.2.1, ShapeFun.WF.canon hwf.2.2.2.1⟩))
         ⟨u, hA⟩ ⟨v, hB⟩
       have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ₂.cons e.tm) (A :: Γ) :=
         .cons W hA (hwf.2.2.2.1.1 e he).2.1
@@ -1461,16 +1463,18 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
       have hdom := fun e he => (hNV e he).dom
       have hcan := fun e he => (hNV e he).val
       refine .sigma (ihA hΓ hAA W hAint) hdty
-        ⟨⟨u, hAσ.hasType.2⟩, ⟨v, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩, hwf.2.2.1,
-          hwf.2.2.2.1.retype ⟨u, hAσ⟩,
-          hwf.2.2.2.2.1.conv ⟨u, hAσ.symm⟩,
-          fun e he => (hwf.2.2.2.2.2 e he).conv
-            ⟨v, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm
-              (hAσ.defeqDF ((hwf.2.2.2.1.1 e he).2.1))⟩⟩
+        ⟨⟨u, hAσ.hasType.2⟩, ⟨v, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩,
+          Shape.WF.name (Shape.WFO.wf hwf.2.2.1)
+            ((Shape.WFO.canon hwf.2.2.1).conv ⟨u, hAσ.symm⟩),
+          ShapeFun.WF.name ((ShapeFun.WF.forget hwf.2.2.2.1).retype ⟨u, hAσ⟩)
+            (fun e he => (ShapeFun.WF.canon hwf.2.2.2.1 e he).conv
+              ⟨v, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm
+                (hAσ.defeqDF ((hwf.2.2.2.1.1 e he).2.1))⟩), trivial⟩
         (fun e he => .of_dom (hdom e he) (hcan e he)) (fun e he => ?_) hw
         (hle.trans hΔ (TShape.LE.T.2
-          ⟨⟨⟨u, hAσ⟩, v, hBσ⟩, .refl hwf.2.2.1, .refl hwf.2.2.2.1,
-            hwf.2.2.2.2.1, hwf.2.2.2.2.2⟩))
+          ⟨⟨⟨u, hAσ⟩, v, hBσ⟩, .refl (Shape.WFO.wf hwf.2.2.1),
+            .refl (ShapeFun.WF.forget hwf.2.2.2.1),
+            Shape.WFO.canon hwf.2.2.1, ShapeFun.WF.canon hwf.2.2.2.1⟩))
         ⟨u, hA⟩ ⟨v, hB⟩
       have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ₂.cons e.tm) (A :: Γ) :=
         .cons W hA (hwf.2.2.2.1.1 e he).2.1

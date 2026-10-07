@@ -150,3 +150,11 @@ open DomainSemantics
 -- for the value and once for its code.)
 /-- info: 'DomainSemantics.TShape.Named.iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms TShape.Named.iff
+
+-- **And so is the other one**: `Shape.WFO` is well-formedness carrying a
+-- name, and at `some T` it is exactly well-formedness together with the
+-- head's naming.  `Shape.WF` is its `none` case, so the two conjuncts
+-- that used to be bolted onto the Π and Σ clauses are now the recursion's
+-- own index.  Choice-free: it is one `cases` on the head.
+/-- info: 'DomainSemantics.Shape.WFO.iff' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms Shape.WFO.iff

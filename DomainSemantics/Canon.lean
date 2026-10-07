@@ -119,12 +119,12 @@ reading of the entry-based condition; it is a theorem rather than the
 definition because the definition has to survive substitution, and an
 entry that is dead at one stage can be live at a later one. -/
 theorem TShape.CodeCanonS.lookup {Δ : List Term} (hΔ : ⊢ Δ) {n} {A B q : Term} {u v : Bool}
-    {f : ShapeFun n} (hw : ShapeFun.WF Δ A (Shape.WF Δ) f)
+    {f : ShapeFun n} (hw : ShapeFun.WF Δ A oB (fun o s => Shape.WFO Δ o s) f)
     (hf : ∀ e ∈ f, Shape.CodeCanonS Δ (B.inst e.tm) e.out)
     (hA : Δ ⊢ A : .sort u) (hB : A :: Δ ⊢ B : .sort v) {x : TShape} :
     ∀ {c : TShape}, TEvaluates Δ f A q x c → TShape.CodeCanonS Δ (B.inst q) c := by
   intro c h
-  have hwo : ∀ e ∈ f, TShape.WF Δ e.out.T := fun e he => (hw.1 e he).2.2.2
+  have hwo : ∀ e ∈ f, TShape.WF Δ e.out.T := fun e he => Shape.WFO.wf (hw.1 e he).2.2.2
   induction h with
   | bot => exact Shape.CodeCanonS.bot
   | entry e he hlab _ =>
@@ -522,8 +522,8 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       obtain ⟨c, hx₁, hev, hy₁⟩ := TShape.NamedO.sg_inv hD
       have hwd := (TShape.HasType.wf hD.hasType).2
       have hT := hC
-      have hCd := hwd.2.2.2.2.1
-      have hCf := hwd.2.2.2.2.2
+      have hCd := Shape.WFO.canon hwd.2.2.1
+      have hCf := ShapeFun.WF.canon hwd.2.2.2.1
       obtain ⟨hname, hVx, hVy⟩ := hV
       have ht' : Δ ⊢ t ≡ t' : .sigma A B := hT.choose_spec.defeqDF ht
       have hfst : Δ ⊢ .fst t ≡ .fst t' : A := IsDefEq.fstDF₀ hΔ ht'
@@ -541,8 +541,8 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       | base hnb _ => exact absurd trivial hnb
       | @pi _ _ _ _ _ _ _ cs _ hent _ hev hout
       have hT := hC
-      have hCd := hwf.2.2.2.2.1
-      have hCf := hwf.2.2.2.2.2
+      have hCd := Shape.WFO.canon hwf.2.2.1
+      have hCf := ShapeFun.WF.canon hwf.2.2.2.1
       have hA := hwf.1.choose_spec
       have hB := hwf.2.1.choose_spec
       intro e he

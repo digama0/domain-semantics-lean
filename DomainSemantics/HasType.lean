@@ -434,7 +434,7 @@ theorem ShapeFun.Eval.toT {Δ : List Term} {n} {f : ShapeFun n} {A a : Term}
 /-- A graph covers itself: each entry is its own lookup.  The label and
 input reflexivities are exactly what `ShapeFun.WF` supplies. -/
 theorem TEvaluates.refl {Δ : List Term} {n} {f : ShapeFun n}
-    (hw : ShapeFun.WF Δ Ty (Shape.WF Δ) f) :
+    (hw : ShapeFun.WF Δ Ty oB (fun o s => Shape.WFO Δ o s) f) :
     ∀ e ∈ f, TEvaluates Δ f Ty e.tm e.inp.T e.out.T := by
   intro e he
   obtain ⟨⟨u, hty⟩, htm, hin, _⟩ := hw.1 e he
@@ -444,26 +444,26 @@ theorem TEvaluates.refl {Δ : List Term} {n} {f : ShapeFun n}
 neither an input nor an output, as a `TShape`.  Used where a clause's graph
 is compared at a level above both. -/
 theorem TEvaluates.lift_cover {Δ : List Term} (hΔ : ⊢ Δ) {n n'} {g : ShapeFun n}
-    {f' : ShapeFun n'} {k} (hk : n ≤ k) (hw : ShapeFun.WF Δ Ty (Shape.WF Δ) g)
+    {f' : ShapeFun n'} {k} (hk : n ≤ k) (hw : ShapeFun.WF Δ Ty oB (fun o s => Shape.WFO Δ o s) g)
     (hg : ∀ e ∈ g, TEvaluates Δ f' Ty e.tm e.inp.T e.out.T) :
     ∀ e ∈ ShapeFun.lift (Shape.lift k) g,
       TEvaluates Δ f' Ty e.tm e.inp.T e.out.T := by
   intro e he
   obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_lift.1 he
   have hwe := hw.1 e₀ he₀
-  exact .lower (TShape.LE.lift_le hΔ (m := e₀.out.T) hk hwe.2.2.2)
+  exact .lower (TShape.LE.lift_le hΔ (m := e₀.out.T) hk (Shape.WFO.wf hwe.2.2.2))
     (TEvaluates.mono_inp hΔ (TShape.LE.le_lift hΔ (m := e₀.inp.T) hk hwe.2.2.1)
       (hg e₀ he₀))
 
 /-- And back: coverage of the lift is coverage of the graph. -/
 theorem TEvaluates.lower_cover {Δ : List Term} (hΔ : ⊢ Δ) {n n'} {g : ShapeFun n}
-    {f' : ShapeFun n'} {k} (hk : n ≤ k) (hw : ShapeFun.WF Δ Ty (Shape.WF Δ) g)
+    {f' : ShapeFun n'} {k} (hk : n ≤ k) (hw : ShapeFun.WF Δ Ty oB (fun o s => Shape.WFO Δ o s) g)
     (hg : ∀ e ∈ ShapeFun.lift (Shape.lift k) g,
       TEvaluates Δ f' Ty e.tm e.inp.T e.out.T) :
     ∀ e ∈ g, TEvaluates Δ f' Ty e.tm e.inp.T e.out.T := by
   intro e he
   have hwe := hw.1 e he
-  exact .lower (TShape.LE.le_lift hΔ (m := e.out.T) hk hwe.2.2.2)
+  exact .lower (TShape.LE.le_lift hΔ (m := e.out.T) hk (Shape.WFO.wf hwe.2.2.2))
     (TEvaluates.mono_inp hΔ (TShape.LE.lift_le hΔ (m := e.inp.T) hk hwe.2.2.1)
       (hg _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)))
 
@@ -473,7 +473,7 @@ is what a `Shape.LE` between two λ-shapes, read at a level above both,
 hands back to the `lam` clause. -/
 theorem TEvaluates.of_cover_lift {Δ : List Term} (hΔ : ⊢ Δ) {j k n'} (hjk : j ≤ k)
     {g' : ShapeFun j} {g : ShapeFun k} {f' : ShapeFun n'}
-    (hw : ShapeFun.WF Δ Ty (Shape.WF Δ) g')
+    (hw : ShapeFun.WF Δ Ty oB (fun o s => Shape.WFO Δ o s) g')
     (hcov : ∀ e ∈ ShapeFun.lift (Shape.lift k) g',
       ShapeFun.Eval Δ (Shape.LE Δ) g Ty e.tm e.inp e.out)
     (hg : ∀ e ∈ g, TEvaluates Δ f' Ty e.tm e.inp.T e.out.T) :
@@ -482,7 +482,7 @@ theorem TEvaluates.of_cover_lift {Δ : List Term} (hΔ : ⊢ Δ) {j k n'} (hjk :
   have hwe := hw.1 e he
   have h2 := TEvaluates.trans hΔ hg
     (ShapeFun.Eval.toT (hcov _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)))
-  exact .lower (TShape.LE.le_lift hΔ (m := e.out.T) hjk hwe.2.2.2)
+  exact .lower (TShape.LE.le_lift hΔ (m := e.out.T) hjk (Shape.WFO.wf hwe.2.2.2))
     (TEvaluates.mono_inp hΔ (TShape.LE.lift_le hΔ (m := e.inp.T) hjk hwe.2.2.1) h2)
 
 /-! ### The `_decomp` family
@@ -1225,7 +1225,7 @@ theorem TShape.HasType.mono_l_sort_T {Δ : List Term} (hΔ : ⊢ Δ) :
       | .inl hb => cases hb; exact .bot .sort
       | .inr ⟨A', a', b', hs, ⟨⟨u, hA⟩, hx, hy⟩⟩ =>
         cases hs
-        exact .id hj ⟨⟨u, hA.hasType.1⟩, hx.hasType.1, hy.hasType.1⟩
+        exact .id hj ⟨⟨u, hA.hasType.1⟩, hx.hasType.1, hy.hasType.1, trivial⟩
     | forallE hd hf hw =>
       match Shape.le_forallE hle with
       | .inl hb => cases hb; exact .bot .sort
@@ -1324,7 +1324,7 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
         | bot => exact .bot .sort
         | id r' A' x' y' =>
           obtain ⟨rfl, ⟨u, hA⟩, hx, hy⟩ := h2
-          exact .id hj ⟨⟨u, hA.hasType.1⟩, hx.hasType.1, hy.hasType.1⟩
+          exact .id hj ⟨⟨u, hA.hasType.1⟩, hx.hasType.1, hy.hasType.1, trivial⟩
         | _ => exact absurd h2 (fun x => x)
   -- a Π and a Σ are typed at a sort, so they are `mono_l_sort`'s business:
   -- the components sit one level down, where the order compares them
@@ -2179,8 +2179,8 @@ theorem TShape.HasType.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
               (TEvaluates.join hcc hev₁' hev₂') ?_ hdom
             have hcty := TEvaluates.tHasType (c := TShape.type) hΔ rfl
               (fun e he => hfo e he) (TEvaluates.join hcc hev₁' hev₂')
-            have hjc := TShape.le_join hΔ (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1.1 e he).2.2.2) hev₁')
-              (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1.1 e he).2.2.2) hev₂') hcc
+            have hjc := TShape.le_join hΔ (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (Shape.WFO.wf (hwSg.2.2.2.1.1 e he).2.2.2)) hev₁')
+              (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (Shape.WFO.wf (hwSg.2.2.2.1.1 e he).2.2.2)) hev₂') hcc
             exact ih hc.2.2.2 (TShape.NamedO.mono_r hΔ hdy₁ hjc.1 hcty)
               (TShape.NamedO.mono_r hΔ hdy₂ hjc.2 hcty)
       | _ => exact absurd hc (fun x => x)
@@ -2265,8 +2265,8 @@ theorem TShape.NamedO.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
           · exact TEvaluates.join hcc hev₁' hev₂'
           · have hcty := TEvaluates.tHasType (c := TShape.type) hΔ rfl
               (fun e he => hfo e he) (TEvaluates.join hcc hev₁' hev₂')
-            have hjc := TShape.le_join hΔ (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1.1 e he).2.2.2) hev₁')
-              (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1.1 e he).2.2.2) hev₂') hcc
+            have hjc := TShape.le_join hΔ (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (Shape.WFO.wf (hwSg.2.2.2.1.1 e he).2.2.2)) hev₁')
+              (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (Shape.WFO.wf (hwSg.2.2.2.1.1 e he).2.2.2)) hev₂') hcc
             exact ih hc.2.2.2 (TShape.NamedO.mono_r hΔ hdy₁ hjc.1 hcty)
               (TShape.NamedO.mono_r hΔ hdy₂ hjc.2 hcty)
         | .refl, z, hc, _, _, _, htyy =>
@@ -2405,14 +2405,14 @@ comparison between λ-shapes needs, since `Eval` is closed under `lower`.
 The `join` case is where the graph's coherence comes in
 (`ShapeFun.Eval.compat`). -/
 theorem TEvaluates.toEval {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term}
-    {x : Shape n} (hwf : ShapeFun.WF Δ A (Shape.WF Δ) f) (hx : Shape.WF Δ x) :
+    {x : Shape n} (hwf : ShapeFun.WF Δ A oB (fun o s => Shape.WFO Δ o s) f) (hx : Shape.WF Δ x) :
     ∀ {c : TShape}, TEvaluates Δ f A a x.T c →
       ∃ c' : Shape n, TShape.LE Δ c c'.T ∧ ShapeFun.Eval Δ (Shape.LE Δ) f A a x c' := by
   intro c h
   induction h with
   | bot => exact ⟨.bot, TShape.bot_le' rfl, .bot⟩
   | entry e he hlab hin =>
-    refine ⟨e.out, TShape.LE.refl (TShape.WF.T.2 (hwf.1 e he).2.2.2), ?_⟩
+    refine ⟨e.out, TShape.LE.refl (TShape.WF.T.2 (Shape.WFO.wf (hwf.1 e he).2.2.2)), ?_⟩
     exact .entry e he hlab (TShape.LE.T.1 hin)
   | lower hle _ ih =>
     obtain ⟨c', hc', hev⟩ := ih
@@ -2420,8 +2420,8 @@ theorem TEvaluates.toEval {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {
   | join hc _ _ ih₁ ih₂ =>
     obtain ⟨c₁, hc₁, hev₁⟩ := ih₁
     obtain ⟨c₂, hc₂, hev₂⟩ := ih₂
-    have hw₁ := ShapeFun.Eval.wf hΔ (fun e he => (hwf.1 e he).2.2.2) hev₁
-    have hw₂ := ShapeFun.Eval.wf hΔ (fun e he => (hwf.1 e he).2.2.2) hev₂
+    have hw₁ := ShapeFun.Eval.wf hΔ (fun e he => (Shape.WFO.wf (hwf.1 e he).2.2.2)) hev₁
+    have hw₂ := ShapeFun.Eval.wf hΔ (fun e he => (Shape.WFO.wf (hwf.1 e he).2.2.2)) hev₂
     have hcc : Shape.Compat Δ c₁ c₂ :=
       ShapeFun.Eval.compat hΔ hwf.2 hx.coherent hev₁ hev₂
     obtain ⟨hj₁, hj₂⟩ := Shape.le_join hΔ hw₁ hw₂ hcc
