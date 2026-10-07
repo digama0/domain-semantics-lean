@@ -75,15 +75,15 @@ The library is a strict dependency chain. Lines are of Lean source.
 | [`Regular.lean`](DomainSemantics/Regular.lean) | 165 | Regularity: the subterms of a well-typed term are well typed, read off the judgment's own premises. |
 | [`Annot.lean`](DomainSemantics/Annot.lean) | 171 | `Term.Annot`: the typing data a term's own annotations carry, which strengthening needs and which `IsDefEq.annot` supplies. |
 | [`Label.lean`](DomainSemantics/Label.lean) | 220 | Equality of the syntactic labels a shape carries, and `Stable`. |
-| [`Shape.lean`](DomainSemantics/Shape.lean) | 2565 | The domain: level-graded `Shape n`, graphs as labelled `Entry` lists, the total `TShape`, and the order, compatibility, join, lift, substitution and graph lookup (`ShapeFun.Eval`). |
-| [`HasType.lean`](DomainSemantics/HasType.lean) | 2580 | `TShape.HasType`, typing of shapes, one inductive over `TShape`; the total-level lookup `TEvaluates`; `TShape.Dom`, hereditary typing; the subject join. |
-| [`Canon.lean`](DomainSemantics/Canon.lean) | 645 | Canonicity: `CodeCanon` (a code names its type), `ValCanon` (a value names its projections), and `ValCanon.defeq`, the transport that makes Σ's η go through. |
-| [`Interp.lean`](DomainSemantics/Interp.lean) | 2696 | `Interp`, the interpretation relation, with one clause per former; admissibility `Adm`; stage invariance, strengthening and substitution. |
-| [`Presheaf.lean`](DomainSemantics/Presheaf.lean) | 5579 | `IsDefEq.sound`: five conclusions (equality, typing, both `Pinned`s, saturation) in one induction, every rule, Σ's η included. |
-| [`Strong.lean`](DomainSemantics/Strong.lean) | 240 | `StrongSound.uniq`, the semantic half of type uniqueness. |
-| [`Inversion.lean`](DomainSemantics/Inversion.lean) | 258 | Π-, Σ- and Id-injectivity, fifteen no-confusion principles, and `zero_ne_succ_zero`, all four steps from soundness and none from adequacy. |
+| [`Shape.lean`](DomainSemantics/Shape.lean) | 2696 | The domain: level-graded `Shape n`, graphs as labelled `Entry` lists, the total `TShape`, and the order, compatibility, join, lift, substitution and graph lookup (`ShapeFun.Eval`).  `Shape.WF` and `Shape.LE` carry `CodeCanonS`, the shallow half of canonicity, at every Π and Σ node. |
+| [`HasType.lean`](DomainSemantics/HasType.lean) | 2436 | `TShape.HasType`, typing of shapes, one inductive over `TShape`; the total-level lookup `TEvaluates`; `TShape.Dom`, hereditary typing; the subject join. |
+| [`Canon.lean`](DomainSemantics/Canon.lean) | 897 | Canonicity: `CodeCanon` (a code names its type, and for a well-formed shape it *is* `Shape.CodeCanonS`, by `CodeCanon.iff_shallow`), `ValCanon` (a value names its projections), their merge `TShape.Named` with `Named.defeq`, and `Slot`, the three facts a valuation slot carries. |
+| [`Interp.lean`](DomainSemantics/Interp.lean) | 2796 | `Interp`, the interpretation relation, with one clause per former; admissibility `Adm`; stage invariance, strengthening and substitution. |
+| [`Presheaf.lean`](DomainSemantics/Presheaf.lean) | 5485 | `IsDefEq.sound`: five conclusions (equality, typing, both `Pinned`s, saturation) in one induction, every rule, Σ's η included. |
+| [`Strong.lean`](DomainSemantics/Strong.lean) | 241 | `StrongSound.uniq`, the semantic half of type uniqueness. |
+| [`Inversion.lean`](DomainSemantics/Inversion.lean) | 272 | Π-, Σ- and Id-injectivity, fifteen no-confusion principles, and `zero_ne_succ_zero`, all four steps from soundness and none from adequacy. |
 | [`Consequences.lean`](DomainSemantics/Consequences.lean) | 980 | Type uniqueness, sort uniqueness, `IsDefEq.iff`, canonical forms, subject reduction, progress, `not_UIP`. |
-| [`Status.lean`](DomainSemantics/Status.lean) | 115 | The internals board: where the model stands, axiom-checked. |
+| [`Status.lean`](DomainSemantics/Status.lean) | 121 | The internals board: where the model stands, axiom-checked. |
 | [`DomainSemantics.lean`](DomainSemantics.lean) | 59 | Umbrella: the headline board. |
 
 `presheaf-proof-strategy.md` is the design record, including what the

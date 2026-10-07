@@ -290,6 +290,33 @@ an obstruction but a type error: `Named` is a statement about the value
 single induction carries both. The slot condition is therefore exactly
 two notions (`Slot.iff`), and `Slot` itself is their conjunction.
 
+**And `CodeCanon` folds into `Shape.WF`.** Not as a conjunction and not
+as a second recursion: the hereditary half moves into well-formedness,
+which was already walking the same shapes, and what is left at the head
+is a *shallow* predicate `Shape.CodeCanonS Γ T s` saying only that `s`'s
+own labels name `T`. `Shape.WF` asks for one of these at every Π and Σ
+node it descends through — the domain's, and one per entry output at the
+instantiated codomain — and then for a well-formed shape the deep
+condition adds nothing: `CodeCanon.iff_shallow`.
+
+`Shape.LE` needs the same two conjuncts, and that is the only subtle
+part. `LE` already carries `WF` of both sides by fiat (the label
+equalities, the graph's `WF`, the λ clause's non-degeneracy), which is
+why `Shape.LE.wf` can produce a `WF` from an order fact alone. Making
+`WF` stronger would falsify that lemma, since the order cannot know what
+type a code names; giving `LE` the same conjuncts repairs it with no
+signature change, because `LE.wf` then reads them straight off.
+
+The price is that `Shape.WF` is no longer purely structural. A lemma
+that *fabricates* a shape out of an arbitrary approximant now has to
+know that the approximant names its type. Three do: the single-entry
+probes (`Interp.forallE_single`, `sigma_single`) and `SoundEq.sigma_dom`
+take the canonicity as a hypothesis, which `SoundEq.forallE_cod`,
+`sigma_cod` and `inst_cod` thread up to `Strong.lean`, where soundness
+supplies it. `lam_pi_code` and `pair_sigma_code` needed nothing new —
+they already proved the Π/Σ code canonical further down, so the
+ingredients are hoisted above the `WF` and used twice.
+
 Note what this does *not* buy. Indexing the naming by the code does not
 make `defeq` free on its own: moving a pair's name along `t ≡ t'` needs
 the Σ labels to be the type of `t`, which is `CodeCanon`. The transport

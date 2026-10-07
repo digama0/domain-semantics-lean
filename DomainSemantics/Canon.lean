@@ -867,3 +867,31 @@ theorem TShape.Named.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x 
     (h : TShape.Named Δ d t x) (hC : TShape.CodeCanon Δ T d)
     (ht : Δ ⊢ t ≡ t' : T) : TShape.Named Δ d t' x :=
   .of_dom h.dom (TShape.ValCanon.defeq hΔ h.dom hC h.val ht)
+
+/-! ## The fold, as an equivalence
+
+`Shape.WF` carries a `Shape.CodeCanonS` at every Π and Σ node it
+descends through, so for a well-formed shape the hereditary condition
+`Shape.CodeCanon` adds nothing beyond its own head equation.  That is
+what putting the shallow name inside `WF` was for: the recursion below
+is `WF`'s, not canonicity's. -/
+
+theorem Shape.CodeCanon.of_shallow : ∀ {n} {Δ : List Term} {T : Term} {s : Shape n},
+    Shape.WF Δ s → Shape.CodeCanonS Δ T s → Shape.CodeCanon Δ T s
+  | 0, _, _, s => by cases s <;> intro _ h <;> first | trivial | exact h
+  | n+1, Δ, T, s => by
+    cases s <;> intro hw h <;> first
+      | trivial
+      | exact h
+      | exact ⟨h, Shape.CodeCanon.of_shallow hw.2.2.1 hw.2.2.2.2.1,
+          fun e he => Shape.CodeCanon.of_shallow (hw.2.2.2.1.1 e he).2.2.2
+            (hw.2.2.2.2.2 e he)⟩
+
+/-- **The fold.**  For a well-formed shape the two agree. -/
+theorem Shape.CodeCanon.iff_shallow {n} {Δ : List Term} {T : Term} {s : Shape n}
+    (hw : Shape.WF Δ s) : Shape.CodeCanon Δ T s ↔ Shape.CodeCanonS Δ T s :=
+  ⟨Shape.CodeCanon.shallow, Shape.CodeCanon.of_shallow hw⟩
+
+theorem TShape.CodeCanon.iff_shallow {Δ : List Term} {T : Term} {x : TShape}
+    (hw : TShape.WF Δ x) : TShape.CodeCanon Δ T x ↔ Shape.CodeCanonS Δ T x.2 :=
+  Shape.CodeCanon.iff_shallow hw
