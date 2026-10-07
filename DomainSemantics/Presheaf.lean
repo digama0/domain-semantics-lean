@@ -494,7 +494,7 @@ theorem sound_forallE_ty {Γ : List Term} {A B : Term} {u v : Bool} (ihAd : Soun
     refine .forallE hd (fun e he => ?_) hwf
     · -- the codomain, at the stage extended by the entry's label: the
       -- entry's own data is exactly what `Adm.cons` and `SubstEq.cons` ask for
-      have hwe := hwf.2.2.2.1 e he
+      have hwe := hwf.2.2.2.1.1 e he
       have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
         .cons W hAty hwe.2.1
       have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
@@ -535,14 +535,18 @@ theorem sound_forallE_eq_of {Γ : List Term} {A A' B B' : Term} {u v : Bool}
     have hcan := fun e he => (hNV e he).val
     refine .forallE ((ihA hΔ W hAdm).1 hA) hd
       ⟨⟨_, hAσ.hasType.2⟩, ⟨_, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩, hwf.2.2.1,
-        hwf.2.2.2.retype ⟨_, hAσ⟩⟩
+        hwf.2.2.2.1.retype ⟨_, hAσ⟩,
+        hwf.2.2.2.2.1.conv ⟨_, hAσ.symm⟩,
+        fun e he => (hwf.2.2.2.2.2 e he).conv
+          ⟨_, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm
+            (hAσ.defeqDF ((hwf.2.2.2.1.1 e he).2.1))⟩⟩
       (fun e he => .of_dom (hdom e he) (hcan e he)) (fun e he => ?_) hw
       (hle.trans hΔ (TShape.LE.T.2
-        ⟨⟨⟨_, hAσ⟩, _, hBσ⟩, .refl hwf.2.2.1, .refl hwf.2.2.2⟩))
+        ⟨⟨⟨_, hAσ⟩, _, hBσ⟩, .refl hwf.2.2.1, .refl hwf.2.2.2.1, hwf.2.2.2.2.1, hwf.2.2.2.2.2⟩))
       ⟨u, hAA'.hasType.2⟩ ⟨v, IsDefEq.ctx_id hΓA' (Ctx.SubstEq.defeqHead W.wf hAA')
         hBB'.hasType.2⟩
     · -- the body, at the stage extended by the entry's label
-      have hwe := hwf.2.2.2.1 e he
+      have hwe := hwf.2.2.2.1.1 e he
       have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
         .cons W hAA'.hasType.1 hwe.2.1
       have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
@@ -590,7 +594,7 @@ theorem sound_sigma_ty {Γ : List Term} {A B : Term} {u v : Bool} (ihAd : SoundD
   | sigma hA hd hwf hNV hbody hw hle =>
     refine ⟨TShape.type, Interp.sort', TShape.HasType.mono_l hΔ ?_ hle⟩
     refine .sigma hd (fun e he => ?_) hwf
-    have hwe := hwf.2.2.2.1 e he
+    have hwe := hwf.2.2.2.1.1 e he
     have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
       .cons W hAty hwe.2.1
     have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
@@ -612,7 +616,7 @@ theorem CodeAt.forallE {Γ : List Term} {A B : Term} {u v : Bool}
     refine TShape.CodeCanon.mono hΔ hle (TShape.WF.T.2 hwf)
       ⟨⟨v, (IsDefEq.forallEDF hAty hB hB).subst hΔ W⟩, ihAd.codeAt hΔ W hAdm hA,
         fun e he => ?_⟩
-    have hwe := hwf.2.2.2.1 e he
+    have hwe := hwf.2.2.2.1.1 e he
     have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
       .cons W hAty hwe.2.1
     have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
@@ -636,7 +640,7 @@ theorem CodeAt.sigma {Γ : List Term} {A B : Term} {u v : Bool}
     refine TShape.CodeCanon.mono hΔ hle (TShape.WF.T.2 hwf)
       ⟨⟨true, (IsDefEq.sigmaDF hAty hB hB).subst hΔ W⟩, ihAd.codeAt hΔ W hAdm hA,
         fun e he => ?_⟩
-    have hwe := hwf.2.2.2.1 e he
+    have hwe := hwf.2.2.2.1.1 e he
     have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
       .cons W hAty hwe.2.1
     have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
@@ -666,13 +670,17 @@ theorem sound_sigma_eq_of {Γ : List Term} {A A' B B' : Term} {u v : Bool}
     have hcan := fun e he => (hNV e he).val
     refine .sigma ((ihA hΔ W hAdm).1 hA) hd
       ⟨⟨_, hAσ.hasType.2⟩, ⟨_, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩, hwf.2.2.1,
-        hwf.2.2.2.retype ⟨_, hAσ⟩⟩
+        hwf.2.2.2.1.retype ⟨_, hAσ⟩,
+        hwf.2.2.2.2.1.conv ⟨_, hAσ.symm⟩,
+        fun e he => (hwf.2.2.2.2.2 e he).conv
+          ⟨_, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm
+            (hAσ.defeqDF ((hwf.2.2.2.1.1 e he).2.1))⟩⟩
       (fun e he => .of_dom (hdom e he) (hcan e he)) (fun e he => ?_) hw
       (hle.trans hΔ (TShape.LE.T.2
-        ⟨⟨⟨_, hAσ⟩, _, hBσ⟩, .refl hwf.2.2.1, .refl hwf.2.2.2⟩))
+        ⟨⟨⟨_, hAσ⟩, _, hBσ⟩, .refl hwf.2.2.1, .refl hwf.2.2.2.1, hwf.2.2.2.2.1, hwf.2.2.2.2.2⟩))
       ⟨u, hAA'.hasType.2⟩ ⟨v, IsDefEq.ctx_id hΓA' (Ctx.SubstEq.defeqHead W.wf hAA')
         hBB'.hasType.2⟩
-    · have hwe := hwf.2.2.2.1 e he
+    · have hwe := hwf.2.2.2.1.1 e he
       have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
         .cons W hAA'.hasType.1 hwe.2.1
       have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
@@ -853,8 +861,8 @@ theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
     intro e he e' he' Θ τ hΘ Wτ hlab hin
     obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
     obtain ⟨b, hb, rfl⟩ := ShapeFun.mem_lift.1 he'
-    have hwa := hwf₁.2.2.2.1 a ha
-    have hwb := hwf₂.2.2.2.1 b hb
+    have hwa := hwf₁.2.2.2.1.1 a ha
+    have hwb := hwf₂.2.2.2.1.1 b hb
     have Wc : Ctx.SubstEq Θ (σ.comp τ) (σ.comp τ) Γ := Ctx.SubstEq.comp hΘ Wτ W
     have hwρτ : Valuation.WF Θ (ρ.subst τ) := Valuation.WF.subst hΘ Wτ hwρ
     -- the two inputs, read at the common level, and their join
@@ -937,13 +945,13 @@ theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
       obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
       exact Interp.lift hΔ k₁ (Interp.mono_val hΔ (Valuation.LE.push.2
         ⟨Valuation.LE.refl hwρ,
-          TShape.LE.le_lift hΔ (m := Shape.T a.inp) k₁ (hwf₁.2.2.2.1 a ha).2.2.1⟩)
+          TShape.LE.le_lift hΔ (m := Shape.T a.inp) k₁ (hwf₁.2.2.2.1.1 a ha).2.2.1⟩)
         (hbody₁ a ha))
     | .inr he =>
       obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
       exact Interp.lift hΔ k₂ (Interp.mono_val hΔ (Valuation.LE.push.2
         ⟨Valuation.LE.refl hwρ,
-          TShape.LE.le_lift hΔ (m := Shape.T a.inp) k₂ (hwf₂.2.2.2.1 a ha).2.2.1⟩)
+          TShape.LE.le_lift hΔ (m := Shape.T a.inp) k₂ (hwf₂.2.2.2.1.1 a ha).2.2.1⟩)
         (hbody₂ a ha))
   · rw [Shape.lift_self]; exact (Shape.le_join hΔ hwS₁ hwS₂ hcS).1
   · rw [Shape.lift_self]; exact (Shape.le_join hΔ hwS₁ hwS₂ hcS).2
@@ -1049,8 +1057,8 @@ theorem sound_sigma_ub {Γ : List Term} {A B : Term} {u v : Bool}
     intro e he e' he' Θ τ hΘ Wτ hlab hin
     obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
     obtain ⟨b, hb, rfl⟩ := ShapeFun.mem_lift.1 he'
-    have hwa := hwf₁.2.2.2.1 a ha
-    have hwb := hwf₂.2.2.2.1 b hb
+    have hwa := hwf₁.2.2.2.1.1 a ha
+    have hwb := hwf₂.2.2.2.1.1 b hb
     have Wc : Ctx.SubstEq Θ (σ.comp τ) (σ.comp τ) Γ := Ctx.SubstEq.comp hΘ Wτ W
     have hwρτ : Valuation.WF Θ (ρ.subst τ) := Valuation.WF.subst hΘ Wτ hwρ
     -- the two inputs, read at the common level, and their join
@@ -1133,13 +1141,13 @@ theorem sound_sigma_ub {Γ : List Term} {A B : Term} {u v : Bool}
       obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
       exact Interp.lift hΔ k₁ (Interp.mono_val hΔ (Valuation.LE.push.2
         ⟨Valuation.LE.refl hwρ,
-          TShape.LE.le_lift hΔ (m := Shape.T a.inp) k₁ (hwf₁.2.2.2.1 a ha).2.2.1⟩)
+          TShape.LE.le_lift hΔ (m := Shape.T a.inp) k₁ (hwf₁.2.2.2.1.1 a ha).2.2.1⟩)
         (hbody₁ a ha))
     | .inr he =>
       obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
       exact Interp.lift hΔ k₂ (Interp.mono_val hΔ (Valuation.LE.push.2
         ⟨Valuation.LE.refl hwρ,
-          TShape.LE.le_lift hΔ (m := Shape.T a.inp) k₂ (hwf₂.2.2.2.1 a ha).2.2.1⟩)
+          TShape.LE.le_lift hΔ (m := Shape.T a.inp) k₂ (hwf₂.2.2.2.1.1 a ha).2.2.1⟩)
         (hbody₂ a ha))
   · rw [Shape.lift_self]; exact (Shape.le_join hΔ hwS₁ hwS₂ hcS).1
   · rw [Shape.lift_self]; exact (Shape.le_join hΔ hwS₁ hwS₂ hcS).2
@@ -1489,13 +1497,21 @@ theorem lam_pi_code {Γ Γ₀ Δ : List Term} {A B : Term} {u v : Bool} {σ ρ}
   -- so the Π-shape is well formed and interprets `Π A B`
   have hAσ : Δ ⊢ A.subst σ : .sort u := hAty.subst hΔ W
   have hΔA : ⊢ (A.subst σ :: Δ) := ⟨hΔ, _, hAσ⟩
+  have hcdPi : Shape.CodeCanonS Δ (A.subst σ) (d.2.lift k) :=
+    (Shape.CodeCanonS.lift_iff hkd).2 (ihAd.codeAt hΔ W hAdm hA).shallow
+  have hcfPi : ∀ e ∈ f, Shape.CodeCanonS Δ ((B.subst σ.lift).inst e.tm) e.out := by
+    intro e he
+    obtain ⟨p, hp, rfl⟩ := (hf e).1 he
+    have hc := ihBc hΔ (hstage p.1 (hg₀g p hp)).1 (hstage p.1 (hg₀g p hp)).2 (hall p hp).1
+    rw [← inst_lift_cons] at hc
+    exact (Shape.CodeCanonS.lift_iff (hkc p hp)).2 hc.shallow
   have hwfPi : Shape.WF (n := k+1) Δ
       (.forallE (A.subst σ) (B.subst σ.lift) (d.2.lift k) f) :=
     ⟨⟨u, hAσ⟩, ⟨v, hB.subst hΔA (W.lift hAty hAσ)⟩,
       (Shape.lift_wf hkd).2 hd.wf.1,
-      fun e he => hfent e he,
-      graph_coherent hΓ hAty hB W hwρ ihBdir (fun e he => (hfent e he).2.2.1)
-        hfbody⟩
+      ⟨fun e he => hfent e he,
+        graph_coherent hΓ hAty hB W hwρ ihBdir (fun e he => (hfent e he).2.2.1)
+          hfbody⟩, hcdPi, hcfPi⟩
   have hPi : Interp Δ Γ (.forallE A B) σ ρ
       (Shape.T (n := k+1) (.forallE (A.subst σ) (B.subst σ.lift) (d.2.lift k) f)) :=
     .forallE (Interp.mono hΔ ((Shape.lift_wf hkd).2 hd.wf.1)
@@ -2231,7 +2247,7 @@ theorem sound_fst_dom {Γ : List Term} {A B p : Term}
           cases hS with
           | @sigma _ _ _ _ nc gc dc _ _ hAint hdty hwfc _ hbodyc hwmc hleSg =>
             obtain ⟨_, hdle, _⟩ :=
-              TShape.LE.sigma_decomp hΔ hleSg hwSg hwfc (TEvaluates.refl hwfc.2.2.2)
+              TShape.LE.sigma_decomp hΔ hleSg hwSg hwfc (TEvaluates.refl hwfc.2.2.2.1)
             exact Interp.mono hΔ (TShape.HasType.wf hd).1 hdle hAint
         · exact hxd' _ (by rw [← hps]; rfl)
         · -- and names `A`: the code names its own domain label, which the
@@ -2239,7 +2255,7 @@ theorem sound_fst_dom {Γ : List Term} {A B p : Term}
           cases hS with
           | @sigma _ _ _ _ nc gc dc _ _ hAint hdty hwfc _ hbodyc hwmc hleSg =>
             obtain ⟨hPL, _, _⟩ :=
-              TShape.LE.sigma_decomp hΔ hleSg hwSg hwfc (TEvaluates.refl hwfc.2.2.2)
+              TShape.LE.sigma_decomp hΔ hleSg hwSg hwfc (TEvaluates.refl hwfc.2.2.2.1)
             exact Shape.CodeCanon.conv hScan.2.1 (TyEq.symm hPL.1)
 
 /-- Soundness for `fstDF`. -/
@@ -2269,7 +2285,7 @@ theorem sound_fst {Γ : List Term} {A B p p' : Term} {u v : Bool}
         cases hs with
         | sigma hA hd₀ hwf _ _ _ hleS =>
           obtain ⟨_, hdd, _⟩ :=
-            TShape.LE.sigma_decomp hΔ hleS hwSg hwf (TEvaluates.refl hwf.2.2.2)
+            TShape.LE.sigma_decomp hΔ hleS hwSg hwf (TEvaluates.refl hwf.2.2.2.1)
           exact ⟨_, hA, TShape.HasType.mono_r hΔ
             (TShape.HasType.mono_l hΔ hxd hle) _ hdd hd₀⟩
 
@@ -2362,13 +2378,22 @@ theorem pair_sigma_code {Γ Γ₀ Δ : List Term} {A B a : Term} {u v : Bool} {�
       (TShape.LE.lift_le hΔ (m := c) hkc hcwf) ?_
     exact Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ,
       TShape.LE.le_lift hΔ (m := Shape.T x) hkn (TShape.WF.T.2 hwp.2.2.2.1)⟩) hcode
+  have hcdSg : Shape.CodeCanonS Δ (A.subst σ) ((d.join c₀).2.lift k) :=
+    (Shape.CodeCanonS.lift_iff hkd).2
+      (TShape.CodeCanon.join hΔ hA.wf hc₀.wf hcd hdc (ihAc hΔ W hAdm hc₀)).shallow
+  have hcfSg : ∀ e ∈ f, Shape.CodeCanonS Δ ((B.subst σ.lift).inst e.tm) e.out := by
+    intro e he
+    rw [hfmem e he]
+    have hcc := ihBc hΔ hstage.1 hstage.2 hcode
+    rw [← inst_lift_cons] at hcc
+    exact (Shape.CodeCanonS.lift_iff hkc).2 hcc.shallow
   have hwfSg : Shape.WF (n := k+1) Δ
       (.sigma (A.subst σ) (B.subst σ.lift) ((d.join c₀).2.lift k) f) :=
     ⟨⟨u, hAσ⟩, ⟨v, hB.subst hΔA (W.lift hAty hAσ)⟩,
       (Shape.lift_wf hkd).2 hdjty.wf.1,
-      fun e he => hfent e he,
-      graph_coherent hΓ hAty hB W hwρ ihBdir (fun e he => (hfent e he).2.2.1)
-        hfbody⟩
+      ⟨fun e he => hfent e he,
+       graph_coherent hΓ hAty hB W hwρ ihBdir (fun e he => (hfent e he).2.2.1)
+         hfbody⟩, hcdSg, hcfSg⟩
   have hSg : Interp Δ Γ (.sigma A B) σ ρ
       (Shape.T (n := k+1) (.sigma (A.subst σ) (B.subst σ.lift) ((d.join c₀).2.lift k) f)) :=
     .sigma (Interp.mono hΔ ((Shape.lift_wf hkd).2 hdjty.wf.1)
@@ -2702,7 +2727,7 @@ theorem Interp.lam_label_ty {Γ Γ₀ Δ : List Term} {f A B : Term} {σ ρ}
     cases hs with
     | forallE _ _ hwf _ _ _ hle =>
       obtain ⟨hPi, _, _⟩ :=
-        TShape.LE.forallE_decomp hΔ hle hwPi hwf (TEvaluates.refl hwf.2.2.2)
+        TShape.LE.forallE_decomp hΔ hle hwPi hwf (TEvaluates.refl hwf.2.2.2.1)
       exact TyEq.trans hdom hPi.1
 
 /-- `Term.Pinned`'s `app` condition, from the function's own typing: the
@@ -2764,7 +2789,7 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
         cases hP with
         | @forallE _ _ _ _ nc gc dc _ _ hAint hdty hwfc _ hbodyc hwmc hlePi =>
           obtain ⟨hPiLab, _, hcovc⟩ :=
-            TShape.LE.forallE_decomp hΔ hlePi hwPi hwfc (TEvaluates.refl hwfc.2.2.2)
+            TShape.LE.forallE_decomp hΔ hlePi hwPi hwfc (TEvaluates.refl hwfc.2.2.2.1)
           -- the λ-shape's label is the domain
           have hA₁ : TyEq Δ A₁ (A.subst σ) :=
             Interp.lam_label_ty hΔ W hAdm hfty hF
@@ -2826,7 +2851,7 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
                 have hwq := (hwG.2.2.1.1 q hq)
                 have hqtm : Δ ⊢ q.tm : A' := hlabG.choose_spec.defeqDF hwq.2.1
                 have hcc : TShape.CodeCanon Δ (B'.inst q.tm) pc.2 :=
-                  TShape.CodeCanon.lookup hΔ hwPi.2.2.2 hPc.2.2 hA'ty hwPi.2.1.choose_spec
+                  TShape.CodeCanon.lookup hΔ hwPi.2.2.2.1 hPc.2.2 hA'ty hwPi.2.1.choose_spec
                     hcode
                 have hcc' : TShape.CodeCanon Δ ((B.subst σ.lift).inst q.tm) pc.2 :=
                   hcc.conv (TyEq.inst hΔ hA'ty hPiLab.2.choose_spec
@@ -2916,7 +2941,7 @@ theorem Interp.pair_label_ty {Γ Γ₀ Δ : List Term} {p A B : Term} {σ ρ}
     cases hs with
     | sigma _ _ hwf _ _ _ hle =>
       obtain ⟨hSg, _, _⟩ :=
-        TShape.LE.sigma_decomp hΔ hle hwSg hwf (TEvaluates.refl hwf.2.2.2)
+        TShape.LE.sigma_decomp hΔ hle hwSg hwf (TEvaluates.refl hwf.2.2.2.1)
       exact hdom.trans hSg.1
 
 /-- **Saturation at a second projection.**  The Σ twin of
@@ -2966,7 +2991,7 @@ theorem sound_snd_dom {Γ : List Term} {A B p : Term} {u v : Bool}
         cases hS with
         | @sigma _ _ _ _ nc gc dc _ _ hAint hdty hwfc _ hbodyc hwmc hleSg =>
           obtain ⟨hSgLab, _, hcovc⟩ :=
-            TShape.LE.sigma_decomp hΔ hleSg hwSg hwfc (TEvaluates.refl hwfc.2.2.2)
+            TShape.LE.sigma_decomp hΔ hleSg hwSg hwfc (TEvaluates.refl hwfc.2.2.2.1)
           -- the saturated pair's first component is an approximant of `fst p`
           have hx'w : TShape.WF Δ (Shape.T x') := TShape.WF.T.2 hwP.2.2.2.1
           have hx'I : Interp Δ Γ (.fst p) σ ρ (Shape.T x') :=
@@ -4223,6 +4248,8 @@ theorem Interp.forallE_single {Γ Δ : List Term} {A B t : Term} {σ ρ} {u v : 
     (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v) (ht : Δ ⊢ t : A.subst σ)
     {d x c : TShape} (hdint : Interp Δ Γ A σ ρ d) (hdty : TShape.HasType Δ d TShape.type)
     (hxd : TShape.Dom Δ d x) (hxc : TShape.ValCanon Δ t x)
+    (hdc : TShape.CodeCanon Δ (A.subst σ) d)
+    (hcc : TShape.CodeCanon Δ ((B.subst σ.lift).inst t) c)
     (hc : Interp Δ (A :: Γ) B (σ.cons t) (ρ.push x) c) :
     ∃ (k : Nat) (dk xk ck : Shape k),
       Interp Δ Γ (.forallE A B) σ ρ (Shape.T (n := k+1)
@@ -4239,7 +4266,8 @@ theorem Interp.forallE_single {Γ Δ : List Term} {A B t : Term} {σ ρ} {u v : 
   have hwf : Shape.WF (n := k+1) Δ
       (.forallE (A.subst σ) (B.subst σ.lift) (d.2.lift k)
         [⟨t, x.2.lift k, c.2.lift k⟩]) := by
-    refine ⟨⟨u, hAσ⟩, ⟨v, hB.subst hΔA (W.lift hA hAσ)⟩, hwd, ?_, ?_⟩
+    refine ⟨⟨u, hAσ⟩, ⟨v, hB.subst hΔA (W.lift hA hAσ)⟩, hwd, ⟨?_, ?_⟩,
+      (Shape.CodeCanonS.lift_iff hkd).2 hdc.shallow, ?_⟩
     · intro e he
       cases List.mem_singleton.1 he
       exact ⟨⟨u, hAσ⟩, ht, hwx, hwc⟩
@@ -4247,6 +4275,9 @@ theorem Interp.forallE_single {Γ Δ : List Term} {A B t : Term} {σ ρ} {u v : 
       cases List.mem_singleton.1 he
       cases List.mem_singleton.1 he'
       exact Shape.WF.coherent (Shape.WF.subst hΘ Wτ hwc)
+    · intro e he
+      cases List.mem_singleton.1 he
+      exact (Shape.CodeCanonS.lift_iff hkc).2 hcc.shallow
   refine ⟨k, _, _, _, .forallE ?_ ?_ hwf ?_ ?_ hwf (TShape.LE.refl hwf)
       ⟨u, hA⟩ ⟨v, hB⟩,
     TShape.LE.le_lift hΔ (m := c) hkc hc.wf,
@@ -4270,6 +4301,8 @@ theorem Interp.sigma_single {Γ Δ : List Term} {A B t : Term} {σ ρ} {u v : Bo
     (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v) (ht : Δ ⊢ t : A.subst σ)
     {d x c : TShape} (hdint : Interp Δ Γ A σ ρ d) (hdty : TShape.HasType Δ d TShape.type)
     (hxd : TShape.Dom Δ d x) (hxc : TShape.ValCanon Δ t x)
+    (hdc : TShape.CodeCanon Δ (A.subst σ) d)
+    (hcc : TShape.CodeCanon Δ ((B.subst σ.lift).inst t) c)
     (hc : Interp Δ (A :: Γ) B (σ.cons t) (ρ.push x) c) :
     ∃ (k : Nat) (dk xk ck : Shape k),
       Interp Δ Γ (.sigma A B) σ ρ (Shape.T (n := k+1)
@@ -4286,7 +4319,8 @@ theorem Interp.sigma_single {Γ Δ : List Term} {A B t : Term} {σ ρ} {u v : Bo
   have hwf : Shape.WF (n := k+1) Δ
       (.sigma (A.subst σ) (B.subst σ.lift) (d.2.lift k)
         [⟨t, x.2.lift k, c.2.lift k⟩]) := by
-    refine ⟨⟨u, hAσ⟩, ⟨v, hB.subst hΔA (W.lift hA hAσ)⟩, hwd, ?_, ?_⟩
+    refine ⟨⟨u, hAσ⟩, ⟨v, hB.subst hΔA (W.lift hA hAσ)⟩, hwd, ⟨?_, ?_⟩,
+      (Shape.CodeCanonS.lift_iff hkd).2 hdc.shallow, ?_⟩
     · intro e he
       cases List.mem_singleton.1 he
       exact ⟨⟨u, hAσ⟩, ht, hwx, hwc⟩
@@ -4294,6 +4328,9 @@ theorem Interp.sigma_single {Γ Δ : List Term} {A B t : Term} {σ ρ} {u v : Bo
       cases List.mem_singleton.1 he
       cases List.mem_singleton.1 he'
       exact Shape.WF.coherent (Shape.WF.subst hΘ Wτ hwc)
+    · intro e he
+      cases List.mem_singleton.1 he
+      exact (Shape.CodeCanonS.lift_iff hkc).2 hcc.shallow
   refine ⟨k, _, _, _, .sigma ?_ ?_ hwf ?_ ?_ hwf (TShape.LE.refl hwf) ⟨u, hA⟩ ⟨v, hB⟩,
     TShape.LE.le_lift hΔ (m := c) hkc hc.wf,
     TShape.LE.lift_le hΔ (m := x) hkx hxd.hasType.wf.1⟩
@@ -4326,19 +4363,21 @@ theorem SoundEq.forallE_cod {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {u v u
     {t : Term} (ht : Δ ⊢ t : A₀.subst σ)
     {d x c : TShape} (hdint : Interp Δ Γ A₀ σ ρ d) (hdty : TShape.HasType Δ d TShape.type)
     (hxd : TShape.Dom Δ d x) (hxc : TShape.ValCanon Δ t x)
+    (hdc : TShape.CodeCanon Δ (A₀.subst σ) d)
+    (hcc : TShape.CodeCanon Δ ((B₀.subst σ.lift).inst t) c)
     (hc : Interp Δ (A₀ :: Γ) B₀ (σ.cons t) (ρ.push x) c) :
     Interp Δ (A₁ :: Γ) B₁ (σ.cons t) (ρ.push x) c := by
   have hwρ := hAdm.wf
   obtain ⟨k, dk, xk, ck, hprobe, hcle, hxle⟩ :=
-    Interp.forallE_single hΔ W hwρ hA₀ hB₀ ht hdint hdty hxd hxc hc
+    Interp.forallE_single hΔ W hwρ hA₀ hB₀ ht hdint hdty hxd hxc hdc hcc hc
   have hpr := (H hΔ W hAdm).1 hprobe
   cases hpr with
   | forallE hA₁int hd₁ hwf₁ _ hbody₁ hw₁ hle₁ =>
     obtain ⟨hPi, _, hcov⟩ :=
-      TShape.LE.forallE_decomp hΔ hle₁ hprobe.wf hwf₁ (TEvaluates.refl hwf₁.2.2.2)
+      TShape.LE.forallE_decomp hΔ hle₁ hprobe.wf hwf₁ (TEvaluates.refl hwf₁.2.2.2.1)
     have hev := hcov ⟨t, xk, ck⟩ (by simp)
     have hB := sound_graph_lookup (B := B₁) ⟨hΓ, _, hA₁⟩ hA₁ hB₁ hΔ W hbody₁
-      (TShape.WF.T.2 (hprobe.wf.2.2.2.1 _ (by simp)).2.2.1) hB₁dir hwρ ht hPi.1 hev
+      (TShape.WF.T.2 (hprobe.wf.2.2.2.1.1 _ (by simp)).2.2.1) hB₁dir hwρ ht hPi.1 hev
     exact Interp.mono hΔ hc.wf hcle (Interp.mono_val hΔ (Valuation.LE.push.2
       ⟨Valuation.LE.refl hwρ, hxle⟩) hB)
 
@@ -4352,19 +4391,21 @@ theorem SoundEq.sigma_cod {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {u v u' 
     {t : Term} (ht : Δ ⊢ t : A₀.subst σ)
     {d x c : TShape} (hdint : Interp Δ Γ A₀ σ ρ d) (hdty : TShape.HasType Δ d TShape.type)
     (hxd : TShape.Dom Δ d x) (hxc : TShape.ValCanon Δ t x)
+    (hdc : TShape.CodeCanon Δ (A₀.subst σ) d)
+    (hcc : TShape.CodeCanon Δ ((B₀.subst σ.lift).inst t) c)
     (hc : Interp Δ (A₀ :: Γ) B₀ (σ.cons t) (ρ.push x) c) :
     Interp Δ (A₁ :: Γ) B₁ (σ.cons t) (ρ.push x) c := by
   have hwρ := hAdm.wf
   obtain ⟨k, dk, xk, ck, hprobe, hcle, hxle⟩ :=
-    Interp.sigma_single hΔ W hwρ hA₀ hB₀ ht hdint hdty hxd hxc hc
+    Interp.sigma_single hΔ W hwρ hA₀ hB₀ ht hdint hdty hxd hxc hdc hcc hc
   have hpr := (H hΔ W hAdm).1 hprobe
   cases hpr with
   | sigma hA₁int hd₁ hwf₁ _ hbody₁ hw₁ hle₁ =>
     obtain ⟨hSg, _, hcov⟩ :=
-      TShape.LE.sigma_decomp hΔ hle₁ hprobe.wf hwf₁ (TEvaluates.refl hwf₁.2.2.2)
+      TShape.LE.sigma_decomp hΔ hle₁ hprobe.wf hwf₁ (TEvaluates.refl hwf₁.2.2.2.1)
     have hev := hcov ⟨t, xk, ck⟩ (by simp)
     have hB := sound_graph_lookup (B := B₁) ⟨hΓ, _, hA₁⟩ hA₁ hB₁ hΔ W hbody₁
-      (TShape.WF.T.2 (hprobe.wf.2.2.2.1 _ (by simp)).2.2.1) hB₁dir hwρ ht hSg.1 hev
+      (TShape.WF.T.2 (hprobe.wf.2.2.2.1.1 _ (by simp)).2.2.1) hB₁dir hwρ ht hSg.1 hev
     exact Interp.mono hΔ hc.wf hcle (Interp.mono_val hΔ (Valuation.LE.push.2
       ⟨Valuation.LE.refl hwρ, hxle⟩) hB)
 
@@ -4382,6 +4423,7 @@ theorem SoundEq.inst_cod {Γ : List Term} {A₀ A₁ B₀ B₁ a : Term} {u v u'
     (ha₀ : SoundTy Γ a A₀) (ha₁ : SoundTy Γ a A₁)
     (hdom₀ : SoundDom Γ a A₀) (hdom₁ : SoundDom Γ a A₁) (hadir : SoundDir Γ a)
     (ihA₀ : SoundTy Γ A₀ (.sort u)) (ihA₁ : SoundTy Γ A₁ (.sort u'))
+    (ihB₀c : CodeAt (A₀ :: Γ) B₀) (ihB₁c : CodeAt (A₁ :: Γ) B₁)
     (H : SoundEq Γ (.forallE A₀ B₀) (.forallE A₁ B₁)) :
     SoundEq Γ (B₀.inst a) (B₁.inst a) := by
   intro Δ Γ₀ σ ρ hΔ W hAdm m
@@ -4392,29 +4434,39 @@ theorem SoundEq.inst_cod {Γ : List Term} {A₀ A₁ B₀ B₁ a : Term} {u v u'
       hPB₀ W hAdm (Subst.Saturates.one hΔ hΓ W hAdm hdom₀)
       (hadir hΔ W hwρ) hwρ).1 h
     rw [Subst.one_comp] at hb₀
-    obtain ⟨x, d, hx, hlex, hd, hxd, _, hxc⟩ := hdom₀ hΔ W hAdm hx₀
+    obtain ⟨x, d, hx, hlex, hd, hxd, hdc, hxc⟩ := hdom₀ hΔ W hAdm hx₀
     have hb : Interp Δ (A₀ :: Γ) B₀ (σ.cons (a.subst σ)) (ρ.push x) m :=
       Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hlex⟩) hb₀
     refine (Interp.inst (A := A₁) (b := B₁) hΔ hΓ hA₁ ha₁.typed hB₁ hPB₁ W hAdm
       (Subst.Saturates.one hΔ hΓ W hAdm hdom₁)
       (hadir hΔ W hwρ) hwρ).2 ⟨x, ?_, hx⟩
     rw [Subst.one_comp]
+    have Wc : Ctx.SubstEq Δ (σ.cons (a.subst σ)) (σ.cons (a.subst σ)) (A₀ :: Γ) :=
+      .cons W hA₀ (ha₀.typed.subst hΔ W)
+    have hcc : TShape.CodeCanon Δ ((B₀.subst σ.lift).inst (a.subst σ)) m := by
+      have h' := ihB₀c hΔ Wc (Adm.cons hAdm hΓ hd hx.wf (.of_dom hxd hxc) hdc) hb
+      rwa [← inst_lift_cons] at h'
     exact SoundEq.forallE_cod hΓ hA₀ hB₀ hA₁ hB₁ hB₁dir H hΔ W hAdm
-      (ha₀.typed.subst hΔ W) hd (ihA₀.isType hΔ W hAdm hd) hxd hxc hb
+      (ha₀.typed.subst hΔ W) hd (ihA₀.isType hΔ W hAdm hd) hxd hxc hdc hcc hb
   · intro h
     obtain ⟨x₀, hb₀, hx₀⟩ := (Interp.inst (A := A₁) (b := B₁) hΔ hΓ hA₁ ha₁.typed hB₁
       hPB₁ W hAdm (Subst.Saturates.one hΔ hΓ W hAdm hdom₁)
       (hadir hΔ W hwρ) hwρ).1 h
     rw [Subst.one_comp] at hb₀
-    obtain ⟨x, d, hx, hlex, hd, hxd, _, hxc⟩ := hdom₁ hΔ W hAdm hx₀
+    obtain ⟨x, d, hx, hlex, hd, hxd, hdc, hxc⟩ := hdom₁ hΔ W hAdm hx₀
     have hb : Interp Δ (A₁ :: Γ) B₁ (σ.cons (a.subst σ)) (ρ.push x) m :=
       Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hlex⟩) hb₀
     refine (Interp.inst (A := A₀) (b := B₀) hΔ hΓ hA₀ ha₀.typed hB₀ hPB₀ W hAdm
       (Subst.Saturates.one hΔ hΓ W hAdm hdom₀)
       (hadir hΔ W hwρ) hwρ).2 ⟨x, ?_, hx⟩
     rw [Subst.one_comp]
+    have Wc : Ctx.SubstEq Δ (σ.cons (a.subst σ)) (σ.cons (a.subst σ)) (A₁ :: Γ) :=
+      .cons W hA₁ (ha₁.typed.subst hΔ W)
+    have hcc : TShape.CodeCanon Δ ((B₁.subst σ.lift).inst (a.subst σ)) m := by
+      have h' := ihB₁c hΔ Wc (Adm.cons hAdm hΓ hd hx.wf (.of_dom hxd hxc) hdc) hb
+      rwa [← inst_lift_cons] at h'
     exact SoundEq.forallE_cod hΓ hA₁ hB₁ hA₀ hB₀ hB₀dir H.symm hΔ W hAdm
-      (ha₁.typed.subst hΔ W) hd (ihA₁.isType hΔ W hAdm hd) hxd hxc hb
+      (ha₁.typed.subst hΔ W) hd (ihA₁.isType hΔ W hAdm hd) hxd hxc hdc hcc hb
 
 /-- The Σ twin, for `snd`. -/
 theorem SoundEq.inst_cod_sigma {Γ : List Term} {A₀ A₁ B₀ B₁ a : Term} {u v u' v' : Bool}
@@ -4425,6 +4477,7 @@ theorem SoundEq.inst_cod_sigma {Γ : List Term} {A₀ A₁ B₀ B₁ a : Term} {
     (ha₀ : SoundTy Γ a A₀) (ha₁ : SoundTy Γ a A₁)
     (hdom₀ : SoundDom Γ a A₀) (hdom₁ : SoundDom Γ a A₁) (hadir : SoundDir Γ a)
     (ihA₀ : SoundTy Γ A₀ (.sort u)) (ihA₁ : SoundTy Γ A₁ (.sort u'))
+    (ihB₀c : CodeAt (A₀ :: Γ) B₀) (ihB₁c : CodeAt (A₁ :: Γ) B₁)
     (H : SoundEq Γ (.sigma A₀ B₀) (.sigma A₁ B₁)) :
     SoundEq Γ (B₀.inst a) (B₁.inst a) := by
   intro Δ Γ₀ σ ρ hΔ W hAdm m
@@ -4435,29 +4488,39 @@ theorem SoundEq.inst_cod_sigma {Γ : List Term} {A₀ A₁ B₀ B₁ a : Term} {
       hPB₀ W hAdm (Subst.Saturates.one hΔ hΓ W hAdm hdom₀)
       (hadir hΔ W hwρ) hwρ).1 h
     rw [Subst.one_comp] at hb₀
-    obtain ⟨x, d, hx, hlex, hd, hxd, _, hxc⟩ := hdom₀ hΔ W hAdm hx₀
+    obtain ⟨x, d, hx, hlex, hd, hxd, hdc, hxc⟩ := hdom₀ hΔ W hAdm hx₀
     have hb : Interp Δ (A₀ :: Γ) B₀ (σ.cons (a.subst σ)) (ρ.push x) m :=
       Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hlex⟩) hb₀
     refine (Interp.inst (A := A₁) (b := B₁) hΔ hΓ hA₁ ha₁.typed hB₁ hPB₁ W hAdm
       (Subst.Saturates.one hΔ hΓ W hAdm hdom₁)
       (hadir hΔ W hwρ) hwρ).2 ⟨x, ?_, hx⟩
     rw [Subst.one_comp]
+    have Wc : Ctx.SubstEq Δ (σ.cons (a.subst σ)) (σ.cons (a.subst σ)) (A₀ :: Γ) :=
+      .cons W hA₀ (ha₀.typed.subst hΔ W)
+    have hcc : TShape.CodeCanon Δ ((B₀.subst σ.lift).inst (a.subst σ)) m := by
+      have h' := ihB₀c hΔ Wc (Adm.cons hAdm hΓ hd hx.wf (.of_dom hxd hxc) hdc) hb
+      rwa [← inst_lift_cons] at h'
     exact SoundEq.sigma_cod hΓ hA₀ hB₀ hA₁ hB₁ hB₁dir H hΔ W hAdm
-      (ha₀.typed.subst hΔ W) hd (ihA₀.isType hΔ W hAdm hd) hxd hxc hb
+      (ha₀.typed.subst hΔ W) hd (ihA₀.isType hΔ W hAdm hd) hxd hxc hdc hcc hb
   · intro h
     obtain ⟨x₀, hb₀, hx₀⟩ := (Interp.inst (A := A₁) (b := B₁) hΔ hΓ hA₁ ha₁.typed hB₁
       hPB₁ W hAdm (Subst.Saturates.one hΔ hΓ W hAdm hdom₁)
       (hadir hΔ W hwρ) hwρ).1 h
     rw [Subst.one_comp] at hb₀
-    obtain ⟨x, d, hx, hlex, hd, hxd, _, hxc⟩ := hdom₁ hΔ W hAdm hx₀
+    obtain ⟨x, d, hx, hlex, hd, hxd, hdc, hxc⟩ := hdom₁ hΔ W hAdm hx₀
     have hb : Interp Δ (A₁ :: Γ) B₁ (σ.cons (a.subst σ)) (ρ.push x) m :=
       Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hlex⟩) hb₀
     refine (Interp.inst (A := A₀) (b := B₀) hΔ hΓ hA₀ ha₀.typed hB₀ hPB₀ W hAdm
       (Subst.Saturates.one hΔ hΓ W hAdm hdom₀)
       (hadir hΔ W hwρ) hwρ).2 ⟨x, ?_, hx⟩
     rw [Subst.one_comp]
+    have Wc : Ctx.SubstEq Δ (σ.cons (a.subst σ)) (σ.cons (a.subst σ)) (A₁ :: Γ) :=
+      .cons W hA₁ (ha₁.typed.subst hΔ W)
+    have hcc : TShape.CodeCanon Δ ((B₁.subst σ.lift).inst (a.subst σ)) m := by
+      have h' := ihB₁c hΔ Wc (Adm.cons hAdm hΓ hd hx.wf (.of_dom hxd hxc) hdc) hb
+      rwa [← inst_lift_cons] at h'
     exact SoundEq.sigma_cod hΓ hA₁ hB₁ hA₀ hB₀ hB₀dir H.symm hΔ W hAdm
-      (ha₁.typed.subst hΔ W) hd (ihA₁.isType hΔ W hAdm hd) hxd hxc hb
+      (ha₁.typed.subst hΔ W) hd (ihA₁.isType hΔ W hAdm hd) hxd hxc hdc hcc hb
 
 theorem SoundEq.sort_inv {Γ : List Term} {u v : Bool}
     (hΓ : ⊢ Γ) (H : SoundEq Γ (Term.sort u) (Term.sort v)) : u = v := by
@@ -4510,20 +4573,21 @@ component.  The syntactic `sigma_inv` above does not give this — a
 definitional equality of domains becomes a `SoundEq` only through
 soundness. -/
 theorem SoundEq.sigma_dom {Γ : List Term} {A B A' B' : Term} {u u' v v' : Bool}
-    (hA : SoundTy Γ A (.sort u)) (hB : A :: Γ ⊢ B : .sort v)
-    (hA' : SoundTy Γ A' (.sort u')) (hB' : A' :: Γ ⊢ B' : .sort v')
+    (hA : SoundTy Γ A (.sort u)) (hB : A :: Γ ⊢ B : .sort v) (hAc : CodeAt Γ A)
+    (hA' : SoundTy Γ A' (.sort u')) (hB' : A' :: Γ ⊢ B' : .sort v') (hA'c : CodeAt Γ A')
     (H : SoundEq Γ (.sigma A B) (.sigma A' B')) : SoundEq Γ A A' := by
   suffices key : ∀ {A B A' B' : Term} {u v : Bool}, SoundTy Γ A (.sort u) →
-      A :: Γ ⊢ B : .sort v → SoundEq Γ (.sigma A B) (.sigma A' B') →
+      A :: Γ ⊢ B : .sort v → CodeAt Γ A → SoundEq Γ (.sigma A B) (.sigma A' B') →
       ∀ {Δ Γ₀ σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
       ∀ {m}, Interp Δ Γ A σ ρ m → Interp Δ Γ A' σ ρ m by
     intro Δ Γ₀ σ ρ hΔ W hAdm m
-    exact ⟨key hA hB H hΔ W hAdm, key hA' hB' H.symm hΔ W hAdm⟩
-  intro A B A' B' u v hA hB H Δ Γ₀ σ ρ hΔ W hAdm m hm
+    exact ⟨key hA hB hAc H hΔ W hAdm, key hA' hB' hA'c H.symm hΔ W hAdm⟩
+  intro A B A' B' u v hA hB hAc H Δ Γ₀ σ ρ hΔ W hAdm m hm
   have ⟨⟨_, hAσ⟩, _, hBσ⟩ := PiLabelEq.subst hΔ W ⟨⟨u, hA.typed⟩, v, hB⟩
   have hw : Shape.WF (n := m.1+1) Δ (ShapeS.sigma (A.subst σ) (B.subst σ.lift) m.2 []) :=
     ⟨⟨_, hAσ.hasType.1⟩, ⟨_, hBσ.hasType.1⟩, hm.wf,
-      fun _ he => absurd he List.not_mem_nil, fun _ he => absurd he List.not_mem_nil⟩
+      ⟨fun _ he => absurd he List.not_mem_nil, fun _ he => absurd he List.not_mem_nil⟩,
+      (hAc hΔ W hAdm hm).shallow, nofun⟩
   have hprobe : Interp Δ Γ (.sigma A B) σ ρ
       (Shape.T (n := m.1+1) (ShapeS.sigma (A.subst σ) (B.subst σ.lift) m.2 [])) :=
     .sigma hm (hA.isType hΔ W hAdm hm) hw nofun nofun hw (TShape.LE.refl hw)
@@ -4531,7 +4595,7 @@ theorem SoundEq.sigma_dom {Γ : List Term} {A B A' B' : Term} {u u' v v' : Bool}
   have hmove := (H hΔ W hAdm).1 hprobe
   cases hmove with
   | sigma hA'' _ hwf _ _ _ hle _ _ =>
-    obtain ⟨_, hdd, _⟩ := TShape.LE.sigma_decomp hΔ hle hw hwf (TEvaluates.refl hwf.2.2.2)
+    obtain ⟨_, hdd, _⟩ := TShape.LE.sigma_decomp hΔ hle hw hwf (TEvaluates.refl hwf.2.2.2.1)
     exact Interp.mono hΔ hm.wf hdd hA''
 
 /-- Inversion at `id`.  The `id` former is label-only, so it needs no
@@ -4769,7 +4833,7 @@ theorem sound_eta_of {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
       | @forallE _ _ _ _ k g₁ d₁ _ _ hAint hdty₁ hwf₁ _ hbody₁ hw₁ hle₁ _ _ =>
         obtain ⟨hPiLab, hdle, _⟩ := TShape.LE.forallE_decomp hΔ hle₁
           hwPi hwf₁
-          (TEvaluates.refl hwf₁.2.2.2)
+          (TEvaluates.refl hwf₁.2.2.2.1)
         have hAσ : TyEq Δ A₀ (A.subst σ) := TyEq.trans hlab hPiLab.1
         have hdA : Interp Δ Γ A σ ρ d.T :=
           Interp.mono hΔ (TShape.HasType.wf hd).1 hdle hAint
@@ -5009,7 +5073,7 @@ theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢
       cases hS with
       | @sigma _ _ _ _ nc gc dc _ _ hAint hdty hwfc _ hbodyc hwmc hleSg =>
         obtain ⟨hSgLab, hdle, hcov⟩ :=
-          TShape.LE.sigma_decomp hΔ hleSg hwSg hwfc (TEvaluates.refl hwfc.2.2.2)
+          TShape.LE.sigma_decomp hΔ hleSg hwSg hwfc (TEvaluates.refl hwfc.2.2.2.1)
         have hxw : TShape.WF Δ (Shape.T x) := TShape.WF.T.2 hwP.2.2.2.1
         have hyw : TShape.WF Δ (Shape.T y) := TShape.WF.T.2 hwP.2.2.2.2
         have hAlab : TyEq Δ A₀ (A.subst σ) := Interp.pair_label_ty hΔ W hAdm ihpty hP

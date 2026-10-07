@@ -531,8 +531,8 @@ theorem TShape.LE.forallE_decomp {Δ : List Term} (hΔ : ⊢ Δ) {n n' k}
   have hn : n ≤ M := Nat.le_of_succ_le_succ hnM
   have hA : TyEq Δ A' A := TyEq.symm h2.1.1
   exact ⟨h2.1, (TShape.LE.def hΔ hn hn'M).2 h2.2.1,
-    TEvaluates.of_cover_lift hΔ hn hw.2.2.2 h2.2.2.1
-      (TEvaluates.lift_cover hΔ hn'M (hw'.2.2.2.retype hA)
+    TEvaluates.of_cover_lift hΔ hn hw.2.2.2.1 h2.2.2.1.1
+      (TEvaluates.lift_cover hΔ hn'M (hw'.2.2.2.1.retype hA)
         fun e he => (hf' e he).retype hA)⟩
 
 /-- Σ-decomposition; the clause is the same as Π's. -/
@@ -550,8 +550,8 @@ theorem TShape.LE.sigma_decomp {Δ : List Term} (hΔ : ⊢ Δ) {n n' k}
   have hn : n ≤ M := Nat.le_of_succ_le_succ hnM
   have hA : TyEq Δ A' A := TyEq.symm h2.1.1
   exact ⟨h2.1, (TShape.LE.def hΔ hn hn'M).2 h2.2.1,
-    TEvaluates.of_cover_lift hΔ hn hw.2.2.2 h2.2.2.1
-      (TEvaluates.lift_cover hΔ hn'M (hw'.2.2.2.retype hA)
+    TEvaluates.of_cover_lift hΔ hn hw.2.2.2.1 h2.2.2.1.1
+      (TEvaluates.lift_cover hΔ hn'M (hw'.2.2.2.1.retype hA)
         fun e he => (hf' e he).retype hA)⟩
 
 /-- λ-decomposition: a λ-shape's graph is covered by any bigger one's, and
@@ -812,7 +812,7 @@ theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
       | forallE A' B' d' f' =>
         obtain ⟨hd', hf', hw'⟩ := hA'.forallE_inv rfl
         obtain ⟨hPi, _, hcov⟩ :=
-          TShape.LE.forallE_decomp hΔ h hwPi hw' (TEvaluates.refl hw'.2.2.2)
+          TShape.LE.forallE_decomp hΔ h hwPi hw' (TEvaluates.refl hw'.2.2.2.1)
         exact .lam hd' hf' hwg hw' hwg₀ hg
           (fun e he => (TEvaluates.trans hΔ hcov (hg₀ev e he)).retype hPi.1) hg₀ty
           (hdom.trans hPi.1)
@@ -828,7 +828,7 @@ theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
       | sigma A' B' d' f' =>
         obtain ⟨hd', hf', hw'⟩ := hA'.sigma_inv rfl
         obtain ⟨hSg, hdd, hcov⟩ :=
-          TShape.LE.sigma_decomp hΔ h hwSg hw' (TEvaluates.refl hw'.2.2.2)
+          TShape.LE.sigma_decomp hΔ h hwSg hw' (TEvaluates.refl hw'.2.2.2.1)
         refine .pair hd' hf' hwp hw' (ihxd d'.T hdd hd') hxle ?_ hyty (hdom.trans hSg.1)
         exact TEvaluates.retype hSg.1 (TEvaluates.trans hΔ hcov hev)
       | _ => exact absurd h2 (fun x => x)
@@ -1986,7 +1986,7 @@ theorem TShape.Dom.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {d x : TShape}
         · -- the codes are lookups in the bigger graph
           intro p hp
           obtain ⟨hPi, _, hcov⟩ := TShape.LE.forallE_decomp hΔ hle
-            (TShape.HasType.wf hty0).2 hw₂ (fun e he => TEvaluates.refl hw₂.2.2.2 e he)
+            (TShape.HasType.wf hty0).2 hw₂ (fun e he => TEvaluates.refl hw₂.2.2.2.1 e he)
           exact (TEvaluates.trans hΔ hcov (hev p hp)).retype hPi.1
       | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
       | .lam _ _ | .sigma .. | .pair _ _ _ _ => exact absurd h2 (fun x => x)
@@ -2002,7 +2002,7 @@ theorem TShape.Dom.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {d x : TShape}
         obtain ⟨hd₂, hf₂, hw₂⟩ := hty.sigma_inv rfl
         have hdle := TShape.LE.sigma_dom hΔ hle
         obtain ⟨hlab, _, hcov⟩ := TShape.LE.sigma_decomp hΔ hle
-          (TShape.HasType.wf hty0).2 hw₂ (fun e he => TEvaluates.refl hw₂.2.2.2 e he)
+          (TShape.HasType.wf hty0).2 hw₂ (fun e he => TEvaluates.refl hw₂.2.2.2.1 e he)
         exact .sg (c := c) (TShape.HasType.mono_r hΔ hty0 _ hle hty) hps
           (fun p hp => ihx p hp hdle hd₂)
           (fun p hp => TEvaluates.retype hlab.1 (TEvaluates.trans hΔ hcov (hev p hp)))
@@ -2132,15 +2132,15 @@ theorem TShape.HasType.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
             have hev₂' := TEvaluates.label ⟨hdom.symm.trans hdom,
                 (hdom.choose_spec.defeqDF hc.2.1).symm⟩
               (TEvaluates.mono_inp hΔ (TShape.LE.T.2 hjx.2) hev₂)
-            have hcc := TEvaluates.compat hΔ hwSg.2.2.2.2 (TShape.WF.T.2 (Shape.WF.join hΔ hc.2.2.1 hwp.2.2.2.1 hwp'.2.2.2.1)) hev₁' hev₂'
+            have hcc := TEvaluates.compat hΔ hwSg.2.2.2.1.2 (TShape.WF.T.2 (Shape.WF.join hΔ hc.2.2.1 hwp.2.2.2.1 hwp'.2.2.2.1)) hev₁' hev₂'
             refine .pair hd hfo (Shape.WF.join hΔ hc hwp hwp') hwSg
               (ih hc.2.2.1 hdx₁ hdx₂) (TShape.LE.refl (TShape.WF.T.2
                 (Shape.WF.join hΔ hc hwp hwp').2.2.2.1))
               (TEvaluates.join hcc hev₁' hev₂') ?_ hdom
             have hcty := TEvaluates.tHasType (c := TShape.type) hΔ rfl
               (fun e he => hfo e he) (TEvaluates.join hcc hev₁' hev₂')
-            have hjc := TShape.le_join hΔ (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1 e he).2.2.2) hev₁')
-              (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1 e he).2.2.2) hev₂') hcc
+            have hjc := TShape.le_join hΔ (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1.1 e he).2.2.2) hev₁')
+              (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1.1 e he).2.2.2) hev₂') hcc
             exact ih hc.2.2.2 (TShape.Dom.mono_r hΔ hdy₁ hjc.1 hcty)
               (TShape.Dom.mono_r hΔ hdy₂ hjc.2 hcty)
       | _ => exact absurd hc (fun x => x)
@@ -2210,7 +2210,7 @@ theorem TShape.Dom.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
           have hev₂' := TEvaluates.label ⟨hdomA.symm.trans hdomA,
               (hdomA.choose_spec.defeqDF hc.2.1).symm⟩
             (TEvaluates.mono_inp hΔ (TShape.LE.T.2 hjx.2) hev₂)
-          have hcc := TEvaluates.compat hΔ hwSg.2.2.2.2 (TShape.WF.T.2 (Shape.WF.join hΔ hc.2.2.1 hwp.2.2.2.1 hwp'.2.2.2.1)) hev₁' hev₂'
+          have hcc := TEvaluates.compat hΔ hwSg.2.2.2.1.2 (TShape.WF.T.2 (Shape.WF.join hΔ hc.2.2.1 hwp.2.2.2.1 hwp'.2.2.2.1)) hev₁' hev₂'
           refine .sg (ps := some (a₁, (x₁.join x₂).T, (y₁.join y₂).T)) (c := c₁.join c₂)
             hty rfl (fun p hp => ?_) (fun p hp => ?_) (fun p hp => ?_) <;>
             simp only [Option.mem_def, Option.some.injEq] at hp <;> subst hp
@@ -2218,8 +2218,8 @@ theorem TShape.Dom.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
           · exact TEvaluates.join hcc hev₁' hev₂'
           · have hcty := TEvaluates.tHasType (c := TShape.type) hΔ rfl
               (fun e he => hfo e he) (TEvaluates.join hcc hev₁' hev₂')
-            have hjc := TShape.le_join hΔ (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1 e he).2.2.2) hev₁')
-              (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1 e he).2.2.2) hev₂') hcc
+            have hjc := TShape.le_join hΔ (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1.1 e he).2.2.2) hev₁')
+              (TEvaluates.wf hΔ (fun e he => TShape.WF.T.2 (hwSg.2.2.2.1.1 e he).2.2.2) hev₂') hcc
             exact ih hc.2.2.2 (TShape.Dom.mono_r hΔ hdy₁ hjc.1 hcty)
               (TShape.Dom.mono_r hΔ hdy₂ hjc.2 hcty)
         | .refl, z, hc, _, _, _, htyy =>

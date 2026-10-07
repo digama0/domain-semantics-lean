@@ -118,12 +118,19 @@ theorem TyEq.inst {Δ : List Term} (hΔ : ⊢ Δ) {A B B' a a' : Term} {u v : Bo
 
 /-! ## Transport along the type -/
 
+/-- The deep condition implies the shallow one: they agree at the head. -/
+theorem Shape.CodeCanon.shallow : ∀ {n} {Δ : List Term} {T : Term} {s : Shape n},
+    Shape.CodeCanon Δ T s → Shape.CodeCanonS Δ T s
+  | 0, _, _, s => by cases s <;> intro h <;> first | trivial | exact h
+  | _+1, _, _, s => by cases s <;> intro h <;> first | trivial | exact h | exact h.1
+
+theorem TShape.CodeCanon.shallow {Δ : List Term} {T : Term} {x : TShape}
+    (h : TShape.CodeCanon Δ T x) : Shape.CodeCanonS Δ T x.2 := Shape.CodeCanon.shallow h
+
 /-- **A code's canonicity moves along an equality of the type**: only the
 head equation mentions the type. -/
-theorem Shape.CodeCanon.conv {Δ : List Term} :
-    ∀ {n} {T T' : Term} {x : Shape n}, Shape.CodeCanon Δ T x → TyEq Δ T' T →
-      Shape.CodeCanon Δ T' x := by
-  intro n T T' x hC hT
+theorem Shape.CodeCanon.conv {Δ : List Term} {n} {T T' : Term} {x : Shape n}
+    (hC : Shape.CodeCanon Δ T x) (hT : TyEq Δ T' T) : Shape.CodeCanon Δ T' x := by
   cases n with
   | zero => cases x with | bot => trivial | sort r => exact hT.trans hC
   | succ n =>
@@ -205,7 +212,7 @@ theorem Shape.CodeCanon.join {Δ : List Term} (hΔ : ⊢ Δ) :
         refine ⟨hy.1, ih hwy.2.2.1 hwz.2.2.1 hcd hy.2.1 (hz.2.1.conv hl.1), fun e he => ?_⟩
         rcases List.mem_append.1 he with he | he
         · exact hy.2.2 e he
-        · exact hent hl hwy.1.choose_spec hwz.2.2.2 hz.2.2 e he
+        · exact hent hl hwy.1.choose_spec hwz.2.2.2.1 hz.2.2 e he
       | _ => exact absurd hc id
     | forallE A B d f =>
       cases z with
@@ -215,7 +222,7 @@ theorem Shape.CodeCanon.join {Δ : List Term} (hΔ : ⊢ Δ) :
         refine ⟨hy.1, ih hwy.2.2.1 hwz.2.2.1 hcd hy.2.1 (hz.2.1.conv hl.1), fun e he => ?_⟩
         rcases List.mem_append.1 he with he | he
         · exact hy.2.2 e he
-        · exact hent hl hwy.1.choose_spec hwz.2.2.2 hz.2.2 e he
+        · exact hent hl hwy.1.choose_spec hwz.2.2.2.1 hz.2.2 e he
       | _ => exact absurd hc id
     | lam | pair | zero | succ | refl => cases z <;> trivial
     | sort r | unit r | nat | id =>
@@ -390,7 +397,7 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       have hB := hws.2.1.choose_spec
       have hname' : Δ ⊢ a ≡ .fst t : A := hA₀A.choose_spec.defeqDF hname
       refine ⟨hname.trans (hA₀A.choose_spec.symm.defeqDF hfst), ih hx₁ hCd hVx hfst, ?_⟩
-      refine ih hy₁ (TShape.CodeCanon.lookup hΔ hws.2.2.2 hCf hA hB hev) hVy ?_
+      refine ih hy₁ (TShape.CodeCanon.lookup hΔ hws.2.2.2.1 hCf hA hB hev) hVy ?_
       exact (TyEq.inst hΔ hA hB hname'.symm).choose_spec.defeqDF hsnd
     | lam A₀ g =>
       cases hD.hasType with
@@ -415,7 +422,7 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       have htm : Δ ⊢ e.tm : A := hA₀A.choose_spec.defeqDF (hwl.2.2.1.1 e he).2.1
       have happ : Δ ⊢ .app t e.tm ≡ .app t' e.tm : B.inst e.tm :=
         IsDefEq.appDF₀ hΔ (hT.choose_spec.defeqDF ht) htm
-      exact ih houtp (TShape.CodeCanon.lookup hΔ hwf.2.2.2 hCf hA hB hevp) hVout happ
+      exact ih houtp (TShape.CodeCanon.lookup hΔ hwf.2.2.2.1 hCf hA hB hevp) hVout happ
 
 theorem TShape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) {x d : TShape} {T t t' : Term}
     (hD : TShape.Dom Δ d x) (hC : TShape.CodeCanon Δ T d) (hV : TShape.ValCanon Δ t x)
