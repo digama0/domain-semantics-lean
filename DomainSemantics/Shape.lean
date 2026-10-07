@@ -2652,6 +2652,21 @@ theorem Shape.WF.sigmaAtom {Δ : List Term} {n} {A B : Term} {u v}
 @[simp] theorem TShape.WF.bot {Δ : List Term} {n} {o} :
     TShape.WF Δ (Shape.T (n := n) Shape.bot) o := by cases n <;> trivial
 
+/-- The instance of a type family at two equal arguments. -/
+theorem TyEq.inst {Δ : List Term} (hΔ : ⊢ Δ) {A B B' a a' : Term} {u v : Bool}
+    (hA : Δ ⊢ A : .sort u) (hB : A :: Δ ⊢ B ≡ B' : .sort v) (ha : Δ ⊢ a ≡ a' : A) :
+    TyEq Δ (B.inst a) (B'.inst a') :=
+  ⟨v, hA.instDF hΔ .sort hB ha⟩
+
+/-- A sort-shaped code names a sort, at every level. -/
+theorem TShape.WF.sort_iff {Δ : List Term} {T : Term} {k} {j : Bool} :
+    TShape.WF Δ (Shape.T (n := k) (Shape.sort j)) (some T) ↔ TyEq Δ T (.sort j) := by
+  cases k <;> exact Iff.rfl
+
+
+
+
+
 /-! ## The join at the total level
 
 The four facts directedness needs, lifted from `Shape` to `TShape`.  Each
@@ -2746,6 +2761,16 @@ theorem WF.join {Δ : List Term} (hΔ : ⊢ Δ) {y z : TShape} {o}
     ((TShape.WF.def h₁).1 hy) ((TShape.WF.def h₂).1 hz)
 
 end TShape
+
+/-- The total-level order. -/
+theorem TShape.WF.mono {Δ : List Term} (hΔ : ⊢ Δ) {T : Term} {x x' : TShape}
+    (hle : TShape.LE Δ x' x) (hC : TShape.WF Δ x (some T)) :
+    TShape.WF Δ x' (some T) := by
+  have h := TShape.LE.def_mp (Nat.le_max_left x'.1 x.1) (Nat.le_max_right x'.1 x.1) hle
+  rw [TShape.WF.def (Nat.le_max_right x'.1 x.1)] at hC
+  rw [TShape.WF.def (Nat.le_max_left x'.1 x.1)]
+  exact Shape.WF.mono_mem hΔ h hC
+
 
 /-! ## Normalising the level
 

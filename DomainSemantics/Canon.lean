@@ -57,21 +57,6 @@ def TShape.ValCanon (Δ : List Term) (t : Term) (x : TShape) : Prop :=
   | zero => exact Shape.WF.bot_mem (n := 0)
   | succ n => trivial
 
-/-- A sort-shaped code names a sort, at every level. -/
-theorem TShape.WF.sort_iff {Δ : List Term} {T : Term} {k} {j : Bool} :
-    TShape.WF Δ (Shape.T (n := k) (Shape.sort j)) (some T) ↔ TyEq Δ T (.sort j) := by
-  cases k <;> exact Iff.rfl
-
-
-
-
-
-/-- The instance of a type family at two equal arguments. -/
-theorem TyEq.inst {Δ : List Term} (hΔ : ⊢ Δ) {A B B' a a' : Term} {u v : Bool}
-    (hA : Δ ⊢ A : .sort u) (hB : A :: Δ ⊢ B ≡ B' : .sort v) (ha : Δ ⊢ a ≡ a' : A) :
-    TyEq Δ (B.inst a) (B'.inst a') :=
-  ⟨v, hA.instDF hΔ .sort hB ha⟩
-
 /-! ## Transport along the type -/
 
 
@@ -85,36 +70,6 @@ theorem TyEq.inst {Δ : List Term} (hΔ : ⊢ Δ) {A B B' a a' : Term} {u v : Bo
 
 /-! ## Downward closure -/
 
-
-/-- The total-level order. -/
-theorem TShape.WF.mono {Δ : List Term} (hΔ : ⊢ Δ) {T : Term} {x x' : TShape}
-    (hle : TShape.LE Δ x' x) (hC : TShape.WF Δ x (some T)) :
-    TShape.WF Δ x' (some T) := by
-  have h := TShape.LE.def_mp (Nat.le_max_left x'.1 x.1) (Nat.le_max_right x'.1 x.1) hle
-  rw [TShape.WF.def (Nat.le_max_right x'.1 x.1)] at hC
-  rw [TShape.WF.def (Nat.le_max_left x'.1 x.1)]
-  exact Shape.WF.mono_mem hΔ h hC
-
-/-! ## The lookup
-
-A lookup in a canonical code's codomain graph at a well-typed query is a
-canonical code of the family at that query.  This is the query-based
-reading of the entry-based condition; it is a theorem rather than the
-definition because the definition has to survive substitution, and an
-entry that is dead at one stage can be live at a later one. -/
-theorem TShape.WF.lookup {Δ : List Term} (hΔ : ⊢ Δ) {n} {A B q : Term} {u v : Bool}
-    {f : ShapeFun n} (hw : ShapeFun.WF Δ A oB (@Shape.WF Δ _) f)
-    (hf : ∀ e ∈ f, Shape.WF Δ e.out (some (B.inst e.tm)))
-    (hA : Δ ⊢ A : .sort u) (hB : A :: Δ ⊢ B : .sort v) {x : TShape} :
-    ∀ {c : TShape}, TEvaluates Δ f A q x c → TShape.WF Δ c (some (B.inst q)) := by
-  intro c h
-  have hwo : ∀ e ∈ f, TShape.WF Δ e.out.T := fun e he => Shape.WF.forget (hw.1 e he).2.2.2
-  induction h with
-  | bot => exact Shape.WF.bot_mem
-  | entry e he hlab _ =>
-    exact Shape.WF.conv (hf e he) (TyEq.inst hΔ hA hB hlab.2.symm)
-  | lower hle hz ih => exact TShape.WF.mono hΔ hle ih
-  | join hc hy hz ihy ihz => exact TShape.WF.join hΔ hc ihy ihz
 
 /-! ## The transport, along the subject -/
 
@@ -430,11 +385,6 @@ theorem TShape.Named.reindex {Δ : List Term} {o : Option Term} {d x : TShape}
       · intro _ h; simp only [Option.map_some, Option.mem_def, Option.some.injEq] at h
         subst h; exact (hall p hp).2.2
 
-/-- **Forgetting the name**: the index-free half of the merged notion,
-which is what a consumer that does not care about the name wants. -/
-theorem TShape.Named.forget {Δ : List Term} {o} {d x : TShape}
-    (h : TShape.Named Δ d x o) : TShape.Named Δ d x none := h.reindex nofun
-
 /-- **And it asks for nothing more**: the merged notion at `some t` is
 hereditary typing together with the naming. -/
 theorem TShape.Named.name {Δ : List Term} {d x : TShape} {t : Term}
@@ -541,14 +491,6 @@ theorem TShape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) {x d : TShape} {T 
     (hD : TShape.Named Δ d x none) (hC : TShape.WF Δ d (some T)) (hV : TShape.ValCanon Δ t x)
     (ht : Δ ⊢ t ≡ t' : T) : TShape.ValCanon Δ t' x :=
   Shape.ValCanon.defeq hΔ (x := x.2) hD hC hV ht
-
-/-- **The transport, on the merged notion.**  This is what the merge
-buys: the hereditary typing travels with the name, so moving the name
-along a definitional equality needs only the code's own naming. -/
-theorem TShape.Named.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x : TShape}
-    (h : TShape.Named Δ d x (some t)) (hC : TShape.WF Δ d (some T))
-    (ht : Δ ⊢ t ≡ t' : T) : TShape.Named Δ d x (some t') :=
-  .name h.forget (TShape.ValCanon.defeq hΔ h.forget hC h.val ht)
 
 /-! ## The slot condition
 

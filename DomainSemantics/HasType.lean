@@ -1697,6 +1697,27 @@ theorem Option.exists_of_mem_map {α β : Type} {o : Option α} {f : α → β} 
   | none => exact absurd h (by simp)
   | some a => exact ⟨a, rfl, by simpa using h.symm⟩
 
+/-! ## The lookup
+
+A lookup in a canonical code's codomain graph at a well-typed query is a
+canonical code of the family at that query.  This is the query-based
+reading of the entry-based condition; it is a theorem rather than the
+definition because the definition has to survive substitution, and an
+entry that is dead at one stage can be live at a later one. -/
+theorem TShape.WF.lookup {Δ : List Term} (hΔ : ⊢ Δ) {n} {A B q : Term} {u v : Bool}
+    {f : ShapeFun n} (hw : ShapeFun.WF Δ A oB (@Shape.WF Δ _) f)
+    (hf : ∀ e ∈ f, Shape.WF Δ e.out (some (B.inst e.tm)))
+    (hA : Δ ⊢ A : .sort u) (hB : A :: Δ ⊢ B : .sort v) {x : TShape} :
+    ∀ {c : TShape}, TEvaluates Δ f A q x c → TShape.WF Δ c (some (B.inst q)) := by
+  intro c h
+  have hwo : ∀ e ∈ f, TShape.WF Δ e.out.T := fun e he => Shape.WF.forget (hw.1 e he).2.2.2
+  induction h with
+  | bot => exact Shape.WF.bot_mem
+  | entry e he hlab _ =>
+    exact Shape.WF.conv (hf e he) (TyEq.inst hΔ hA hB hlab.2.symm)
+  | lower hle hz ih => exact TShape.WF.mono hΔ hle ih
+  | join hc hy hz ihy ihz => exact TShape.WF.join hΔ hc ihy ihz
+
 /-- **Hereditary typing, with a name when one is asked for.**  The
 `Option Term` index is the name: at `none` it is hereditary typing
 alone, and at `some t` it is that together with "`x` names `t`"
@@ -2075,6 +2096,119 @@ theorem TShape.entries_join {n} {x y : Shape (n+1)} :
       (Shape.T (x.join y)).entries = (Shape.T y).entries := by
   rcases Shape.graph_join (x := x) (y := y) with h | h | h <;>
     simp [TShape.entries, h]
+
+/-- **Forgetting the name**: the index-free half of the merged notion,
+which is what a consumer that does not care about the name wants.  One
+induction, dropping the naming at every clause. -/
+theorem TShape.Named.forget {Δ : List Term} {o} {d x : TShape}
+    (h : TShape.Named Δ d x o) : TShape.Named Δ d x := by
+  induction h with
+  | base hnb hty hc => exact .base hnb hty (Shape.WF.forget hc)
+  | @pi o n A B d f x cs hty hent _ hev _ ihin ihout =>
+    exact .pi hty hent (fun p hp => ihin p hp) hev (fun p hp => ihout p hp)
+  | @sg o n A B d f x ps c hty hps _ _ hev _ ihx ihy =>
+    exact .sg hty hps (fun _ _ => nofun) (fun p hp => ihx p hp) hev (fun p hp => ihy p hp)
+
+/-- **The transport, on the merged notion.**  The name moves along a
+definitional equality of the subject, given the code the shape is
+hereditarily typed at and that code's own naming.  The code knows the
+type, so `fstDF`/`sndDF`/`appDF` apply, and the sub-shapes are typed at
+the code's sub-codes, which name the sub-types.
+
+One induction on `Named`, which is legal because the index is a variable:
+the conclusion maps it to the constant `t'`, so `none` goes to `none` and
+`some t` to `some t'`. -/
+theorem TShape.Named.defeq_mem {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape}
+    (h : TShape.Named Δ d x o) : ∀ {T t' : Term}, TShape.WF Δ d (some T) →
+      (∀ t ∈ o, Δ ⊢ t ≡ t' : T) → TShape.Named Δ d x (o.map fun _ => t') := by
+  induction h with
+  | @base o d x hnb hty hc =>
+    intro T t' hC ht
+    cases o with
+    | none => exact .base hnb hty (Shape.WF.forget hc)
+    | some t =>
+      -- a code-shaped subject: its type is a sort, read off the code, and
+      -- the equation is then an equation of types.  At every other head
+      -- the clause does not mention the index.
+      have hcode {k : Nat} {j : Bool} (hd : d = Shape.T (n := k) (Shape.sort j)) :
+          Shape.WF Δ x.2 (some t') := by
+        subst hd
+        have hT : TyEq Δ T (.sort j) := TShape.WF.sort_iff.1 hC
+        exact Shape.WF.conv hc ⟨_, (hT.choose_spec.defeqDF (ht t rfl)).symm⟩
+      refine .base hnb hty ?_
+      cases hty <;>
+        first
+          | exact Shape.WF.bot_mem
+          | exact hc
+          | exact hcode rfl
+  | @pi o n A B d f x cs hty hent hin hev hout ihin ihout =>
+    intro T t' hC ht
+    cases o with
+    | none => exact .pi hty hent hin hev hout
+    | some t =>
+      have hT := hC.2.2.2.2
+      have hwf := (TShape.HasType.wf hty).2
+      have hA := hwf.1.choose_spec
+      have hB := hwf.2.1.choose_spec
+      have htm : ∀ p ∈ cs, Δ ⊢ p.1.tm : A := by
+        cases hty with
+        | bot _ =>
+          have : cs = [] := by
+            simpa only [TShape.entries_bot, List.map_eq_nil_iff] using hent.symm
+          simp [this]
+        | refl _ _ =>
+          have : cs = [] := by
+            simpa only [TShape.entries, Shape.graph, List.map_nil, List.map_eq_nil_iff]
+              using hent.symm
+          simp [this]
+        | @lam _ _ _ _ _ _ _ _ _ _ _ _ hwl _ _ _ _ _ hA₀A =>
+          intro p hp
+          have hmem : p.1 ∈ cs.map (·.1) := List.mem_map.2 ⟨p, hp, rfl⟩
+          rw [← hent] at hmem
+          simp only [TShape.entries, Shape.graph, List.mem_map] at hmem
+          obtain ⟨e, he, hpe⟩ := hmem
+          exact hpe ▸ hA₀A.choose_spec.defeqDF (hwl.2.2.1.1 e he).2.1
+      refine .pi hty hent (fun p hp => hin p hp) hev (fun p hp => ?_)
+      refine ihout p hp (TShape.WF.lookup hΔ hwf.2.2.2.1
+        (ShapeFun.WF.canon hwf.2.2.2.1) hA hB (hev p hp)) ?_
+      intro u hu
+      simp only [Option.map_some, Option.mem_def, Option.some.injEq] at hu
+      subst hu
+      exact IsDefEq.appDF₀ hΔ (hT.choose_spec.defeqDF (ht t rfl)) (htm p hp)
+  | @sg o n A B d f x ps c hty hps hname hx hev hy ihx ihy =>
+    intro T t' hC ht
+    cases o with
+    | none => exact .sg hty hps (fun _ _ => nofun) hx hev hy
+    | some t =>
+      have hT := hC.2.2.2.2
+      have hwf := (TShape.HasType.wf hty).2
+      have hA := hwf.1.choose_spec
+      have hB := hwf.2.1.choose_spec
+      have ht' : Δ ⊢ t ≡ t' : .sigma A B := hT.choose_spec.defeqDF (ht t rfl)
+      have hfst : Δ ⊢ Term.fst t ≡ Term.fst t' : A := IsDefEq.fstDF₀ hΔ ht'
+      have hsnd : Δ ⊢ Term.snd t ≡ Term.snd t' : B.inst (Term.fst t) :=
+        IsDefEq.sndDF₀ hΔ ht'
+      refine .sg hty hps (fun p hp u hu => ?_) (fun p hp => ?_) hev (fun p hp => ?_)
+      · simp only [Option.map_some, Option.mem_def, Option.some.injEq] at hu
+        subst hu
+        exact (hname p hp t rfl).trans hfst
+      · refine ihx p hp hwf.2.2.1 ?_
+        intro u hu
+        simp only [Option.map_some, Option.mem_def, Option.some.injEq] at hu
+        subst hu; exact hfst
+      · refine ihy p hp (TShape.WF.lookup hΔ hwf.2.2.2.1
+          (ShapeFun.WF.canon hwf.2.2.2.1) hA hB (hev p hp)) ?_
+        intro u hu
+        simp only [Option.map_some, Option.mem_def, Option.some.injEq] at hu
+        subst hu
+        exact (TyEq.inst hΔ hA hB (hname p hp t rfl).symm).choose_spec.defeqDF hsnd
+
+/-- The transport at a name that is there. -/
+theorem TShape.Named.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x : TShape}
+    (h : TShape.Named Δ d x (some t)) (hC : TShape.WF Δ d (some T))
+    (ht : Δ ⊢ t ≡ t' : T) : TShape.Named Δ d x (some t') :=
+  h.defeq_mem hΔ hC (by
+    intro _ hu; simp only [Option.mem_def, Option.some.injEq] at hu; subst hu; exact ht)
 
 /-- **Inverting `Named` at a Σ**: the first component is hereditarily typed
 at the domain, and the second at the codomain read at the pair's own name
