@@ -97,20 +97,6 @@ def CodeAt (Γ : List Term) (t : Term) : Prop :=
   ∀ {{Δ Γ₀ : List Term}} {{σ ρ}}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
     ∀ {m}, Interp Δ Γ t σ ρ m → TShape.WF Δ m (some (t.subst σ))
 
-/-- **On a filtering type a value names its term iff it does so as a
-code**: the heads that differ are λ and pair, which are typed only at
-binders. -/
-theorem TShape.ValCanon.of_filter {Δ : List Term} {t : Term} {m a : TShape}
-    (h : TShape.HasType Δ m a) (hnb : ¬ a.IsBinder) (hc : TShape.WF Δ m (some t)) :
-    TShape.ValCanon Δ t m := by
-  obtain ⟨n, s⟩ := m
-  cases n with
-  | zero => exact hc
-  | succ n =>
-    cases s with
-    | lam | pair => cases h <;> exact (hnb trivial).elim
-    | _ => first | exact hc | trivial
-
 /-- At `nat` (and any other filtering code) saturation is just typing:
 nothing below such a code binds, so `Named` is `HasType` there, and the
 names are read as codes, where they are downward closed. -/
@@ -119,7 +105,7 @@ theorem SoundDom.of_typedAt {Γ : List Term} {t A : Term}
     (h : TypedAt Γ t A) (hct : CodeAt Γ t) (hcA : CodeAt Γ A) : SoundDom Γ t A := by
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
   obtain ⟨a, ha, hty⟩ := h hΔ W hAdm hm
-  exact ⟨m, a, hm, TShape.LE.refl hty.wf.1, ha, (.name (TShape.Named.of_not_binder (hnb ha) hty) (TShape.ValCanon.of_filter hty (hnb ha) (hct hΔ W hAdm hm))),
+  exact ⟨m, a, hm, TShape.LE.refl hty.wf.1, ha, (.base (hnb ha) hty (hct hΔ W hAdm hm)),
     hcA hΔ W hAdm ha⟩
 
 /-- An atom's approximants are below one canonical top shape. -/
@@ -137,12 +123,6 @@ theorem CodeAt.nat {Γ : List Term} : CodeAt Γ Term.nat :=
 theorem CodeAt.sort {Γ : List Term} {r : Bool} : CodeAt Γ (Term.sort r) :=
   CodeAt.of_top Interp.le_sort (s := TShape.sort r)
     (fun _ _ => (TShape.WF.sort_iff (k := 0)).2 (TyEq.refl .sort))
-
-/-- A numeral names whatever it stands for: it carries no names. -/
-theorem TShape.ValCanon.of_nat {Δ : List Term} {t : Term} {v : TShape} (hΔ : ⊢ Δ)
-    (h : TShape.HasType Δ v TShape.nat) : TShape.ValCanon Δ t v :=
-  Shape.ValCanon.of_numeral
-    (TShape.HasType.isNumeral hΔ (TShape.LE.refl (a := TShape.nat) trivial) h)
 
 /-- So a term of type `nat` names itself, read as a code. -/
 theorem CodeAt.of_nat {Γ : List Term} {t : Term} (h : TypedAt Γ t Term.nat) : CodeAt Γ t := by
@@ -3632,8 +3612,9 @@ theorem sound_natCase_of {Γ : List Term} {C C' M M' a a' b b' : Term}
     have Wcons : Ctx.SubstEq Δ (σ.cons t) (σ.cons t) (Term.nat :: Γ) := .cons W .nat ht
     have hAdm' : Adm Δ Γ₀ (Term.nat :: Γ) (σ.cons t) (ρ.push v.T) :=
       .cons hAdm W.wf
-        Interp.nat' (TShape.WF.T.2 hwv) (.name (TShape.Named.of_not_binder (fun h => h) hvnat)
-          (TShape.ValCanon.of_nat hΔ hvnat))
+        Interp.nat' (TShape.WF.T.2 hwv) (.base (fun h => h) hvnat
+          (Shape.WF.numeral_mem (TShape.HasType.isNumeral hΔ (Interp.le_nat hc) hty).pred
+            hvnat.wf.1))
         (TyEq.refl .nat)
     exact .natCase_succ ((ihM hΔ W hAdm).1 hM) hwv
       (((hMM'.subst hΔ W).symm).trans heq)
@@ -3745,8 +3726,9 @@ theorem sound_natCase_dom {Γ : List Term} {C M a b : Term} {v : Bool} (hΓ : �
     have hwv' : TShape.WF Δ w.T := TShape.WF.T.2 hwv
     have hAdm' : Adm Δ Γ₀ (Term.nat :: Γ) (σ.cons t) (ρ.push w.T) :=
       .cons hAdm W.wf
-        Interp.nat' hwv' (.name (TShape.Named.of_not_binder (fun h => h) hvnat)
-          (TShape.ValCanon.of_nat hΔ hvnat))
+        Interp.nat' hwv' (.base (fun h => h) hvnat
+          (Shape.WF.numeral_mem (TShape.HasType.isNumeral hΔ (Interp.le_nat hcM) htyM).pred
+            hvnat.wf.1))
         (TyEq.refl .nat)
     obtain ⟨mb, c, hmb', hmle, hc, hNV, _⟩ := ihbdom hΔ Wcons hAdm' hmb
     have hdc := hNV.forget

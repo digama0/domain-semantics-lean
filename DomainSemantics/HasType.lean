@@ -30,6 +30,12 @@ inductive Shape.IsNumeral : ∀ {n}, Shape n → Prop
   | zero : IsNumeral (n := n+1) .zero
   | succ : IsNumeral (n := n) w → IsNumeral (.succ w)
 
+/-- A numeral's head carries no label, so it names anything. -/
+theorem Shape.WF.numeral_mem {Γ : List Term} {o} : ∀ {n} {s : Shape n},
+    Shape.IsNumeral s → Shape.WF Γ s → Shape.WF Γ s o := by
+  intro n s hnum hw
+  cases hnum <;> first | exact Shape.WF.bot_mem | trivial | exact hw
+
 /-- A join of compatible numerals is a numeral. -/
 theorem Shape.IsNumeral.join {Δ : List Term} : ∀ {n} {v w : Shape n},
     Shape.Compat Δ v w → Shape.IsNumeral v → Shape.IsNumeral w →
