@@ -822,11 +822,11 @@ theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
       exact (Shape.le_join hΔ ((Shape.lift_wf k₁).2 hwd₁)
         ((Shape.lift_wf k₂).2 hwd₂) hcd').2
   -- each graph entry's input, typed at the joined domain
-  have hdomj₁ : ∀ e ∈ g₁, TShape.NamedO none Δ
+  have hdomj₁ : ∀ e ∈ g₁, TShape.NamedO Δ none
       (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) (Shape.T e.inp) :=
     fun e he =>
     TShape.NamedO.mono_r hΔ (hdom₁ e he) hled₁ hdjty
-  have hdomj₂ : ∀ e ∈ g₂, TShape.NamedO none Δ
+  have hdomj₂ : ∀ e ∈ g₂, TShape.NamedO Δ none
       (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) (Shape.T e.inp) :=
     fun e he =>
     TShape.NamedO.mono_r hΔ (hdom₂ e he) hled₂ hdjty
@@ -1018,11 +1018,11 @@ theorem sound_sigma_ub {Γ : List Term} {A B : Term} {u v : Bool}
       exact (Shape.le_join hΔ ((Shape.lift_wf k₁).2 hwd₁)
         ((Shape.lift_wf k₂).2 hwd₂) hcd').2
   -- each graph entry's input, typed at the joined domain
-  have hdomj₁ : ∀ e ∈ g₁, TShape.NamedO none Δ
+  have hdomj₁ : ∀ e ∈ g₁, TShape.NamedO Δ none
       (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) (Shape.T e.inp) :=
     fun e he =>
     TShape.NamedO.mono_r hΔ (hdom₁ e he) hled₁ hdjty
-  have hdomj₂ : ∀ e ∈ g₂, TShape.NamedO none Δ
+  have hdomj₂ : ∀ e ∈ g₂, TShape.NamedO Δ none
       (Shape.T ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))) (Shape.T e.inp) :=
     fun e he =>
     TShape.NamedO.mono_r hΔ (hdom₂ e he) hled₂ hdjty
@@ -2204,7 +2204,7 @@ theorem sound_fst_dom {Γ : List Term} {A B p : Term}
     cases hPdom with
     | base hnb _ => exact absurd hSsg.isBinder hnb
     | pi _ _ _ _ => exact absurd hSsg (TShape.IsPi.not_sigma trivial)
-    | @sg nS A' B' dS fS _ ps cc hty hps hxd' hevc hout =>
+    | @sg _ nS A' B' dS fS _ ps cc hty hps _ hxd' hevc hout =>
       -- `P'` is a pair-shape; its first component is the projection's
       -- value, and `Dom`'s Σ clause has it
       cases hty with
@@ -2517,7 +2517,7 @@ theorem sound_pair_dom {Γ : List Term} {A B a b : Term} {u v : Bool}
       (IsDefEq.pair_fst₀ hΓ hB hat hbt).subst hΔ W
     have hsnd : Δ ⊢ (Term.snd (.pair A B a b)).subst σ ≡ b.subst σ : (B.inst a).subst σ :=
       (IsDefEq.pair_snd₀ hΓ hB hat hbt).subst hΔ W
-    exact ⟨_, _, hP, hle.trans hΔ hPle, hSg, (.of_dom (.sg (ps := some (a.subst σ, Shape.T (x'.2.lift k), Shape.T (y'.2.lift k))) (c := cc) hty rfl
+    exact ⟨_, _, hP, hle.trans hΔ hPle, hSg, (.of_dom (.sg (ps := some (a.subst σ, Shape.T (x'.2.lift k), Shape.T (y'.2.lift k))) (c := cc) hty rfl (fun _ _ => nofun)
         (fun p hp => by cases hp; exact hdfst)
         (fun p hp => by cases hp; exact hlook)
         (fun p hp => by cases hp; exact hccdom)) (⟨hfst.symm, Shape.ValCanon.defeq hΔ hdxL hd'c hxcL hfst.symm,
@@ -2746,7 +2746,7 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
     cases hFdom with
     | base hnb _ => exact absurd hPpi.isBinder hnb
     | sg _ _ _ _ _ => exact absurd trivial hPpi.not_sigma
-    | @pi nP A' B' dP fP _ cs hty hent hin hevc hout =>
+    | @pi _ nP A' B' dP fP _ cs hty hent hin hevc hout =>
       -- the saturated function is a λ-shape, and the code's codomain
       -- graph is covered by the canonical one
       cases hty with
@@ -2953,7 +2953,7 @@ theorem sound_snd_dom {Γ : List Term} {A B p : Term} {u v : Bool}
     cases hPdom with
     | base hnb _ => exact absurd hSsg.isBinder hnb
     | pi _ _ _ _ => exact absurd hSsg (TShape.IsPi.not_sigma trivial)
-    | @sg nS A' B' dS fS _ ps cc hty hps hxd' hevc hout =>
+    | @sg _ nS A' B' dS fS _ ps cc hty hps _ hxd' hevc hout =>
       cases hty with
       | bot hb => exact absurd (TShape.le_bot hΔ rfl hPle) (by simp [Shape.bot])
       | refl hleid hAty' =>
@@ -2979,7 +2979,8 @@ theorem sound_snd_dom {Γ : List Term} {A B p : Term} {u v : Bool}
           -- the code that types the dominator's second component is a
           -- lookup at that name, hence an approximant of `B[fst p]`
           have hcode : TEvaluates Δ fS A' a₀' (Shape.T x') cc := hevc _ (by rw [← hps]; rfl)
-          have hdomy : TShape.NamedO Δ none cc (Shape.T y') := hout _ (by rw [← hps]; rfl)
+          have hdomy : TShape.NamedO Δ none cc (Shape.T y') := by
+            simpa using hout _ (show _ ∈ _ by rw [← hps]; rfl)
           have hIc : Interp Δ Γ (B.inst (.fst p)) σ ρ cc := by
             refine (Interp.inst (A := A) (b := B) hΔ hΓ hA hfst hB hPB W hAdm
               (Subst.Saturates.one hΔ hΓ W hAdm hfdom)
@@ -3418,7 +3419,7 @@ theorem dir_tr {Γ : List Term} {r : Bool} {A a b C X H : Term} {u : Bool}
       have hvle := TShape.le_join hΔ hwv₁ hwv₂ hcv
       -- its type
       have ⟨hcA, hAv⟩ := Interp.Dir.join hΔ (ihA hΔ W hwρ) hA₁ hA₂
-      have hvAty := TShape.HasType.join hΔ hcA (TShape.NamedO.of_isType hvA₁.hasType.isType)
+      have hvAty := TShape.HasType.joinN hΔ hcA (TShape.NamedO.of_isType hvA₁.hasType.isType)
         (TShape.NamedO.of_isType hvA₂.hasType.isType)
       have hvAle := TShape.le_join hΔ hvA₁.hasType.isType.wf.1 hvA₂.hasType.isType.wf.1 hcA
       have hty : TShape.NamedO Δ none _ _ := TShape.NamedO.join hΔ hcv
@@ -3430,7 +3431,7 @@ theorem dir_tr {Γ : List Term} {r : Bool} {A a b C X H : Term} {u : Bool}
       have hC₂' := Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hvle.2⟩) hC₂
       have ⟨hccb, hcbv⟩ :=
         Interp.Dir.join hΔ (ihC hΔ WA (Valuation.WF.push hwρ hwv)) hC₁' hC₂'
-      have hcbty := TShape.HasType.join hΔ hccb (TShape.NamedO.of_isType hcb₁)
+      have hcbty := TShape.HasType.joinN hΔ hccb (TShape.NamedO.of_isType hcb₁)
         (TShape.NamedO.of_isType hcb₂)
       have hcble := TShape.le_join hΔ hcb₁.wf.1 hcb₂.wf.1 hccb
       -- the transported shape
@@ -4813,7 +4814,7 @@ theorem sound_eta_of {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
     -- not a Π-shape, so `⊥` — and then so is the subject
     have hb : p.2 = Shape.bot := hpi.resolve_right (fun h => hnb h.isBinder)
     exact hmbot (TShape.le_bot hΔ (TShape.HasType.bot_r hΔ hb hty) hle)
-  | @pi n A' B' d f _ cs hty hent hin hev hout =>
+  | @pi _ n A' B' d f _ cs hty hent hin hev hout =>
     -- the dominating approximant is a λ-shape, and its entries' inputs
     -- are hereditarily typed at the Π's domain
     cases hty with
@@ -4873,7 +4874,7 @@ theorem sound_eta_of {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
         · -- and it dominates `m`, the labels being definitionally equal
           refine TShape.LE.trans hΔ hle ?_
           exact TShape.LE.T.2 ⟨ShapeFun.LE.refl hwg.2.2.1, hwg.1, hwg.2.1, hAσ, hwg.2.2.2⟩
-  | @sg n A' B' d f _ cs hty hent hfst hin hev hout =>
+  | @sg _ n A' B' d f _ cs hty hent hfst hin hev hout =>
     -- an approximant of a Π is never typed at a Σ code
     rcases hpi with hb | hpi'
     · exact absurd hb (TShape.IsSigma.not_bot
@@ -5060,7 +5061,7 @@ theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢
     rcases hSsg with hb | hsg
     · exact absurd hb (TShape.IsPi.not_bot (p := Shape.T _) trivial)
     · exact absurd hsg (TShape.IsPi.not_sigma trivial)
-  | @sg nS A' B' dS fS _ ps cc hty hps hxd' hevc hout =>
+  | @sg _ nS A' B' dS fS _ ps cc hty hps _ hxd' hevc hout =>
     cases hty with
     | bot hb => exact hbot (TShape.le_bot hΔ rfl hle)
     | refl hleid hAty' =>
@@ -5100,9 +5101,9 @@ theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢
         refine Interp.pair (c := cc) hxI hyI
           (Interp.mono hΔ (TShape.HasType.wf hd).1 hdle hAint)
           (TShape.HasType.mono_l hΔ hdty hdle)
-          (.of_dom (hxd' _ (by rw [← hps]; rfl)) hPcan.2.1)
+          (.of_dom (by simpa using hxd' _ (show _ ∈ _ by rw [← hps]; rfl)) hPcan.2.1)
           (Shape.CodeCanonS.conv hwSg.2.2.2.2.1 (TyEq.symm hSgLab.1))
-          hwf hIc (hout _ (by rw [← hps]; rfl))
+          hwf hIc (by simpa using hout _ (show _ ∈ _ by rw [← hps]; rfl))
           hm.wf ?_ ⟨u, hA⟩ hfst
         · -- and it dominates `m`, the name moved to `fst p`
           refine TShape.LE.trans hΔ hle (TShape.LE.T.2
