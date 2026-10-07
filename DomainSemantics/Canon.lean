@@ -345,7 +345,8 @@ are exactly what `ValCanon` asks of the corresponding head. -/
 theorem TShape.Named.val_mem {Δ : List Term} {o} {d x : TShape}
     (h : TShape.Named Δ d x o) : ∀ t ∈ o, TShape.ValCanon Δ t x := by
   induction h with
-  | base hnb hty hc => exact fun t ht => TShape.ValCanon.of_code hnb hty (hc t ht)
+  | base hnb hty hc =>
+    exact fun t ht => TShape.ValCanon.of_code hnb hty (Shape.WF.canon_mem hc t ht)
   | @pi o n A B d f x cs hty hent _ hev _ ihin ihout =>
     intro t ht
     cases hty with
@@ -386,7 +387,9 @@ theorem TShape.Named.reindex {Δ : List Term} {o : Option Term} {d x : TShape}
       (∀ t ∈ o', TShape.ValCanon Δ t x) → TShape.Named Δ d x o' := by
   induction h with
   | base hnb hty _ =>
-    intro o' hV; exact .base hnb hty fun t ht => Shape.ValCanon.toCode (hV t ht)
+    intro o' hV
+    exact .base hnb hty
+      (Shape.WF.named (TShape.HasType.wf hty).1 fun t ht => Shape.ValCanon.toCode (hV t ht))
   | @pi o n A B d f x cs hty hent _ hev _ ihin ihout =>
     intro o' hV
     cases o' with

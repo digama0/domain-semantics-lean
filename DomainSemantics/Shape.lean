@@ -2211,6 +2211,15 @@ theorem Shape.WF.join : ∀ {n} {Δ : List Term} {y z : Shape n}, ⊢ Δ →
     | zero => cases z with | bot => exact hy | _ => exact hy
     | id r A₁ a₁ b₁ => cases z with | bot => exact hy | _ => exact hy
 
+/-- The join keeps a name both sides carry: its structural half is
+`WF.join` and its naming half is `CodeCanonS.join`. -/
+theorem Shape.WF.join_mem {n} {Δ : List Term} {y z : Shape n} {o} (hΔ : ⊢ Δ)
+    (hc : Shape.Compat Δ y z) (hy : Shape.WF Δ y o) (hz : Shape.WF Δ z o) :
+    Shape.WF Δ (y.join z) o :=
+  Shape.WF.named (Shape.WF.join hΔ hc hy.forget hz.forget)
+    (fun T hT => Shape.CodeCanonS.join (hy.canon_mem T hT) (hz.canon_mem T hT))
+
+
 /-- A well-formed shape is coherent with itself. -/
 theorem Shape.WF.coherent : ∀ {n} {s : Shape n},
     Shape.WF Δ s → Shape.Compat Δ s s := by

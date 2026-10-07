@@ -1712,7 +1712,7 @@ components the projections. -/
 inductive TShape.Named (Δ : List Term) :
     TShape → TShape → (o : Option Term := none) → Prop where
   | base {o} {d x : TShape} : ¬ d.IsBinder → TShape.HasType Δ x d →
-    (∀ t ∈ o, Shape.CodeCanonS Δ t x.2) → Named Δ d x o
+    Shape.WF Δ x.2 o → Named Δ d x o
   | pi {o} {n} {A B : Term} {d : Shape n} {f : ShapeFun n} {x : TShape}
       {cs : List (Entry TShape × TShape)} :
     TShape.HasType Δ x (Shape.T (n := n+1) (ShapeS.forallE A B d f)) →
@@ -1731,16 +1731,25 @@ inductive TShape.Named (Δ : List Term) :
     (∀ p ∈ ps, Named Δ c p.2.2 (o.map Term.snd)) →
     Named Δ (Shape.T (n := n+1) (ShapeS.sigma A B d f)) x o
 
-/-- **The extraction**: a name's shallow half, which is `True` at a `lam`
-or a `pair` and carried by the `base` clause at every other head. -/
-theorem TShape.Named.canon_mem {Δ : List Term} {o} {d x : TShape}
-    (h : TShape.Named Δ d x o) : ∀ t ∈ o, Shape.CodeCanonS Δ t x.2 := by
+/-- **The extraction**: the subject is well formed *at the index*.  At a
+`lam` or a `pair` the naming half is `True`, so it is the subject's own
+well-formedness; at every other head the `base` clause carries it.
+
+This is where the index pays off twice: the premise and the conclusion are
+the same proposition, with no `∀ t ∈ o` on either side. -/
+theorem TShape.Named.wf {Δ : List Term} {o} {d x : TShape}
+    (h : TShape.Named Δ d x o) : Shape.WF Δ x.2 o := by
   cases h with
   | base _ _ hc => exact hc
-  | @pi _ _ _ _ _ _ _ _ hty _ _ _ _ =>
-    intro _ _; cases hty <;> first | trivial | exact Shape.CodeCanonS.bot
-  | @sg _ _ _ _ _ _ _ _ _ hty _ _ _ _ _ =>
-    intro _ _; cases hty <;> first | trivial | exact Shape.CodeCanonS.bot
+  | @pi _ _ _ _ _ _ _ _ hty _ _ _ _ | @sg _ _ _ _ _ _ _ _ _ hty _ _ _ _ _ =>
+    all_goals
+      exact Shape.WF.named (TShape.HasType.wf hty).1
+        (fun _ _ => by cases hty <;> first | trivial | exact Shape.CodeCanonS.bot)
+
+/-- Its shallow half. -/
+theorem TShape.Named.canon_mem {Δ : List Term} {o} {d x : TShape}
+    (h : TShape.Named Δ d x o) : ∀ t ∈ o, Shape.CodeCanonS Δ t x.2 :=
+  Shape.WF.canon_mem h.wf
 
 theorem TShape.Named.hasType {Δ : List Term} {o} {d x : TShape}
     (h : TShape.Named Δ d x o) : TShape.HasType Δ x d := by cases h <;> assumption
@@ -1753,7 +1762,7 @@ theorem TShape.Named.bot {Δ : List Term} {o} {d : TShape} {n}
     TShape.Named Δ d (Shape.T (n := n) .bot) o := by
   obtain ⟨m, c⟩ := d
   cases m with
-  | zero => exact .base (fun h => h) h (by intro _ _; cases n <;> trivial)
+  | zero => exact .base (fun h => h) h (by cases n <;> trivial)
   | succ m =>
     match c with
     | .forallE .. =>
@@ -1762,7 +1771,7 @@ theorem TShape.Named.bot {Δ : List Term} {o} {d : TShape} {n}
       exact .sg (ps := none) (c := TShape.bot) h (by simp) (by simp) (by simp) (by simp) (by simp)
     | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
     | .lam _ _ | .pair _ _ _ _ =>
-      exact .base (fun h => h) h (by intro _ _; cases n <;> trivial)
+      exact .base (fun h => h) h (by cases n <;> trivial)
 
 /-- The same, for a subject that is `⊥` only up to its level. -/
 theorem TShape.Named.bot_subject {Δ : List Term} {o} {d x : TShape} (hx : x.2 = Shape.bot)
@@ -1802,13 +1811,8 @@ theorem TShape.Named.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     TShape.Named Θ (d.subst τ) (x.subst τ) (o.map (·.subst τ)) := by
   induction h with
   | @base o d' x' hnb hty hc =>
-    exact .base (TShape.IsBinder.subst hnb) (TShape.HasType.subst hΘ W hty) (by
-      intro t ht
-      cases o with
-      | none => exact absurd ht (by simp)
-      | some u =>
-        simp only [Option.map_some, Option.mem_def, Option.some.injEq] at ht
-        subst ht; exact Shape.CodeCanonS.subst hΘ W (hc u rfl))
+    exact .base (TShape.IsBinder.subst hnb) (TShape.HasType.subst hΘ W hty)
+      (Shape.WF.subst hΘ W hc)
   | @pi o n A B d f x cs hty hent _ hev _ ihin ihout =>
     refine .pi (cs := cs.map fun p =>
         (⟨p.1.tm.subst τ, p.1.inp.subst τ, p.1.out.subst τ⟩, p.2.subst τ))
@@ -1901,7 +1905,7 @@ theorem TShape.Named.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TSh
   induction h with
   | base hnb hty hc =>
     exact fun hk => .base hnb (hty.lift_subject hΔ hk)
-      (fun t ht => (Shape.CodeCanonS.lift_iff hk).2 (hc t ht))
+      ((Shape.lift_wf hk).2 hc)
   | @pi o n A B d f x cs hty hent hin hev hout ihin ihout =>
     intro k hk
     match k, hk with
@@ -2049,13 +2053,13 @@ theorem TShape.Named.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape}
 
 /-- A code typed at a sort is hereditarily typed there: a sort filters. -/
 theorem TShape.Named.of_isType {Δ : List Term} {x : TShape}
-    (h : TShape.HasType Δ x TShape.type) : TShape.Named Δ TShape.type x none :=
-  .base (fun h => h) h nofun
+    (h : TShape.HasType Δ x TShape.type) : TShape.Named Δ TShape.type x :=
+  .base (fun h => h) h (TShape.HasType.wf h).1
 
 /-- At a code that only filters — anything but a Π or a Σ — typing is all
 there is. -/
 theorem TShape.Named.of_not_binder {Δ : List Term} {d x : TShape} (hnb : ¬ d.IsBinder)
-    (h : TShape.HasType Δ x d) : TShape.Named Δ d x none := .base hnb h nofun
+    (h : TShape.HasType Δ x d) : TShape.Named Δ d x := .base hnb h (TShape.HasType.wf h).1
 
 theorem Shape.graph_join {n} {x y : Shape (n+1)} :
     (x.join y).graph = x.graph ++ y.graph ∨ (x.join y).graph = x.graph ∨
@@ -2212,7 +2216,7 @@ theorem TShape.Named.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
       TShape.HasType.join_at hΔ hc hy hz
     cases hy with
     | base hnb _ hcy =>
-      exact .base hnb hty fun t ht => Shape.CodeCanonS.join (hcy t ht) (hz.canon_mem t ht)
+      exact .base hnb hty (Shape.WF.join_mem hΔ hc hcy hz.wf)
     | @pi _ _ A B d₀ f _ csy htyy henty hiny hevy houty =>
       cases hz with
       | base hnb _ => exact absurd trivial hnb
