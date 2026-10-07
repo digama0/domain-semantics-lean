@@ -3259,16 +3259,12 @@ theorem dir_Y_aux {Δ : List Term} (hΔ : ⊢ Δ) {Γ : List Term} {t : Term} {�
         ∃ s, TShape.WF Δ s ∧ Interp Δ Γ t σ ρ s ∧ TShape.LE Δ m₁ s ∧ TShape.LE Δ m₂ s := by
   induction h₁ with
   | @Y _ _ _ _ _ _ _ _ hx₁ hwx₁ hA₁ hdty₁ hNVY hcc₁ hbody₁ hAt hYt ihx₁ ihA₁ _ =>
-    have hD₁ := hNVY.forget
-    have hvc₁ := hNVY.val
     rintro A b ⟨⟩ hwρ WΓ WY ihA ihb m₂ h₂
     cases h₂ with
     | bot =>
       exact ⟨_, hbody₁.wf, .Y hx₁ hwx₁ hA₁ hdty₁ (hNVY) hcc₁ hbody₁ hAt hYt,
         TShape.LE.refl hbody₁.wf, TShape.bot_le' rfl⟩
     | @Y _ _ _ _ _ _ x₂ d₂ hx₂ hwx₂ hA₂ hdty₂ hNVY₂ hcc₂ hbody₂ _ _ =>
-      have hD₂ := hNVY₂.forget
-      have hvc₂ := hNVY₂.val
       -- one tower above both, by the first derivation's own induction
       obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := ihx₁ rfl hwρ WΓ WY ihA ihb hx₂
       -- the slot is their *join*: it is below that bound, so it is an
@@ -3284,16 +3280,15 @@ theorem dir_Y_aux {Δ : List Term} (hΔ : ⊢ Δ) {Γ : List Term} {t : Term} {�
       have hdcI := Interp.mono hΔ (TShape.WF.join hΔ hcd hdty₁.wf.1 hdty₂.wf.1)
         (TShape.join_le hΔ hdc₁ hdc₂) hdc
       obtain ⟨c₁, c₂⟩ := TShape.le_join hΔ hdty₁.wf.1 hdty₂.wf.1 hcd
-      have hjd := TShape.Named.join hΔ hcj (TShape.Named.mono_r hΔ hD₁ c₁ hdcty)
-        (TShape.Named.mono_r hΔ hD₂ c₂ hdcty)
+      have hjd := TShape.Named.join hΔ hcj (TShape.Named.mono_r hΔ hNVY c₁ hdcty)
+        (TShape.Named.mono_r hΔ hNVY₂ c₂ hdcty)
       obtain ⟨j₁, j₂⟩ := TShape.le_join hΔ hwx₁ hwx₂ hcj
       obtain ⟨s, hws, hs, hs₁, hs₂⟩ := ihb hΔ WY (Valuation.WF.push hwρ hwj)
         (Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, j₁⟩) hbody₁)
         (Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, j₂⟩) hbody₂)
       -- the slot and the code keep their names through the join
       have hjc := TShape.WF.join hΔ hcd hcc₁ hcc₂
-      have hjv := TShape.ValCanon.join hΔ hwx₁ hwx₂ hcj hvc₁ hvc₂
-      exact ⟨s, hws, .Y hjx hwj hdcI hdcty (.name hjd hjv) hjc hs hAt hYt, hs₁, hs₂⟩
+      exact ⟨s, hws, .Y hjx hwj hdcI hdcty hjd hjc hs hAt hYt, hs₁, hs₂⟩
   | bot =>
     exact fun _ _ _ _ _ _ _ h₂ =>
       ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
@@ -3342,21 +3337,13 @@ theorem dir_tr {Γ : List Term} {r : Bool} {A a b C X H : Term} {u : Bool}
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | tr hw₁ hle₁ hX₁ ha₁ hb₁ hA₁ hwv₁ hNV hvc₁ hC₁ hcb₁ hNV2 hcbc₁ hH₁ heq₁ hAt hat 
+  | tr hw₁ hle₁ hX₁ ha₁ hb₁ hA₁ hwv₁ hNVb₁ hvc₁ hC₁ hcb₁ hNV2b₁ hcbc₁ hH₁ heq₁ hAt hat 
       hbt =>
-    have hvA₁ := hNV.forget
-    have hbc₁ := hNV.val
-    have hm'₁ := hNV2.forget
-    have hmc₁ := hNV2.val
     cases h₂ with
     | bot =>
-      exact ⟨_, hX₁.wf, .tr hX₁.wf (TShape.LE.refl hX₁.wf) hX₁ ha₁ hb₁ hA₁ hwv₁ (.name hvA₁ hbc₁)
-        hvc₁ hC₁ hcb₁ (.name hm'₁ hmc₁) hcbc₁ hH₁ heq₁ hAt hat hbt, hle₁, TShape.bot_le' rfl⟩
-    | tr hw₂ hle₂ hX₂ ha₂ hb₂ hA₂ hwv₂ hNV hvc₂ hC₂ hcb₂ hNV2 hcbc₂ hH₂ _ _ _ _ =>
-      have hvA₂ := hNV.forget
-      have hbc₂ := hNV.val
-      have hm'₂ := hNV2.forget
-      have hmc₂ := hNV2.val
+      exact ⟨_, hX₁.wf, .tr hX₁.wf (TShape.LE.refl hX₁.wf) hX₁ ha₁ hb₁ hA₁ hwv₁ hNVb₁
+        hvc₁ hC₁ hcb₁ hNV2b₁ hcbc₁ hH₁ heq₁ hAt hat hbt, hle₁, TShape.bot_le' rfl⟩
+    | tr hw₂ hle₂ hX₂ ha₂ hb₂ hA₂ hwv₂ hNVb₂ hvc₂ hC₂ hcb₂ hNV2b₂ hcbc₂ hH₂ _ _ _ _ =>
       -- the witness: the join interprets both endpoints
       have ⟨hcv, hav⟩ := Interp.Dir.join hΔ (iha hΔ W hwρ) ha₁ ha₂
       have ⟨_, hbv⟩ := Interp.Dir.join hΔ (ihb hΔ W hwρ) hb₁ hb₂
@@ -3364,11 +3351,11 @@ theorem dir_tr {Γ : List Term} {r : Bool} {A a b C X H : Term} {u : Bool}
       have hvle := TShape.le_join hΔ hwv₁ hwv₂ hcv
       -- its type
       have ⟨hcA, hAv⟩ := Interp.Dir.join hΔ (ihA hΔ W hwρ) hA₁ hA₂
-      have hvAty := TShape.HasType.join hΔ hcA (TShape.Named.of_isType hvA₁.hasType.isType)
-        (TShape.Named.of_isType hvA₂.hasType.isType)
-      have hvAle := TShape.le_join hΔ hvA₁.hasType.isType.wf.1 hvA₂.hasType.isType.wf.1 hcA
-      have hty : TShape.Named Δ _ _ none := TShape.Named.join hΔ hcv
-        (TShape.Named.mono_r hΔ hvA₁ hvAle.1 hvAty) (TShape.Named.mono_r hΔ hvA₂ hvAle.2 hvAty)
+      have hvAty := TShape.HasType.join hΔ hcA (TShape.Named.of_isType hNVb₁.hasType.isType)
+        (TShape.Named.of_isType hNVb₂.hasType.isType)
+      have hvAle := TShape.le_join hΔ hNVb₁.hasType.isType.wf.1 hNVb₂.hasType.isType.wf.1 hcA
+      have hty := TShape.Named.join hΔ hcv
+        (TShape.Named.mono_r hΔ hNVb₁ hvAle.1 hvAty) (TShape.Named.mono_r hΔ hNVb₂ hvAle.2 hvAty)
       -- the motive, at the joined slot
       have WA : Ctx.SubstEq Δ (σ.cons (b.subst σ)) (σ.cons (b.subst σ)) (A :: Γ) :=
         .cons W hA (hb.subst hΔ W)
@@ -3382,17 +3369,15 @@ theorem dir_tr {Γ : List Term} {r : Bool} {A a b C X H : Term} {u : Bool}
       -- the transported shape
       have ⟨hcm, hXv⟩ := Interp.Dir.join hΔ (ihX hΔ W hwρ) hX₁ hX₂
       have hm'ty := TShape.Named.join hΔ hcm
-        (TShape.Named.mono_r hΔ hm'₁ hcble.1 hcbty) (TShape.Named.mono_r hΔ hm'₂ hcble.2 hcbty)
-      have hm'le := TShape.le_join hΔ hm'₁.hasType.wf.1 hm'₂.hasType.wf.1 hcm
+        (TShape.Named.mono_r hΔ hNV2b₁ hcble.1 hcbty) (TShape.Named.mono_r hΔ hNV2b₂ hcble.2 hcbty)
+      have hm'le := TShape.le_join hΔ hNV2b₁.hasType.wf.1 hNV2b₂.hasType.wf.1 hcm
       -- and the proof premise, by `H`'s own directedness
-      have hwm' := TShape.WF.join hΔ hcm hm'₁.hasType.wf.1 hm'₂.hasType.wf.1
+      have hwm' := TShape.WF.join hΔ hcm hNV2b₁.hasType.wf.1 hNV2b₂.hasType.wf.1
       -- the slot and its type keep their names through the joins
       have hvcj := TShape.WF.join hΔ hcA hvc₁ hvc₂
-      have hbcj := TShape.ValCanon.join hΔ hwv₁ hwv₂ hcv hbc₁ hbc₂
       have hcbcj := TShape.WF.join hΔ hccb hcbc₁ hcbc₂
-      have hmcj := TShape.ValCanon.join hΔ hm'₁.hasType.wf.1 hm'₂.hasType.wf.1 hcm hmc₁ hmc₂
       exact ⟨_, hwm', .tr hwm' (TShape.LE.refl hwm')
-          hXv hav hbv hAv hwv (.name hty hbcj) hvcj hcbv hcbty (.name hm'ty hmcj) hcbcj hH₁ heq₁ hAt hat hbt,
+          hXv hav hbv hAv hwv hty hvcj hcbv hcbty hm'ty hcbcj hH₁ heq₁ hAt hat hbt,
         hle₁.trans hΔ hm'le.1, hle₂.trans hΔ hm'le.2⟩
 
 /-! ## β
