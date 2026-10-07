@@ -1994,9 +1994,9 @@ theorem Subst.Saturates.lift {Δ Γ₀ Γ Γ' : List Term} {A : Term} {θ σ ρ 
     (Wθ : Ctx.SubstEq Γ' θ θ Γ) (Wσ : Ctx.SubstEq Δ σ σ Γ')
     (hθ : ∀ i, Interp.Dir Δ Γ' (θ i) σ ρ)
     (hcons : Ctx.SubstEq Δ (σ.cons e) (σ.cons e) (A.subst θ :: Γ'))
-    (hwy : TShape.WF Δ y) (hye : TShape.ValCanon Δ e y) (hAty : IsTypeAt Γ A)
+    (hwy : TShape.WF Δ y) (hAty : IsTypeAt Γ A)
     (hd : ∃ ρ_d d, Valuation.Approx Δ Γ' θ σ ρ ρ_d ∧
-      Interp Δ Γ A (θ.comp σ) ρ_d d ∧ TShape.Named Δ d y none)
+      Interp Δ Γ A (θ.comp σ) ρ_d d ∧ TShape.Named Δ d y (some e))
     (hSat : Subst.Saturates Δ Γ₀ Γ Γ' θ σ ρ) :
     Subst.Saturates Δ Γ₀ (A :: Γ) (A.subst θ :: Γ') θ.lift (σ.cons e) (ρ.push y) := by
   intro ρ' hρ'
@@ -2028,7 +2028,7 @@ theorem Subst.Saturates.lift {Δ Γ₀ Γ Γ' : List Term} {A : Term} {θ σ ρ 
       | zero => rfl
       | succ i => exact lift_subst_cons
     rw [hstage]
-    exact Adm.cons hAdm hΓ hdI' hwy (.name hyd hye)
+    exact Adm.cons hAdm hΓ hdI' hwy hyd
       (hAty hΔ (Ctx.SubstEq.comp hΔ Wσ Wθ) hAdm hdI').2
 
 /-! ### Weakening the clause conditions
@@ -2280,8 +2280,8 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         intro e he
         obtain ⟨ρ_d, hd', hApd⟩ := ihA hΓ hAA hPA hΓ' hgood Wθ Wσ hAdm hSat hθ hAint
         exact Subst.Saturates.lift hΔ hΓ hΓ' hgood Wθ Wσ hθ (hcons e he)
-          (TShape.WF.T.2 (hwf.2.2.1.1 e he).2.2.1) (hcan e he) hAty
-          ⟨ρ_d, _, hApd, hd', hdom e he⟩ hSat
+          (TShape.WF.T.2 (hwf.2.2.1.1 e he).2.2.1) hAty
+          ⟨ρ_d, _, hApd, hd', hNV e he⟩ hSat
       obtain ⟨ρ₁, hA', hAp₁⟩ := ihA hΓ hAA hPA hΓ' hgood Wθ Wσ hAdm hSat hθ hAint
       obtain ⟨ρ₂, hAp₂, hbody'⟩ :=
         Interp.body_merge (Γ := A :: Γ) (b := b) hΔ hΓ' hgood (.skip .refl) hθ
@@ -2340,8 +2340,8 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         intro e he
         obtain ⟨ρ_d, hd', hApd⟩ := ihA hΓ hAA hPA hΓ' hgood Wθ Wσ hAdm hSat hθ hAint
         exact Subst.Saturates.lift hΔ hΓ hΓ' hgood Wθ Wσ hθ (hcons e he)
-          (TShape.WF.T.2 (hwf.2.2.2.1.1 e he).2.2.1) (hcan e he) hAty
-          ⟨ρ_d, _, hApd, hd', hdom e he⟩ hSat
+          (TShape.WF.T.2 (hwf.2.2.2.1.1 e he).2.2.1) hAty
+          ⟨ρ_d, _, hApd, hd', hNV e he⟩ hSat
       obtain ⟨ρ₁, hA', hAp₁⟩ := ihA hΓ hAA hPA hΓ' hgood Wθ Wσ hAdm hSat hθ hAint
       obtain ⟨ρ₂, hAp₂, hbody'⟩ :=
         Interp.body_merge (Γ := A :: Γ) (b := B) hΔ hΓ' hgood (.skip .refl) hθ
@@ -2400,8 +2400,8 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         intro e he
         obtain ⟨ρ_d, hd', hApd⟩ := ihA hΓ hAA hPA hΓ' hgood Wθ Wσ hAdm hSat hθ hAint
         exact Subst.Saturates.lift hΔ hΓ hΓ' hgood Wθ Wσ hθ (hcons e he)
-          (TShape.WF.T.2 (hwf.2.2.2.1.1 e he).2.2.1) (hcan e he) hAty
-          ⟨ρ_d, _, hApd, hd', hdom e he⟩ hSat
+          (TShape.WF.T.2 (hwf.2.2.2.1.1 e he).2.2.1) hAty
+          ⟨ρ_d, _, hApd, hd', hNV e he⟩ hSat
       obtain ⟨ρ₁, hA', hAp₁⟩ := ihA hΓ hAA hPA hΓ' hgood Wθ Wσ hAdm hSat hθ hAint
       obtain ⟨ρ₂, hAp₂, hbody'⟩ :=
         Interp.body_merge (Γ := A :: Γ) (b := B) hΔ hΓ' hgood (.skip .refl) hθ
@@ -2458,7 +2458,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
             (σ.cons ((a.subst θ).subst σ)) (ρ.push x.T) := by
         obtain ⟨ρ_d, hd', hApd⟩ := ihA hΓ hAA hPA hΓ' hgood Wθ Wσ hAdm hSat hθ hAint
         exact Subst.Saturates.lift hΔ hΓ hΓ' hgood Wθ Wσ hθ hcons
-          (TShape.WF.T.2 hwf.2.2.2.1) hxc hAty ⟨ρ_d, _, hApd, hd', hdx⟩ hSat
+          (TShape.WF.T.2 hwf.2.2.2.1) hAty ⟨ρ_d, _, hApd, hd', hNV⟩ hSat
       obtain ⟨ρ₁, hA', hAp₁⟩ := ihA hΓ hAA hPA hΓ' hgood Wθ Wσ hAdm hSat hθ hAint
       obtain ⟨ρ₂, ha', hAp₂⟩ := iha hΓ hAa hPa hΓ' hgood Wθ Wσ hAdm hSat hθ hainp
       obtain ⟨ρ₃, hb', hAp₃⟩ := ihb hΓ hAb hPb hΓ' hgood Wθ Wσ hAdm hSat hθ hbout
@@ -2521,18 +2521,23 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         exact (TShape.HasType.isNumeral hΔ (Interp.le_nat hc) hty).pred.hasType
       have hisTypeNat : ∀ b, Interp Δ Γ' Term.nat σ ρ b → TShape.HasType Δ b TShape.type :=
         fun _ hb => TShape.HasType.mono_l hΔ .nat (Interp.le_nat hb)
-      have hvcan : TShape.ValCanon Δ t v.T := Shape.ValCanon.of_numeral
-        (TShape.HasType.isNumeral hΔ (TShape.LE.refl (a := TShape.nat) trivial) hvnat)
       have hAdmE : Adm Δ Γ₀ (Term.nat :: Γ') (σ.cons t) (ρ.push v.T) :=
         Adm.cons hAdm hΓ' Interp.nat' (TShape.WF.T.2 hwv)
-          (.name (TShape.Named.of_not_binder (fun h => h) hvnat) hvcan) (TyEq.refl .nat)
+          (.base (fun h => h) hvnat
+            (Shape.WF.numeral_mem
+              (TShape.HasType.isNumeral hΔ (TShape.LE.refl (a := TShape.nat) trivial) hvnat)
+              hvnat.wf.1))
+          (TyEq.refl .nat)
       have hSatE : Subst.Saturates Δ Γ₀ (Term.nat :: Γ) (Term.nat :: Γ')
           θ.lift (σ.cons t) (ρ.push v.T) := by
         refine Subst.Saturates.lift (A := Term.nat) hΔ hΓ hΓ' hgood Wθ Wσ hθ
-          (by simpa using hcons) (TShape.WF.T.2 hwv) hvcan
+          (by simpa using hcons) (TShape.WF.T.2 hwv)
           IsTypeAt.nat ?_ hSat
         exact ⟨ρ_s, TShape.nat, hAps, Interp.nat',
-          TShape.Named.of_not_binder (fun h => h) hvnat⟩
+          .base (fun h => h) hvnat
+            (Shape.WF.numeral_mem
+              (TShape.HasType.isNumeral hΔ (TShape.LE.refl (a := TShape.nat) trivial) hvnat)
+              hvnat.wf.1)⟩
       obtain ⟨ρ₁, hM', hAp₁⟩ := ihM hΓ hAM hPM hΓ' hgood Wθ Wσ hAdm hSat hθ hM
       obtain ⟨ρ₂, hAp₂, hbody'⟩ :=
         Interp.body_merge (Γ := Term.nat :: Γ) (b := b) (Γ'' := Term.nat :: Γ') hΔ hΓ'
@@ -2596,8 +2601,8 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
           Adm.cons hAdm₂ hΓ₂ hAd hwx (.name hDom hxc) hdc
         have hSatE : Subst.Saturates Δ Γ₀ (A :: Γ) (A.subst θ :: Γ₂) θ.lift
             (σ₂.cons (((Term.Y A b).subst θ).subst σ₂)) (ρ₂.push x) :=
-          Subst.Saturates.lift hΔ hΓ hΓ₂ hgood₂ Wθ₂ Wσ₂ hθ₂ hcons hwx hxc hAty
-            ⟨ρ_d, d, hApd, hd', hDom⟩ hSat₂
+          Subst.Saturates.lift hΔ hΓ hΓ₂ hgood₂ Wθ₂ Wσ₂ hθ₂ hcons hwx hAty
+            ⟨ρ_d, d, hApd, hd', hNV⟩ hSat₂
         obtain ⟨ρ₂, hAp₂, hbody'⟩ :=
           Interp.body_merge (Γ := A :: Γ) (b := b) hΔ hΓ₂ hgood₂ (.skip .refl) hθ₂
             (l := [()]) (tm := fun _ => ((Term.Y A b).subst θ).subst σ₂)
@@ -2660,11 +2665,11 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         exact hAty hΔ (Ctx.SubstEq.comp hΔ Wσ Wθ) hAdmt (Interp.mono_val hΔ hlet hc')
       have hisTypeSrc := fun c hc => (hisTypeSrc' c hc).1
       have hAdmE : Adm Δ Γ₀ (A.subst θ :: Γ') (σ.cons ((b.subst θ).subst σ)) (ρ.push v) :=
-        Adm.cons hAdm hΓ' hAint hwv (.name hvA hbc) hvc
+        Adm.cons hAdm hΓ' hAint hwv hNV hvc
       have hSatE : Subst.Saturates Δ Γ₀ (A :: Γ) (A.subst θ :: Γ') θ.lift
           (σ.cons ((b.subst θ).subst σ)) (ρ.push v) :=
-        Subst.Saturates.lift hΔ hΓ hΓ' hgood Wθ Wσ hθ hcons hwv hbc hAty
-          ⟨ρ₄, _, hAp₄, hA', hvA⟩ hSat
+        Subst.Saturates.lift hΔ hΓ hΓ' hgood Wθ Wσ hθ hcons hwv hAty
+          ⟨ρ₄, _, hAp₄, hA', hNV⟩ hSat
       obtain ⟨ρ₅, hAp₅, hC'⟩ :=
         Interp.body_merge (Γ := A :: Γ) (b := C) hΔ hΓ' hgood (.skip .refl) hθ
           (l := [()]) (tm := fun _ => (b.subst θ).subst σ) (inp := fun _ => v)
