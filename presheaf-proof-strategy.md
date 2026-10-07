@@ -3252,3 +3252,62 @@ renamed by reading the resolved references out of Lake's `.ilean` files
 (`references[<const>].usages` gives exact spans; the fifth field of a
 usage is the *containing* declaration, not the referent) and rewriting
 only those spans.
+
+## 10. `CodeCanonS` removed (2026-10-07)
+
+§7 made canonicity shallow, §9 made it `Shape.WF`'s index. This round
+deletes the predicate.
+
+The move is in two steps. First `Named`'s `base` clause: it asked
+`∀ t ∈ o, CodeCanonS Δ t x.2` and now asks `Shape.WF Δ x.2 o`. That is
+stronger, but the clause already carries `HasType Δ x d`, so the extra
+content is free — and the bounded quantifier disappears from both the
+premise and the extraction, which becomes
+
+```
+Named.wf : Named Δ d x o → Shape.WF Δ x.2 o
+```
+
+premise and conclusion the same proposition. Three proofs collapsed:
+`subst`'s base case is `Shape.WF.subst hΘ W hc` where it was a `cases o`
+with an `Option.map` normalisation, `lift_subject`'s is
+`(Shape.lift_wf hk).2 hc`, and `join_at`'s is `Shape.WF.join_mem`.
+
+Then every other statement: `CodeCanonS Δ T x` became `WF Δ x (some T)`
+everywhere, including inside `Shape.LE`'s two canonicity conjuncts and
+`Shape.ValCanon`'s code-shaped clauses. The sweep was scripted off the
+resolved references in Lake's `.ilean` files, because the change is an
+argument reorder rather than a rename and two textual attempts had
+already gone wrong in ways a compiler check would not localise (one
+rewrote the `def` header as an application, the other had the
+`Shape.CodeCanonS` pass match the tail of `TShape.CodeCanonS`).
+
+**What the splitting lemmas turn out to be.** `WF.iff`, `WF.canon`,
+`WF.name` and `WF.named` existed to separate `WF`'s structural half from
+its head half. Once the head half *is* a `WF` at an index, three of the
+four are identities and the fourth, `iff`, is circular. Only
+`WF.forget` — dropping the index — has content, and it is a `cases` on
+the head. What replaces the others:
+
+* `WF.mem` / `WF.named_of`, moving between an index and its `some` case,
+  one `cases o` each;
+* `WF.conv`, the name moving along a type equality, one `cases` on the
+  head;
+* `WF.mono_mem`, downward closure, which is `LE.wf` for every conjunct
+  but the last and the label equalities for that one;
+* `WF.join_of`, which takes the *structural* half of the join as a
+  hypothesis because its two consumers reach it by different routes —
+  `Shape.join_le` from `LE.wf` of the induction hypothesis, and
+  `WF.join_mem` from the index-free `WF.join`. That asymmetry is the one
+  place the old `CodeCanonS.join`, which needed no context and no
+  compatibility, was doing real work.
+
+`Shape.ValCanon` keeps its own recursion, but its code-shaped clauses now
+read `Shape.WF Δ s (some t)`, so `ValCanon.toCode` gained a structural
+`Shape.WF Δ s` hypothesis — at a `lam` or a `pair` the value's own
+well-formedness does not follow from the naming, and that is what the
+hypothesis supplies.
+
+The axiom board loses `Shape.WF.iff`: the index is not a second notion,
+so there is nothing for a faithfulness statement to say. `TShape.Named.iff`
+stays, because `ValCanon` is still a notion of its own.

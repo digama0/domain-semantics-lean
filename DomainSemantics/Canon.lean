@@ -5,10 +5,10 @@ import DomainSemantics.HasType
 Naming, relative to a *term*.  Codes name their type and values name
 their own projections:
 
-* `Shape.CodeCanonS Δ T d` — defined in `Shape.lean` — says the code `d`
-  **names its type** `T`, and only at `d`'s own head: a Σ-code carries
-  labels `A B` with `T ≡ Σ A B`, and nothing is said about the domain
-  code or the codomain graph.  It needs no recursion of its own because
+* `Shape.WF Δ d (some T)` — defined in `Shape.lean` — says the code `d`
+  is well formed and **names its type** `T`, the naming being read at
+  `d`'s own head: a Σ-code carries labels `A B` with `T ≡ Σ A B`.  It
+  needs no recursion of its own because
   `Shape.WF` already carries one of these at every Π and Σ node it
   descends through, so for a well-formed shape the shallow statement is
   the hereditary one.
@@ -31,7 +31,7 @@ namespace DomainSemantics
 
 /-- A value names its own projections. -/
 def Shape.ValCanon (Δ : List Term) : ∀ {n}, Term → Shape n → Prop
-  | 0, t, s => CodeCanonS Δ t s
+  | 0, t, s => Shape.WF Δ s (some t)
   | _+1, t, .pair A₀ a x y =>
       (Δ ⊢ a ≡ Term.fst t : A₀) ∧ ValCanon Δ (.fst t) x ∧ ValCanon Δ (.snd t) y
   | _+1, t, .lam _ g =>
@@ -40,12 +40,12 @@ def Shape.ValCanon (Δ : List Term) : ∀ {n}, Term → Shape n → Prop
   | _+1, _, .succ _ => True
   | _+1, _, .refl => True
   | _+1, _, .bot => True
-  | _+1, t, s@(.sort _) => CodeCanonS Δ t s
-  | _+1, t, s@(.unit _) => CodeCanonS Δ t s
-  | _+1, t, s@.nat => CodeCanonS Δ t s
-  | _+1, t, s@(.id ..) => CodeCanonS Δ t s
-  | _+1, t, s@(.sigma ..) => CodeCanonS Δ t s
-  | _+1, t, s@(.forallE ..) => CodeCanonS Δ t s
+  | _+1, t, s@(.sort _) => Shape.WF Δ s (some t)
+  | _+1, t, s@(.unit _) => Shape.WF Δ s (some t)
+  | _+1, t, s@.nat => Shape.WF Δ s (some t)
+  | _+1, t, s@(.id ..) => Shape.WF Δ s (some t)
+  | _+1, t, s@(.sigma ..) => Shape.WF Δ s (some t)
+  | _+1, t, s@(.forallE ..) => Shape.WF Δ s (some t)
 
 def TShape.ValCanon (Δ : List Term) (t : Term) (x : TShape) : Prop :=
   Shape.ValCanon Δ t x.2
@@ -54,7 +54,7 @@ def TShape.ValCanon (Δ : List Term) (t : Term) (x : TShape) : Prop :=
 @[simp] theorem Shape.ValCanon.bot {Δ : List Term} {t : Term} {n} :
     Shape.ValCanon Δ t (Shape.bot (n := n)) := by
   cases n with
-  | zero => exact Shape.CodeCanonS.bot (n := 0)
+  | zero => exact Shape.WF.bot_mem (n := 0)
   | succ n => trivial
 
 /-- A sort-shaped code names a sort, at every level. -/
@@ -131,12 +131,12 @@ theorem Shape.ValCanon.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
       Shape.ValCanon Θ (t.subst τ) (s.subst τ) := by
   intro n
   induction n with
-  | zero => intro t s h; exact Shape.CodeCanonS.subst hΘ W (n := 0) h
+  | zero => intro t s h; exact Shape.WF.subst hΘ W (n := 0) h
   | succ n ih =>
     intro t s h
     cases s with
     | bot | zero | succ | refl => trivial
-    | sort | unit | nat | id | sigma | forallE => exact Shape.CodeCanonS.subst hΘ W h
+    | sort | unit | nat | id | sigma | forallE => exact Shape.WF.subst hΘ W h
     | pair A₀ a x y =>
       obtain ⟨hname, hx, hy⟩ := h
       exact ⟨IsDefEq.subst hΘ W hname, ih hx, ih hy⟩
@@ -150,14 +150,16 @@ theorem Shape.ValCanon.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
 /-! ## Values: the bridge, lifting and the join -/
 
 /-- **A canonical value is a canonical code**, read as a code: on code
-heads the two predicates agree, and on value heads `CodeCanonS` asks
-nothing.  So the saturated approximants of a *type* name it. -/
+heads the two predicates agree, and on value heads the naming asks
+nothing, so the shape's own well-formedness is all there is.  Hence the
+saturated approximants of a *type* name it. -/
 theorem Shape.ValCanon.toCode {Δ : List Term} :
-    ∀ {n} {t : Term} {x : Shape n}, Shape.ValCanon Δ t x → Shape.CodeCanonS Δ t x := by
-  intro n t x h
+    ∀ {n} {t : Term} {x : Shape n}, Shape.WF Δ x → Shape.ValCanon Δ t x →
+      Shape.WF Δ x (some t) := by
+  intro n t x hw h
   cases n with
   | zero => exact h
-  | succ n => cases x <;> first | exact h | trivial
+  | succ n => cases x <;> first | exact h | exact hw
 
 /-- Numerals carry no names. -/
 theorem Shape.ValCanon.of_numeral {Δ : List Term} {t : Term} :
@@ -181,16 +183,16 @@ theorem Shape.ValCanon.lift {Δ : List Term} (_hΔ : ⊢ Δ) :
     cases s with
     | bot | zero | succ | refl => exact Iff.rfl
     | sort r =>
-      exact (Shape.CodeCanonS.lift_iff h (T := t) (s := (ShapeS.sort r : Shape (n+1))) :)
+      exact (Shape.lift_wf h (o := some t) (s := (ShapeS.sort r : Shape (n+1))) :)
     | unit r =>
-      exact (Shape.CodeCanonS.lift_iff h (T := t) (s := (ShapeS.unit r : Shape (n+1))) :)
-    | nat => exact (Shape.CodeCanonS.lift_iff h (T := t) (s := (ShapeS.nat : Shape (n+1))) :)
+      exact (Shape.lift_wf h (o := some t) (s := (ShapeS.unit r : Shape (n+1))) :)
+    | nat => exact (Shape.lift_wf h (o := some t) (s := (ShapeS.nat : Shape (n+1))) :)
     | id r A a b =>
-      exact (Shape.CodeCanonS.lift_iff h (T := t) (s := (ShapeS.id r A a b : Shape (n+1))) :)
+      exact (Shape.lift_wf h (o := some t) (s := (ShapeS.id r A a b : Shape (n+1))) :)
     | sigma A B d f =>
-      exact (Shape.CodeCanonS.lift_iff h (T := t) (s := (ShapeS.sigma A B d f : Shape (n+1))) :)
+      exact (Shape.lift_wf h (o := some t) (s := (ShapeS.sigma A B d f : Shape (n+1))) :)
     | forallE A B d f =>
-      exact (Shape.CodeCanonS.lift_iff h (T := t) (s := (ShapeS.forallE A B d f : Shape (n+1))) :)
+      exact (Shape.lift_wf h (o := some t) (s := (ShapeS.forallE A B d f : Shape (n+1))) :)
     | pair A a x y => exact and_congr Iff.rfl (and_congr (ih h') (ih h'))
     | lam A f =>
       constructor
@@ -207,12 +209,14 @@ theorem TShape.ValCanon.lift_iff {Δ : List Term} (hΔ : ⊢ Δ) {t : Term} {a :
 
 /-- **Two canonical values of one term join canonically**: the join keeps
 the left name, joins components and appends graphs. -/
-theorem Shape.ValCanon.join {Δ : List Term} (_hΔ : ⊢ Δ) :
+theorem Shape.ValCanon.join {Δ : List Term} (hΔ : ⊢ Δ) :
     ∀ {n} {t : Term} {y z : Shape n}, Shape.WF Δ y → Shape.WF Δ z → Shape.Compat Δ y z →
       Shape.ValCanon Δ t y → Shape.ValCanon Δ t z → Shape.ValCanon Δ t (y.join z) := by
   intro n
   induction n with
-  | zero => intro t y z hwy hwz hc hy hz; exact Shape.CodeCanonS.join hy hz
+  | zero =>
+    intro t y z hwy hwz hc hy hz
+    exact Shape.WF.join_of (Shape.WF.join hΔ hc hwy hwz) hy hz
   | succ n ih =>
     intro t y z hwy hwz hc hy hz
     cases y with
@@ -243,7 +247,7 @@ theorem Shape.ValCanon.join {Δ : List Term} (_hΔ : ⊢ Δ) :
       | _ =>
         first
         | exact absurd hc id
-        | exact Shape.CodeCanonS.join hy hz
+        | exact Shape.WF.join_of (Shape.WF.join hΔ hc hwy hwz) hy hz
 
 theorem TShape.ValCanon.join {Δ : List Term} (hΔ : ⊢ Δ) {t : Term} {y z : TShape}
     (hwy : TShape.WF Δ y) (hwz : TShape.WF Δ z) (hc : TShape.Compat Δ y z)
@@ -256,7 +260,8 @@ theorem TShape.ValCanon.join {Δ : List Term} (hΔ : ⊢ Δ) {t : Term} {y z : T
     ((TShape.ValCanon.lift_iff hΔ h2).1 hz)
 
 theorem TShape.ValCanon.toCode {Δ : List Term} {t : Term} {x : TShape}
-    (h : TShape.ValCanon Δ t x) : Shape.CodeCanonS Δ t x.2 := Shape.ValCanon.toCode h
+    (hw : TShape.WF Δ x) (h : TShape.ValCanon Δ t x) : TShape.WF Δ x (some t) :=
+  Shape.ValCanon.toCode hw h
 
 theorem TShape.WF.conv {Δ : List Term} {T T' : Term} {x : TShape}
     (h : TShape.WF Δ x (some T)) (hT : TyEq Δ T' T) : TShape.WF Δ x (some T') :=
@@ -282,7 +287,7 @@ Three observations make the fold go through:
 
 * at a code that only filters, a shape typed there is never a `lam` or a
   `pair`, so the only naming left is a code naming its type, and
-  `CodeCanonS` is `True` on the numerals and on `refl`;
+  the naming is vacuous on the numerals and on `refl`;
 * at a Π, an entry's *input* names the entry's own label term and its
   *output* names the application — exactly `ValCanon`'s `lam` clause;
 * at a Σ, the pair's name is its first projection and the components
@@ -291,8 +296,9 @@ Three observations make the fold go through:
   because `HasType.pair` says so. -/
 
 /-- At a code that only filters, a typed shape is never a `lam` or a
-`pair`, and on every other head `ValCanon` *is* `CodeCanonS`.  This is
-what lets `Named`'s `base` clause carry only the code's naming. -/
+`pair`, and on every other head `ValCanon` *is* the named `Shape.WF`.
+This is what lets `Named`'s `base` clause carry only the subject's
+well-formedness at the index. -/
 theorem TShape.ValCanon.of_code {Δ : List Term} {t : Term} {d x : TShape}
     (hnb : ¬ d.IsBinder) (hty : TShape.HasType Δ x d) (hc : TShape.WF Δ x (some t)) :
     TShape.ValCanon Δ t x := by
@@ -304,12 +310,12 @@ theorem TShape.ValCanon.of_code {Δ : List Term} {t : Term} {d x : TShape}
   | zero => trivial
   | succ _ => trivial
   | refl _ _ => trivial
-  | sort => cases n <;> exact Shape.WF.canon hc
-  | unit _ => exact Shape.WF.canon hc
-  | nat => exact Shape.WF.canon hc
-  | id _ _ => exact Shape.WF.canon hc
-  | forallE _ _ _ => exact Shape.WF.canon hc
-  | sigma _ _ _ => exact Shape.WF.canon hc
+  | sort => cases n <;> exact hc
+  | unit _ => exact hc
+  | nat => exact hc
+  | id _ _ => exact hc
+  | forallE _ _ _ => exact hc
+  | sigma _ _ _ => exact hc
 
 /-- **`Named` carries the naming.**  Each clause's per-part conditions
 are exactly what `ValCanon` asks of the corresponding head. -/
@@ -360,7 +366,8 @@ theorem TShape.Named.reindex {Δ : List Term} {o : Option Term} {d x : TShape}
   | base hnb hty _ =>
     intro o' hV
     exact .base hnb hty
-      (Shape.WF.named (TShape.HasType.wf hty).1 fun t ht => Shape.ValCanon.toCode (hV t ht))
+      (Shape.WF.named_of (TShape.HasType.wf hty).1 fun t ht =>
+        Shape.ValCanon.toCode (TShape.HasType.wf hty).1 (hV t ht))
   | @pi o n A B d f x cs hty hent _ hev _ ihin ihout =>
     intro o' hV
     cases o' with
@@ -468,15 +475,15 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       cases hD.hasType with
       | sort =>
         have hT : TyEq Δ T (.sort true) := TShape.WF.sort_iff.1 hC
-        exact Shape.CodeCanonS.conv (n := 0) hV ⟨_, (hT.choose_spec.defeqDF ht).symm⟩
+        exact Shape.WF.conv (n := 0) hV ⟨_, (hT.choose_spec.defeqDF ht).symm⟩
   | succ n ih =>
     intro x d T t t' hD hC hV ht
     -- a code-shaped value: its type is a sort, read off the code
     have hcode {k : Nat} {j : Bool} (hd : d = Shape.T (n := k) (Shape.sort j))
-        (hV' : Shape.CodeCanonS Δ t x) : Shape.CodeCanonS Δ t' x := by
+        (hV' : Shape.WF Δ x (some t)) : Shape.WF Δ x (some t') := by
       subst hd
       have hT : TyEq Δ T (.sort j) := TShape.WF.sort_iff.1 hC
-      exact hV'.conv ⟨_, (hT.choose_spec.defeqDF ht).symm⟩
+      exact Shape.WF.conv hV' ⟨_, (hT.choose_spec.defeqDF ht).symm⟩
     cases x with
     | bot | zero | succ | refl => trivial
     | sort r => cases hD.hasType with | sort => exact hcode rfl hV
@@ -490,7 +497,7 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       | @pair _ _ _ _ _ _ f A B d _ _ _ _ _ hws _ _ _ _ hA₀A
       obtain ⟨c, hx₁, hev, hy₁⟩ := TShape.Named.sg_inv hD
       have hwd := (TShape.HasType.wf hD.hasType).2
-      have hT := Shape.WF.canon hC
+      have hT := hC.2.2.2.2
       have hCd := hwd.2.2.1
       have hCf := ShapeFun.WF.canon hwd.2.2.2.1
       obtain ⟨hname, hVx, hVy⟩ := hV
@@ -509,7 +516,7 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       cases hD with
       | base hnb _ => exact absurd trivial hnb
       | @pi _ _ _ _ _ _ _ cs _ hent _ hev hout
-      have hT := Shape.WF.canon hC
+      have hT := hC.2.2.2.2
       have hCd := hwf.2.2.1
       have hCf := ShapeFun.WF.canon hwf.2.2.2.1
       have hA := hwf.1.choose_spec
@@ -548,7 +555,7 @@ theorem TShape.Named.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x 
 A slot is one notion applied twice.  `Named` says a shape is hereditarily
 typed at a code and names a term; a *slot* is that for the value,
 together with the same for its code — read at a sort, where `Named`
-degenerates to `Shape.CodeCanonS`, the code naming its type.  There is no
+degenerates to the code naming its type.  There is no
 third conjunct, and no bundle: hereditary typing and `ValCanon` are not separate
 notions any more, so there is nothing left to bundle.
 

@@ -1434,8 +1434,7 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
       have hcan := fun e he => (hNV e he).val
       refine .forallE (ihA hΓ hAA W hAint) hdty
         ⟨⟨u, hAσ.hasType.2⟩, ⟨v, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩,
-          Shape.WF.name (Shape.WF.forget hwf.2.2.1)
-            ((Shape.WF.canon hwf.2.2.1).conv ⟨u, hAσ.symm⟩),
+          Shape.WF.conv hwf.2.2.1 ⟨u, hAσ.symm⟩,
           ShapeFun.WF.name ((ShapeFun.WF.forget hwf.2.2.2.1).retype ⟨u, hAσ⟩)
             (fun e he => (ShapeFun.WF.canon hwf.2.2.2.1 e he).conv
               ⟨v, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm
@@ -1464,8 +1463,7 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
       have hcan := fun e he => (hNV e he).val
       refine .sigma (ihA hΓ hAA W hAint) hdty
         ⟨⟨u, hAσ.hasType.2⟩, ⟨v, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩,
-          Shape.WF.name (Shape.WF.forget hwf.2.2.1)
-            ((Shape.WF.canon hwf.2.2.1).conv ⟨u, hAσ.symm⟩),
+          Shape.WF.conv hwf.2.2.1 ⟨u, hAσ.symm⟩,
           ShapeFun.WF.name ((ShapeFun.WF.forget hwf.2.2.2.1).retype ⟨u, hAσ⟩)
             (fun e he => (ShapeFun.WF.canon hwf.2.2.2.1 e he).conv
               ⟨v, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm

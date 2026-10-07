@@ -146,16 +146,9 @@ open DomainSemantics
 
 -- **The merge is faithful**: `Named` is hereditary typing and naming in
 -- one induction, and it is exactly the conjunction of the two notions it
--- replaced.  (`Slot` needs no such statement: it *is* `Named` twice, once
+-- replaced.  (`Shape.WF` needs no such statement any more: its index is
+-- not a second notion, so there is nothing to be faithful to.)  (`Slot` needs no such statement: it *is* `Named` twice, once
 -- for the value and once for its code.)
 /-- info: 'DomainSemantics.TShape.Named.iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms TShape.Named.iff
 
--- **And so is the other one**: `Shape.WF` carries an optional name as its
--- last argument, and at `some T` it is exactly well-formedness together
--- with the head's naming.  The index defaults to `none`, so the two
--- conjuncts that used to be bolted onto the Π and Σ clauses are now the
--- recursion's own index at no syntactic cost.  Choice-free: it is one
--- `cases` on the head.
-/-- info: 'DomainSemantics.Shape.WF.iff' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in #print axioms Shape.WF.iff

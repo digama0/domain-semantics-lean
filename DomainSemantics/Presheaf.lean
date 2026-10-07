@@ -105,11 +105,11 @@ theorem TShape.ValCanon.of_filter {Δ : List Term} {t : Term} {m a : TShape}
     TShape.ValCanon Δ t m := by
   obtain ⟨n, s⟩ := m
   cases n with
-  | zero => exact Shape.WF.canon hc
+  | zero => exact hc
   | succ n =>
     cases s with
     | lam | pair => cases h <;> exact (hnb trivial).elim
-    | _ => first | exact Shape.WF.canon hc | trivial
+    | _ => first | exact hc | trivial
 
 /-- At `nat` (and any other filtering code) saturation is just typing:
 nothing below such a code binds, so `Named` is `HasType` there, and the
@@ -148,8 +148,8 @@ theorem TShape.ValCanon.of_nat {Δ : List Term} {t : Term} {v : TShape} (hΔ : �
 theorem CodeAt.of_nat {Γ : List Term} {t : Term} (h : TypedAt Γ t Term.nat) : CodeAt Γ t := by
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
   obtain ⟨c, hc, hty⟩ := h hΔ W hAdm hm
-  exact Shape.WF.name (TShape.HasType.wf hty).1 (Shape.ValCanon.toCode
-    (Shape.ValCanon.of_numeral (TShape.HasType.isNumeral hΔ (Interp.le_nat hc) hty)))
+  exact Shape.ValCanon.toCode (TShape.HasType.wf hty).1
+    (Shape.ValCanon.of_numeral (TShape.HasType.isNumeral hΔ (Interp.le_nat hc) hty))
 
 /-- `nat`'s approximants are `⊥` or `nat`. -/
 theorem SoundDom.nat {Γ : List Term} {t : Term} (h : TypedAt Γ t Term.nat) :
@@ -532,8 +532,7 @@ theorem sound_forallE_eq_of {Γ : List Term} {A A' B B' : Term} {u v : Bool}
     have hcan := fun e he => (hNV e he).val
     refine .forallE ((ihA hΔ W hAdm).1 hA) hd
       ⟨⟨_, hAσ.hasType.2⟩, ⟨_, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩, 
-        Shape.WF.name (Shape.WF.forget hwf.2.2.1)
-          ((Shape.WF.canon hwf.2.2.1).conv ⟨_, hAσ.symm⟩),
+        Shape.WF.conv hwf.2.2.1 ⟨_, hAσ.symm⟩,
         ShapeFun.WF.name ((ShapeFun.WF.forget hwf.2.2.2.1).retype ⟨_, hAσ⟩)
           (fun e he => (ShapeFun.WF.canon hwf.2.2.2.1 e he).conv
             ⟨_, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm
@@ -614,7 +613,8 @@ theorem CodeAt.forallE {Γ : List Term} {A B : Term} {u v : Bool}
   | bot => exact TShape.WF.bot
   | forallE hA hd hwf hNV hbody hw hle =>
     exact TShape.WF.mono hΔ hle
-      (Shape.WF.name hwf ⟨v, (IsDefEq.forallEDF hAty hB hB).subst hΔ W⟩)
+      ⟨hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2.1,
+        ⟨v, (IsDefEq.forallEDF hAty hB hB).subst hΔ W⟩⟩
 
 /-- **A sigma-type names itself**: its labels are its own, its domain
 is an approximant of `A`, and its codomain entries are approximants of `B`
@@ -628,7 +628,8 @@ theorem CodeAt.sigma {Γ : List Term} {A B : Term} {u v : Bool}
   | bot => exact TShape.WF.bot
   | sigma hA hd hwf hNV hbody hw hle =>
     exact TShape.WF.mono hΔ hle
-      (Shape.WF.name hwf ⟨true, (IsDefEq.sigmaDF hAty hB hB).subst hΔ W⟩)
+      ⟨hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2.1,
+        ⟨true, (IsDefEq.sigmaDF hAty hB hB).subst hΔ W⟩⟩
 
 /-- One direction of the `SoundEq` half of `sigmaDF`; see
 `sound_forallE_eq_of` for what it. -/
@@ -650,8 +651,7 @@ theorem sound_sigma_eq_of {Γ : List Term} {A A' B B' : Term} {u v : Bool}
     have hcan := fun e he => (hNV e he).val
     refine .sigma ((ihA hΔ W hAdm).1 hA) hd
       ⟨⟨_, hAσ.hasType.2⟩, ⟨_, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩, 
-        Shape.WF.name (Shape.WF.forget hwf.2.2.1)
-          ((Shape.WF.canon hwf.2.2.1).conv ⟨_, hAσ.symm⟩),
+        Shape.WF.conv hwf.2.2.1 ⟨_, hAσ.symm⟩,
         ShapeFun.WF.name ((ShapeFun.WF.forget hwf.2.2.2.1).retype ⟨_, hAσ⟩)
           (fun e he => (ShapeFun.WF.canon hwf.2.2.2.1 e he).conv
             ⟨_, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm
@@ -1542,7 +1542,8 @@ theorem lam_pi_code {Γ Γ₀ Δ : List Term} {A B : Term} {u v : Bool} {σ ρ}
         (hcty p hp) (hall p hp).2.2⟩
   · -- the Π-code names `Π A B`: its labels are the type's, its domain is
     -- an approximant of `A`, and its codomain entries approximate `B`
-    exact Shape.WF.name hwfPi ⟨v, (IsDefEq.forallEDF hAty hB hB).subst hΔ W⟩
+    exact ⟨hwfPi.1, hwfPi.2.1, hwfPi.2.2.1, hwfPi.2.2.2.1,
+      ⟨v, (IsDefEq.forallEDF hAty hB hB).subst hΔ W⟩⟩
 
 /-- **Saturation at a λ.**  The body's own saturation enlarges every
 entry's output to a hereditarily typed one -- the enlarged graph is
@@ -2397,7 +2398,8 @@ theorem pair_sigma_code {Γ Γ₀ Δ : List Term} {A B a : Term} {u v : Bool} {�
       TShape.Named.mono_r hΔ hcty (TShape.LE.le_lift hΔ (m := c) hkc hcwf) hcodety'⟩, ?_⟩
   -- the Σ-code names `Σ A B`: its domain joins two approximants of `A`,
   -- and its one entry is an approximant of `B` at the pair's own name
-  exact Shape.WF.name hwfSg ⟨true, (IsDefEq.sigmaDF hAty hB hB).subst hΔ W⟩
+  exact ⟨hwfSg.1, hwfSg.2.1, hwfSg.2.2.1, hwfSg.2.2.2.1,
+    ⟨true, (IsDefEq.sigmaDF hAty hB hB).subst hΔ W⟩⟩
 
 /-- **The type of a pair**, and shorter than the λ's,
 because `Interp.pair` already carries the codes: a pair's graph is

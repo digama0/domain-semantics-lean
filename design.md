@@ -120,14 +120,13 @@ naming conjunct it is no longer admissible. (Machine-checked at commit
 `248147c`, and again as `ce_not_adm` before that file was dropped as
 documentation rather than a deliverable.)
 
-**`Shape.CodeCanonS Δ T s`**: the code `s` names its type `T`, and only
-at `s`'s own head — a Σ-code carries labels `A B` with `T ≡ Σ A B`, and
-nothing is said below. It has no recursion of its own because
-`Shape.WF` carries one of these at every Π and Σ node it descends
-through; the hereditary reading is `WF` plus this. It lives in
-`Shape.lean` for that reason, and its whole theory (conversion, join,
+**`Shape.WF Δ s (some T)`**: the code `s` is well formed and names its
+type `T`, the naming being read at `s`'s own head — a Σ-code carries
+labels `A B` with `T ≡ Σ A B`. There is no separate canonicity
+predicate: the head condition is written inline as `TyEqO`, the index
+carries it down every Π and Σ node, and the theory (conversion, join,
 lift, downward inclusion, substitution, and two graph-level companions)
-is a handful of lines, since there is nothing to push through.
+is stated on `WF` at an index.
 
 **`Shape.ValCanon Δ t s`**: the value `s` names its own projections. A
 pair is named by `fst t` and its components name `fst t` and `snd t`; a
@@ -297,11 +296,15 @@ an obstruction but a type error: `Named` is a statement about the value
 single induction carries both. The slot condition is therefore exactly
 two notions (`Slot.iff`), and `Slot` itself is their conjunction.
 
+(The predicate named `CodeCanonS` in this and the preceding paragraph was
+later removed outright; what survives of it is `Shape.WF`'s index. The
+argument below is why it had to stop being a predicate.)
+
 **And `CodeCanonS` folds into `Shape.WF`.** Not as a conjunction and not
 as a second recursion: the hereditary half moves into well-formedness,
 which was already walking the same shapes, and what is left at the head
-is a *shallow* predicate `Shape.CodeCanonS Γ T s` saying only that `s`'s
-own labels name `T`. `Shape.WF` asks for one of these at every Π and Σ
+is a *shallow* condition saying only that `s`'s own labels name `T`,
+written inline as `TyEqO Γ o <the head's type>`. `Shape.WF` asks for one of these at every Π and Σ
 node it descends through — the domain's, and one per entry output at the
 instantiated codomain — and then for a well-formed shape the deep
 condition adds nothing, so the deep recursion was deleted outright: what
@@ -312,10 +315,11 @@ Those two asks are no longer conjuncts. Well-formedness carries an
 `Option Term` index of its own (`Shape.WF Γ s o`, defaulting to `none`), read only at the head, through `TyEqO Γ o T'` — `True` at
 `none`, `TyEq Γ T T'` at `some T`. The domain code is then well formed
 *at `A`* and an entry's output *at `B.inst e.tm`*, so the recursion
-carries canonicity instead of restating it, and `Shape.WF.iff` says the
-index separates: `WF Γ s (some T) ↔ CodeCanonS Γ T s ∧ WF Γ s`. Going
-down is `WF.forget` and `WF.canon`, coming back up is `WF.name`, and a
-graph has the same pair (`ShapeFun.WF.forget`/`.canon`/`.name`). The API shed hypotheses too — `mono` no longer needs the bigger
+carries canonicity instead of restating it, and there is no separation lemma,
+because there is no second predicate to separate from: the only direction
+that has content is `WF.forget`, dropping the index. `CodeCanonS` is
+gone, and so is `ValCanon`'s use of it — a value's code-shaped heads ask
+for the named `Shape.WF` directly. The API shed hypotheses too — `mono` no longer needs the bigger
 shape's `WF`, `join` needs neither `WF` nor `Compat`, `CodeAt.of_top`
 drops a `WF`, and `CodeAt.forallE`/`CodeAt.sigma` are one line each
 because the codomain recursion they used to perform is `WF`'s job.
@@ -336,7 +340,7 @@ relates two shapes whose labels are only *definitionally equal*, so a
 transitivity step would have to carry a `some B₁` on the left and a
 `some B₃` on the right with a `some B₂` in the middle, and the two inner
 indices are different terms. The order's `ShapeFun.WF` conjuncts
-therefore sit at `none`, and the Π clause's `CodeCanonS Γ A d` stays
+therefore sit at `none`, and the Π clause's `WF Γ d (some A)` stays
 written out.
 
 The price is that `Shape.WF` is no longer purely structural. A lemma
@@ -351,7 +355,7 @@ ingredients are hoisted above the `WF` and used twice.
 
 Note what this does *not* buy. Indexing the naming by the code does not
 make `defeq` free on its own: moving a pair's name along `t ≡ t'` needs
-the Σ labels to be the type of `t`, which is `CodeCanonS`. The transport
+the Σ labels to be the type of `t`, which is the code's own naming. The transport
 needs the bundle, not the indexing, which is why `Slot.defeq` is the
 form it takes. And the fold is not free: the name has to be supplied at
 every one of the relation's ~170 sites. What makes it cheap in the end is
@@ -359,7 +363,7 @@ that the name is an **index** rather than an argument: `Named Δ d x o`
 takes an `Option Term` last, defaulting to `none`, so one inductive and
 one copy of each closure lemma serve both, `Named Δ d x` is the index-free
 notion with no syntactic cost at all, and `Named.of_isType` and
-`Named.of_not_binder` land at `none` with no `CodeCanonS` hypothesis.
+`Named.of_not_binder` land at `none` with no naming hypothesis.
 The separate `TShape.Dom` inductive and its eleven lemmas are gone, and
 so is the `Named` abbreviation that stood in for the `some` case.
 

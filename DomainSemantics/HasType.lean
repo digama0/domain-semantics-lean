@@ -1742,9 +1742,11 @@ theorem TShape.Named.wf {Δ : List Term} {o} {d x : TShape}
   cases h with
   | base _ _ hc => exact hc
   | @pi _ _ _ _ _ _ _ _ hty _ _ _ _ | @sg _ _ _ _ _ _ _ _ _ hty _ _ _ _ _ =>
+    -- the subject's head is a `lam`, a `pair` or `⊥`, and at those the
+    -- clause does not mention the index at all
     all_goals
-      exact Shape.WF.named (TShape.HasType.wf hty).1
-        (fun _ _ => by cases hty <;> first | trivial | exact Shape.CodeCanonS.bot)
+      have hty' := hty
+      cases hty' <;> first | exact TShape.WF.bot | exact (TShape.HasType.wf hty).1
 
 /-- The same at a name that is there. -/
 theorem TShape.Named.wf_mem {Δ : List Term} {o} {d x : TShape}
