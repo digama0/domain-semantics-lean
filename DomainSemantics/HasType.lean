@@ -1712,9 +1712,9 @@ definition because the definition has to survive substitution, and an
 entry that is dead at one stage can be live at a later one. -/
 theorem TShape.WF.lookup {Δ : List Term} (hΔ : ⊢ Δ) {n} {A B q : Term} {u v : Bool}
     {f : ShapeFun n} (hw : ShapeFun.WF Δ A oB (@Shape.WF Δ _) f)
-    (hf : ∀ e ∈ f, Shape.WF Δ e.out (some (B.inst e.tm)))
+    (hf : ∀ e ∈ f, Shape.WF Δ e.out (B.inst e.tm))
     (hA : Δ ⊢ A : .sort u) (hB : A :: Δ ⊢ B : .sort v) {x : TShape} :
-    ∀ {c : TShape}, TEvaluates Δ f A q x c → TShape.WF Δ c (some (B.inst q)) := by
+    ∀ {c : TShape}, TEvaluates Δ f A q x c → TShape.WF Δ c (B.inst q) := by
   intro c h
   have hwo : ∀ e ∈ f, TShape.WF Δ e.out.T := fun e he => Shape.WF.forget (hw.1 e he).2.2.2
   induction h with
@@ -1729,7 +1729,7 @@ theorem TShape.WF.lookup {Δ : List Term} (hΔ : ⊢ Δ) {n} {A B q : Term} {u v
 alone, and at `some t` it is that together with "`x` names `t`"
 (`Named.iff` is the equivalence with the conjunction).  The index is the
 last argument and defaults to `none`, so `Named Δ d x` is hereditary
-typing and `Named Δ d x (some t)` is that together with the naming.
+typing and `Named Δ d x t` is that together with the naming.
 
 The index threads through every recursive position, so that `none`
 recovers hereditary typing alone and `some t` recovers naming as well.
@@ -1739,7 +1739,7 @@ components the projections. -/
 inductive TShape.Named (Δ : List Term) :
     TShape → TShape → (o : Option Term := none) → Prop where
   | base {o} {d x : TShape} : ¬ d.IsBinder → TShape.HasType Δ x d →
-    Shape.WF Δ x.2 o → Named Δ d x o
+    TShape.WF Δ x o → Named Δ d x o
   | pi {o} {n} {A B : Term} {d : Shape n} {f : ShapeFun n} {x : TShape}
       {cs : List (Entry TShape × TShape)} :
     TShape.HasType Δ x (Shape.T (n := n+1) (ShapeS.forallE A B d f)) →
@@ -1765,7 +1765,7 @@ well-formedness; at every other head the `base` clause carries it.
 This is where the index pays off twice: the premise and the conclusion are
 the same proposition, with no `∀ t ∈ o` on either side. -/
 theorem TShape.Named.wf {Δ : List Term} {o} {d x : TShape}
-    (h : TShape.Named Δ d x o) : Shape.WF Δ x.2 o := by
+    (h : TShape.Named Δ d x o) : TShape.WF Δ x o := by
   cases h with
   | base _ _ hc => exact hc
   | @pi _ _ _ _ _ _ _ _ hty _ _ _ _ | @sg _ _ _ _ _ _ _ _ _ hty _ _ _ _ _ =>
@@ -1777,7 +1777,7 @@ theorem TShape.Named.wf {Δ : List Term} {o} {d x : TShape}
 
 /-- The same at a name that is there. -/
 theorem TShape.Named.wf_mem {Δ : List Term} {o} {d x : TShape}
-    (h : TShape.Named Δ d x o) : ∀ t ∈ o, Shape.WF Δ x.2 (some t) :=
+    (h : TShape.Named Δ d x o) : ∀ t ∈ o, TShape.WF Δ x (some t) :=
   Shape.WF.mem h.wf
 
 theorem TShape.Named.hasType {Δ : List Term} {o} {d x : TShape}
@@ -2131,7 +2131,7 @@ One induction on `Named`, which is legal because the index is a variable:
 the conclusion maps it to the constant `t'`, so `none` goes to `none` and
 `some t` to `some t'`. -/
 theorem TShape.Named.defeq_mem {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape}
-    (h : TShape.Named Δ d x o) : ∀ {T t' : Term}, TShape.WF Δ d (some T) →
+    (h : TShape.Named Δ d x o) : ∀ {T t' : Term}, TShape.WF Δ d T →
       (∀ t ∈ o, Δ ⊢ t ≡ t' : T) → TShape.Named Δ d x (o.map fun _ => t') := by
   induction h with
   | @base o d x hnb hty hc =>
@@ -2143,7 +2143,7 @@ theorem TShape.Named.defeq_mem {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape
       -- the equation is then an equation of types.  At every other head
       -- the clause does not mention the index.
       have hcode {k : Nat} {j : Bool} (hd : d = Shape.T (n := k) (Shape.sort j)) :
-          Shape.WF Δ x.2 (some t') := by
+          TShape.WF Δ x t' := by
         subst hd
         have hT : TyEq Δ T (.sort j) := TShape.WF.sort_iff.1 hC
         exact Shape.WF.conv hc ⟨_, (hT.defeqDF (ht t rfl)).symm⟩
@@ -2217,8 +2217,8 @@ theorem TShape.Named.defeq_mem {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape
 
 /-- The transport at a name that is there. -/
 theorem TShape.Named.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x : TShape}
-    (h : TShape.Named Δ d x (some t)) (hC : TShape.WF Δ d (some T))
-    (ht : Δ ⊢ t ≡ t' : T) : TShape.Named Δ d x (some t') :=
+    (h : TShape.Named Δ d x t) (hC : TShape.WF Δ d T)
+    (ht : Δ ⊢ t ≡ t' : T) : TShape.Named Δ d x t' :=
   h.defeq_mem hΔ hC (by
     intro _ hu; simp only [Option.mem_def, Option.some.injEq] at hu; subst hu; exact ht)
 
@@ -2644,7 +2644,7 @@ already holds. -/
 /-- `x` is hereditarily typed at the code `d` and names the term `t`, and
 `d` names the type `T`. -/
 def TShape.Slot (Δ : List Term) (T : Term) (d : TShape) (t : Term) (x : TShape) : Prop :=
-  TShape.Named Δ d x (some t) ∧ Shape.WF Δ d.2 (some T)
+  TShape.Named Δ d x t ∧ TShape.WF Δ d T
 
 /-- **The transport, with nothing to pass in.** -/
 theorem TShape.Slot.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x : TShape}

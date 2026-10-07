@@ -339,11 +339,11 @@ def Shape.WF (Γ : List Term) : ∀ {n}, Shape n → (o : Option Term := none) �
         TyEqO Γ o (.id r A a b)
   | _+1, .forallE A B d f, o =>
       (∃ u, Γ ⊢ A : .sort u) ∧ (∃ v, A :: Γ ⊢ B : .sort v) ∧
-        WF Γ d (some A) ∧ ShapeFun.WF Γ A (some B) (@WF Γ _) f ∧
+        WF Γ d A ∧ ShapeFun.WF Γ A B (@WF Γ _) f ∧
         TyEqO Γ o (.forallE A B)
   | _+1, .sigma A B d f, o =>
       (∃ u, Γ ⊢ A : .sort u) ∧ (∃ v, A :: Γ ⊢ B : .sort v) ∧
-        WF Γ d (some A) ∧ ShapeFun.WF Γ A (some B) (@WF Γ _) f ∧
+        WF Γ d A ∧ ShapeFun.WF Γ A B (@WF Γ _) f ∧
         TyEqO Γ o (.sigma A B)
   -- the two components, with the first's name; the non-degeneracy
   -- conjunct keeps `⊥` the only bottom
@@ -397,7 +397,7 @@ theorem Shape.WF.mem {Γ : List Term} {o} {n} {s : Shape n}
 /-- **A name moves along an equality of types.**  Only the head mentions
 it, so this is one `cases` and the other conjuncts ride along. -/
 theorem Shape.WF.conv : ∀ {n} {Γ : List Term} {T T' : Term} {x : Shape n},
-    Shape.WF Γ x (some T) → TyEq Γ T' T → Shape.WF Γ x (some T')
+    Shape.WF Γ x T → TyEq Γ T' T → Shape.WF Γ x T'
   | 0, _, _, _, x => by cases x <;> intro h hT <;> first | exact h | exact hT.trans h
   | _+1, _, _, _, x => by
     cases x <;> intro h hT <;>
@@ -411,16 +411,16 @@ theorem Shape.WF.conv : ∀ {n} {Γ : List Term} {T T' : Term} {x : Shape n},
 and every output names the codomain read at the entry's label. -/
 theorem ShapeFun.WF.name {Δ : List Term} {n} {T B : Term} {f : ShapeFun n}
     (h : ShapeFun.WF Δ T none (@Shape.WF Δ _) f)
-    (hc : ∀ e ∈ f, Shape.WF Δ e.out (some (B.inst e.tm))) :
-    ShapeFun.WF Δ T (some B) (@Shape.WF Δ _) f :=
+    (hc : ∀ e ∈ f, Shape.WF Δ e.out (B.inst e.tm)) :
+    ShapeFun.WF Δ T B (@Shape.WF Δ _) f :=
   ⟨fun e he =>
     have ⟨hty, htm, hin, _⟩ := h.1 e he
     ⟨hty, htm, hin, hc e he⟩, h.2⟩
 
 /-- The per-entry naming a graph's index carries. -/
 theorem ShapeFun.WF.canon {Δ : List Term} {n} {T B : Term} {f : ShapeFun n}
-    (h : ShapeFun.WF Δ T (some B) (@Shape.WF Δ _) f) :
-    ∀ e ∈ f, Shape.WF Δ e.out (some (B.inst e.tm)) :=
+    (h : ShapeFun.WF Δ T B (@Shape.WF Δ _) f) :
+    ∀ e ∈ f, Shape.WF Δ e.out (B.inst e.tm) :=
   fun e he => (h.1 e he).2.2.2
 
 /-- And back. -/
@@ -458,9 +458,9 @@ are read at `B'` and wanted at `B`, which the Π label equality supplies
 once the entry's term is typed at `A`. -/
 theorem ShapeFun.codeCanonS_append {n} {Δ : List Term} (hΔ : ⊢ Δ) {A A' B B' : Term}
     {f g : ShapeFun n} (hlab : PiLabelEq Δ A B A' B') (hg : ∀ e ∈ g, Δ ⊢ e.tm : A')
-    (hcf : ∀ e ∈ f, Shape.WF Δ e.out (some (B.inst e.tm)))
-    (hcg : ∀ e ∈ g, Shape.WF Δ e.out (some (B'.inst e.tm))) :
-    ∀ e ∈ f ++ g, Shape.WF Δ e.out (some (B.inst e.tm)) := by
+    (hcf : ∀ e ∈ f, Shape.WF Δ e.out (B.inst e.tm))
+    (hcg : ∀ e ∈ g, Shape.WF Δ e.out (B'.inst e.tm)) :
+    ∀ e ∈ f ++ g, Shape.WF Δ e.out (B.inst e.tm) := by
   obtain ⟨⟨u, hAA'⟩, v, hBB'⟩ := hlab
   intro e he
   rcases List.mem_append.1 he with h | h
@@ -629,7 +629,7 @@ def Shape.LE (Γ : List Term) : ∀ {n}, Shape n → Shape n → Prop
   | _+1, .forallE A B d f, .forallE A' B' d' f'
   | _+1, .sigma A B d f, .sigma A' B' d' f' =>
     PiLabelEq Γ A B A' B' ∧ LE Γ d d' ∧ ShapeFun.LE Γ (LE Γ) (@WF Γ _) A f f' ∧
-      Shape.WF Γ d (some A) ∧ ∀ e ∈ f, Shape.WF Γ e.out (some (B.inst e.tm))
+      Shape.WF Γ d A ∧ ∀ e ∈ f, Shape.WF Γ e.out (B.inst e.tm)
   | _+1, .pair A a x y, .pair A' a' x' y' =>
     LE Γ x x' ∧ LE Γ y y' ∧ ¬ (x.IsBot ∧ y.IsBot) ∧ TyEq Γ A A' ∧ (Γ ⊢ a ≡ a' : A)
   | _+1, .lam A f, .lam A' f' =>
@@ -710,7 +710,7 @@ theorem Shape.LE.wf {Γ : List Term} :
 definitional equality; `LE.wf` supplies every other conjunct. -/
 theorem Shape.WF.mono_mem {Δ : List Term} (hΔ : ⊢ Δ) :
     ∀ {n} {T : Term} {x y : Shape n},
-      Shape.LE Δ x y → Shape.WF Δ y (some T) → Shape.WF Δ x (some T) := by
+      Shape.LE Δ x y → Shape.WF Δ y T → Shape.WF Δ x T := by
   intro n
   cases n with
   | zero =>
@@ -1013,8 +1013,8 @@ theorem ShapeFun.lift_wf {n m} (h : n ≤ m) {Δ : List Term} {f : ShapeFun n} :
 /-- The per-entry codomain names are lift-invariant, entry by entry. -/
 theorem ShapeFun.codeCanonS_lift_iff {n m} (h : n ≤ m) {Δ : List Term} {B : Term}
     {f : ShapeFun n} :
-    (∀ e ∈ ShapeFun.lift (Shape.lift m) f, Shape.WF Δ e.out (some (B.inst e.tm))) ↔
-      ∀ e ∈ f, Shape.WF Δ e.out (some (B.inst e.tm)) :=
+    (∀ e ∈ ShapeFun.lift (Shape.lift m) f, Shape.WF Δ e.out (B.inst e.tm)) ↔
+      ∀ e ∈ f, Shape.WF Δ e.out (B.inst e.tm) :=
   ⟨fun H e he => (Shape.lift_wf h).1 (H _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)),
    fun H e he => by
      obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
@@ -1836,8 +1836,8 @@ theorem ShapeFun.Compat.of_common_upper {n} {Δ : List Term} {f f' g : ShapeFun 
 hypothesis, because the two places that need this have it already and
 reach it by different routes. -/
 theorem Shape.WF.join_of : ∀ {n} {Γ : List Term} {T : Term} {y z : Shape n},
-    Shape.WF Γ (y.join z) → Shape.WF Γ y (some T) → Shape.WF Γ z (some T) →
-      Shape.WF Γ (y.join z) (some T) := by
+    Shape.WF Γ (y.join z) → Shape.WF Γ y T → Shape.WF Γ z T →
+      Shape.WF Γ (y.join z) T := by
   intro n
   cases n with
   | zero =>
@@ -2663,7 +2663,7 @@ theorem TyEq.inst' {Δ : List Term} (hΔ : ⊢ Δ) {A B B' a a' : Term} {u : Boo
 
 /-- A sort-shaped code names a sort, at every level. -/
 theorem TShape.WF.sort_iff {Δ : List Term} {T : Term} {k} {j : Bool} :
-    TShape.WF Δ (Shape.T (n := k) (Shape.sort j)) (some T) ↔ TyEq Δ T (.sort j) := by
+    TShape.WF Δ (Shape.T (n := k) (Shape.sort j)) T ↔ TyEq Δ T (.sort j) := by
   cases k <;> exact Iff.rfl
 
 
@@ -2672,7 +2672,7 @@ theorem TShape.WF.sort_iff {Δ : List Term} {T : Term} {k} {j : Bool} :
 
 /-- The total-level conversion. -/
 theorem TShape.WF.conv {Δ : List Term} {T T' : Term} {x : TShape}
-    (h : TShape.WF Δ x (some T)) (hT : TyEq Δ T' T) : TShape.WF Δ x (some T') :=
+    (h : TShape.WF Δ x T) (hT : TyEq Δ T' T) : TShape.WF Δ x T' :=
   Shape.WF.conv h hT
 
 /-! ## The join at the total level
@@ -2772,8 +2772,8 @@ end TShape
 
 /-- The total-level order. -/
 theorem TShape.WF.mono {Δ : List Term} (hΔ : ⊢ Δ) {T : Term} {x x' : TShape}
-    (hle : TShape.LE Δ x' x) (hC : TShape.WF Δ x (some T)) :
-    TShape.WF Δ x' (some T) := by
+    (hle : TShape.LE Δ x' x) (hC : TShape.WF Δ x T) :
+    TShape.WF Δ x' T := by
   have h := TShape.LE.def_mp (Nat.le_max_left x'.1 x.1) (Nat.le_max_right x'.1 x.1) hle
   rw [TShape.WF.def (Nat.le_max_right x'.1 x.1)] at hC
   rw [TShape.WF.def (Nat.le_max_left x'.1 x.1)]

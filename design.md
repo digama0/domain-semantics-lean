@@ -44,16 +44,17 @@ is never information-free, so `IsBot` collapses to `= ⊥` and the
 collapse clauses the order would otherwise need disappear.
 
 **`Shape.WF Γ s o`**, well-formedness, with an `Option Term` index: every
-label in `s` is well typed in `Γ`, and at `some T` the head's own labels
-name `T`. The index is the last argument and defaults to `none`, so
+label in `s` is well typed in `Γ`, and at a name the head's own labels
+name it. The index is the last argument and defaults to `none`, so
 `Shape.WF Γ s` is the structural notion written exactly as if there were
-no index, and `Shape.WF Γ s (some T)` is "well formed and names `T`".
+no index; `Option`'s coercion then lets the named form be written
+`Shape.WF Γ s T` rather than `Shape.WF Γ s (some T)`.
 
 The index is read in one place, `TyEqO Γ o T'` — `True` at `none`,
-`TyEq Γ T T'` at `some T` — so at `none` every clause reduces to the
+`TyEq Γ T T'` at a name — so at `none` every clause reduces to the
 structural one. It carries down the recursion rather than being restated:
-a Π node asks for its domain code at `some A` and, through
-`ShapeFun.WF`, each entry's output at `some (B.inst e.tm)`. There is no
+a Π node asks for its domain code at `A` and, through `ShapeFun.WF`, each
+entry's output at `B.inst e.tm`. There is no
 separate canonicity predicate; hereditary naming *is* `WF` at an index.
 
 `WF` also carries the two conditions that are not about labels:
@@ -89,10 +90,10 @@ keeps typing lower-closed.
 **`TShape.Named Δ d x o`**, hereditary typing with a name. An inductive
 over the code, with an `Option Term` index that is the name, last and
 defaulting to `none`, so `Named Δ d x` is hereditary typing alone and
-`Named Δ d x (some t)` is that together with "`x` names `t`". Three
+`Named Δ d x t` is that together with "`x` names `t`". Three
 clauses:
 
-- at a code that only filters, `HasType` together with `Shape.WF Δ x.2 o`
+- at a code that only filters, `HasType` together with `TShape.WF Δ x o`
   — the subject well formed at the index;
 - at a Π, every entry's input is hereditarily typed at the domain and
   every output at the codomain read there (intgrah's
@@ -105,7 +106,7 @@ clauses:
 Making the name an index rather than an argument is what lets one
 inductive and one copy of each closure lemma (`subst`, `lift_subject`,
 `mono_r`, `join`, `sg_inv`, `defeq`) serve both readings. The extraction
-`Named.wf : Named Δ d x o → Shape.WF Δ x.2 o` has premise and conclusion
+`Named.wf : Named Δ d x o → TShape.WF Δ x o` has premise and conclusion
 the same proposition.
 
 `Named` is only ever used upward, so it is closed under joins and needs
@@ -117,10 +118,10 @@ shape is hereditarily typed at**. Stating it relative to the code is what
 avoids needing Σ-injectivity or type uniqueness, both of which are
 derived *from* soundness here and so unavailable. It is one induction on
 `Named`, legal because the index is a variable: the conclusion maps it to
-the constant `t'`, so `none` goes to `none` and `some t` to `some t'`.
+the constant `t'`, so `none` goes to `none` and a name `t` to `t'`.
 
-**`TShape.Slot Δ T d t x`** is `Named Δ d x (some t) ∧ Shape.WF Δ d.2
-(some T)` — the shape names the term, and its code names the type. Two
+**`TShape.Slot Δ T d t x`** is `Named Δ d x t ∧ TShape.WF Δ d T` — the
+shape names the term, and its code names the type. Two
 conjuncts, not three and not a bundle, because the naming already travels
 inside the hereditary typing.
 
