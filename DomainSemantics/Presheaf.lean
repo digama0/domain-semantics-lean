@@ -1685,12 +1685,17 @@ theorem sound_lam_dom {Γ : List Term} {A B b : Term} {u v : Bool}
     refine ⟨Shape.T (n := k+1) (.lam (A.subst σ) g'), _, hlamI,
       TShape.LE.trans hΔ hle hlamle, hPi,
       .of_dom (.pi (cs := cs₀.map (fun p => ((⟨p.1.tm, p.1.inp.T, p.1.out.T⟩ : Entry TShape),
-        p.2))) hty ?_ (fun p hp => ?_) (fun p hp => ?_) (fun p hp => ?_)) ?_, hcanPi⟩
+        p.2))) hty ?_ (fun p hp => ?_) (fun p hp => ?_) (fun p hp => ?_)
+        (fun p hp => ?_)) ?_, hcanPi⟩
     · show g'.map (fun e => (⟨e.tm, e.inp.T, e.out.T⟩ : Entry TShape)) = _
       rw [← hcsmap]
       simp [List.map_map, Function.comp_def]
     · obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
       exact hinP q.1 (hcsg q hq)
+    · obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
+      obtain ⟨r, hr, heq⟩ := (hg' q.1).1 (hcsg q hq)
+      rw [heq]
+      exact ((Shape.ValCanon.lift hΔ hkn).2 (hcan r.1 (hgsg r hr))).toCode
     · obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
       exact (hcsall q hq).1
     · obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
@@ -2746,7 +2751,7 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
     cases hFdom with
     | base hnb _ => exact absurd hPpi.isBinder hnb
     | sg _ _ _ _ _ => exact absurd trivial hPpi.not_sigma
-    | @pi nP A' B' dP fP _ cs hty hent hin hevc hout =>
+    | @pi nP A' B' dP fP _ cs hty hent hin hnmq hevc hout =>
       -- the saturated function is a λ-shape, and the code's codomain
       -- graph is covered by the canonical one
       cases hty with
@@ -4813,7 +4818,7 @@ theorem sound_eta_of {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
     -- not a Π-shape, so `⊥` — and then so is the subject
     have hb : p.2 = Shape.bot := hpi.resolve_right (fun h => hnb h.isBinder)
     exact hmbot (TShape.le_bot hΔ (TShape.HasType.bot_r hΔ hb hty) hle)
-  | @pi n A' B' d f _ cs hty hent hin hev hout =>
+  | @pi n A' B' d f _ cs hty hent hin hnm hev hout =>
     -- the dominating approximant is a λ-shape, and its entries' inputs
     -- are hereditarily typed at the Π's domain
     cases hty with

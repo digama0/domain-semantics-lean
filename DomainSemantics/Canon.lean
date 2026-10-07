@@ -194,7 +194,7 @@ theorem Shape.ValCanon.defeq {Δ : List Term} (hΔ : ⊢ Δ) :
       | @lam _ _ _ _ _ f A B d _ _ _ hwl hwf _ _ _ _ hA₀A
       cases hD with
       | base hnb _ => exact absurd trivial hnb
-      | @pi _ _ _ _ _ _ cs _ hent _ hev hout
+      | @pi _ _ _ _ _ _ cs _ hent _ _ hev hout
       have hT := hC
       have hCd := hwf.2.2.2.2.1
       have hCf := hwf.2.2.2.2.2
@@ -422,11 +422,24 @@ inductive TShape.Named (Δ : List Term) : TShape → Term → TShape → Prop wh
     (∀ p ∈ ps, Named Δ c (Term.snd t) p.2.2) →
     Named Δ (Shape.T (n := n+1) (ShapeS.sigma A B d f)) t x
 
+/-- The shallow half of a name, which is all `Dom`'s `pi` clause asks of
+an entry's input: at a `lam` or a `pair` it is `True`, and at any other
+head `Named`'s `base` clause carries it. -/
+theorem TShape.Named.shallow {Δ : List Term} {d x : TShape} {t : Term}
+    (h : TShape.Named Δ d t x) : Shape.CodeCanonS Δ t x.2 := by
+  cases h with
+  | base _ _ hc => exact hc
+  | @pi _ _ _ _ _ _ _ _ hty _ _ _ _ =>
+    cases hty <;> first | trivial | exact Shape.CodeCanonS.bot
+  | @sg _ _ _ _ _ _ _ _ _ hty _ _ _ _ _ =>
+    cases hty <;> first | trivial | exact Shape.CodeCanonS.bot
+
 theorem TShape.Named.dom {Δ : List Term} {d x : TShape} {t : Term}
     (h : TShape.Named Δ d t x) : TShape.Dom Δ d x := by
   induction h with
   | base hnb hty _ => exact .base hnb hty
-  | pi hty hent _ hev _ ihin ihout => exact .pi hty hent ihin hev ihout
+  | @pi _ _ _ _ _ _ _ _ hty hent hin hev _ ihin ihout =>
+    exact .pi hty hent ihin (fun p hp => (hin p hp).shallow) hev ihout
   | sg hty hps _ _ hev _ ihx ihy => exact .sg hty hps ihx hev ihy
 
 /-- At a code that only filters, a typed shape is never a `lam` or a
@@ -489,7 +502,7 @@ theorem TShape.Named.of_dom {Δ : List Term} {d x : TShape} {t : Term}
   revert hV
   induction hD generalizing t with
   | base hnb hty => exact fun hV => .base hnb hty (Shape.ValCanon.toCode hV)
-  | @pi n A B d f x cs hty hent _ hev _ ihin ihout =>
+  | @pi n A B d f x cs hty hent _ _ hev _ ihin ihout =>
     intro hV
     have hall : ∀ p ∈ cs, TShape.ValCanon Δ p.1.tm p.1.inp ∧
         TShape.ValCanon Δ (Term.app t p.1.tm) p.1.out := by
