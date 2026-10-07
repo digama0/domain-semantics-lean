@@ -488,8 +488,6 @@ theorem sound_forallE_ty {Γ : List Term} {A B : Term} {u v : Bool} (ihAd : Soun
   | bot =>
     exact ⟨TShape.sort v, Interp.sort', .bot .sort⟩
   | forallE hA hd hwf hNV hbody hw hle =>
-    have hdom := fun e he => (hNV e he).dom
-    have hcan := fun e he => (hNV e he).val
     refine ⟨TShape.sort v, Interp.sort', TShape.HasType.mono_l hΔ ?_ hle⟩
     -- the domain half is now the constructor's own premise; only the
     -- codomain runs an induction hypothesis
@@ -590,8 +588,6 @@ theorem sound_sigma_ty {Γ : List Term} {A B : Term} {u v : Bool} (ihAd : SoundD
   cases hm with
   | bot => exact ⟨TShape.type, Interp.sort', .bot .sort⟩
   | sigma hA hd hwf hNV hbody hw hle =>
-    have hdom := fun e he => (hNV e he).dom
-    have hcan := fun e he => (hNV e he).val
     refine ⟨TShape.type, Interp.sort', TShape.HasType.mono_l hΔ ?_ hle⟩
     refine .sigma hd (fun e he => ?_) hwf
     have hwe := hwf.2.2.2.1 e he
@@ -613,8 +609,6 @@ theorem CodeAt.forallE {Γ : List Term} {A B : Term} {u v : Bool}
   cases hm with
   | bot => exact TShape.CodeCanon.bot
   | forallE hA hd hwf hNV hbody hw hle =>
-    have hdom := fun e he => (hNV e he).dom
-    have hcan := fun e he => (hNV e he).val
     refine TShape.CodeCanon.mono hΔ hle (TShape.WF.T.2 hwf)
       ⟨⟨v, (IsDefEq.forallEDF hAty hB hB).subst hΔ W⟩, ihAd.codeAt hΔ W hAdm hA,
         fun e he => ?_⟩
@@ -639,8 +633,6 @@ theorem CodeAt.sigma {Γ : List Term} {A B : Term} {u v : Bool}
   cases hm with
   | bot => exact TShape.CodeCanon.bot
   | sigma hA hd hwf hNV hbody hw hle =>
-    have hdom := fun e he => (hNV e he).dom
-    have hcan := fun e he => (hNV e he).val
     refine TShape.CodeCanon.mono hΔ hle (TShape.WF.T.2 hwf)
       ⟨⟨true, (IsDefEq.sigmaDF hAty hB hB).subst hΔ W⟩, ihAd.codeAt hΔ W hAdm hA,
         fun e he => ?_⟩
@@ -1412,8 +1404,6 @@ theorem lam_stage {Γ Γ₀ Δ : List Term} {A : Term} {u : Bool} {σ ρ}
     (hNV : ∀ e ∈ g, TShape.Named Δ d e.tm e.inp.T) :
     ∀ e ∈ g, Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) ∧
       Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push e.inp.T) := by
-  have hdom := fun e he => (hNV e he).dom
-  have hcan := fun e he => (hNV e he).val
   intro e he
   have hwe := hwf.2.2.1.1 e he
   exact ⟨.cons W hAty hwe.2.1,

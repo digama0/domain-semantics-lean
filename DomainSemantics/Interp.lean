@@ -701,8 +701,6 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
     exact .app (ihF hΘ W) (iha hΘ W) hev' (hw.subst hΘ W) (h1.subst hΘ W)
       (hty.subst W)
   | lam _ hd hwf hNV _ hw h1 hAt ihA ihbody =>
-    have hdom := fun e he => (hNV e he).dom
-    have hcan := fun e he => (hNV e he).val
     have hwf' := hwf.subst hΘ W; have h1' := h1.subst hΘ W
     rw [Shape.subst, subst_subst] at hwf'
     simp only [TShape.subst_T, Shape.subst, subst_subst] at h1'
@@ -716,8 +714,6 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
       have := ihbody e he hΘ W
       rwa [Subst.cons_comp, Valuation.subst_push, TShape.subst_T] at this
   | forallE _ hd hwf hNV _ hw h1 hAt hBt ihA ihbody =>
-    have hdom := fun e he => (hNV e he).dom
-    have hcan := fun e he => (hNV e he).val
     have hwf' := hwf.subst hΘ W
     have h1' := h1.subst hΘ W
     simp only [TShape.subst_T, Shape.subst, subst_subst, ← Subst.comp_lift] at hwf' h1'
@@ -729,8 +725,6 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
       have := ihbody e he hΘ W
       rwa [Subst.cons_comp, Valuation.subst_push, TShape.subst_T] at this
   | sigma _ hd hwf hNV _ hw h1 hAt hBt ihA ihbody =>
-    have hdom := fun e he => (hNV e he).dom
-    have hcan := fun e he => (hNV e he).val
     have hwf' := hwf.subst hΘ W
     have h1' := h1.subst hΘ W
     simp only [TShape.subst_T, Shape.subst, subst_subst, ← Subst.comp_lift] at hwf' h1'
@@ -743,8 +737,6 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
       rwa [Subst.cons_comp, Valuation.subst_push, TShape.subst_T] at this
   | @pair _ _ _ _ _ _ _ _ _ _ _ _ _ ha hb hA hd hNV hdc hwf hcode hcty hw h1 
       hAt hat iha ihb ihA ihcode =>
-    have hdx := hNV.dom
-    have hxc := hNV.val
     have hwf' := hwf.subst hΘ W
     have h1' := h1.subst hΘ W
     simp only [TShape.subst_T, Shape.subst, subst_subst] at hwf' h1'
@@ -772,8 +764,6 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
     have := ihb hΘ W
     rwa [Subst.cons_comp, Valuation.subst_push, TShape.subst_T] at this
   | Y _ hwx _ hdty hNV hdc _ hAt hYt ihself ihA ihb =>
-    have hDom := hNV.dom
-    have hxc := hNV.val
     refine .Y (ihself hΘ W) (hwx.subst hΘ W) (ihA hΘ W)
       (TShape.HasType.subst hΘ W hdty)
       (by simpa [subst_subst] using TShape.Named.subst hΘ W hNV)
@@ -786,10 +776,6 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
     exact .id (hw.subst hΘ W) this hAt hat hbt
   | refl hw h1 => exact .refl (hw.subst hΘ W) (h1.subst hΘ W)
   | tr hw hle _ _ _ _ hwv hNV hvc _ hcb hNV2 hcbc hH heq hAt hat hbt ihX iha ihb ihA ihC =>
-    have hvA := hNV.dom
-    have hbc := hNV.val
-    have hm' := hNV2.dom
-    have hmc := hNV2.val
     have heq' := heq.subst hΘ W
     rw [subst_subst, subst_subst, subst_subst] at heq'
     refine .tr (hw.subst hΘ W) (hle.subst hΘ W) (ihX hΘ W) (iha hΘ W) (ihb hΘ W) (ihA hΘ W)

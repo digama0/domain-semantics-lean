@@ -99,18 +99,16 @@ theorem IsDefEq.ctxId {Γ Γ' : List Term} (hΓ' : ⊢ Γ')
     (h : Γ ⊢ e₁ ≡ e₂ : A) : Γ' ⊢ e₁ ≡ e₂ : A := by simpa using h.subst hΓ' W
 
 /-- A pair of equal labels makes the two Σ-types definitionally equal. -/
-theorem PiLabelEq.sigmaTyEq {Δ : List Term} {A B A' B' : Term} (hΔ : ⊢ Δ)
-    (h : PiLabelEq Δ A B A' B') : TyEq Δ (Term.sigma A B) (Term.sigma A' B') :=
-  ⟨_, IsDefEq.sigmaDF h.1.choose_spec h.2.choose_spec
-    (IsDefEq.ctxId (show ⊢ (A' :: Δ) from ⟨hΔ, _, h.1.choose_spec.hasType.2⟩)
-      (Ctx.SubstEq.defeqHead' hΔ h.1.choose_spec) h.2.choose_spec)⟩
+theorem PiLabelEq.sigmaTyEq {Δ : List Term} {A B A' B' : Term} (hΔ : ⊢ Δ) :
+    PiLabelEq Δ A B A' B' → TyEq Δ (.sigma A B) (.sigma A' B')
+  | ⟨⟨_, h1⟩, _, h2⟩ =>
+    ⟨_, .sigmaDF h1 h2 (.ctxId (Γ' := A' :: Δ) ⟨hΔ, _, h1.hasType.2⟩ (.defeqHead' hΔ h1) h2)⟩
 
 /-- The Π twin. -/
-theorem PiLabelEq.forallETyEq {Δ : List Term} {A B A' B' : Term} (hΔ : ⊢ Δ)
-    (h : PiLabelEq Δ A B A' B') : TyEq Δ (Term.forallE A B) (Term.forallE A' B') :=
-  ⟨_, IsDefEq.forallEDF h.1.choose_spec h.2.choose_spec
-    (IsDefEq.ctxId (show ⊢ (A' :: Δ) from ⟨hΔ, _, h.1.choose_spec.hasType.2⟩)
-      (Ctx.SubstEq.defeqHead' hΔ h.1.choose_spec) h.2.choose_spec)⟩
+theorem PiLabelEq.forallETyEq {Δ : List Term} {A B A' B' : Term} (hΔ : ⊢ Δ) :
+    PiLabelEq Δ A B A' B' → TyEq Δ (.forallE A B) (.forallE A' B')
+  | ⟨⟨_, h1⟩, _, h2⟩ =>
+    ⟨_, .forallEDF h1 h2 (.ctxId (Γ' := A' :: Δ) ⟨hΔ, _, h1.hasType.2⟩ (.defeqHead' hΔ h1) h2)⟩
 
 /-- The instance of a type family at two equal arguments. -/
 theorem TyEq.inst {Δ : List Term} (hΔ : ⊢ Δ) {A B B' a a' : Term} {u v : Bool}
