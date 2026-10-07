@@ -84,19 +84,22 @@ Lower-closed: a smaller shape is still typed. That is what the `pair`
 clause pays for by reading the second component's code at a **dominator**
 of the first rather than at the first itself.
 
-**`TShape.Dom Δ d x`** (`HasType.lean`), hereditary typing. An inductive,
-not a recursion on the code, because at Π the codomain code is a *lookup*
-in the Π's graph and a premise may not existentially quantify the
-inductive being defined. Three clauses:
+**`TShape.NamedO Δ o d x`** (`HasType.lean`), hereditary typing, with an
+`Option Term` index carrying the name (§3.3). An inductive, not a
+recursion on the code, because at Π the codomain code is a *lookup* in
+the Π's graph and a premise may not existentially quantify the inductive
+being defined. Three clauses:
 
-- at a code that only filters, it is just `HasType`;
-- at a Π, additionally every entry's input is `Dom` at the domain and
-  every output is `Dom` at the codomain read there (intgrah's
-  `arrow Q P F = λX. Q (F (P X))`);
-- at a Σ, the first component is `Dom` at the domain and the second at
-  the codomain read at the pair's own name.
+- at a code that only filters, it is `HasType` and the code's own naming;
+- at a Π, additionally every entry's input is hereditarily typed at the
+  domain and every output at the codomain read there (intgrah's
+  `arrow Q P F = λX. Q (F (P X))`), the index becoming `e.tm` on the
+  input and `app t e.tm` on the output;
+- at a Σ, the first component is hereditarily typed at the domain and the
+  second at the codomain read at the pair's own name, the index becoming
+  `fst t` and `snd t`.
 
-`Dom` is only ever used upward, so it is closed under joins and needs no
+Hereditary typing is only ever used upward, so it is closed under joins and needs no
 lower-closure. On a slot this is intgrah's `SourceAdmissible.cons`
 condition `rawExtend ⟦A⟧ (ρ 0) = ρ 0`: the slot is a fixed point of the
 type's idempotent projection. He gets idempotence free from the object;
@@ -132,7 +135,7 @@ pair is named by `fst t` and its components name `fst t` and `snd t`; a
 
 **`ValCanon.defeq`** is the lemma the whole thing turns on: it moves a
 name along a definitional equality of the subject **through the code the
-value is `Dom`-typed at**. Stating it relative to the code is what avoids
+value is hereditarily typed at**. Stating it relative to the code is what avoids
 needing Σ-injectivity or type uniqueness, both of which are derived
 *from* soundness here and so unavailable.
 
@@ -269,12 +272,13 @@ closure, is consumed; the merged predicate would have to have it; and
 reached by a lookup at a *definitionally equal* label, so its output
 names `app t e'.tm` where the bigger one names `app t e.tm`, and moving
 a value's name along that equality is `ValCanon.defeq`, which needs the
-code the value is `Dom`-typed at. `mono` does not have one. That is why
+code the value is hereditarily typed at. `mono` does not have one. That is why
 `ValCanon` has `defeq`, `subst`, `lift`, `join` and `toCode` but no
 `mono`.
 
-**`ValCanon` merges with `Dom` instead** (`TShape.Named`, and
-`Named.iff` for the equivalence). The two are the same induction: `Dom`
+**`ValCanon` merges with hereditary typing instead** (`TShape.Named`,
+which is `NamedO` at `some t`, and `Named.iff` for the equivalence). The
+two are the same induction: hereditary typing
 recurses on the code and `ValCanon` on the shape, but a shape typed at a
 code has its head determined by that code, so the recursions line up
 clause for clause. Folding the naming in needs three observations. At a
@@ -329,10 +333,14 @@ Note what this does *not* buy. Indexing the naming by the code does not
 make `defeq` free on its own: moving a pair's name along `t ≡ t'` needs
 the Σ labels to be the type of `t`, which is `CodeCanonS`. The transport
 needs the bundle, not the indexing, which is why `Slot.defeq` is the
-form it takes. And the fold is not free: `Dom`'s term argument has to be
-supplied at every one of its ~170 sites, and `Dom.of_isType` and
-`Dom.of_not_binder` would each gain a `CodeCanonS` hypothesis. `Named`
-is proved and unused; the propagation is a separate job.
+form it takes. And the fold is not free: the name has to be supplied at
+every one of the relation's ~170 sites. What makes it cheap in the end is
+that the name is an **index** rather than an argument: `NamedO Δ o d x`
+takes an `Option Term`, `Named` is its `some` case and the index-free
+notion its `none` case, so one inductive and one copy of each closure
+lemma serve both, and `NamedO.of_isType` and `NamedO.of_not_binder` land
+at `none` with no `CodeCanonS` hypothesis at all. The separate `Dom`
+inductive and its eleven lemmas are gone.
 
 Two things are known to be separable, and both were separated. **`dir`**
 is its own induction, proved before soundness and under the weaker

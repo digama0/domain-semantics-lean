@@ -3109,4 +3109,52 @@ Also in this round: `TShape.Dom` and `ValCanon` merged into
 `TShape.Named` (hereditarily typed at a code *and* naming a term), whose
 `Named.defeq` is the transport with the code's naming as its only extra
 argument; and `CodeCanon`'s `⊥`-output exemption was dropped, having
-always been implied by `CodeCanon` at `⊥` being `True`.
+always been implied by `CodeCanon` at `⊥` being `True`. §8 then removes
+`TShape.Dom` itself.
+
+## 8. Hereditary typing indexed by the name (2026-10-07)
+
+§7 merged `ValCanon` into hereditary typing as `TShape.Named`, which left
+two inductives over the same code recursion — `TShape.Dom` for the
+index-free notion and `Named` for the named one — and a bridge between
+them. This round collapses them into one.
+
+The move is to make the name an **index** rather than an argument:
+
+```
+TShape.NamedO (Δ : List Term) : Option Term → TShape → TShape → Prop
+TShape.Named Δ d t x := TShape.NamedO Δ (some t) d x
+```
+
+The `base` clause asks `∀ t ∈ o, Shape.CodeCanonS Δ t x.2`, which is
+vacuous at `none`; the `pi` clause maps the index to `e.tm` on an entry's
+input and `app t e.tm` on its output; the `sg` clause maps it to `fst t`
+and `snd t` and asks the pair's label to be `fst t` only `∀ t ∈ o`. So at
+`none` the relation is exactly the old `Dom`, at `some t` exactly the old
+`Named`, and **one** inductive with **one** copy of each closure lemma
+(`hasType`, `bot`, `subst`, `lift_subject`, `mono_r`, `sg_inv`, `join_at`,
+`join`, `of_isType`, `of_not_binder`) serves both. `TShape.Dom` and its
+eleven lemmas are deleted.
+
+Three things had to be true for this to work, and each was a real step:
+
+1. **`NamedO.reindex`** — weakening the index — must be proved by direct
+   induction on `NamedO`, because `induction` refuses an inductive whose
+   index is not a variable. This is also why the earlier attempt, defining
+   `Dom := NamedO none` while keeping `Dom`'s own lemmas, could not be
+   made to go: every one of them inducted at the fixed index `none`.
+2. **`NamedO.shallow`**, the extraction `NamedO o d x → ∀ t ∈ o,
+   CodeCanonS Δ t x.2`, has to live beside the inductive rather than in
+   `Canon.lean`, because `join_at`'s `base` case needs the *other* side's
+   shallow name in order to join the two with `CodeCanonS.join`.
+3. **`mono_r` at a Σ** moves the name equation along the domain label:
+   the target code's label is a different term, so the equation
+   `p.1 ≡ fst t : A` has to be retyped at `A'` with the `LE`'s label
+   equality. That is the only clause where the index does real work.
+
+What it buys, beyond one inductive instead of two: `NamedO.of_isType` and
+`NamedO.of_not_binder` land at `none` and so need no `CodeCanonS`
+hypothesis, which was the cost §7 anticipated and which the indexing
+avoids. `Interp` and `Presheaf` mention only `Named` and `Slot`; nothing
+outside `HasType.lean` mentions the index-free case except through
+`NamedO.dom`.

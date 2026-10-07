@@ -666,7 +666,7 @@ inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
   -- graph gives at the pair's own name `a`, read at a **dominator** `xd`
   -- of the first component.  The dominator is what keeps typing lower-closed
   -- (§4.7b): shrinking either component keeps the same `xd` and the same
-  -- code.  Join-closure is what it costs, and `TShape.Dom`'s `sg`
+  -- code.  Join-closure is what it costs, and `TShape.NamedO`'s `sg`
   -- clause, which reads the code at the first component itself, is what
   -- supplies it where it is needed
   | pair {n n'} {A₀ a : Term} {x y : Shape n} {f : ShapeFun n'}
@@ -1698,8 +1698,10 @@ theorem Option.exists_of_mem_map {α β : Type} {o : Option α} {f : α → β} 
   | some a => exact ⟨a, rfl, by simpa using h.symm⟩
 
 /-- **Hereditary typing, with a name when one is asked for.**  The
-`Option Term` index is the name: at `none` this is `TShape.Dom`, at
-`some t` it is "and `x` names `t`".
+`Option Term` index is the name: at `none` it is hereditary typing
+alone, and at `some t` it is that together with "`x` names `t`"
+(`TShape.Named`, and `Named.iff` for the equivalence with the
+conjunction).
 
 The index threads through every recursive position, so that `none`
 recovers hereditary typing alone and `some t` recovers naming as well.
@@ -2106,13 +2108,13 @@ theorem TShape.HasType.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
   intro n
   induction n with
   | zero =>
-    intro y z c hc hyD hzD
+    intro o y z c hc hyD hzD
     have hy := hyD.hasType; have hz := hzD.hasType
     cases y with
     | bot => exact hz
     | sort r => cases z <;> exact hy
   | succ n ih =>
-    intro y z c hc hyD hzD
+    intro o y z c hc hyD hzD
     have hy := hyD.hasType; have hz := hzD.hasType
     cases y with
     | bot => exact hz
@@ -2197,18 +2199,18 @@ entries are the two graphs' entries, so the generators concatenate.  This
 is what lets a slot grow — `dir`'s upper bound dominates the join, and
 `Interp` is downward closed, so the join is an approximant too. -/
 theorem TShape.NamedO.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
-    ∀ {n} {y z : Shape n} {d : TShape}, Shape.Compat Δ y z →
+    ∀ {n} {o} {y z : Shape n} {d : TShape}, Shape.Compat Δ y z →
       TShape.NamedO Δ o d y.T → TShape.NamedO Δ o d z.T →
       TShape.NamedO Δ o d (y.join z).T := by
   intro n
   induction n with
   | zero =>
-    intro y z d hc hy hz
+    intro o y z d hc hy hz
     cases y with
     | bot => exact hz
     | sort r => cases z <;> exact hy
   | succ n ih =>
-    intro y z d hc hy hz
+    intro o y z d hc hy hz
     have hty : TShape.HasType Δ (y.join z).T d :=
       TShape.HasType.join_at hΔ hc hy hz
     cases hy with
@@ -2217,7 +2219,7 @@ theorem TShape.NamedO.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
     | @pi _ _ A B d₀ f _ csy htyy henty hiny hevy houty =>
       cases hz with
       | base hnb _ => exact absurd trivial hnb
-      | @pi _ _ _ _ _ _ csz htyz hentz hinz hevz houtz =>
+      | @pi _ _ _ _ _ _ _ csz htyz hentz hinz hevz houtz =>
         rcases TShape.entries_join (x := y) (y := z) with he | he | he
         · exact .pi (cs := csy ++ csz) hty (by rw [he, henty, hentz, List.map_append])
             (by intro p hp; rcases List.mem_append.1 hp with hp | hp
@@ -2228,21 +2230,22 @@ theorem TShape.NamedO.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
                 exacts [houty p hp, houtz p hp])
         · exact .pi (cs := csy) hty (by rw [he, henty]) hiny hevy houty
         · exact .pi (cs := csz) hty (by rw [he, hentz]) hinz hevz houtz
-    | @sg _ _ A B d₀ f _ psy cy htyy hpsy hxy hevy hyy =>
+    | @sg _ _ A B d₀ f _ psy cy htyy hpsy hnamey hxy hevy hyy =>
       cases hz with
       | base hnb _ => exact absurd trivial hnb
-      | @sg _ _ _ _ _ _ _ psz cz htyz hpsz hxz hevz hyz =>
+      | @sg _ _ _ _ _ _ _ psz cz htyz hpsz hnamez hxz hevz hyz =>
         -- the join is a pair exactly when both sides are, and then the two
         -- codes are lookups at one query once the inputs are joined
         match y, z, hc, hpsy, hpsz, hty, htyy with
-        | .bot, z, _, _, hpsz, hty, _ => exact .sg (ps := psz) (c := cz) hty hpsz hxz hevz hyz
+        | .bot, z, _, _, hpsz, hty, _ =>
+          exact .sg (ps := psz) (c := cz) hty hpsz hnamez hxz hevz hyz
         | .pair A₁ a₁ x₁ y₁, .bot, _, hpsy, _, hty, _ =>
-          exact .sg (ps := psy) (c := cy) hty hpsy hxy hevy hyy
+          exact .sg (ps := psy) (c := cy) hty hpsy hnamey hxy hevy hyy
         | .pair A₁ a₁ x₁ y₁, .pair A₂ a₂ x₂ y₂, hc, hpsy, hpsz, hty, htyy =>
           obtain ⟨c₁, hdx₁, hev₁, hdy₁⟩ :=
-            TShape.NamedO.sg_inv (.sg (ps := psy) (c := cy) htyy hpsy hxy hevy hyy)
+            TShape.NamedO.sg_inv (.sg (ps := psy) (c := cy) htyy hpsy hnamey hxy hevy hyy)
           obtain ⟨c₂, hdx₂, hev₂, hdy₂⟩ :=
-            TShape.NamedO.sg_inv (.sg (ps := psz) (c := cz) htyz hpsz hxz hevz hyz)
+            TShape.NamedO.sg_inv (.sg (ps := psz) (c := cz) htyz hpsz hnamez hxz hevz hyz)
           cases htyy with | @pair _ _ _ _ _ _ _ _ _ _ _ _ hd hfo hwp hwSg _ _ _ _ hdomA =>
           have hwp' := (TShape.HasType.wf htyz).1
           have hjx := Shape.le_join hΔ hwp.2.2.2.1 hwp'.2.2.2.1 hc.2.2.1
@@ -2252,8 +2255,12 @@ theorem TShape.NamedO.join_at {Δ : List Term} (hΔ : ⊢ Δ) :
             (TEvaluates.mono_inp hΔ (TShape.LE.T.2 hjx.2) hev₂)
           have hcc := TEvaluates.compat hΔ hwSg.2.2.2.1.2 (TShape.WF.T.2 (Shape.WF.join hΔ hc.2.2.1 hwp.2.2.2.1 hwp'.2.2.2.1)) hev₁' hev₂'
           refine .sg (ps := some (a₁, (x₁.join x₂).T, (y₁.join y₂).T)) (c := c₁.join c₂)
-            hty rfl (fun p hp => ?_) (fun p hp => ?_) (fun p hp => ?_) <;>
+            hty rfl (fun p hp => ?_) (fun p hp => ?_) (fun p hp => ?_) (fun p hp => ?_) <;>
             simp only [Option.mem_def, Option.some.injEq] at hp <;> subst hp
+          · -- the joined pair's first component is `y`'s own, so `y` names it
+            have hpsy' : psy = some (a₁, x₁.T, y₁.T) := by
+              simpa [TShape.pairParts, Shape.T] using hpsy.symm
+            subst hpsy'; exact hnamey (a₁, x₁.T, y₁.T) rfl
           · exact ih hc.2.2.1 hdx₁ hdx₂
           · exact TEvaluates.join hcc hev₁' hev₂'
           · have hcty := TEvaluates.tHasType (c := TShape.type) hΔ rfl

@@ -124,7 +124,7 @@ open DomainSemantics
 
 -- **Directedness** — every case proved, and nothing left under it: `dir`
 -- never instantiates, and the joined slot it builds is hereditarily
--- typed by `TShape.Dom.join`, so it needs no saturation.
+-- typed by `TShape.NamedO.join`, so it needs no saturation.
 /-- info: 'DomainSemantics.IsDefEq.dir' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms IsDefEq.dir
 
