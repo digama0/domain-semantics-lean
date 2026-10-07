@@ -2113,8 +2113,6 @@ theorem sound_fst_dom {Γ : List Term} {A B p : Term}
     exact ⟨TShape.bot, TShape.bot, .bot, TShape.bot_le' rfl, .bot, (TShape.Named.bot (.bot (.bot .sort))), TShape.WF.bot⟩
   | fst hp hw hle =>
     obtain ⟨P', S, hP', hPle, hS, hNV, hScan⟩ := hpdom hΔ W hAdm hp
-    have hPcan := hNV.val
-    have hPdom := hNV.forget
     -- the code is a Σ-shape, since `P'` dominates a pair
     have hSsg : S.IsSigma := by
       rcases (show S.2 = Shape.bot ∨ S.IsSigma from by
@@ -2122,12 +2120,12 @@ theorem sound_fst_dom {Γ : List Term} {A B p : Term}
           | bot => exact .inl rfl
           | sigma _ _ _ _ _ _ hles _ _ => exact TShape.isSigma_or_bot_of_le hles trivial)
         with hb | h
-      · exact absurd (TShape.le_bot hΔ (TShape.HasType.bot_r hΔ hb hPdom.hasType) hPle)
+      · exact absurd (TShape.le_bot hΔ (TShape.HasType.bot_r hΔ hb hNV.hasType) hPle)
           (by simp [Shape.bot])
       · exact h
-    cases hPdom with
-    | base hnb _ => exact absurd hSsg.isBinder hnb
-    | pi _ _ _ _ => exact absurd hSsg (TShape.IsPi.not_sigma trivial)
+    cases hNV with
+    | base hnb _ _ => exact absurd hSsg.isBinder hnb
+    | pi _ _ _ _ _ => exact absurd hSsg (TShape.IsPi.not_sigma trivial)
     | @sg _ nS A' B' dS fS _ ps cc hty hps _ hxd' hevc hout =>
       -- `P'` is a pair-shape; its first component is the projection's
       -- value, and `Named`'s Σ clause has it
@@ -2142,7 +2140,7 @@ theorem sound_fst_dom {Γ : List Term} {A B p : Term}
         obtain ⟨_, _, hxle, _⟩ := TShape.LE.pair_decomp hΔ hPle
         refine ⟨Shape.T x', dS.T, .fst hP' (TShape.WF.T.2 hwP.2.2.2.1)
             (TShape.LE.refl (TShape.WF.T.2 hwP.2.2.2.1)),
-          TShape.LE.trans hΔ hle hxle, ?_, .name ?_ hPcan.2.1, ?_⟩
+          TShape.LE.trans hΔ hle hxle, ?_, ?_, ?_⟩
         · -- the domain is an approximant of `A`
           cases hS with
           | @sigma _ _ _ _ nc gc dc _ _ hAint hdty hwfc _ hbodyc hwmc hleSg =>
@@ -2875,12 +2873,12 @@ theorem sound_snd_dom {Γ : List Term} {A B p : Term} {u v : Bool}
           | bot => exact .inl rfl
           | sigma _ _ _ _ _ _ hles _ _ => exact TShape.isSigma_or_bot_of_le hles trivial)
         with hb | h
-      · exact absurd (TShape.le_bot hΔ (TShape.HasType.bot_r hΔ hb hPdom.hasType) hPle)
+      · exact absurd (TShape.le_bot hΔ (TShape.HasType.bot_r hΔ hb hNV.hasType) hPle)
           (by simp [Shape.bot])
       · exact h
-    cases hPdom with
-    | base hnb _ => exact absurd hSsg.isBinder hnb
-    | pi _ _ _ _ => exact absurd hSsg (TShape.IsPi.not_sigma trivial)
+    cases hNV with
+    | base hnb _ _ => exact absurd hSsg.isBinder hnb
+    | pi _ _ _ _ _ => exact absurd hSsg (TShape.IsPi.not_sigma trivial)
     | @sg _ nS A' B' dS fS _ ps cc hty hps _ hxd' hevc hout =>
       cases hty with
       | bot hb => exact absurd (TShape.le_bot hΔ rfl hPle) (by simp [Shape.bot])
@@ -2907,7 +2905,7 @@ theorem sound_snd_dom {Γ : List Term} {A B p : Term} {u v : Bool}
           -- the code that types the dominator's second component is a
           -- lookup at that name, hence an approximant of `B[fst p]`
           have hcode : TEvaluates Δ fS A' a₀' (Shape.T x') cc := hevc _ (by rw [← hps]; rfl)
-          have hdomy : TShape.Named Δ cc (Shape.T y') none := by
+          have hdomy : TShape.Named Δ cc (Shape.T y') (some (Term.snd (p.subst σ))) := by
             simpa using hout _ (show _ ∈ _ by rw [← hps]; rfl)
           have hIc : Interp Δ Γ (B.inst (.fst p)) σ ρ cc := by
             refine (Interp.inst (A := A) (b := B) hΔ hΓ hA hfst hB hPB W hAdm
@@ -2924,7 +2922,7 @@ theorem sound_snd_dom {Γ : List Term} {A B p : Term} {u v : Bool}
             .snd hP' hlab' (TShape.WF.T.2 hwP.2.2.2.2)
               (TShape.LE.refl (TShape.WF.T.2 hwP.2.2.2.2))
               (hst.retype (hA₀.trans hA₀'.symm)),
-            TShape.LE.trans hΔ hle hyle, hIc, (.name (hdomy) (hPcan.2.2)), hBfd.codeAt hΔ W hAdm hIc⟩
+            TShape.LE.trans hΔ hle hyle, hIc, hdomy, hBfd.codeAt hΔ W hAdm hIc⟩
 
 /-- The Σ twin: `Term.Pinned`'s `snd` condition, from the pair's typing. -/
 theorem PinSnd.of_sound {Γ : List Term} {A B p : Term}
