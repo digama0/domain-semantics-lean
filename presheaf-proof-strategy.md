@@ -682,7 +682,7 @@ theorem plus the standalone `to_substTerm` that consumes them.
 ### 3.2 `IsDefEq.dir`, per former
 
 **Status: complete and axiom-clean** — every case including `tr`, and
-nothing under it (`Status.lean`).  What follows is the original sketch,
+nothing under it (the axiom board in `DomainSemantics.lean`).  What follows is the original sketch,
 annotated where the proof went differently.
 
 The proof is `sound_dir_of_ub` in every case; what varies is the upper

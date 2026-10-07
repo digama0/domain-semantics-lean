@@ -301,8 +301,7 @@ because both have only `⊥`.
 
 The proof is `TShape.HasType.proofIrrel`, applied directly: with typing
 over `TShape` there is nothing to normalise, since both `mono_r` and the
-order are level-free.  The old version read every hypothesis at a common
-level and transported the conclusion back down with `Shape.lift_eq_bot`. -/
+order are level-free. -/
 
 theorem Interp.eq_bot_of_prop {Γ : List Term} {p t : Term}
     (hp : SoundTy Γ p .prop) (ht : SoundTy Γ t p)

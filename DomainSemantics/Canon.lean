@@ -65,32 +65,9 @@ theorem TShape.CodeCanonS.sort_iff {Δ : List Term} {T : Term} {k} {j : Bool} :
     TShape.CodeCanonS Δ T (Shape.T (n := k) (Shape.sort j)) ↔ TyEq Δ T (.sort j) := by
   cases k <;> exact Iff.rfl
 
-/-- `Interp.lean`'s `Ctx.SubstEq.defeqHead`, needed one file earlier. -/
-theorem Ctx.SubstEq.defeqHead' {Γ : List Term} {A A' : Term} {u : Bool} (hΓ : ⊢ Γ)
-    (hAA' : Γ ⊢ A ≡ A' : .sort u) : Ctx.SubstEq (A' :: Γ) Subst.id Subst.id (A :: Γ) := by
-  refine .cons (Ctx.SubstEq.id hΓ).skip hAA'.hasType.1 ?_
-  rw [show A.subst Subst.id.tail = A.lift' (.skip .refl) by
-    show A.subst (Subst.id.lift_r (.skip .refl)) = _
-    rw [← lift'_subst, subst_id]]
-  exact (hAA'.weak' (Ctx.Lift'.skip (A := A') .refl)).symm.defeqDF
-    (.bvar Lookup.zero (hAA'.hasType.2.weak' (Ctx.Lift'.skip (A := A') .refl)))
 
-/-- `Interp.lean`'s `IsDefEq.ctx_id`, needed one file earlier. -/
-theorem IsDefEq.ctxId {Γ Γ' : List Term} (hΓ' : ⊢ Γ')
-    (W : Ctx.SubstEq Γ' Subst.id Subst.id Γ) {e₁ e₂ A : Term}
-    (h : Γ ⊢ e₁ ≡ e₂ : A) : Γ' ⊢ e₁ ≡ e₂ : A := by simpa using h.subst hΓ' W
 
-/-- A pair of equal labels makes the two Σ-types definitionally equal. -/
-theorem PiLabelEq.sigmaTyEq {Δ : List Term} {A B A' B' : Term} (hΔ : ⊢ Δ) :
-    PiLabelEq Δ A B A' B' → TyEq Δ (.sigma A B) (.sigma A' B')
-  | ⟨⟨_, h1⟩, _, h2⟩ =>
-    ⟨_, .sigmaDF h1 h2 (.ctxId (Γ' := A' :: Δ) ⟨hΔ, _, h1.hasType.2⟩ (.defeqHead' hΔ h1) h2)⟩
 
-/-- The Π twin. -/
-theorem PiLabelEq.forallETyEq {Δ : List Term} {A B A' B' : Term} (hΔ : ⊢ Δ) :
-    PiLabelEq Δ A B A' B' → TyEq Δ (.forallE A B) (.forallE A' B')
-  | ⟨⟨_, h1⟩, _, h2⟩ =>
-    ⟨_, .forallEDF h1 h2 (.ctxId (Γ' := A' :: Δ) ⟨hΔ, _, h1.hasType.2⟩ (.defeqHead' hΔ h1) h2)⟩
 
 /-- The instance of a type family at two equal arguments. -/
 theorem TyEq.inst {Δ : List Term} (hΔ : ⊢ Δ) {A B B' a a' : Term} {u v : Bool}
@@ -277,10 +254,6 @@ theorem TShape.CodeCanonS.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     TShape.CodeCanonS Θ (T.subst τ) (x.subst τ) :=
   Shape.CodeCanonS.subst hΘ W h
 
-theorem TShape.ValCanon.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
-    (W : Ctx.SubstEq Θ τ τ Δ) {t : Term} {x : TShape} (h : TShape.ValCanon Δ t x) :
-    TShape.ValCanon Θ (t.subst τ) (x.subst τ) :=
-  Shape.ValCanon.subst hΘ W h
 
 /-! ## Values: the bridge, lifting and the join -/
 
@@ -423,17 +396,9 @@ and `x` names the term `t`. -/
 def TShape.Slot (Δ : List Term) (T : Term) (d : TShape) (t : Term) (x : TShape) : Prop :=
   TShape.Dom Δ d x ∧ TShape.CodeCanonS Δ T d ∧ TShape.ValCanon Δ t x
 
-theorem TShape.Slot.dom {Δ : List Term} {T t : Term} {d x : TShape}
-    (h : TShape.Slot Δ T d t x) : TShape.Dom Δ d x := h.1
 
-theorem TShape.Slot.code {Δ : List Term} {T t : Term} {d x : TShape}
-    (h : TShape.Slot Δ T d t x) : TShape.CodeCanonS Δ T d := h.2.1
 
-theorem TShape.Slot.val {Δ : List Term} {T t : Term} {d x : TShape}
-    (h : TShape.Slot Δ T d t x) : TShape.ValCanon Δ t x := h.2.2
 
-theorem TShape.Slot.hasType {Δ : List Term} {T t : Term} {d x : TShape}
-    (h : TShape.Slot Δ T d t x) : TShape.HasType Δ x d := h.1.hasType
 
 /-- **The transport, with nothing to pass in.**  This is what the bundle
 is for: `ValCanon.defeq` needs the code and its naming, and here they are
@@ -447,10 +412,6 @@ theorem TShape.Slot.conv {Δ : List Term} {T T' t : Term} {d x : TShape}
     (h : TShape.Slot Δ T d t x) (hT : TyEq Δ T' T) : TShape.Slot Δ T' d t x :=
   ⟨h.1, h.2.1.conv hT, h.2.2⟩
 
-theorem TShape.Slot.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
-    (W : Ctx.SubstEq Θ τ τ Δ) {T t : Term} {d x : TShape} (h : TShape.Slot Δ T d t x) :
-    TShape.Slot Θ (T.subst τ) (d.subst τ) (t.subst τ) (x.subst τ) :=
-  ⟨h.1.subst hΘ W, h.2.1.subst hΘ W, h.2.2.subst hΘ W⟩
 
 /-! ## Merging the slot condition into one recursion
 
@@ -628,26 +589,9 @@ theorem TShape.Named.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     TShape.Named Θ (d.subst τ) (t.subst τ) (x.subst τ) :=
   .of_dom (h.dom.subst hΘ W) (Shape.ValCanon.subst hΘ W h.val)
 
-theorem TShape.Named.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {d x : TShape} {t : Term}
-    (h : TShape.Named Δ d t x) {k} (hk : x.1 ≤ k) : TShape.Named Δ d t (x.lift k) :=
-  .of_dom (h.dom.lift_subject hΔ hk) ((TShape.ValCanon.lift_iff hΔ hk).1 h.val)
 
-theorem TShape.Named.join {Δ : List Term} (hΔ : ⊢ Δ) {y z d : TShape} {t : Term}
-    (hwy : TShape.WF Δ y) (hwz : TShape.WF Δ z) (hc : TShape.Compat Δ y z)
-    (hy : TShape.Named Δ d t y) (hz : TShape.Named Δ d t z) :
-    TShape.Named Δ d t (y.join z) :=
-  .of_dom (TShape.Dom.join hΔ hc hy.dom hz.dom)
-    (TShape.ValCanon.join hΔ hwy hwz hc hy.val hz.val)
 
-theorem TShape.Named.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {d d' x : TShape} {t : Term}
-    (h : TShape.Named Δ d t x) (hle : TShape.LE Δ d d')
-    (hty : TShape.HasType Δ d' TShape.type) : TShape.Named Δ d' t x :=
-  .of_dom (h.dom.mono_r hΔ hle hty) h.val
 
-theorem TShape.Named.bot {Δ : List Term} {d : TShape} {t : Term} {n}
-    (h : TShape.HasType Δ (Shape.T (n := n) .bot) d) :
-    TShape.Named Δ d t (Shape.T (n := n) .bot) :=
-  .of_dom (TShape.Dom.bot h) (TShape.ValCanon.of_bot rfl)
 
 /-- **The transport, on the merged notion.**  This is what the merge
 buys: the hereditary typing travels with the name, so moving the name

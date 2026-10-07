@@ -2687,12 +2687,6 @@ theorem LE.le_lift {Δ : List Term} (hΔ : ⊢ Δ) {m : TShape} {k} (hk : m.1 �
 
 end TShape
 
-/-- Lifting *up* reflects being `⊥`. -/
-theorem Shape.lift_eq_bot {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k) {s : Shape n}
-    (hs : s.lift k = Shape.bot) : s = Shape.bot := by
-  refine Shape.le_bot_iff.1 ((Shape.lift_le_lift (Γ := Δ) hΔ h).1 ?_)
-  rw [Shape.lift_bot, hs]
-  exact Shape.LE.bot
 
 /-- Anything below `prop` is `⊥` or `prop` itself. -/
 theorem Shape.le_prop_cases {Δ : List Term} : ∀ {n} {x : Shape n},
