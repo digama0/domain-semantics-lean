@@ -2667,6 +2667,11 @@ theorem TShape.WF.sort_iff {Δ : List Term} {T : Term} {k} {j : Bool} :
 
 
 
+/-- The total-level conversion. -/
+theorem TShape.WF.conv {Δ : List Term} {T T' : Term} {x : TShape}
+    (h : TShape.WF Δ x (some T)) (hT : TyEq Δ T' T) : TShape.WF Δ x (some T') :=
+  Shape.WF.conv h hT
+
 /-! ## The join at the total level
 
 The four facts directedness needs, lifted from `Shape` to `TShape`.  Each

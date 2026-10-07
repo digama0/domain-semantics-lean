@@ -1,7 +1,7 @@
 import DomainSemantics.Annot
 import DomainSemantics.Regular
 import DomainSemantics.HasType
-import DomainSemantics.Canon
+import DomainSemantics.HasType
 
 /-! # The interpretation relation
 

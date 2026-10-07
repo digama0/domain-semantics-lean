@@ -146,11 +146,4 @@ open DomainSemantics
 /-- info: 'DomainSemantics.Interp.tr_stuck_bot' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms Interp.tr_stuck_bot
 
--- **The merge is faithful**: `Named` is hereditary typing and naming in
--- one induction, and it is exactly the conjunction of the two notions it
--- replaced.  (`Shape.WF` needs no such statement any more: its index is
--- not a second notion, so there is nothing to be faithful to.)  (`Slot` needs no such statement: it *is* `Named` twice, once
--- for the value and once for its code.)
-/-- info: 'DomainSemantics.TShape.Named.iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms TShape.Named.iff
 

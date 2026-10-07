@@ -128,11 +128,13 @@ carries it down every Π and Σ node, and the theory (conversion, join,
 lift, downward inclusion, substitution, and two graph-level companions)
 is stated on `WF` at an index.
 
-**`Shape.ValCanon Δ t s`**: the value `s` names its own projections. A
+**The naming**, which used to be a predicate of its own (`Shape.ValCanon
+Δ t s`, "the value `s` names its own projections") and is now
+`TShape.Named`'s index. A
 pair is named by `fst t` and its components name `fst t` and `snd t`; a
 λ's entries name `e.tm` on the input and `app t e.tm` on the output.
 
-**`ValCanon.defeq`** is the lemma the whole thing turns on: it moves a
+**`Named.defeq`** is the lemma the whole thing turns on: it moves a
 name along a definitional equality of the subject **through the code the
 value is hereditarily typed at**. Stating it relative to the code is what avoids
 needing Σ-injectivity or type uniqueness, both of which are derived
@@ -309,7 +311,7 @@ node it descends through — the domain's, and one per entry output at the
 instantiated codomain — and then for a well-formed shape the deep
 condition adds nothing, so the deep recursion was deleted outright: what
 used to be `CodeCanon` is now this, and `Canon.lean` lost 235 lines with
-it.
+it (and, later, all of them — see §11).
 
 Those two asks are no longer conjuncts. Well-formedness carries an
 `Option Term` index of its own (`Shape.WF Γ s o`, defaulting to `none`), read only at the head, through `TyEqO Γ o T'` — `True` at

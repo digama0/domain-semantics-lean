@@ -1,5 +1,5 @@
 import DomainSemantics.Interp
-import DomainSemantics.Canon
+import DomainSemantics.HasType
 import DomainSemantics.Regular
 
 /-! # Admissibility and the soundness statement

@@ -3311,3 +3311,71 @@ hypothesis supplies.
 The axiom board loses `Shape.WF.iff`: the index is not a second notion,
 so there is nothing for a faithfulness statement to say. `TShape.Named.iff`
 stays, because `ValCanon` is still a notion of its own.
+
+
+## 11. `ValCanon` removed, and `Canon.lean` with it (2026-10-07)
+
+§8 made the name an index on hereditary typing and §10 made it an index on
+well-formedness. `Shape.ValCanon` — "the value names its own projections"
+— then had nothing left to say that `TShape.Named`'s index does not, and
+this round removes it. `Canon.lean` is deleted: `TShape.WF.conv` moves to
+`Shape.lean`, `TShape.Slot` and its two lemmas to `HasType.lean`, and the
+build drops from 46 jobs to 45.
+
+**The two lemmas that had to be reproved.** `Named.forget` and
+`Named.defeq` went through `ValCanon`. `forget` is one induction dropping
+the naming at every clause. `defeq` is stated with the index a *variable* —
+
+```
+Named Δ d x o → WF Δ d (some T) → (∀ t ∈ o, Δ ⊢ t ≡ t' : T)
+  → Named Δ d x (o.map fun _ => t')
+```
+
+— which makes `induction h` legal, `none` going to `none` and `some t` to
+`some t'`. Its three cases are the ones `ValCanon.defeq` had.
+
+**What the call sites turned out to be.** Of the 137 `.name` sites, almost
+all were a name forgotten and immediately re-added, sometimes ninety lines
+apart or across a lemma boundary. The recurring shapes:
+
+* `.name h.forget h.val` adjacent — 38 of them;
+* a lemma that *receives* the named form and splits it on its first two
+  lines (`sound_forallE_ub`, `sound_sigma_ub`, `sound_lam_ub`);
+* a lemma that takes the two halves as separate parameters
+  (`Interp.forallE_single`, `Interp.sigma_single`, `SoundEq.*_cod`,
+  `Subst.Saturates.lift`);
+* a bundle carrying them as separate conjuncts (`sound_lam_dom`'s
+  `exists_pairs` predicate, `sound_app_dom`'s `key`);
+* `cases h.forget` where `cases h` makes the clause's own premises arrive
+  already named (`sound_app_dom`, `sound_fst_dom`, `sound_snd_dom`,
+  `sound_eta_of`, `pair_eta`);
+* a transport applied to the extracted half and then reglued, where the
+  transport is index-general on `Named` itself (`lift_subject`, `join`,
+  `mono_r`, `defeq`).
+
+**Three things are worth recording.**
+
+`Interp.unweak` is choice-free again. It had `Classical.choice` because
+rebuilding a `Named` at a Σ moves the name along the pair label's `TyEq`,
+whose witness is a `choose_spec`; carrying the named hypothesis through
+instead of rebuilding it removes the `choose_spec`.
+
+The collapses had to be **scoped to the branch**. The same names (`hxc`,
+`hdx`, `hm'`) are rebound in sibling branches of one `cases`, while the
+`hNV` they come from is rebound too, so a proof-level substitution silently
+picks the wrong hypothesis. Eleven pairs sit in nested `cases` where the
+inner pattern shadows the outer; those got their binders renamed apart.
+
+`PairCanon.of_dom` is the one place the `ValCanon` formulation was
+genuinely shorter. It stated the pair's name equation without reference to
+a code; `Named` states it in the Σ clause, so getting it out means ruling
+out the `base` and `pi` clauses from the subject being a pair, and moving
+the equation from the code's domain label to the pair shape's.
+
+**What was given up.** `TShape.Named.iff` — the faithfulness statement
+that `Named` at `some t` is exactly hereditary typing together with
+`ValCanon` — is gone, since one side of it no longer exists. It was on the
+axiom board; the board is 25 guards now. The merge it certified is no
+longer a merge of two notions, so there is nothing left for it to say, but
+it did certify that the inductive neither strengthened nor weakened what it
+replaced, and that certificate is not replaced by anything.

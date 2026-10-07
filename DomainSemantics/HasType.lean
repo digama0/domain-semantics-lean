@@ -2624,3 +2624,28 @@ theorem TShape.isSigma_or_bot_of_le {Δ : List Term} {p q : TShape} (h : TShape.
         | .lam _ _ | .forallE .. | .pair _ _ _ _ => exact absurd h2 (fun x => x)
     | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
     | .lam _ _ | .forallE .. | .pair _ _ _ _ => exact absurd hq (fun x => x)
+
+/-! ## The slot condition
+
+A slot is one notion applied twice.  `Named` says a shape is hereditarily
+typed at a code and names a term; a *slot* is that for the value, together
+with the same for its code -- read at a sort, where `Named` degenerates to
+the code naming its type.  There is no third conjunct and no bundle: the
+naming travels inside the hereditary typing, so moving a name along a
+definitional equality of the subject takes nothing beyond what the slot
+already holds. -/
+
+/-- `x` is hereditarily typed at the code `d` and names the term `t`, and
+`d` names the type `T`. -/
+def TShape.Slot (Δ : List Term) (T : Term) (d : TShape) (t : Term) (x : TShape) : Prop :=
+  TShape.Named Δ d x (some t) ∧ Shape.WF Δ d.2 (some T)
+
+/-- **The transport, with nothing to pass in.** -/
+theorem TShape.Slot.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x : TShape}
+    (h : TShape.Slot Δ T d t x) (ht : Δ ⊢ t ≡ t' : T) : TShape.Slot Δ T d t' x :=
+  ⟨h.1.defeq hΔ h.2 ht, h.2⟩
+
+/-- Conversion in the type: the code's naming is the only field that sees it. -/
+theorem TShape.Slot.conv {Δ : List Term} {T T' t : Term} {d x : TShape}
+    (h : TShape.Slot Δ T d t x) (hT : TyEq Δ T' T) : TShape.Slot Δ T' d t x :=
+  ⟨h.1, Shape.WF.conv h.2 hT⟩
