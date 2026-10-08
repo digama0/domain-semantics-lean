@@ -151,12 +151,14 @@ at the source context. Nothing downstream reads them; they are what let
 extended context's well-formedness without taking an annotation
 hypothesis.
 
-**`Adm Δ Γ σ ρ`**, admissibility: the valuation is well formed, and
-every variable's slot is an approximant of its type and a `Slot` at it —
-hereditarily typed there, named by the variable it stands for, at a code
-that names the type. intgrah's `SourceAdmissible`, plus the naming his
-quotient makes unnecessary. `Adm.bot` holds for free at the all-`⊥`
-valuation, which is the stage every inversion theorem runs at.
+**`Adm Δ Γ σ ρ`**, admissibility: every variable's slot is an
+approximant of its type and a `Slot` at it — hereditarily typed there,
+named by the variable it stands for, at a code that names the type.
+intgrah's `SourceAdmissible`, plus the naming his quotient makes
+unnecessary. Slotwise well-formedness is not part of it: hereditary
+typing is well-formedness at the name, so forgetting the name gives it
+(`Adm.wf`). `Adm.bot` holds for free at the all-`⊥` valuation, which is
+the stage every inversion theorem runs at.
 
 **`SoundDir Γ t`** (`Directed.lean`): directedness, that two approximants
 of `t` have a common upper bound that is still an approximant, at every

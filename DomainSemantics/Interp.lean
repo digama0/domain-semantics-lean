@@ -1629,9 +1629,10 @@ hereditary typing makes `Interp.lam`'s slot unusable.
 The first two are bookkeeping that used to travel beside it: every
 consumer of admissibility wanted `⊢ Δ` and the stage's typing too, so
 they are fields rather than three premises in a row.  `Adm.ctx` and
-`Adm.stage` read them back. -/
+`Adm.stage` read them back.  Slotwise well-formedness is *not* a field:
+`Adm.wf` derives it from the slot's own hereditary typing. -/
 def Adm (Δ Γ : List Term) (σ : Subst) (ρ : Valuation) : Prop :=
-  (⊢ Δ) ∧ Ctx.SubstEq Δ σ σ Γ ∧ Valuation.WF Δ Γ ρ ∧
+  (⊢ Δ) ∧ Ctx.SubstEq Δ σ σ Γ ∧
     ∀ {i A}, Lookup Γ i A → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Slot Δ (A.subst σ) a (σ i) (ρ i)
 
 theorem Adm.ctx {Δ Γ : List Term} {σ ρ} (h : Adm Δ Γ σ ρ) : ⊢ Δ := h.1
@@ -1643,15 +1644,19 @@ theorem Adm.stage {Δ Γ : List Term} {σ ρ} (h : Adm Δ Γ σ ρ) :
 hypothesis every inversion theorem is run under. -/
 theorem Adm.bot {Δ Γ : List Term} {σ : Subst} (hΔ : ⊢ Δ)
     (W : Ctx.SubstEq Δ σ σ Γ) : Adm Δ Γ σ Valuation.nil :=
-  ⟨hΔ, W, fun {_ _} _ => trivial,
-    fun {_ _} _ => ⟨TShape.bot, .bot, .bot (.bot_bot rfl), .bot_mem⟩⟩
-
-/-- Admissible valuations are well formed, slotwise. -/
-theorem Adm.wf {Δ Γ : List Term} {σ ρ} (h : Adm Δ Γ σ ρ) : Valuation.WF Δ Γ ρ := h.2.2.1
+  ⟨hΔ, W, fun {_ _} _ => ⟨TShape.bot, .bot, .bot (.bot_bot rfl), .bot_mem⟩⟩
 
 theorem Adm.lookupCanon {Δ Γ : List Term} {σ ρ} (h : Adm Δ Γ σ ρ) :
     ∀ {i A}, Lookup Γ i A →
-      ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Slot Δ (A.subst σ) a (σ i) (ρ i) := h.2.2.2
+      ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Slot Δ (A.subst σ) a (σ i) (ρ i) := h.2.2
+
+/-- Admissible valuations are well formed, slotwise.  Not a field: the
+slot's own hereditary typing is well-formedness at the name, and
+forgetting the name leaves exactly this. -/
+theorem Adm.wf {Δ Γ : List Term} {σ ρ} (h : Adm Δ Γ σ ρ) : Valuation.WF Δ Γ ρ :=
+  fun {_ _} hlk =>
+    match h.lookupCanon hlk with
+    | ⟨_, _, hn, _⟩ => Shape.WF.forget hn.wf
 
 /-- Weakening the stage by one slot: `A` at `σ.tail` under `ρ` is
 `A.lift` at `σ` under `ρ.push x`.  `Interp.weak'` at `Lift.refl.skip`. -/
@@ -1669,7 +1674,7 @@ theorem Adm.cons {Δ Γ : List Term} {A : Term} {σ ρ x a} (h : Adm Δ Γ σ.ta
     (hΓ : ⊢ Γ) (ha : Interp Δ Γ A σ.tail ρ a) (hx : TShape.WF Δ x)
     (hxa : TShape.Named Δ a x (σ 0)) (hac : TShape.WF Δ a (A.subst σ.tail)) :
     Adm Δ (A :: Γ) σ (ρ.push x) := by
-  refine ⟨h.ctx, W, Valuation.WF.push h.wf hx, ?_⟩
+  refine ⟨h.ctx, W, ?_⟩
   intro i A' hl
   cases hl with
   | zero =>
@@ -1806,8 +1811,7 @@ which is exactly the data `Adm` keeps. -/
 theorem Adm.unlift {Δ Γ Γ' : List Term} {l σ ρ} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
     (WΓ : Ctx.Lift' l Γ Γ') (W : Ctx.SubstEq Δ σ σ Γ') (h : Adm Δ Γ' σ ρ) :
     Adm Δ Γ (σ.lift_l l) (fun i => ρ (Lift.liftVar l i)) := by
-  refine ⟨hΔ, Ctx.SubstEq.lift_l WΓ hΓ W, fun {_ _} hlk => h.wf (hlk.weak' WΓ),
-    fun {i A} hlk => ?_⟩
+  refine ⟨hΔ, Ctx.SubstEq.lift_l WΓ hΓ W, fun {i A} hlk => ?_⟩
   obtain ⟨a, ha, hn, hac⟩ := h.lookupCanon (hlk.weak' WΓ)
   obtain ⟨_, hlkty⟩ := Ctx.WF.lookup hΓ hlk
   exact ⟨a, Interp.unweak hΔ hΓ hlkty.annot.1 WΓ W
