@@ -1626,20 +1626,26 @@ The last two conjuncts are what the model is for.  Dropping the naming
 makes Σ's η false (see the witness in `design.md` §6), and dropping the
 hereditary typing makes `Interp.lam`'s slot unusable. -/
 def Adm (Δ Γ : List Term) (σ : Subst) (ρ : Valuation) : Prop :=
-  Valuation.WF Δ ρ ∧
+  (⊢ Δ) ∧ Ctx.SubstEq Δ σ σ Γ ∧ Valuation.WF Δ ρ ∧
     ∀ {i A}, Lookup Γ i A → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Slot Δ (A.subst σ) a (σ i) (ρ i)
+
+theorem Adm.ctx {Δ Γ : List Term} {σ ρ} (h : Adm Δ Γ σ ρ) : ⊢ Δ := h.1
+
+theorem Adm.stage {Δ Γ : List Term} {σ ρ} (h : Adm Δ Γ σ ρ) :
+    Ctx.SubstEq Δ σ σ Γ := h.2.1
 
 /-- The all-bottom valuation is admissible, for free.  This is the
 hypothesis every inversion theorem is run under. -/
-theorem Adm.bot {Δ Γ : List Term} {σ : Subst} : Adm Δ Γ σ Valuation.nil :=
-  ⟨fun _ => trivial, fun _ => ⟨TShape.bot, .bot, .bot (.bot_bot rfl), .bot_mem⟩⟩
+theorem Adm.bot {Δ Γ : List Term} {σ : Subst} (hΔ : ⊢ Δ)
+    (W : Ctx.SubstEq Δ σ σ Γ) : Adm Δ Γ σ Valuation.nil :=
+  ⟨hΔ, W, fun _ => trivial, fun _ => ⟨TShape.bot, .bot, .bot (.bot_bot rfl), .bot_mem⟩⟩
 
 /-- Admissible valuations are well formed, slotwise. -/
-theorem Adm.wf {Δ Γ : List Term} {σ ρ} (h : Adm Δ Γ σ ρ) : Valuation.WF Δ ρ := h.1
+theorem Adm.wf {Δ Γ : List Term} {σ ρ} (h : Adm Δ Γ σ ρ) : Valuation.WF Δ ρ := h.2.2.1
 
 theorem Adm.lookupCanon {Δ Γ : List Term} {σ ρ} (h : Adm Δ Γ σ ρ) :
     ∀ {i A}, Lookup Γ i A →
-      ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Slot Δ (A.subst σ) a (σ i) (ρ i) := h.2
+      ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Slot Δ (A.subst σ) a (σ i) (ρ i) := h.2.2.2
 
 /-- Weakening the stage by one slot: `A` at `σ.tail` under `ρ` is
 `A.lift` at `σ` under `ρ.push x`.  `Interp.weak'` at `Lift.refl.skip`. -/
@@ -1653,16 +1659,17 @@ constructor, now a lemma.  It asks for `⊢ Γ`, since the slots below are
 re-read one binder up (`Interp.weak_one`).  It does *not* ask that the
 type's approximants be types: `Adm` has no clause that would read it. -/
 theorem Adm.cons {Δ Γ : List Term} {A : Term} {σ ρ x a} (h : Adm Δ Γ σ.tail ρ)
+    (W : Ctx.SubstEq Δ σ σ (A :: Γ))
     (hΓ : ⊢ Γ) (ha : Interp Δ Γ A σ.tail ρ a) (hx : TShape.WF Δ x)
     (hxa : TShape.Named Δ a x (σ 0)) (hac : TShape.WF Δ a (A.subst σ.tail)) :
     Adm Δ (A :: Γ) σ (ρ.push x) := by
-  refine ⟨Valuation.WF.push h.wf hx, ?_⟩
+  refine ⟨h.ctx, W, Valuation.WF.push h.wf hx, ?_⟩
   intro i A' hl
   cases hl with
   | zero =>
     exact ⟨a, Interp.weak_one hΓ (.skip .refl) ha, hxa, by rwa [lift_subst]⟩
   | succ hl =>
-    obtain ⟨b, hb, hn, hbc⟩ := h.2 hl
+    obtain ⟨b, hb, hn, hbc⟩ := h.lookupCanon hl
     exact ⟨b, Interp.weak_one hΓ (.skip .refl) hb, hn, by rwa [lift_subst]⟩
 
 /-! ## What the substitution lemma needs that the term does not say
@@ -1777,7 +1784,7 @@ theorem TypedAt.succ_bvar0 {Γ : List Term} :
   cases hm with
   | bot => exact .bot .nat
   | succ hv hw hle =>
-    obtain ⟨c, hc, hct, _⟩ := hAdm.2 (i := 0) .zero
+    obtain ⟨c, hc, hct, _⟩ := hAdm.lookupCanon (i := 0) .zero
     have h0 : Shape.IsNumeral (ρ 0).2 :=
       TShape.HasType.isNumeral hΔ (Interp.le_nat hc) hct.hasType
     have hvty := TShape.HasType.mono_l hΔ h0.hasType (Interp.le_bvar hv)
@@ -1792,8 +1799,8 @@ which is exactly the data `Adm` keeps. -/
 theorem Adm.unlift {Δ Γ Γ' : List Term} {l σ ρ} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
     (WΓ : Ctx.Lift' l Γ Γ') (W : Ctx.SubstEq Δ σ σ Γ') (h : Adm Δ Γ' σ ρ) :
     Adm Δ Γ (σ.lift_l l) (fun i => ρ (Lift.liftVar l i)) := by
-  refine ⟨fun i => h.wf _, fun {i A} hlk => ?_⟩
-  obtain ⟨a, ha, hn, hac⟩ := h.2 (hlk.weak' WΓ)
+  refine ⟨hΔ, Ctx.SubstEq.lift_l WΓ hΓ W, fun i => h.wf _, fun {i A} hlk => ?_⟩
+  obtain ⟨a, ha, hn, hac⟩ := h.lookupCanon (hlk.weak' WΓ)
   obtain ⟨_, hlkty⟩ := Ctx.WF.lookup hΓ hlk
   exact ⟨a, Interp.unweak hΔ hΓ hlkty.annot.1 WΓ W
     (fun _ => rfl) ha, hn, by rwa [subst_lift'] at hac⟩
