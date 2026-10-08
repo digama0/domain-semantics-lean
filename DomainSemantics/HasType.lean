@@ -1775,11 +1775,6 @@ theorem TShape.Named.wf {Δ : List Term} {o} {d x : TShape}
       have hty' := hty
       cases hty' <;> first | exact TShape.WF.bot | exact (TShape.HasType.wf hty).1
 
-/-- The same at a name that is there. -/
-theorem TShape.Named.wf_mem {Δ : List Term} {o} {d x : TShape}
-    (h : TShape.Named Δ d x o) : ∀ t ∈ o, TShape.WF Δ x (some t) :=
-  Shape.WF.mem h.wf
-
 theorem TShape.Named.hasType {Δ : List Term} {o} {d x : TShape}
     (h : TShape.Named Δ d x o) : TShape.HasType Δ x d := by cases h <;> assumption
 
@@ -2090,11 +2085,6 @@ theorem TShape.Named.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape}
 theorem TShape.Named.of_isType {Δ : List Term} {x : TShape}
     (h : TShape.HasType Δ x TShape.type) : TShape.Named Δ TShape.type x :=
   .base (fun h => h) h (TShape.HasType.wf h).1
-
-/-- At a code that only filters — anything but a Π or a Σ — typing is all
-there is. -/
-theorem TShape.Named.of_not_binder {Δ : List Term} {d x : TShape} (hnb : ¬ d.IsBinder)
-    (h : TShape.HasType Δ x d) : TShape.Named Δ d x := .base hnb h (TShape.HasType.wf h).1
 
 theorem Shape.graph_join {n} {x y : Shape (n+1)} :
     (x.join y).graph = x.graph ++ y.graph ∨ (x.join y).graph = x.graph ∨

@@ -53,7 +53,6 @@ theorem Interp.body_merge {Δ Γ Γ' Γ'' : List Term} {α : Type} {b : Term} {�
     (W : Ctx.SubstEq Δ σ σ Γ') (hwρ : Valuation.WF Δ ρ)
     {l : List α} {tm : α → Term} {inp out : α → TShape}
     (hdcons : ∀ e ∈ l, Ctx.SubstEq Δ (σ.cons (tm e)) (σ.cons (tm e)) Γ'')
-    (hwf : ∀ e ∈ l, TShape.WF Δ (inp e))
     (ih : ∀ {e : α}, e ∈ l → ∀ {m₂},
       Interp Δ Γ'' (b.subst θ.lift) (σ.cons (tm e)) (ρ.push (inp e)) m₂ →
       ∃ ρ', Interp Δ Γ b (θ.lift.comp (σ.cons (tm e))) ρ' m₂ ∧
@@ -295,7 +294,6 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         Interp.body_merge (Γ := A :: Γ) (b := b) hΔ hΓ' hgood (.skip .refl) Wσ hAdm.wf
           (l := g) (tm := fun e => e.tm) (inp := fun e => e.inp.T)
           (out := fun e => e.out.T) hcons
-          (fun e he => (hwf.2.2.1.1 e he).2.2.1)
           (fun {e} he {m₂} hb₂ =>
             ihb ⟨hΓ, _, hA⟩ hAb hPb ⟨hΓ', _, hAθ⟩ hgood.lift (Wθ.lift hA hAθ) (hcons e he)
               (hAdmE e he) (hSatE e he)
@@ -347,7 +345,6 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         Interp.body_merge (Γ := A :: Γ) (b := B) hΔ hΓ' hgood (.skip .refl) Wσ hAdm.wf
           (l := g) (tm := fun e => e.tm) (inp := fun e => e.inp.T)
           (out := fun e => e.out.T) hcons
-          (fun e he => (hwf.2.2.2.1.1 e he).2.2.1)
           (fun {e} he {m₂} hb₂ =>
             ihB ⟨hΓ, _, hA⟩ hAB hPB ⟨hΓ', _, hAθ⟩ hgood.lift (Wθ.lift hA hAθ) (hcons e he)
               (hAdmE e he) (hSatE e he)
@@ -399,7 +396,6 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         Interp.body_merge (Γ := A :: Γ) (b := B) hΔ hΓ' hgood (.skip .refl) Wσ hAdm.wf
           (l := g) (tm := fun e => e.tm) (inp := fun e => e.inp.T)
           (out := fun e => e.out.T) hcons
-          (fun e he => (hwf.2.2.2.1.1 e he).2.2.1)
           (fun {e} he {m₂} hb₂ =>
             ihB ⟨hΓ, _, hA⟩ hAB hPB ⟨hΓ', _, hAθ⟩ hgood.lift (Wθ.lift hA hAθ) (hcons e he)
               (hAdmE e he) (hSatE e he)
@@ -449,7 +445,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
       obtain ⟨ρ₄, hAp₄, hcode'⟩ :=
         Interp.body_merge (Γ := A :: Γ) (b := B) hΔ hΓ' hgood (.skip .refl) Wσ hAdm.wf
           (l := [()]) (tm := fun _ => (a.subst θ).subst σ) (inp := fun _ => x.T)
-          (out := fun _ => c) (fun _ _ => hcons) (fun _ _ => TShape.WF.T.2 hwf.2.2.2.1)
+          (out := fun _ => c) (fun _ _ => hcons)
           (fun {_} _ {m₂} hb₂ =>
             ihB ⟨hΓ, _, hA⟩ hAB hPB ⟨hΓ', _, hAθ⟩ hgood.lift (Wθ.lift hA hAθ) hcons
               hAdmE hSatE
@@ -523,7 +519,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
           hgood (by simpa using Ctx.Lift'.skip (A := Term.nat) (.refl (Γ := Γ'))) Wσ
           hAdm.wf
           (l := [()]) (tm := fun _ => t) (inp := fun _ => v.T) (out := fun _ => m)
-          (fun _ _ => hcons) (fun _ _ => TShape.WF.T.2 hwv)
+          (fun _ _ => hcons)
           (fun {_} _ {m₂} hb₂ =>
             ihb hΓN hAb hPb hΓN' hgood.lift (by simpa using Wθ.lift (.nat) (.nat)) hcons
               hAdmE hSatE
@@ -579,7 +575,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
           Interp.body_merge (Γ := A :: Γ) (b := b) hΔ hΓ₂ hgood₂ (.skip .refl) Wσ₂ hAdm₂.wf
             (l := [()]) (tm := fun _ => ((Term.Y A b).subst θ).subst σ₂)
             (inp := fun _ => x) (out := fun _ => m)
-            (fun _ _ => hcons) (fun _ _ => hwx)
+            (fun _ _ => hcons)
             (fun {_} _ {m₂} hb₂ =>
               ihb ⟨hΓ, _, hA⟩ hAb hPb ⟨hΓ₂, _, hAθ⟩ hgood₂.lift (Wθ₂.lift hA hAθ) hcons
                 hAdmE hSatE
@@ -637,7 +633,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         Interp.body_merge (Γ := A :: Γ) (b := C) hΔ hΓ' hgood (.skip .refl) Wσ hAdm.wf
           (l := [()]) (tm := fun _ => (b.subst θ).subst σ) (inp := fun _ => v)
           (out := fun _ => cb)
-          (fun _ _ => hcons) (fun _ _ => hwv)
+          (fun _ _ => hcons)
           (fun {_} _ {m₂} hb₂ =>
             ihC ⟨hΓ, _, hA⟩ hAC hPC ⟨hΓ', _, hAθ⟩ hgood.lift (Wθ.lift hA hAθ) hcons
               hAdmE hSatE
@@ -773,7 +769,7 @@ structure SoundTy (Γ : List Term) (t A : Term) : Prop where
 is *hereditarily* typed at an approximant of `A`.
 
 This is the original's `HasFixedness` — `rawExtend ⟦A⟧ ⟦t⟧ = ⟦t⟧` — read
-through "ideal = set of approximants".  `Shape.Dom` itself is not
+through "ideal = set of approximants".  Hereditary typing is not itself
 downward closed, and this form is: it is what every slot in the model
 needs (`Adm`), and what η reads its typed inputs off (§4.5g). -/
 def SoundDom (Γ : List Term) (t A : Term) : Prop :=
@@ -1343,7 +1339,7 @@ theorem sound_join {Γ : List Term} {A : Term} : SoundJoin Γ A := by
 
 /-! ## λ
 
-The λ analogue of `sound_forallE_ub`, with the domain *label* in place of
+The λ analogue of the Π case above, with the domain *label* in place of
 the Π label and the body in place of the codomain.  The one structural
 difference is that the λ-shape's domain shape is not part of the shape:
 `Interp.lam`'s `d` is a `TShape` beside it, so the join of the two `d`s
@@ -1378,8 +1374,8 @@ theorem mem_le_levelMax {α : Type _} {f : α → Nat} {k : Nat} :
 /-- **A graph of a family's values is coherent.**  Two entries whose
 labels become definitionally equal at a later stage name one slot of the
 family, their inputs join there, and the family's directedness puts both
-values under one shape — the argument of `sound_lam_ub`'s cross pairs,
-with the *codomain* in place of the body.  It is what makes the Π-shape
+values under one shape — the λ case's cross-pair argument, with the
+*codomain* in place of the body.  It is what makes the Π-shape
 built below well formed. -/
 theorem graph_coherent {Γ Δ : List Term} {A C t : Term} {σ ρ} {u : Bool}
     (hΓ : ⊢ Γ) (hAty : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ t : C) (W : Ctx.SubstEq Δ σ σ Γ) (hwρ : Valuation.WF Δ ρ)
@@ -1387,8 +1383,8 @@ theorem graph_coherent {Γ Δ : List Term} {A C t : Term} {σ ρ} {u : Bool}
     (hent : ∀ e ∈ f, Shape.WF Δ e.inp)
     (hbody : ∀ e ∈ f, Interp Δ (A :: Γ) t (σ.cons e.tm) (ρ.push e.inp.T) e.out.T) :
     ShapeFun.Compat Shape.Compat Δ (A.subst σ) f f := by
-  have ihBdir := (IsDefEq.dir (show ⊢ (A :: Γ) from ⟨hΓ, _, hAty⟩) hB).1
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hAty⟩
+  have ihBdir := (IsDefEq.dir hΓA hB).1
   intro e he e' he' Θ τ hΘ Wτ hlabq hin
   have Wc : Ctx.SubstEq Θ (σ.comp τ) (σ.comp τ) Γ := Ctx.SubstEq.comp hΘ Wτ W
   have hwρτ : Valuation.WF Θ (ρ.subst τ) := Valuation.WF.subst hΘ Wτ hwρ
@@ -1460,8 +1456,8 @@ theorem lam_pi_code {Γ Γ₀ Δ : List Term} {A B : Term} {u v : Bool} {σ ρ}
       (∀ e ∈ g, ∃ c, TEvaluates Δ f (A.subst σ) e.tm e.inp.T c ∧
         TShape.HasType Δ c TShape.type ∧ Q e c) ∧
       TShape.WF Δ (Shape.T (n := k+1) (.forallE (A.subst σ) (B.subst σ.lift) dk f)) ((Term.forallE A B).subst σ) := by
-  have ihBdir := (IsDefEq.dir (show ⊢ (A :: Γ) from ⟨hΓ, _, hAty⟩) hB).1
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hAty⟩
+  have ihBdir := (IsDefEq.dir hΓA hB).1
   have hwρ := hAdm.wf
   have hstage := lam_stage hAty ihAd hΔ W hAdm hA hwf hNV
   -- the codes, collected and brought to one level
@@ -1589,9 +1585,9 @@ theorem sound_lam_dom {Γ : List Term} {A B b : Term} {u v : Bool}
     (ihbdom : SoundDom (A :: Γ) b B)
      :
     SoundDom Γ (.lam A b) (.forallE A B) := by
-  have ihbdir := (IsDefEq.dir (show ⊢ (A :: Γ) from ⟨hΓ, _, hAty⟩) hb).1
-  have ihBdir := (IsDefEq.dir (show ⊢ (A :: Γ) from ⟨hΓ, _, hAty⟩) hB).1
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hAty⟩
+  have ihbdir := (IsDefEq.dir hΓA hb).1
+  have ihBdir := (IsDefEq.dir hΓA hB).1
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
   have hwρ := hAdm.wf
   cases hm with
@@ -2038,8 +2034,8 @@ theorem pair_sigma_code {Γ Γ₀ Δ : List Term} {A B a : Term} {u v : Bool} {�
         TShape.HasType Δ cc TShape.type ∧ TShape.Named Δ cc (Shape.T y) ob) ∧
       TShape.WF Δ (Shape.T (n := k+1) (.sigma (A.subst σ) (B.subst σ.lift) dk f)) ((Term.sigma A B).subst σ) := by
   have ihAdir := (IsDefEq.dir hΓ hAty).1
-  have ihBdir := (IsDefEq.dir (show ⊢ (A :: Γ) from ⟨hΓ, _, hAty⟩) hB).1
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hAty⟩
+  have ihBdir := (IsDefEq.dir hΓA hB).1
   have hwρ := hAdm.wf
   have hAσ : Δ ⊢ A.subst σ : .sort u := hAty.subst hΔ W
   have hΔA : ⊢ (A.subst σ :: Δ) := ⟨hΔ, _, hAσ⟩
@@ -2488,8 +2484,8 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
       :
     SoundDom Γ (.app f a) (B.inst a) := by
   have hadir := (IsDefEq.dir hΓ ha).1
-  have hBdir := (IsDefEq.dir (show ⊢ (A :: Γ) from ⟨hΓ, _, hA⟩) hB).1
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
+  have hBdir := (IsDefEq.dir hΓA hB).1
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
   have hwρ := hAdm.wf
   have hAσ : Δ ⊢ A.subst σ : .sort u := hA.subst hΔ W
@@ -2693,8 +2689,8 @@ theorem sound_snd_dom {Γ : List Term} {A B p : Term} {u v : Bool}
       :
     SoundDom Γ (.snd p) (B.inst (.fst p)) := by
   have hfdir := (IsDefEq.dir hΓ hfst).1
-  have hBdir := (IsDefEq.dir (show ⊢ (A :: Γ) from ⟨hΓ, _, hA⟩) hB).1
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
+  have hBdir := (IsDefEq.dir hΓA hB).1
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
   have hwρ := hAdm.wf
   have hAσ : Δ ⊢ A.subst σ : .sort u := hA.subst hΔ W
@@ -2981,8 +2977,8 @@ theorem sound_beta {Γ : List Term} {A B e e' : Term} {u : Bool}
       :
     SoundEq Γ (.app (.lam A e) e') (e.inst e') := by
   have ihe'dir := (IsDefEq.dir hΓ he').1
-  have ihedir := (IsDefEq.dir (show ⊢ (A :: Γ) from ⟨hΓ, _, hA⟩) hbe).1
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
+  have ihedir := (IsDefEq.dir hΓA hbe).1
   intro Δ Γ₀ σ ρ hΔ W hAdm m
   have hwρ : Valuation.WF Δ ρ := hAdm.wf
   have hAσ : Δ ⊢ A.subst σ : .sort u := hA.subst hΔ W
@@ -4406,8 +4402,8 @@ theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢
     {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
     {m : TShape} (hm : Interp Δ Γ p σ ρ m) :
     Interp Δ Γ (.pair A B (.fst p) (.snd p)) σ ρ m := by
-  have ihBdir := (IsDefEq.dir (show ⊢ (A :: Γ) from ⟨hΓ, _, hA⟩) hB).1
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
+  have ihBdir := (IsDefEq.dir hΓA hB).1
   have hwρ := hAdm.wf
   have hfst : Γ ⊢ .fst p : A := .fstDF hA hB hp
   have hAσ : Δ ⊢ A.subst σ : .sort u := hA.subst hΔ W

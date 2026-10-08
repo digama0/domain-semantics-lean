@@ -58,11 +58,6 @@ heads are `False`.
 regularity lemma first, to build the label-only atom; that is only used
 where neither side is one of the three. -/
 
-private theorem not_le_of_head {Δ : List Term} {a b : TShape}
-    (hne : ∀ k, ¬ Shape.LE Δ (a.2.lift k) (b.2.lift k)) :
-    ¬ TShape.LE Δ a b := fun h =>
-  hne _ ((TShape.LE.def_mp (Nat.le_max_left ..) (Nat.le_max_right ..)) h)
-
 theorem sort_forallE_inv {Γ : List Term} {u s : Bool} {A₁ B₁ : Term}
     (hΓ : ⊢ Γ) : ¬Γ ⊢ Term.sort u ≡ Term.forallE A₁ B₁ : .sort s := by
   intro H

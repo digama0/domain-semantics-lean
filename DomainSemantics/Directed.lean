@@ -8,11 +8,14 @@ the approximant set be read as an ideal.
 
 It is a separate induction on typing, before soundness and independent of
 it, and this file is that induction and nothing else.  `SoundDir`'s own
-docstring (in `Interp.lean`) says why it cannot be a lemma about `Interp`
-alone and why it must not travel with `SoundEq`/`SoundTy`.  The practical
-consequence of standing alone is that everything downstream may take a
-*typing* hypothesis and read directedness off `IsDefEq.dir`, rather than
-carrying a directedness premise of its own. -/
+docstring, just below, says why it cannot be a lemma about `Interp` alone
+and why it must not travel with `SoundEq`/`SoundTy`.
+
+Because it stands alone, directedness holds of every well-typed term
+before anything downstream runs — so nothing downstream carries a
+directedness premise, and `SoundDir` is not mentioned outside this file.
+A lemma that needs two approximants joined takes a *typing* and reads
+`IsDefEq.dir`; a substitution's slots go through `Subst.Good.dir`. -/
 
 namespace DomainSemantics
 

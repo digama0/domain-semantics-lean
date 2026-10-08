@@ -83,13 +83,6 @@ what keeps this choice-free, unlike `h.defeqDF`. -/
 theorem defeqDF : TyEq Δ A A' → (Δ ⊢ a ≡ b : A) → Δ ⊢ a ≡ b : A'
   | ⟨_, h⟩ => h.defeqDF
 
-/-- Either side is a type.  Again the level is re-hidden. -/
-theorem isType_l : TyEq Δ A A' → ∃ u, Δ ⊢ A : .sort u
-  | ⟨u, h⟩ => ⟨u, h.hasType.1⟩
-
-theorem isType_r : TyEq Δ A A' → ∃ u, Δ ⊢ A' : .sort u
-  | ⟨u, h⟩ => ⟨u, h.hasType.2⟩
-
 end TyEq
 
 namespace PiLabelEq
