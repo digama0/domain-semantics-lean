@@ -1569,7 +1569,11 @@ theorem Interp.le_bvar {Δ Γ : List Term} {i σ ρ m}
   | bvar _ h => exact h
 
 /-- **A substitution the model can strengthen along**: every slot is
-either typed in the target context or a variable.  `Subst.one a` is one
+either typed in the target context or a variable — said outright, since
+both halves are read.  The annotation (`Subst.Good.annot`) is what
+strengthening needs; the typing is what *directedness* needs, through
+`Subst.Good.dir`, and that is why there is no separate directedness
+premise on any of the merges.  `Subst.one a` is one
 — slot `0` is the argument, the rest are variables — and lifting
 preserves it, which is all the merges under a binder need.
 
@@ -1577,23 +1581,31 @@ The alternative would be a lemma saying an interpretation ignores the
 slots past the end of its context; this is the same fact, in the form
 the callers can hand over. -/
 def Subst.Good (Γ' : List Term) (θ : Subst) : Prop :=
-  ∀ i, (θ i).Annot Γ'
+  ∀ i, (∃ A, Γ' ⊢ θ i : A) ∨ ∃ k, θ i = .bvar k
+
+/-- The annotation half, which is what strengthening reads. -/
+theorem Subst.Good.annot {Γ' : List Term} {θ : Subst} (h : Subst.Good Γ' θ) (i : Nat) :
+    (θ i).Annot Γ' := by
+  match h i with
+  | .inl ⟨_, ht⟩ => exact ht.annot.1
+  | .inr ⟨_, hk⟩ => rw [hk]; exact trivial
 
 theorem Subst.Good.lift {Γ' : List Term} {θ : Subst} {A : Term} (h : Subst.Good Γ' θ) :
     Subst.Good (A :: Γ') θ.lift := by
   intro i
   cases i with
-  | zero => exact trivial
+  | zero => exact .inr ⟨0, rfl⟩
   | succ i =>
-    have := (h i).weak' (Ctx.Lift'.skip (A := A) .refl)
-    exact this
+    match h i with
+    | .inl ⟨B, ht⟩ => exact .inl ⟨B.lift, IsDefEq.weak' (.skip .refl) ht⟩
+    | .inr ⟨k, hk⟩ => exact .inr ⟨k+1, by simp [Subst.lift, hk]⟩
 
-theorem Subst.Good.one {Γ' : List Term} {a : Term} (ha : a.Annot Γ') :
+theorem Subst.Good.one {Γ' : List Term} {a A : Term} (ha : Γ' ⊢ a : A) :
     Subst.Good Γ' (Subst.one a) := by
   intro i
   cases i with
-  | zero => exact ha
-  | succ i => exact trivial
+  | zero => exact .inl ⟨A, ha⟩
+  | succ i => exact .inr ⟨i, rfl⟩
 
 /-- Strengthening at one slot, which is all the merges need: the slot is
 well-annotated, so `Interp.unweak` applies at `.skip .refl`. -/

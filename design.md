@@ -176,20 +176,27 @@ of its rule's argument, the upper bound's construction included),
 `IsDefEq.stage`, and the order-inversion lemmas (`TShape.LE.lam_ub` and
 friends) that read a head back off a bound.
 
-Standing alone has a consequence worth stating: nothing downstream carries
-a directedness premise. A lemma that needs two approximants joined takes
-the *typing* it already has and reads `SoundDir` off `IsDefEq.dir`.
-`Subst.Dir Γ' θ` (every slot of `θ` is directed) is discharged once by
-`Subst.Dir.one` from the argument's typing and carried under a binder by
-`Subst.Dir.lift`; it is a hypothesis of the substitution lemmas only
-because `θ`'s slots past the context are variables rather than typed
-terms. `Interp.inst`, which used to take directedness of the argument,
-now derives it from the `Γ ⊢ a : A` it was already given.
+Standing alone has a consequence worth stating: **nothing outside this
+file mentions `SoundDir` at all**, and nothing anywhere carries a
+directedness premise. Directedness holds of every well-typed term, so a
+premise asking for it is never information — it is the typing the caller
+already has. Each lemma derives what it needs from a typing in its own
+signature, which is why `Interp.inst` takes no directedness of its
+argument and the `sound_*` lemmas take none of their subterms'.
 
-The merging lemmas — `to_substTerm`, `substTerm`, `inst`, `body_merge`,
-the `Valuation.Approx` joins — are about `Interp` alone but each needs a
-slot's two approximants joined, so they sit after `IsDefEq.dir` in
-`Presheaf.lean` rather than beside the rest of `Interp`'s theory.
+For a substitution the same fact is `Subst.Good.dir`: a slot of a good
+substitution is either typed, and `IsDefEq.dir` applies, or a variable,
+and `dir_bvar` does. `Subst.Good` says exactly that — "typed in the
+target context or a variable", which is what its docstring always
+claimed — and the substitution lemmas carry it anyway, for strengthening.
+So the merges (`to_substTerm`, `substTerm`, `body_merge`,
+`Subst.Saturates.lift`, the `Valuation.Approx` joins) have no
+directedness hypothesis either.
+
+The merging lemmas — `to_substTerm`, `substTerm`, `inst`, `body_merge` —
+are about `Interp` alone but each needs a slot's two approximants joined,
+so they sit after `IsDefEq.dir` rather than beside the rest of `Interp`'s
+theory.
 
 ## 4. Bookkeeping that replaces the quotient
 

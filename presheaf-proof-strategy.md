@@ -3494,3 +3494,33 @@ there.
 They are a different species — inversion of the order at a head, giving
 back the upper bound's shape — and `pair_ub` has four callers across two
 files.
+
+### 13b. `SoundDir` sealed, and `Subst.Dir` dissolved
+
+Directedness holds of every well-typed term, so a `SoundDir` premise is
+never information: it is the typing the caller already has, pushed through
+`IsDefEq.dir`. Twenty-four lemmas in `Presheaf.lean` carried one anyway,
+and `IsDefEq.sound` discharged every one of them at the call site with
+`(IsDefEq.dir hΓ h).1`. All twenty-four premises are gone; each lemma
+derives it from a typing already in its signature (`hB`, `hat`, `he'`,
+`ihMty.typed`, and for `sound_fst_snd_to`, which has no `⊢ Γ`, from
+`W.wf`). Thirty call-site arguments, seventeen inner passes and four in
+`Strong.lean` went with them.
+
+`Subst.Dir Γ' θ` — every slot directed — survived one round as the last
+directedness-shaped premise, on the merges. It is gone too, and the reason
+is that `Subst.Good` had been *saying* the right thing all along: its
+docstring reads "every slot is either typed in the target context or a
+variable", while the definition said only `∀ i, (θ i).Annot Γ'`. Written
+out as the disjunction it claimed, `Subst.Good` gives both halves —
+`Subst.Good.annot` for strengthening, `Subst.Good.dir` for directedness
+(typed slot ⇒ `IsDefEq.dir`, variable ⇒ `dir_bvar`) — and since every
+merge already carries it, none needs a directedness premise. `Subst.Dir`,
+`Subst.Dir.one`, `Subst.Dir.lift` and the stage-decomposing
+`SoundDir.weak` all disappear, along with seven `Subst.Dir.lift` arguments
+inside `to_substTerm`.
+
+What is left: `SoundDir` occurs outside `Directed.lean` only in prose. The
+two stage-specific statements (`dir_inst`, `sound_beta_lookup`) are
+written out rather than named, both blocked by `Interp.inst` needing `Adm`
+at the stage.
