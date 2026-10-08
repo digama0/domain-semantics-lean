@@ -1540,9 +1540,10 @@ theorem List.exists_pairs {α β : Type _} {P : α → β → Prop} :
 
 The forward direction of term substitution reads one valuation out of
 each subderivation and has to return a single one.  Valuations join
-slotwise, and a slot's join is again an approximant of its `θ i` by that
-term's directedness — which is why `substTerm` takes directedness of
-every `θ i` as a hypothesis, and `inst` directedness of its argument. -/
+slotwise, and a slot's join is again an approximant of its `θ i` only by
+that term's directedness — so the lemmas that do the merging live past
+`IsDefEq.dir`, in `Presheaf.lean`, and only the two definitions they
+merge are here. -/
 
 def Valuation.join (ρ₁ ρ₂ : Valuation) : Valuation := fun i => (ρ₁ i).join (ρ₂ i)
 

@@ -17,9 +17,11 @@ definitions below that have no counterpart on his side.
 Four groups: the domain, its typing, the interpretation, and the
 syntactic bookkeeping that stands in for his quotient.
 
-The files: `Shape`/`HasType` are the domain and its typing, `Interp` the
-interpretation, `Directed` the directedness induction, `Presheaf`
-soundness, and `Strong`/`Inversion`/`Consequences` what follows from it.
+The files, in dependency order: `Term`/`Label`/`Annot`/`Regular` are the
+syntax and its judgments, `Shape` and `HasType` the domain and its
+typing, `Interp` the interpretation, `Directed` the directedness
+induction, `Presheaf` soundness, and `Strong`/`Inversion`/`Consequences`
+what follows from it.
 
 ## 1. The domain
 
@@ -156,14 +158,23 @@ that names the type. intgrah's `SourceAdmissible`, plus the naming his
 quotient makes unnecessary. `Adm.bot` holds for free at the all-`⊥`
 valuation, which is the stage every inversion theorem runs at.
 
-**`SoundDir Γ t`**: directedness, that two approximants of `t` have a
-common upper bound that is still an approximant, at every stage the
-context admits. This is intgrah's `HasIdeality`. He proves it inside the
-main induction because his `app` case needs the function's fixedness; ours
-is `IsDefEq.dir`, a *separate* induction on typing in its own file
-(`Directed.lean`, which imports only `Interp`), running under the weaker
-`Valuation.WF` rather than `Adm` — which works only because `IsDefEq.dir`
-never instantiates a binder.
+**`SoundDir Γ t`** (`Directed.lean`): directedness, that two approximants
+of `t` have a common upper bound that is still an approximant, at every
+stage the context admits. This is intgrah's `HasIdeality`. He proves it
+inside the main induction because his `app` case needs the function's
+fixedness; ours is `IsDefEq.dir`, a *separate* induction on typing,
+running under the weaker `Valuation.WF` rather than `Adm` — which works
+only because `IsDefEq.dir` never instantiates a binder.
+
+That induction is its own file, and what makes it one is that it needs
+none of `Interp`'s substitution or merging machinery — only the
+interpretation, its order lemmas and `Interp.lift`. So `Directed.lean`
+imports `Interp` and nothing else, and the dependency runs the other way
+from what the old file order suggested. It holds one theorem per typing
+rule (`sound_forallE_dir`, `dir_pair`, `dir_app` and so on, each the whole
+of its rule's argument, the upper bound's construction included),
+`IsDefEq.stage`, and the order-inversion lemmas (`TShape.LE.lam_ub` and
+friends) that read a head back off a bound.
 
 Standing alone has a consequence worth stating: nothing downstream carries
 a directedness premise. A lemma that needs two approximants joined takes
@@ -174,6 +185,11 @@ the *typing* it already has and reads `SoundDir` off `IsDefEq.dir`.
 because `θ`'s slots past the context are variables rather than typed
 terms. `Interp.inst`, which used to take directedness of the argument,
 now derives it from the `Γ ⊢ a : A` it was already given.
+
+The merging lemmas — `to_substTerm`, `substTerm`, `inst`, `body_merge`,
+the `Valuation.Approx` joins — are about `Interp` alone but each needs a
+slot's two approximants joined, so they sit after `IsDefEq.dir` in
+`Presheaf.lean` rather than beside the rest of `Interp`'s theory.
 
 ## 4. Bookkeeping that replaces the quotient
 
