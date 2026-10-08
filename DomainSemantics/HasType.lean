@@ -2643,6 +2643,15 @@ theorem TShape.Slot.defeq {Δ : List Term} (hΔ : ⊢ Δ) {T t t' : Term} {d x :
     (h : TShape.Slot Δ T d t x) (ht : Δ ⊢ t ≡ t' : T) : TShape.Slot Δ T d t' x :=
   ⟨h.1.defeq hΔ h.2 ht, h.2⟩
 
+/-- **The stage moves both halves at once**, which is the point of
+bundling them: `Interp`'s `pair`, `Y` and `tr` clauses each hold a slot,
+and the substitution lemma moves it without naming its parts. -/
+theorem TShape.Slot.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
+    (W : Ctx.SubstEq Θ τ τ Δ) {T t : Term} {d x : TShape}
+    (h : TShape.Slot Δ T d t x) :
+    TShape.Slot Θ (T.subst τ) (d.subst τ) (t.subst τ) (x.subst τ) :=
+  ⟨TShape.Named.subst hΘ W h.1, TShape.WF.subst hΘ W h.2⟩
+
 /-- Conversion in the type: the code's naming is the only field that sees it. -/
 theorem TShape.Slot.conv {Δ : List Term} {T T' t : Term} {d x : TShape}
     (h : TShape.Slot Δ T d t x) (hT : TyEq Δ T' T) : TShape.Slot Δ T' d t x :=
