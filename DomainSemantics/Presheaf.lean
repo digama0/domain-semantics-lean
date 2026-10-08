@@ -1070,7 +1070,7 @@ saturates, which is the hypothesis `Interp.to_substTerm` reads its
 clause conditions under. -/
 theorem Subst.Saturates.one {Γ Γ₀ Δ : List Term} {A a : Term} {σ ρ}
     (hΔ : ⊢ Δ) (hΓ : ⊢ Γ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ) (hadom : SoundDom Γ a A) :
-    Subst.Saturates Δ Γ₀ (A :: Γ) Γ (Subst.one a) σ ρ := fun hρ' =>
+    Subst.Saturates Δ Γ₀ (A :: Γ) Γ (Subst.one a) σ ρ := fun _ hρ' =>
   match Valuation.Approx.canon_one hΔ hΓ W hAdm hadom hρ' with
   | ⟨_, h1, h2, h3⟩ => ⟨_, h1, h2, h3⟩
 
@@ -1088,15 +1088,15 @@ theorem sound_forallE_ty {Γ : List Term} {A B : Term} {u v : Bool} (ihAd : Soun
     -- the domain half is now the constructor's own premise; only the
     -- codomain runs an induction hypothesis
     refine .forallE hd (fun e he => ?_) hwf
-    · -- the codomain, at the stage extended by the entry's label: the
-      -- entry's own data is exactly what `Adm.cons` and `SubstEq.cons` ask for
-      have hwe := hwf.2.2.2.1.1 e he
-      have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
-        .cons W hAty hwe.2.1
-      have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
-        .cons hAdm W.wf hA hwe.2.2.1 (hNV e he)
-          (ihAd.codeAt hΔ W hAdm hA)
-      exact ihB.hasType hΔ W' hAdm' (hbody e he)
+    -- the codomain, at the stage extended by the entry's label: the
+    -- entry's own data is exactly what `Adm.cons` and `SubstEq.cons` ask for
+    have hwe := hwf.2.2.2.1.1 e he
+    have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
+      .cons W hAty hwe.2.1
+    have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
+      .cons hAdm W.wf hA hwe.2.2.1 (hNV e he)
+        (ihAd.codeAt hΔ W hAdm hA)
+    exact ihB.hasType hΔ W' hAdm' (hbody e he)
 
 /-- One direction of the `SoundEq` half of `forallEDF`.
 
@@ -1126,30 +1126,30 @@ theorem sound_forallE_eq_of {Γ : List Term} {A A' B B' : Term} {u v : Bool}
   have hΓA' : ⊢ (A' :: Γ) := ⟨W.wf, _, hAA'.hasType.2⟩
   cases H with
   | bot => exact .bot
-  | forallE hA hd hwf hNV hbody hw hle hAt hBt =>
-    refine .forallE ((ihA hΔ W hAdm).1 hA) hd
-      ⟨⟨_, hAσ.hasType.2⟩, ⟨_, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩,
-        Shape.WF.conv hwf.2.2.1 ⟨_, hAσ.symm⟩,
-        ShapeFun.WF.name ((ShapeFun.WF.forget hwf.2.2.2.1).retype ⟨_, hAσ⟩)
-          (fun e he => (ShapeFun.WF.canon hwf.2.2.2.1 e he).conv
-            ⟨_, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm
-              (hAσ.defeqDF ((hwf.2.2.2.1.1 e he).2.1))⟩), trivial⟩
-      hNV (fun e he => ?_) hw
-      (hle.trans hΔ (TShape.LE.T.2
-        ⟨⟨⟨_, hAσ⟩, _, hBσ⟩, .refl (Shape.WF.forget hwf.2.2.1),
-          .refl (ShapeFun.WF.forget hwf.2.2.2.1),
-          hwf.2.2.1, ShapeFun.WF.canon hwf.2.2.2.1⟩))
-      ⟨u, hAA'.hasType.2⟩ ⟨v, IsDefEq.ctx_id hΓA' (Ctx.SubstEq.defeqHead W.wf hAA')
-        hBB'.hasType.2⟩
-    · -- the body, at the stage extended by the entry's label
-      have hwe := hwf.2.2.2.1.1 e he
-      have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
-        .cons W hAA'.hasType.1 hwe.2.1
-      have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
-        .cons hAdm W.wf hA hwe.2.2.1 (hNV e he)
-          (ihAtyD.codeAt hΔ W hAdm hA)
-      exact Interp.ctx ((ihB hΔ W' hAdm').1 (hbody e he)) hΓA'
-        (Ctx.SubstEq.defeqHead W.wf hAA')
+  | forallE hA hd hwf hNV hbody hw hle hAt hBt
+  refine .forallE ((ihA hΔ W hAdm).1 hA) hd
+    ⟨⟨_, hAσ.hasType.2⟩, ⟨_, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩,
+      Shape.WF.conv hwf.2.2.1 ⟨_, hAσ.symm⟩,
+      ShapeFun.WF.name ((ShapeFun.WF.forget hwf.2.2.2.1).retype ⟨_, hAσ⟩)
+        (fun e he => (ShapeFun.WF.canon hwf.2.2.2.1 e he).conv
+          ⟨_, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm
+            (hAσ.defeqDF ((hwf.2.2.2.1.1 e he).2.1))⟩), trivial⟩
+    hNV (fun e he => ?_) hw
+    (hle.trans hΔ (TShape.LE.T.2
+      ⟨⟨⟨_, hAσ⟩, _, hBσ⟩, .refl (Shape.WF.forget hwf.2.2.1),
+        .refl (ShapeFun.WF.forget hwf.2.2.2.1),
+        hwf.2.2.1, ShapeFun.WF.canon hwf.2.2.2.1⟩))
+    ⟨u, hAA'.hasType.2⟩ ⟨v, IsDefEq.ctx_id hΓA' (Ctx.SubstEq.defeqHead W.wf hAA')
+      hBB'.hasType.2⟩
+  · -- the body, at the stage extended by the entry's label
+    have hwe := hwf.2.2.2.1.1 e he
+    have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
+      .cons W hAA'.hasType.1 hwe.2.1
+    have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
+      .cons hAdm W.wf hA hwe.2.2.1 (hNV e he)
+        (ihAtyD.codeAt hΔ W hAdm hA)
+    exact Interp.ctx ((ihB hΔ W' hAdm').1 (hbody e he)) hΓA'
+      (Ctx.SubstEq.defeqHead W.wf hAA')
 
 /-- The `SoundEq` half of `forallEDF`: the two Π-types have the same
 approximants at every stage.
@@ -1187,16 +1187,16 @@ theorem sound_sigma_ty {Γ : List Term} {A B : Term} {u v : Bool} (ihAd : SoundD
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
   cases hm with
   | bot => exact ⟨TShape.type, Interp.sort', .bot .sort⟩
-  | sigma hA hd hwf hNV hbody hw hle =>
-    refine ⟨TShape.type, Interp.sort', TShape.HasType.mono_l hΔ ?_ hle⟩
-    refine .sigma hd (fun e he => ?_) hwf
-    have hwe := hwf.2.2.2.1.1 e he
-    have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
-      .cons W hAty hwe.2.1
-    have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
-      .cons hAdm W.wf hA hwe.2.2.1 (hNV e he)
-        (ihAd.codeAt hΔ W hAdm hA)
-    exact ihB.isType hΔ W' hAdm' (hbody e he)
+  | sigma hA hd hwf hNV hbody hw hle
+  refine ⟨TShape.type, Interp.sort', TShape.HasType.mono_l hΔ ?_ hle⟩
+  refine .sigma hd (fun e he => ?_) hwf
+  have hwe := hwf.2.2.2.1.1 e he
+  have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
+    .cons W hAty hwe.2.1
+  have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
+    .cons hAdm W.wf hA hwe.2.2.1 (hNV e he)
+      (ihAd.codeAt hΔ W hAdm hA)
+  exact ihB.isType hΔ W' hAdm' (hbody e he)
 
 /-- **A forallE-type names itself**: its labels are its own, its domain
 is an approximant of `A`, and its codomain entries are approximants of `B`
@@ -1206,12 +1206,10 @@ theorem CodeAt.forallE {Γ : List Term} {A B : Term} {u v : Bool}
     (hAty : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v) :
     CodeAt Γ (.forallE A B) := by
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
-  cases hm with
-  | bot => exact TShape.WF.bot
-  | forallE hA hd hwf hNV hbody hw hle =>
-    exact TShape.WF.mono hΔ hle
-      ⟨hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2.1,
-        ⟨v, (IsDefEq.forallEDF hAty hB hB).subst hΔ W⟩⟩
+  cases hm with | bot => exact .bot | forallE hA hd hwf hNV hbody hw hle
+  exact TShape.WF.mono hΔ hle
+    ⟨hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2.1,
+      ⟨v, (IsDefEq.forallEDF hAty hB hB).subst hΔ W⟩⟩
 
 /-- **A sigma-type names itself**: its labels are its own, its domain
 is an approximant of `A`, and its codomain entries are approximants of `B`
@@ -1221,12 +1219,10 @@ theorem CodeAt.sigma {Γ : List Term} {A B : Term} {u v : Bool}
     (hAty : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v) :
     CodeAt Γ (.sigma A B) := by
   intro Δ Γ₀ σ ρ hΔ W hAdm m hm
-  cases hm with
-  | bot => exact TShape.WF.bot
-  | sigma hA hd hwf hNV hbody hw hle =>
-    exact TShape.WF.mono hΔ hle
-      ⟨hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2.1,
-        ⟨true, (IsDefEq.sigmaDF hAty hB hB).subst hΔ W⟩⟩
+  cases hm with | bot => exact .bot | sigma hA hd hwf hNV hbody hw hle
+  exact TShape.WF.mono hΔ hle
+    ⟨hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2.1,
+      ⟨true, (IsDefEq.sigmaDF hAty hB hB).subst hΔ W⟩⟩
 
 /-- One direction of the `SoundEq` half of `sigmaDF`; see
 `sound_forallE_eq_of` for what it. -/
@@ -1241,31 +1237,29 @@ theorem sound_sigma_eq_of {Γ : List Term} {A A' B B' : Term} {u v : Bool}
       PiLabelEq Δ (A.subst σ) (B.subst σ.lift) (A'.subst σ) (B'.subst σ.lift) :=
     PiLabelEq.subst hΔ W ⟨⟨u, hAA'⟩, v, hBB'⟩
   have hΓA' : ⊢ (A' :: Γ) := ⟨W.wf, _, hAA'.hasType.2⟩
-  cases H with
-  | bot => exact .bot
-  | sigma hA hd hwf hNV hbody hw hle hAt hBt =>
-    refine .sigma ((ihA hΔ W hAdm).1 hA) hd
-      ⟨⟨_, hAσ.hasType.2⟩, ⟨_, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩,
-        Shape.WF.conv hwf.2.2.1 ⟨_, hAσ.symm⟩,
-        ShapeFun.WF.name ((ShapeFun.WF.forget hwf.2.2.2.1).retype ⟨_, hAσ⟩)
-          (fun e he => (ShapeFun.WF.canon hwf.2.2.2.1 e he).conv
-            ⟨_, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm
-              (hAσ.defeqDF ((hwf.2.2.2.1.1 e he).2.1))⟩), trivial⟩
-      hNV (fun e he => ?_) hw
-      (hle.trans hΔ (TShape.LE.T.2
-        ⟨⟨⟨_, hAσ⟩, _, hBσ⟩, .refl (Shape.WF.forget hwf.2.2.1),
-          .refl (ShapeFun.WF.forget hwf.2.2.2.1),
-          hwf.2.2.1, ShapeFun.WF.canon hwf.2.2.2.1⟩))
-      ⟨u, hAA'.hasType.2⟩ ⟨v, IsDefEq.ctx_id hΓA' (Ctx.SubstEq.defeqHead W.wf hAA')
-        hBB'.hasType.2⟩
-    · have hwe := hwf.2.2.2.1.1 e he
-      have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
-        .cons W hAA'.hasType.1 hwe.2.1
-      have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
-        .cons hAdm W.wf hA hwe.2.2.1 (hNV e he)
-          (ihAtyD.codeAt hΔ W hAdm hA)
-      exact Interp.ctx ((ihB hΔ W' hAdm').1 (hbody e he)) hΓA'
-        (Ctx.SubstEq.defeqHead W.wf hAA')
+  cases H with | bot => exact .bot | sigma hA hd hwf hNV hbody hw hle hAt hBt
+  refine .sigma ((ihA hΔ W hAdm).1 hA) hd
+    ⟨⟨_, hAσ.hasType.2⟩, ⟨_, (hAσ.defeqDF_l hΔ hBσ).hasType.2⟩,
+      Shape.WF.conv hwf.2.2.1 ⟨_, hAσ.symm⟩,
+      ShapeFun.WF.name ((ShapeFun.WF.forget hwf.2.2.2.1).retype ⟨_, hAσ⟩)
+        (fun e he => (ShapeFun.WF.canon hwf.2.2.2.1 e he).conv
+          ⟨_, (hAσ.hasType.2).instDF hΔ .sort (hAσ.defeqDF_l hΔ hBσ).symm
+            (hAσ.defeqDF ((hwf.2.2.2.1.1 e he).2.1))⟩), trivial⟩
+    hNV (fun e he => ?_) hw
+    (hle.trans hΔ (TShape.LE.T.2
+      ⟨⟨⟨_, hAσ⟩, _, hBσ⟩, .refl (Shape.WF.forget hwf.2.2.1),
+        .refl (ShapeFun.WF.forget hwf.2.2.2.1),
+        hwf.2.2.1, ShapeFun.WF.canon hwf.2.2.2.1⟩))
+    ⟨u, hAA'.hasType.2⟩ ⟨v, IsDefEq.ctx_id hΓA' (Ctx.SubstEq.defeqHead W.wf hAA')
+      hBB'.hasType.2⟩
+  · have hwe := hwf.2.2.2.1.1 e he
+    have W' : Ctx.SubstEq Δ (σ.cons e.tm) (σ.cons e.tm) (A :: Γ) :=
+      .cons W hAA'.hasType.1 hwe.2.1
+    have hAdm' : Adm Δ Γ₀ (A :: Γ) (σ.cons e.tm) (ρ.push (Shape.T e.inp)) :=
+      .cons hAdm W.wf hA hwe.2.2.1 (hNV e he)
+        (ihAtyD.codeAt hΔ W hAdm hA)
+    exact Interp.ctx ((ihB hΔ W' hAdm').1 (hbody e he)) hΓA'
+      (Ctx.SubstEq.defeqHead W.wf hAA')
 
 /-- The `SoundEq` half of `sigmaDF`. -/
 theorem sound_sigma_eq {Γ : List Term} {A A' B B' : Term} {u v : Bool}

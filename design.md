@@ -229,7 +229,8 @@ would:
 ## 5. What soundness says
 
 `IsDefEq.sound` takes `⊢ Γ` and `Γ ⊢ t ≡ t' : A` and returns a record
-with five fields, proved in one induction over every rule:
+with five fields — four notions, `pin` once per side — proved in one
+induction over every rule:
 
 | field | meaning | intgrah |
 |---|---|---|
@@ -245,30 +246,49 @@ uniqueness is derived from it.
 
 ### Why they are one induction
 
-They cannot be separated. The five are one strongly connected component,
-and the tightest cycle needs only two of them:
+They cannot be separated: the four notions are one strongly connected
+component. Reading `X ← Y` as "the proof of `X` consumes `Y` at a
+subterm", ten of the twelve possible edges are there.
 
-- **`pin` needs `ty`.** `Term.Pinned` at a binder is `IsTypeAt Γ A`
-  together with the subterms' own, and `IsTypeAt` is half of
-  `SoundTy Γ A (.sort u)` (`SoundTy.isTypeAt`).
-- **`ty` needs `pin`.** `sound_tr_ty` and `sound_natCase_ty` take the
-  motive's `Pinned`, because typing the result means instantiating the
-  motive and `Interp.inst` is what consumes `Pinned`.
+| | ← `eq` | ← `ty` | ← `pin` | ← `dom` |
+|---|---|---|---|---|
+| **`eq`** | — | yes | yes | yes |
+| **`ty`** | yes | — | *no* | yes |
+| **`pin`** | *no* | yes | — | yes |
+| **`dom`** | yes | yes | yes | — |
 
-Both edges are at subterms, which is exactly what a simultaneous
-induction is for. Three further cycles run through the other two fields:
-`ty` needs `dom` (at `app` and `snd`, through `SoundTy.of_dom`: an
-approximant sits below a hereditarily typed one and typing is
-lower-closed); `dom` needs `pin` (every `sound_*_dom` takes the
-codomain's or motive's `Pinned`); and `eq` needs all three while `ty` and
-`dom` need `eq`, because `symm` rebuilds them for the other side with
-`SoundTy.of_eq` and `SoundDom.of_eq`.
+Every edge is at a subterm, which is what a simultaneous induction is
+for. The ones that carry the argument:
 
-`SoundTy` is **implied by** `SoundDom` plus the syntactic typing
-(`SoundTy.of_dom`), so wherever `dom` is proved on its own the `ty`
-conclusion is a corollary. At `lam`, `natCase` and `tr` the cases read
-`ty` off their own `dom`. The implication runs the other way at the type
-formers, where `dom` comes from `SoundDom.of_sort` applied to `ty`.
+- **`pin` ← `ty`, `dom`.** `Term.Pinned` at a binder is `IsTypeAt Γ A`
+  together with the subterms' own, and `IsTypeAt` comes from `SoundTy`
+  *and* `SoundDom` at a sort (`SoundTy.isTypeAt`). `PinApp.of_sound` and
+  `PinSnd.of_sound` are the other two.
+- **`dom` ← `pin`.** Every `sound_*_dom` takes the codomain's or motive's
+  `Pinned`, because saturating the result means instantiating, and
+  `Interp.inst` is what consumes `Pinned`.
+- **`ty` ← `dom`.** `SoundTy.of_dom`: an approximant sits below a
+  hereditarily typed one and typing is lower-closed. So wherever `dom` is
+  proved on its own, `ty` is a corollary rather than an obligation.
+- **`ty`, `dom` ← `eq`.** `symm` rebuilds both for the other side, with
+  `SoundTy.of_eq` and `SoundDom.of_eq`.
+- **`eq` ← all three**, at the computation rules: `sound_beta`,
+  `sound_Y_unfold` and `SoundEq.inst_cod` each take some of them.
+
+So the tightest cycles are two long: `eq ↔ ty`, `eq ↔ dom`, `ty ↔ dom`,
+and — the one that pins `pin` into the component — `pin ↔ dom`.
+
+The two absent edges are worth naming, because the obvious guesses are
+wrong. **`ty` does not need `pin`**: at `tr` and `natCase` the typing used
+to come from its own lemma taking the motive's `Pinned`, but those cases
+now read `ty` off their own `dom` through `SoundTy.of_dom`, so the
+dependency goes through `dom` instead. And **`pin` does not need `eq`** at
+all; the right-hand side's `pin'` is built from the *other* side's `ty`
+and `dom`, not from the equation.
+
+At `lam`, `natCase` and `tr` the cases read `ty` off their own `dom`. The
+implication runs the other way at the type formers, where `dom` comes from
+`SoundDom.of_sort` applied to `ty`.
 
 Two derived notions sit on top. **`CodeAt Γ t`** says every approximant
 of `t`, read as a code, names `t`; it follows from any `SoundDom` at a

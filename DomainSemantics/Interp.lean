@@ -1693,7 +1693,7 @@ at the `Γ` side, each an immediate consequence of the subterm's own
 substitution, which is the only kind that arises, and `Saturates.lift`
 carries it under a binder. -/
 def Subst.Saturates (Δ Γ₀ Γ Γ' : List Term) (θ σ : Subst) (ρ : Valuation) : Prop :=
-  ∀ {ρ'}, Valuation.Approx Δ Γ' θ σ ρ ρ' →
+  ∀ {{ρ'}}, Valuation.Approx Δ Γ' θ σ ρ ρ' →
     ∃ ρ'', Valuation.LE Δ ρ' ρ'' ∧ Valuation.Approx Δ Γ' θ σ ρ ρ'' ∧
       Adm Δ Γ₀ Γ (θ.comp σ) ρ''
 
@@ -1701,7 +1701,7 @@ def Subst.Saturates (Δ Γ₀ Γ Γ' : List Term) (θ σ : Subst) (ρ : Valuatio
 `SoundTy Γ A (.sort u)`'s `isType` half, spelled without `SoundTy` so
 that `Interp.lean` stays below it. -/
 def IsTypeAt (Γ : List Term) (A : Term) : Prop :=
-  ∀ {Δ Γ₀ : List Term} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
+  ∀ {{Δ Γ₀ : List Term}} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
     ∀ {c}, Interp Δ Γ A σ ρ c →
       TShape.HasType Δ c TShape.type ∧ TShape.WF Δ c (A.subst σ)
 
@@ -1709,7 +1709,7 @@ def IsTypeAt (Γ : List Term) (A : Term) : Prop :=
 approximant of `A`: `SoundTy Γ t A`'s `approx` half.  Needed at the two
 binders whose slot is not an entry input — `natCase`'s and `Y`'s. -/
 def TypedAt (Γ : List Term) (t A : Term) : Prop :=
-  ∀ {Δ Γ₀ : List Term} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
+  ∀ {{Δ Γ₀ : List Term}} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
     ∀ {m}, Interp Δ Γ t σ ρ m → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.HasType Δ m a
 
 /-- A λ-shape approximating `F` has its label definitionally equal to the
@@ -1717,14 +1717,14 @@ argument's type at the stage.  In the original this is the function's
 Π-fixedness and `outputAtom_rawPi_fixed_support`; here it is
 `Interp.lam_label_ty` on `SoundTy F (Π A B)`. -/
 def PinApp (Γ : List Term) (F a : Term) : Prop :=
-  ∀ {Δ Γ₀ : List Term} {σ ρ} {n} {A : Term} {g : ShapeFun n}, ⊢ Δ →
+  ∀ {{Δ Γ₀ : List Term}} {σ ρ} {n} {A : Term} {g : ShapeFun n}, ⊢ Δ →
     Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
     Interp Δ Γ F σ ρ (Shape.T (n := n+1) (ShapeS.lam A g)) → Stable Δ Γ σ a A
 
 /-- The Σ twin, for `snd`: a pair shape approximating `p` has its label
 definitionally equal to the type of `fst p` at the stage. -/
 def PinSnd (Γ : List Term) (p : Term) : Prop :=
-  ∀ {Δ Γ₀ : List Term} {σ ρ} {n} {A a₀ : Term} {x y : Shape n}, ⊢ Δ →
+  ∀ {{Δ Γ₀ : List Term}} {σ ρ} {n} {A a₀ : Term} {x y : Shape n}, ⊢ Δ →
     Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
     Interp Δ Γ p σ ρ (Shape.T (n := n+1) (ShapeS.pair A a₀ x y)) →
     Stable Δ Γ σ (Term.fst p) A
