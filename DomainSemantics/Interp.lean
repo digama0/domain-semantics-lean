@@ -1513,6 +1513,12 @@ def Subst.Saturates (Δ Γ Γ' : List Term) (θ σ : Subst) (ρ : Valuation) : P
     ∃ ρ'', Valuation.LE Δ Γ ρ' ρ'' ∧ Valuation.Approx Δ Γ' Γ θ σ ρ ρ'' ∧
       Adm Δ Γ (θ.comp σ) ρ''
 
+/-- Every approximant of `t`, read as a code, names `t`: what saturation
+at a sort says, and what an atom's top shape gives by downward closure. -/
+def CodeAt (Γ : List Term) (t : Term) : Prop :=
+  ∀ {{Δ : List Term}} {{σ ρ}}, Adm Δ Γ σ ρ →
+    ∀ {m}, Interp Δ Γ t σ ρ m → TShape.WF Δ m (t.subst σ)
+
 /-- Every approximant of `A` at an admissible stage is a type:
 `SoundTy Γ A (.sort u)`'s `isType` half, spelled without `SoundTy` so
 that `Interp.lean` stays below it. -/
@@ -1521,12 +1527,34 @@ def IsTypeAt (Γ : List Term) (A : Term) : Prop :=
     ∀ {c}, Interp Δ Γ A σ ρ c →
       TShape.HasType Δ c TShape.type ∧ TShape.WF Δ c (A.subst σ)
 
+/-- The second half of `IsTypeAt` is `CodeAt` on the nose: an
+approximant of a type names it. -/
+theorem IsTypeAt.codeAt {Γ : List Term} {A : Term} (h : IsTypeAt Γ A) :
+    CodeAt Γ A := by
+  intro _ _ _ hAdm _ hc
+  exact (h hAdm hc).2
+
 /-- Every approximant of `t` at an admissible stage is typed at an
 approximant of `A`: `SoundTy Γ t A`'s `approx` half.  Needed at the two
 binders whose slot is not an entry input — `natCase`'s and `Y`'s. -/
 def TypedAt (Γ : List Term) (t A : Term) : Prop :=
   ∀ {{Δ : List Term}} {σ ρ}, Adm Δ Γ σ ρ →
     ∀ {m}, Interp Δ Γ t σ ρ m → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.HasType Δ m a
+
+/-- **`IsTypeAt` is the conjunction of two notions that exist already.**
+Its first half is `TypedAt` at the top sort: the `⊥` witness that the
+existential allows is no weaker, since typing is monotone in the type
+(`HasType.mono_r`) and `⊥` is below `type`.  Its second half is `CodeAt`
+on the nose.  Kept as one definition because every consumer reads both
+halves at the same stage. -/
+theorem IsTypeAt.iff {Γ : List Term} {A : Term} :
+    IsTypeAt Γ A ↔ TypedAt Γ A (.sort true) ∧ CodeAt Γ A := by
+  refine ⟨fun h => ⟨?_, h.codeAt⟩, fun ⟨hty, hc⟩ => ?_⟩
+  · intro _ _ _ hAdm _ hm
+    exact ⟨TShape.type, Interp.sort', (h hAdm hm).1⟩
+  · intro _ _ _ hAdm _ hm
+    obtain ⟨a, ha, hma⟩ := hty hAdm hm
+    exact ⟨hma.mono_r hAdm.ctx _ (Interp.le_sort ha) TShape.HasType.sort, hc hAdm hm⟩
 
 /-- A λ-shape approximating `F` has its label definitionally equal to the
 argument's type at the stage.  In the original this is the function's

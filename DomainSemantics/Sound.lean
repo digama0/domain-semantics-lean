@@ -698,12 +698,6 @@ theorem SoundTy.approx {Γ : List Term} {t A : Term} (h : SoundTy Γ t A)
   obtain ⟨_, a, _, hle, ha, hdom, _⟩ := h hAdm hm
   exact ⟨a, ha, hdom.hasType.mono_l hΔ hle⟩
 
-/-- Every approximant of `t`, read as a code, names `t`: what saturation
-at a sort says, and what an atom's top shape gives by downward closure. -/
-def CodeAt (Γ : List Term) (t : Term) : Prop :=
-  ∀ {{Δ : List Term}} {{σ ρ}}, Adm Δ Γ σ ρ →
-    ∀ {m}, Interp Δ Γ t σ ρ m → TShape.WF Δ m (t.subst σ)
-
 /-- At `nat` (and any other filtering code) saturation is just typing:
 nothing below such a code binds, so `Named` is `HasType` there, and the
 names are read as codes, where they are downward closed. -/
