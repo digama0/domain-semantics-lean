@@ -91,12 +91,12 @@ namespace PiLabelEq
 both witnesses are destructured and the result re-hides its own level. -/
 theorem forallE (hΔ : ⊢ Δ) :
     PiLabelEq Δ A B A' B' → TyEq Δ (.forallE A B) (.forallE A' B')
-  | ⟨⟨_, h1⟩, ⟨_, h2⟩⟩ => ⟨_, IsDefEq.forallEDF₀ hΔ h1 h2⟩
+  | ⟨⟨_, h1⟩, ⟨_, h2⟩⟩ => ⟨_, h1.forallEDF₀ hΔ h2⟩
 
 /-- The same for Σ. -/
 theorem sigma (hΔ : ⊢ Δ) :
     PiLabelEq Δ A B A' B' → TyEq Δ (.sigma A B) (.sigma A' B')
-  | ⟨⟨_, h1⟩, ⟨_, h2⟩⟩ => ⟨_, IsDefEq.sigmaDF₀ hΔ h1 h2⟩
+  | ⟨⟨_, h1⟩, ⟨_, h2⟩⟩ => ⟨_, h1.sigmaDF₀ hΔ h2⟩
 
 end PiLabelEq
 
@@ -105,7 +105,7 @@ namespace IdLabelEq
 /-- And for the identity type. -/
 theorem id {r : Bool} :
     IdLabelEq Δ A a b A' a' b' → TyEq Δ (.id r A a b) (.id r A' a' b')
-  | ⟨⟨_, h1⟩, h2, h3⟩ => ⟨_, IsDefEq.idDF h1 h2 h3⟩
+  | ⟨⟨_, h1⟩, h2, h3⟩ => ⟨_, .idDF h1 h2 h3⟩
 
 end IdLabelEq
 
@@ -176,18 +176,18 @@ theorem of_typed (ha : Γ ⊢ a : A₀) (hTy : TyEq Δ A (A₀.subst σ)) :
     Stable Δ Γ σ a A := by
   intro Θ τ σ₂ hΘ V W
   have hT : TyEq Θ (A.subst τ) (A₀.subst (σ.comp τ)) := by
-    have := TyEq.subst hΘ V hTy; rwa [subst_subst] at this
-  exact hT.symm.defeqDF (IsDefEq.subst' hΘ W ha)
+    have := hTy.subst hΘ V; rwa [subst_subst] at this
+  exact hT.symm.defeqDF (ha.subst' hΘ W)
 
 /-- What the clauses use it for: the query term moves with the stage. -/
 theorem move (hΔ : ⊢ Δ) (H : Stable Δ Γ σ a A) (W : Ctx.SubstEq Δ σ σ₂ Γ) :
     Δ ⊢ a.subst σ ≡ a.subst σ₂ : A := by
-  have h := H hΔ (Ctx.SubstEq.id hΔ) (σ₂ := σ₂) (by rwa [Subst.comp_id])
+  have h := H hΔ (.id hΔ) (σ₂ := σ₂) (by rwa [Subst.comp_id])
   rwa [Subst.comp_id, subst_id] at h
 
 /-- The label moves by a `TyEq`. -/
 theorem retype (hTy : TyEq Δ A A') (H : Stable Δ Γ σ a A) : Stable Δ Γ σ a A' :=
-  fun _ _ _ hΘ V W => (TyEq.subst hΘ V hTy).defeqDF (H hΘ V W)
+  fun _ _ _ hΘ V W => (hTy.subst hΘ V).defeqDF (H hΘ V W)
 
 /-- Along a substitution of the ambient context — immediate, since that is
 what the definition quantifies over. -/
@@ -195,15 +195,15 @@ theorem subst (V : Ctx.SubstEq Θ τ₀ τ₀ Δ) (H : Stable Δ Γ σ a A) :
     Stable Θ Γ (σ.comp τ₀) a (A.subst τ₀) := by
   intro Ξ τ σ₂ hΞ V' W
   rw [Subst.comp_assoc] at W
-  have h := H hΞ (Ctx.SubstEq.comp' hΞ V' V) W
+  have h := H hΞ (V'.comp' hΞ V) W
   rw [Subst.comp_assoc, subst_subst]
   exact h
 
 /-- To a definitionally equal context. -/
-theorem ctx (W₀ : Ctx.SubstEq Γ' Subst.id Subst.id Γ) (H : Stable Δ Γ σ a A) :
+theorem ctx (W₀ : Ctx.SubstEq Γ' .id .id Γ) (H : Stable Δ Γ σ a A) :
     Stable Δ Γ' σ a A := by
   intro Θ τ σ₂ hΘ V W
-  have hW := Ctx.SubstEq.comp' hΘ W W₀
+  have hW := W.comp' hΘ W₀
   rw [Subst.id_comp, Subst.id_comp] at hW
   exact H hΘ V hW
 
@@ -211,14 +211,14 @@ theorem ctx (W₀ : Ctx.SubstEq Γ' Subst.id Subst.id Γ) (H : Stable Δ Γ σ a
 theorem stage (W₀ : Ctx.SubstEq Δ σ σ₂ Γ) (H : Stable Δ Γ σ a A) :
     Stable Δ Γ σ₂ a A := by
   intro Θ τ σ₃ hΘ V W
-  have hmid : Ctx.SubstEq Θ (σ.comp τ) (σ₂.comp τ) Γ := Ctx.SubstEq.comp' hΘ V W₀
+  have hmid : Ctx.SubstEq Θ (σ.comp τ) (σ₂.comp τ) Γ := V.comp' hΘ W₀
   exact (H hΘ V hmid).symm.trans (H hΘ V (hmid.trans hΘ W))
 
 /-- Into a larger context, the term lifted along it. -/
 theorem weak' (hΓ : ⊢ Γ) (WΓ : Ctx.Lift' l Γ Γ')
     (H : Stable Δ Γ (σ'.lift_l l) a A) : Stable Δ Γ' σ' (a.lift' l) A := by
   intro Θ τ σ₂ hΘ V W
-  have hW := Ctx.SubstEq.lift_l WΓ hΓ W
+  have hW := W.lift_l WΓ hΓ
   rw [Subst.lift_l_comp] at hW
   simp only [subst_lift', Subst.lift_l_comp]
   exact H hΘ V hW
@@ -230,7 +230,7 @@ theorem unweak (WΓ : Ctx.Lift' l Γ Γ') (hd : Ctx.SubstEq Δ σ' σ' Γ')
     (H : Stable Δ Γ' σ' (a.lift' l) A) : Stable Δ Γ (σ'.lift_l l) a A := by
   intro Θ τ σ₂ hΘ V W
   rw [← Subst.lift_l_comp] at W
-  obtain ⟨σ₂', W', rfl⟩ := Ctx.SubstEq.extend WΓ (Ctx.SubstEq.comp hΘ V hd) W
+  obtain ⟨σ₂', W', rfl⟩ := (V.comp hΘ hd).extend WΓ W
   have h := H hΘ V W'
   rw [subst_lift', subst_lift'] at h
   rw [← Subst.lift_l_comp]
@@ -241,7 +241,7 @@ theorem substTerm (Wθ : Ctx.SubstEq Γ' θ θ Γ) (H : Stable Δ Γ (θ.comp σ
     Stable Δ Γ' σ (a.subst θ) A := by
   intro Θ τ σ₂ hΘ V W
   have hW : Ctx.SubstEq Θ ((θ.comp σ).comp τ) (θ.comp σ₂) Γ := by
-    rw [Subst.comp_assoc]; exact Ctx.SubstEq.comp' hΘ W Wθ
+    rw [Subst.comp_assoc]; exact W.comp' hΘ Wθ
   have h := H hΘ V hW
   rw [Subst.comp_assoc] at h
   simp only [subst_subst]

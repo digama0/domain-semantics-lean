@@ -115,16 +115,12 @@ theorem HasType.hasType : HasType Γ e A b → Γ ⊢ e : A
   | .nat => .nat
   | .zero => .zero
   | .succ ihn => .succDF ihn.hasType
-  | .natCase hC hCM ihM iha ihb =>
-    .natCaseDF hC ihM.hasType iha.hasType ihb.hasType hCM
+  | .natCase hC hCM ihM iha ihb => .natCaseDF hC ihM.hasType iha.hasType ihb.hasType hCM
   | .Y ihA ihbody => .YDF ihA.hasType ihbody.hasType ihbody.hasType
   | .id ihA iha ihb => .idDF ihA.hasType iha.hasType ihb.hasType
-  | .refl ihA iha => .reflDF ihA.hasType iha.hasType
-      (.idDF ihA.hasType iha.hasType iha.hasType)
-  | .tr ihA iha ihb hC hCb ihx ihh =>
-      .trDF ihA.hasType iha.hasType ihb.hasType hC hC
-        ihx.hasType ihh.hasType hCb
-        (.idDF ihA.hasType iha.hasType ihb.hasType)
+  | .refl ihA iha => .reflDF ihA.hasType iha.hasType (.idDF ihA.hasType iha.hasType iha.hasType)
+  | .tr ihA iha ihb hC hCb ihx ihh => .trDF ihA.hasType iha.hasType ihb.hasType hC hC ihx.hasType
+      ihh.hasType hCb (.idDF ihA.hasType iha.hasType ihb.hasType)
   | .base ih => ih.hasType
   | .defeq d ihe => d.defeqDF ihe.hasType
 
@@ -136,9 +132,11 @@ theorem HasType.unfold (h : Γ ⊨ e : A) :
   generalize hb : true = b at h
   induction h with cases hb
   | base h_s => exact ⟨_, h_s, fun input => ⟨_, input⟩⟩
-  | defeq d _ ihe =>
-    obtain ⟨A', h_s, chain⟩ := ihe rfl
-    exact ⟨A', h_s, fun input => let ⟨_, eq⟩ := chain input; ⟨_, eq.trans' d⟩⟩
+  | defeq d _ ihe
+  obtain ⟨A', h_s, chain⟩ := ihe rfl
+  refine ⟨A', h_s, fun input => ?_⟩
+  let ⟨_, eq⟩ := chain input
+  exact ⟨_, eq.trans' d⟩
 
 /-- Reduce any `HasType` derivation (at either `b`) to a structural one with
 a transport function. -/
@@ -158,7 +156,7 @@ theorem HasType.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
   | bvar h_l h_t =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
     let .bvar h_l' _ := H2_s
-    obtain rfl := Lookup.determ h_l h_l'
+    obtain rfl := h_l.determ h_l'
     exact transport h_t
   | sort' =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
@@ -178,7 +176,7 @@ theorem HasType.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
     obtain ⟨_, h_pi_eq⟩ := ih_f hΓ h_f'
     obtain ⟨_, _, h_A_eq, h_B_eq⟩ := forallE_inv hΓ h_pi_eq
     have W : Ctx.SubstEq Γ' (.one a) (.one a) (A :: Γ') :=
-      .cons (Ctx.SubstEq.id hΓ) h_A_eq.hasType.1
+      .cons (.id hΓ) h_A_eq.hasType.1
         (by simpa using h_a.hasType)
     exact transport (h_B_eq.subst hΓ W)
   | lam h_A _ h_body ih_A ih_body =>
@@ -198,25 +196,25 @@ theorem HasType.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
     exact transport .sort
   | sigma h_A h_b ih_A ih_b =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
-    let .sigma _ _ := H2_s
+    let .sigma .. := H2_s
     exact transport .sort
-  | pair h_A h_B _ _ _ =>
+  | pair h_A h_B =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
-    let .pair _ _ _ _ _ := H2_s
+    let .pair .. := H2_s
     exact transport (.sigmaDF₀ hΓ h_A h_B)
   | fst h_A h_B h_p ih_p =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
     let .fst _ _ h_p' := H2_s
     obtain ⟨_, h_sig_eq⟩ := ih_p hΓ h_p'
-    obtain ⟨_, _, h_A_eq, _⟩ := sigma_inv hΓ <| (IsDefEq.sigmaDF₀ hΓ h_A h_B).symm.trans' h_sig_eq
+    obtain ⟨_, _, h_A_eq, _⟩ := sigma_inv hΓ <| (h_A.sigmaDF₀ hΓ h_B).symm.trans' h_sig_eq
     exact transport h_A_eq
   | snd h_A h_B _ h_p ih_p =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
     let .snd _ _ _ h_p' := H2_s
     obtain ⟨_, h_sig_eq⟩ := ih_p hΓ h_p'
-    obtain ⟨_, _, _, h_B_eq⟩ := sigma_inv hΓ <| (IsDefEq.sigmaDF₀ hΓ h_A h_B).symm.trans' h_sig_eq
+    obtain ⟨_, _, _, h_B_eq⟩ := sigma_inv hΓ <| (h_A.sigmaDF₀ hΓ h_B).symm.trans' h_sig_eq
     refine transport (h_B_eq.subst hΓ ?_)
-    exact .cons (Ctx.SubstEq.id hΓ) h_A.hasType.1 (by simpa using h_p.hasType.fstDF₀ hΓ)
+    exact .cons (.id hΓ) h_A.hasType.1 (by simpa using h_p.hasType.fstDF₀ hΓ)
   | nat =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
     let .nat := H2_s
@@ -225,16 +223,16 @@ theorem HasType.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
     let .zero := H2_s
     exact transport .nat
-  | succ _ _ =>
+  | succ =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
     let .succ _ := H2_s
     exact transport .nat
-  | natCase _ h_CM _ _ _ _ _ _ =>
+  | natCase _ h_CM =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
-    let .natCase _ _ _ _ _ := H2_s
+    let .natCase .. := H2_s
     exact transport h_CM
-  | id _ _ _ _ _ _ =>
-    let ⟨_, .id _ _ _, transport⟩ := H2.toStructural
+  | id =>
+    let ⟨_, .id .., transport⟩ := H2.toStructural
     exact transport .sort
   | refl _ h_a _ ih_a =>
     let ⟨_, .refl _ h_a_2, transport⟩ := H2.toStructural
@@ -247,9 +245,9 @@ theorem HasType.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
   | defeq d _ ihe =>
     obtain ⟨_, eq⟩ := ihe hΓ H2
     exact ⟨_, d.symm.trans' eq⟩
-  | Y h_A _ =>
+  | Y h_A =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
-    let .Y _ _ := H2_s
+    let .Y .. := H2_s
     exact transport h_A.hasType
 
 /-- Every `IsDefEq` derivation projects to a pair of `HasType` derivations
@@ -269,17 +267,15 @@ theorem IsDefEq.toHasType {Γ : List Term} {e₁ e₂ A : Term}
   | sort => exact ⟨.base .sort', .base .sort'⟩
   | unit => exact ⟨.base .unit, .base .unit⟩
   | star => exact ⟨.base .star, .base .star⟩
-  | appDF hA hB _ _ h_Ba _ _ ih_f ih_a _ =>
-    exact ⟨.base (.app hA hB h_Ba.hasType.1 (ih_f hΓ).1 (ih_a hΓ).1),
-      .defeq h_Ba.symm
-        (.base (.app hA hB h_Ba.hasType.2 (ih_f hΓ).2 (ih_a hΓ).2))⟩
+  | appDF hA hB _ _ h_Ba _ _ ih_f ih_a =>
+    refine ⟨.base (.app hA hB h_Ba.hasType.1 (ih_f hΓ).1 (ih_a hΓ).1), ?_⟩
+    exact .defeq h_Ba.symm (.base (.app hA hB h_Ba.hasType.2 (ih_f hΓ).2 (ih_a hΓ).2))
   | lamDF h_A hB hbody hbody' _ ih_A _ ih_body ih_body' =>
     have hB' := h_A.defeqDF_l hΓ hB
     have hΓ' : ⊢ _ :: _ := ⟨hΓ, _, h_A.hasType.1⟩
     have hΓ_A' : ⊢ _ :: _ := ⟨hΓ, _, h_A.hasType.2⟩
     refine ⟨.base (.lam (ih_A hΓ).1 hB (ih_body hΓ').1), ?_⟩
-    exact .defeq (.symm <| .forallEDF h_A hB hB')
-      (.base (.lam (ih_A hΓ).2 hB' (ih_body' hΓ_A').2))
+    exact .defeq (.symm <| .forallEDF h_A hB hB') (.base (.lam (ih_A hΓ).2 hB' (ih_body' hΓ_A').2))
   | forallEDF h_A _ _ ih_A ih_body ih_body' =>
     exact ⟨.base (.forallE (ih_A hΓ).1 (ih_body ⟨hΓ, _, h_A.hasType.1⟩).1),
       .base (.forallE (ih_A hΓ).2 (ih_body' ⟨hΓ, _, h_A.hasType.2⟩).2)⟩
@@ -290,28 +286,26 @@ theorem IsDefEq.toHasType {Γ : List Term} {e₁ e₂ A : Term}
   | sigmaDF h_A _ _ ih_A ih_body ih_body' =>
     exact ⟨.base (.sigma (ih_A hΓ).1 (ih_body ⟨hΓ, _, h_A.hasType.1⟩).1),
       .base (.sigma (ih_A hΓ).2 (ih_body' ⟨hΓ, _, h_A.hasType.2⟩).2)⟩
-  | pairDF h_A h_B h_B' _ _ h_Bin _ ih_A ih_B _ ih_a ih_b _ _ =>
-    refine ⟨.base (.pair h_A.hasType.1 h_B.hasType.1 h_Bin.hasType.1
-      (ih_a hΓ).1 (ih_b hΓ).1), ?_⟩
+  | pairDF h_A h_B h_B' _ _ h_Bin _ ih_A ih_B _ ih_a ih_b =>
+    refine ⟨.base (.pair h_A.hasType.1 h_B.hasType.1 h_Bin.hasType.1 (ih_a hΓ).1 (ih_b hΓ).1), ?_⟩
     exact .defeq (.symm <| .sigmaDF₀ hΓ h_A h_B)
       (.base (.pair h_A.hasType.2 h_B'.hasType.2 h_Bin.hasType.2
         (.defeq h_A (ih_a hΓ).2) (.defeq h_Bin (ih_b hΓ).2)))
   | fstDF h_A h_B _ _ _ ih_p =>
     exact ⟨.base (.fst h_A h_B (ih_p hΓ).1), .base (.fst h_A h_B (ih_p hΓ).2)⟩
-  | sndDF h_A h_B _ h_Bfst _ _ ih_p _ =>
+  | sndDF h_A h_B _ h_Bfst _ _ ih_p =>
     refine ⟨.base (.snd h_A h_B h_Bfst.hasType.1 (ih_p hΓ).1), ?_⟩
     exact .defeq h_Bfst.symm (.base (.snd h_A h_B h_Bfst.hasType.2 (ih_p hΓ).2))
-  | pair_fst h_A h_B h_a h_b _ _ _ ih_a ih_b _ =>
+  | pair_fst h_A h_B h_a h_b _ _ _ ih_a ih_b =>
     refine ⟨?_, (ih_a hΓ).1⟩
-    have h_Bin := IsDefEq.inst0 hΓ h_a h_B
+    have h_Bin := h_a.inst0 hΓ h_B
     exact .base (.fst h_A h_B (.base (.pair h_A h_B h_Bin (ih_a hΓ).1 (ih_b hΓ).1)))
-  | pair_snd h_A h_B h_a h_b _ _ _ ih_a ih_b _ =>
+  | pair_snd h_A h_B h_a h_b _ _ _ ih_a ih_b =>
     refine ⟨?_, (ih_b hΓ).1⟩
-    have h_Bin := IsDefEq.inst0 hΓ h_a h_B
-    have h_pair_typing :=
-      (HasType.base (.pair h_A h_B h_Bin (ih_a hΓ).1 (ih_b hΓ).1)).hasType
+    have h_Bin := h_a.inst0 hΓ h_B
+    have h_pair_typing := (HasType.base (.pair h_A h_B h_Bin (ih_a hΓ).1 (ih_b hΓ).1)).hasType
     have h_fst_eq := h_B.pair_fst₀ hΓ h_a h_b
-    have h_B_eq := IsDefEq.instDF hΓ h_A .sort h_B h_fst_eq
+    have h_B_eq := h_A.instDF hΓ .sort h_B h_fst_eq
     refine .defeq h_B_eq ?_
     exact .base (.snd h_A h_B h_B_eq.hasType.1
       (.base (.pair h_A h_B h_Bin (ih_a hΓ).1 (ih_b hΓ).1)))
@@ -319,29 +313,28 @@ theorem IsDefEq.toHasType {Γ : List Term} {e₁ e₂ A : Term}
   | nat => exact ⟨.base .nat, .base .nat⟩
   | zero => exact ⟨.base .zero, .base .zero⟩
   | succDF _ ih => exact ⟨.base (.succ (ih hΓ).1), .base (.succ (ih hΓ).2)⟩
-  | natCaseDF h_C _ _ _ h_CM _ ih_M ih_a ih_b _ =>
+  | natCaseDF h_C _ _ _ h_CM _ ih_M ih_a ih_b =>
     have hΓ' : ⊢ .nat::_ := ⟨hΓ, _, .nat⟩
     refine ⟨.base (.natCase h_C.hasType.1 h_CM.hasType.1 (ih_M hΓ).1 (ih_a hΓ).1 (ih_b hΓ').1), ?_⟩
     refine .defeq h_CM.symm <| .base <| .natCase h_C.hasType.2 h_CM.hasType.2 (ih_M hΓ).2 ?_ ?_
     · exact .defeq (.instDF hΓ .nat .sort h_C .zero) (ih_a hΓ).2
     refine .defeq (.inst0 hΓ' ?_ (h_C.weak' (.cons (.skip .refl)))) (ih_b hΓ').2
     exact .succDF (.bvar .zero .nat)
-  | natCase_zero h_C _ _ _ _ ih_a ih_b _ =>
+  | natCase_zero h_C _ _ _ _ ih_a ih_b =>
     have hΓ' : ⊢ .nat::_ := ⟨hΓ, _, .nat⟩
-    have hCM := IsDefEq.instDF hΓ .nat .sort h_C .zero
+    have hCM := instDF hΓ .nat .sort h_C .zero
     exact ⟨.base (.natCase h_C hCM (.base .zero) (ih_a hΓ).1 (ih_b hΓ').1), (ih_a hΓ).1⟩
   | natCase_succ h_C h_n _ _ _ _ _ ih_n ih_a ih_b _ ih_bn =>
     have hΓ' : ⊢ .nat::_ := ⟨hΓ, _, .nat⟩
-    have hCM := IsDefEq.instDF hΓ .nat .sort h_C (.succDF h_n)
+    have hCM := instDF hΓ .nat .sort h_C (.succDF h_n)
     refine ⟨.base ?_, (ih_bn hΓ).1⟩
     exact .natCase h_C hCM (.base (.succ (ih_n hΓ).1)) (ih_a hΓ).1 (ih_b hΓ').1
   | idDF HA _ _ ih_A ih_a ih_b =>
     refine ⟨.base (.id (ih_A hΓ).1 (ih_a hΓ).1 (ih_b hΓ).1), ?_⟩
-    refine .base (.id (ih_A hΓ).2 (.defeq HA (ih_a hΓ).2) (.defeq HA (ih_b hΓ).2))
+    exact .base (.id (ih_A hΓ).2 (.defeq HA (ih_a hΓ).2) (.defeq HA (ih_b hΓ).2))
   | @reflDF Γ A u a a' r HA Ha HId ih_A ih_a ih_Id =>
     refine ⟨.base (.refl (ih_A hΓ).1 (ih_a hΓ).1), ?_⟩
-    have h_Aa_eq_Aa' : Γ ⊢ Term.id r A a a ≡ Term.id r A a' a' : .sort r :=
-      .idDF HA.hasType.1 Ha Ha
+    have h_Aa_eq_Aa' : Γ ⊢ .id r A a a ≡ .id r A a' a' : .sort r := .idDF HA.hasType.1 Ha Ha
     exact .defeq h_Aa_eq_Aa'.symm (.base (.refl (ih_A hΓ).1 (ih_a hΓ).2))
   | @trDF Γ A A' u a a' b b' C C' v x x' h h' r HA Ha Hb HC HC' Hx Hh HCb H_id
       ih_A ih_a ih_b ih_C ih_C' ih_x ih_h ih_Cb ih_id =>
@@ -432,7 +425,7 @@ theorem IsDefEq₀.iff' {Γ : List Term} {e₁ e₂ A : Term}
     | YDF _ _ ih1 ih2 => exact .YDF₀ hΓ (ih1 hΓ) (ih2 ⟨hΓ, _, (ih1 hΓ).hasType.1⟩)
     | Y_unfold _ _ ih1 ih2 => exact .Y_unfold₀ hΓ (ih1 hΓ) (ih2 ⟨hΓ, _, (ih1 hΓ).hasType.1⟩)
   · induction h with
-    | bvar h _ => exact .bvar h
+    | bvar h => exact .bvar h
     | symm _ ih => exact .symm (ih hΓ)
     | trans _ _ ih1 ih2 => exact .trans (ih1 hΓ) (ih2 hΓ)
     | trans' h1 h2 ih1 ih2 => cases h1.uniq_sort hΓ h2; exact .trans (ih1 hΓ) (ih2 hΓ)
@@ -446,32 +439,32 @@ theorem IsDefEq₀.iff' {Γ : List Term} {e₁ e₂ A : Term}
     | beta h1 _ _ _ _ _ ih1 ih2 => exact .beta (ih1 ⟨hΓ, _, h1⟩) (ih2 hΓ)
     | eta _ _ ih => exact .eta (ih hΓ)
     | unit_eta _ ih => exact .unit_eta (ih hΓ)
-    | sigmaDF h_A _ _ ih_A ih_B _ =>
+    | sigmaDF h_A _ _ ih_A ih_B =>
       exact .sigmaDF (ih_A hΓ) (ih_B ⟨hΓ, _, h_A.hasType.1⟩)
-    | pairDF h_A _ _ _ _ _ _ ih_A ih_B _ ih_a ih_b _ _ =>
+    | pairDF h_A _ _ _ _ _ _ ih_A ih_B _ ih_a ih_b =>
       exact .pairDF (ih_A hΓ) (ih_B ⟨hΓ, _, h_A.hasType.1⟩) (ih_a hΓ) (ih_b hΓ)
     | fstDF _ _ _ _ _ ih_p => exact .fstDF (ih_p hΓ)
-    | sndDF _ _ _ _ _ _ ih_p _ => exact .sndDF (ih_p hΓ)
-    | pair_fst h_A _ _ _ _ _ ih_B ih_a ih_b _ =>
+    | sndDF _ _ _ _ _ _ ih_p => exact .sndDF (ih_p hΓ)
+    | pair_fst h_A _ _ _ _ _ ih_B ih_a ih_b =>
       exact .pair_fst (ih_B ⟨hΓ, _, h_A.hasType.1⟩) (ih_a hΓ) (ih_b hΓ)
-    | pair_snd h_A _ _ _ _ _ ih_B ih_a ih_b _ =>
+    | pair_snd h_A _ _ _ _ _ ih_B ih_a ih_b =>
       exact .pair_snd (ih_B ⟨hΓ, _, h_A.hasType.1⟩) (ih_a hΓ) (ih_b hΓ)
-    | fst_snd _ _ ih_p _ => exact .fst_snd (ih_p hΓ)
+    | fst_snd _ _ ih_p => exact .fst_snd (ih_p hΓ)
     | nat => exact .nat
     | zero => exact .zero
     | succDF _ ih => exact .succDF (ih hΓ)
-    | natCaseDF _ _ _ _ _ ihC ihM iha ihb _ =>
+    | natCaseDF _ _ _ _ _ ihC ihM iha ihb =>
       exact .natCaseDF (ihC ⟨hΓ, _, .nat⟩) (ihM hΓ) (iha hΓ) (ihb ⟨hΓ, _, .nat⟩)
-    | natCase_zero _ _ _ _ ihC iha ihb _ =>
+    | natCase_zero _ _ _ _ ihC iha ihb =>
       exact .natCase_zero (ihC ⟨hΓ, _, .nat⟩) (iha hΓ) (ihb ⟨hΓ, _, .nat⟩)
-    | natCase_succ _ _ _ _ _ _ ihC ihn iha ihb _ _ =>
+    | natCase_succ _ _ _ _ _ _ ihC ihn iha ihb =>
       exact .natCase_succ (ihC ⟨hΓ, _, .nat⟩) (ihn hΓ) (iha hΓ) (ihb ⟨hΓ, _, .nat⟩)
     | idDF _ _ _ ihA iha ihb => exact .idDF (ihA hΓ) (iha hΓ) (ihb hΓ)
-    | reflDF _ _ _ _ ih_a _ => exact .reflDF (ih_a hΓ)
-    | trDF h_A _ _ _ _ _ _ _ _ ihA iha ihb ihC ihC' ihx ihh _ _ =>
+    | reflDF _ _ _ _ ih_a => exact .reflDF (ih_a hΓ)
+    | trDF h_A _ _ _ _ _ _ _ _ ihA iha ihb ihC ihC' ihx ihh =>
       exact .trDF (ihA hΓ) (iha hΓ) (ihb hΓ)
         (ihC ⟨hΓ, _, h_A.hasType.1⟩) (ihC' ⟨hΓ, _, h_A.hasType.2⟩) (ihx hΓ) (ihh hΓ)
-    | tr_refl h_A _ _ _ _ _ ih_a ihC ihx _ => exact .tr_refl (ih_a hΓ) (ihC ⟨hΓ, _, h_A⟩) (ihx hΓ)
+    | tr_refl h_A _ _ _ _ _ ih_a ihC ihx => exact .tr_refl (ih_a hΓ) (ihC ⟨hΓ, _, h_A⟩) (ihx hΓ)
     | proofIrrel _ _ _ ih1 ih2 ih3 => exact .proofIrrel (ih1 hΓ) (ih2 hΓ) (ih3 hΓ)
     | YDF h1 _ _ ih1 ih2 ih3 => exact .YDF (ih1 hΓ) (ih2 ⟨hΓ, _, h1.hasType.1⟩)
     | Y_unfold h1 _ _ _ ih1 ih2 => exact .Y_unfold (ih1 hΓ) (ih2 ⟨hΓ, _, h1.hasType.1⟩)
@@ -488,11 +481,10 @@ scoped notation:65 "⊢₀ " Γ:36 => Ctx.WF' Γ
 `⊢ Γ` (using `IsDefEq` sort proofs) and `⊢₀ Γ` (using `IsDefEq₀`) are
 mutually derivable, by induction on `Γ` calling `IsDefEq₀.iff'` on the
 head sort proof. -/
-theorem Ctx.WF.iff : ∀ {Γ}, ⊢ Γ ↔ ⊢₀ Γ
-  | [] => .rfl
-  | _::_ => ⟨
-    fun ⟨hΓ, _, hA⟩ => ⟨iff.1 hΓ, _, (IsDefEq₀.iff' hΓ).2 hA⟩,
-    fun ⟨hΓ, _, hA⟩ => ⟨iff.2 hΓ, _, (IsDefEq₀.iff' (iff.2 hΓ)).1 hA⟩⟩
+theorem Ctx.WF.iff {Γ} : ⊢ Γ ↔ ⊢₀ Γ := by
+  induction Γ with | nil => exact .rfl | cons A Γ ih
+  exact ⟨fun ⟨hΓ, _, hA⟩ => ⟨ih.1 hΓ, _, (IsDefEq₀.iff' hΓ).2 hA⟩,
+    fun ⟨hΓ, _, hA⟩ => ⟨ih.2 hΓ, _, (IsDefEq₀.iff' (ih.2 hΓ)).1 hA⟩⟩
 
 /-! ### Discharging the scaffolding -/
 
@@ -507,7 +499,7 @@ theorem IsDefEq.iff {Γ : List Term} {e₁ e₂ A : Term} (hΓ : ⊢₀ Γ) :
 /-- Pi–Pi injectivity: if two Pi types are definitionally equal,
 their domains and codomains are each definitionally equal. -/
 theorem forallE_inv' (hΓ : ⊢₀ Γ)
-    (H : Γ ⊢₀ Term.forallE A₀ B₀ ≡ Term.forallE A₁ B₁ : .sort s) :
+    (H : Γ ⊢₀ .forallE A₀ B₀ ≡ .forallE A₁ B₁ : .sort s) :
     ∃ u v, Γ ⊢₀ A₀ ≡ A₁ : .sort u ∧ A₀::Γ ⊢₀ B₀ ≡ B₁ : .sort v := by
   have hΓs : ⊢ Γ := Ctx.WF.iff.2 hΓ
   have ⟨u, v, hA, hB⟩ := forallE_inv hΓs ((IsDefEq.iff hΓ).2 H)
@@ -517,11 +509,11 @@ theorem forallE_inv' (hΓ : ⊢₀ Γ)
 /-- Sort/Pi disjointness: a sort is never definitionally equal to a Pi-type.
 A consequence of weak-head determinacy and the fact that `.sort u` is
 already in WHNF. -/
-theorem sort_forallE_inv' (hΓ : ⊢₀ Γ) : ¬Γ ⊢₀ .sort u ≡ Term.forallE A₁ B₁ : .sort s :=
+theorem sort_forallE_inv' (hΓ : ⊢₀ Γ) : ¬Γ ⊢₀ .sort u ≡ .forallE A₁ B₁ : .sort s :=
   fun H => sort_forallE_inv (Ctx.WF.iff.2 hΓ) ((IsDefEq.iff hΓ).2 H)
 
 /-- Sort injectivity: if two sorts are definitionally equal, their levels are equal. -/
-theorem sort_inv' (hΓ : ⊢₀ Γ) (d : Γ ⊢₀ Term.sort u ≡ Term.sort v : V) : u = v :=
+theorem sort_inv' (hΓ : ⊢₀ Γ) (d : Γ ⊢₀ .sort u ≡ .sort v : V) : u = v :=
   sort_inv (Ctx.WF.iff.2 hΓ) ((IsDefEq.iff hΓ).2 d)
 
 /-- **Type uniqueness**, on the judgment itself: two types of one term
@@ -537,7 +529,7 @@ theorem IsDefEq.trans_r (hΓ : ⊢ Γ)
   exact eq.defeqDF H |>.trans h2
 
 theorem IsDefEq.to_sigma_type (hΓ : ⊢ Γ)
-    (H : Γ ⊢ e ≡ Term.sigma A B : .sort w) : Γ ⊢ e ≡ Term.sigma A B : .type := by
+    (H : Γ ⊢ e ≡ .sigma A B : .sort w) : Γ ⊢ e ≡ .sigma A B : .type := by
   have ⟨⟨_, h1⟩, _, h2⟩ := H.sigma_inv' hΓ (.inr rfl)
   exact H.trans_r hΓ (h1.sigmaDF₀ hΓ h2)
 
@@ -545,7 +537,7 @@ theorem IsDefEq.to_sigma_type (hΓ : ⊢ Γ)
 sort `.sort r` (the Id-type lives in `Sort r`, cumulatively), by type-uniqueness.
 Mirrors `to_sigma_type`. -/
 theorem IsDefEq.to_id_type (hΓ : ⊢ Γ)
-    (H : Γ ⊢ e ≡ Term.id r A a b : .sort w) : Γ ⊢ e ≡ Term.id r A a b : .sort r := by
+    (H : Γ ⊢ e ≡ .id r A a b : .sort w) : Γ ⊢ e ≡ .id r A a b : .sort r := by
   have ⟨⟨_, h1⟩, h2, h3⟩ := H.id_inv' hΓ (.inr rfl)
   exact H.trans_r hΓ (h1.idDF (r := r) h2 h3)
 
@@ -579,7 +571,8 @@ theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) {A} (hM : Γ ⊢ M : A)
     have step1 := IsDefEq.trDF hA hay hby hC hC ihx.hasType h_h.hasType
       (.instDF hΓ hA .sort hC hby) (.idDF hA iha.hasType ihb.hasType)
     have step2 := (IsDefEq.instDF hΓ hA .sort hC hby.symm).defeqDF
-      (.tr_refl₀ (r := r) hΓ hay.hasType.2 hC ((IsDefEq.instDF hΓ hA .sort hC hay).defeqDF ihx.hasType))
+      (.tr_refl₀ (r := r) hΓ hay.hasType.2 hC
+        ((IsDefEq.instDF hΓ hA .sort hC hay).defeqDF ihx.hasType))
     obtain ⟨_, eqA⟩ := transport hCb
     exact eqA.defeqDF (step1.trans step2)
   | @app f f' a hf ih =>
@@ -598,7 +591,7 @@ theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) {A} (hM : Γ ⊢ M : A)
     obtain ⟨_, hpi⟩ := h_f.uniq hΓ (.base (.lam ihA hB' hbody))
     obtain ⟨_, _, hAeq, hBeq⟩ := forallE_inv hΓ hpi
     -- `a` typed at the lam's annotation domain `Al`, and the β-equation there
-    have betaConv := IsDefEq.beta₀ hΓ hbody.hasType (hAeq.defeqDF h_a.hasType)
+    have betaConv := hbody.hasType.beta₀ hΓ (hAeq.defeqDF h_a.hasType)
     -- re-target the codomain `B'.inst a` back to the app's type `B.inst a`, then `A`
     have hBeqInst := h_a.hasType.inst0 hΓ hBeq.symm
     obtain ⟨_, eqA⟩ := transport hBa
@@ -607,14 +600,14 @@ theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) {A} (hM : Γ ⊢ M : A)
     obtain ⟨H, _⟩ := hM.toHasType hΓ
     obtain ⟨_, Hs, _⟩ := H.toStructural
     let .fst _ _ h_p := Hs
-    have fConv := IsDefEq.fstDF₀ hΓ (ih h_p.hasType)
+    have fConv := (ih h_p.hasType).fstDF₀ hΓ
     obtain ⟨_, hTe⟩ := H.uniq hΓ (fConv.toHasType hΓ).1
     exact hTe.symm.defeqDF fConv
   | @snd p p' hp ih =>
     obtain ⟨H, _⟩ := hM.toHasType hΓ
     obtain ⟨_, Hs, _⟩ := H.toStructural
     let .snd _ _ _ h_p := Hs
-    have sConv := IsDefEq.sndDF₀ hΓ (ih h_p.hasType)
+    have sConv := (ih h_p.hasType).sndDF₀ hΓ
     obtain ⟨_, hTe⟩ := H.uniq hΓ (sConv.toHasType hΓ).1
     exact hTe.symm.defeqDF sConv
   | @pair_fst A B a b =>
@@ -623,7 +616,7 @@ theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) {A} (hM : Γ ⊢ M : A)
     let .fst _ _ h_p := Hs
     obtain ⟨_, hps, _⟩ := h_p.toStructural
     let .pair _ hB _ iha ihb := hps
-    have pfConv := IsDefEq.pair_fst₀ hΓ hB iha.hasType ihb.hasType
+    have pfConv := hB.pair_fst₀ hΓ iha.hasType ihb.hasType
     obtain ⟨_, hTe⟩ := H.uniq hΓ (pfConv.toHasType hΓ).1
     exact hTe.symm.defeqDF pfConv
   | @pair_snd A B a b =>
@@ -632,26 +625,26 @@ theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) {A} (hM : Γ ⊢ M : A)
     let .snd _ _ _ h_p := Hs
     obtain ⟨_, hps, _⟩ := h_p.toStructural
     let .pair _ hB _ iha ihb := hps
-    have psConv := IsDefEq.pair_snd₀ hΓ hB iha.hasType ihb.hasType
+    have psConv := hB.pair_snd₀ hΓ iha.hasType ihb.hasType
     obtain ⟨_, hTe⟩ := H.uniq hΓ (psConv.toHasType hΓ).1
     exact hTe.symm.defeqDF psConv
   | natCase hp ih =>
     obtain ⟨H, _⟩ := hM.toHasType hΓ
     let ⟨_, .natCase hC _ hM ha hb, _⟩ := H.toStructural
-    have fConv := IsDefEq.natCaseDF₀ hΓ hC (ih hM.hasType) ha.hasType hb.hasType
+    have fConv := hC.natCaseDF₀ hΓ (ih hM.hasType) ha.hasType hb.hasType
     obtain ⟨_, hTe⟩ := H.uniq hΓ (fConv.toHasType hΓ).1
     exact hTe.symm.defeqDF fConv
   | natCase_zero =>
     obtain ⟨H, _⟩ := hM.toHasType hΓ
     let ⟨_, .natCase hC _ _ ha hb, _⟩ := H.toStructural
-    have fConv := IsDefEq.natCase_zero₀ hΓ hC ha.hasType hb.hasType
+    have fConv := hC.natCase_zero₀ hΓ ha.hasType hb.hasType
     obtain ⟨_, hTe⟩ := H.uniq hΓ (fConv.toHasType hΓ).1
     exact hTe.symm.defeqDF fConv
   | natCase_succ =>
     obtain ⟨H, _⟩ := hM.toHasType hΓ
     let ⟨_, .natCase hC _ hn ha hb, _⟩ := H.toStructural
     let ⟨_, .succ hn, _⟩ := hn.toStructural
-    have fConv := IsDefEq.natCase_succ₀ hΓ hC hn.hasType ha.hasType hb.hasType
+    have fConv := hC.natCase_succ₀ hΓ hn.hasType ha.hasType hb.hasType
     obtain ⟨_, hTe⟩ := H.uniq hΓ (fConv.toHasType hΓ).1
     exact hTe.symm.defeqDF fConv
   | @Y B b =>
@@ -857,8 +850,10 @@ to an Id-type. -/
 theorem Value.id_r (hΓ : ⊢ Γ) (hv : Value f) (h : Γ ⊢ f : .id r A a b) :
     ∃ a', f = .refl r a' := by
   have H := (h.toHasType hΓ).1
-  have no : ∀ {T}, Γ ⊨ f : T → ¬(Γ ⊢ T ≡ .id r A a b : .sort r) → ∃ a', f = .refl r a' :=
-    fun H2 hd => let ⟨_, eq⟩ := H.uniq hΓ H2; (hd (eq.symm.to_id_type hΓ)).elim
+  have no {T} (H2 : Γ ⊨ f : T) (hd : ¬(Γ ⊢ T ≡ .id r A a b : .sort r)) :
+      ∃ a', f = .refl r a' := by
+    let ⟨_, eq⟩ := H.uniq hΓ H2
+    exact (hd (eq.symm.to_id_type hΓ)).elim
   cases hv with
   | refl =>
     let ⟨_, .refl hA' ha', _⟩ := H.toStructural
@@ -891,30 +886,27 @@ theorem Value.id_r (hΓ : ⊢ Γ) (hv : Value f) (h : Γ ⊢ f : .id r A a b) :
 
 /-- Progress for instrumented `IsDefEq`: a closed well-typed term is either a
 value or takes a weak-head step. -/
-theorem progress {e : Term} : ∀ {A}, [] ⊢ e : A → Value e ∨ ∃ e', e ⤳ e' := by
-  induction e with
+theorem progress {e : Term} {A} (h : [] ⊢ e : A) : Value e ∨ ∃ e', e ⤳ e' := by
+  induction e generalizing A with
   | bvar =>
-    intro A h
     obtain ⟨_, Hs, _⟩ := (h.toHasType (Γ := []) trivial).1.toStructural
     let .bvar h_l _ := Hs
-    nomatch h_l
-  | sort => intro A _; exact .inl .sort
-  | unit => intro A _; exact .inl .unit
-  | star => intro A _; exact .inl .star
+    cases h_l
+  | sort => exact .inl .sort
+  | unit => exact .inl .unit
+  | star => exact .inl .star
   | app _ _ ih_f =>
-    intro A h
     obtain ⟨_, Hs, _⟩ := (h.toHasType (Γ := []) trivial).1.toStructural
     let .app _ _ _ h_f _ := Hs
     rcases ih_f h_f.hasType with hv | ⟨f', hstep⟩
     · obtain ⟨_, _, rfl⟩ := hv.forallE_r (Γ := []) trivial h_f.hasType
       exact .inr ⟨_, .beta⟩
     · exact .inr ⟨_, .app hstep⟩
-  | lam => intro A _; exact .inl .lam
-  | forallE => intro A _; exact .inl .forallE
-  | sigma => intro A _; exact .inl .sigma
-  | pair => intro A _; exact .inl .pair
+  | lam => exact .inl .lam
+  | forallE => exact .inl .forallE
+  | sigma => exact .inl .sigma
+  | pair => exact .inl .pair
   | fst _ ih_p =>
-    intro A h
     obtain ⟨_, Hs, _⟩ := (h.toHasType (Γ := []) trivial).1.toStructural
     let .fst _ _ h_p := Hs
     rcases ih_p h_p.hasType with hv | ⟨p', hstep⟩
@@ -922,30 +914,27 @@ theorem progress {e : Term} : ∀ {A}, [] ⊢ e : A → Value e ∨ ∃ e', e �
       exact .inr ⟨_, .pair_fst⟩
     · exact .inr ⟨_, .fst hstep⟩
   | snd _ ih_p =>
-    intro A h
     obtain ⟨_, Hs, _⟩ := (h.toHasType (Γ := []) trivial).1.toStructural
     let .snd _ _ _ h_p := Hs
     rcases ih_p h_p.hasType with hv | ⟨p', hstep⟩
     · obtain ⟨_, _, _, _, rfl⟩ := hv.sigma_r (Γ := []) trivial h_p.hasType
       exact .inr ⟨_, .pair_snd⟩
     · exact .inr ⟨_, .snd hstep⟩
-  | nat => intro A _; exact .inl .nat
-  | zero => intro A _; exact .inl .zero
-  | succ => intro A _; exact .inl .succ
+  | nat => exact .inl .nat
+  | zero => exact .inl .zero
+  | succ => exact .inl .succ
   | natCase _ _ _ _ _ ih_M =>
-    intro A h
-    let ⟨_, .natCase _ _ hM _ _, _⟩ := (h.toHasType (Γ := []) trivial).1.toStructural
+    let ⟨_, .natCase _ _ hM .., _⟩ := (h.toHasType (Γ := []) trivial).1.toStructural
     rcases ih_M hM.hasType with hv | ⟨M', hstep⟩
     · rcases hv.nat_r (Γ := []) trivial hM.hasType with rfl | ⟨n', rfl⟩
       · exact .inr ⟨_, .natCase_zero⟩
       · exact .inr ⟨_, .natCase_succ⟩
     · exact .inr ⟨_, .natCase hstep⟩
-  | Y => intro A _; exact .inr ⟨_, .Y⟩
-  | id _ _ _ => intro A _; exact .inl .id
-  | refl => intro A _; exact .inl .refl
+  | Y => exact .inr ⟨_, .Y⟩
+  | id => exact .inl .id
+  | refl => exact .inl .refl
   | tr _ _ _ _ _ _ _ _ _ _ _ _ ih_h =>
-    intro A hty
-    let ⟨_, .tr _ _ _ _ _ _ h_h, _⟩ := (hty.toHasType (Γ := []) trivial).1.toStructural
+    let ⟨_, .tr _ _ _ _ _ _ h_h, _⟩ := (h.toHasType (Γ := []) trivial).1.toStructural
     rcases ih_h h_h.hasType with hv | ⟨h', hstep⟩
     · obtain ⟨_, rfl⟩ := hv.id_r (Γ := []) trivial h_h.hasType
       exact .inr ⟨_, .tr_refl⟩
@@ -958,23 +947,22 @@ theorem progress' {e A : Term} (h : [] ⊢₀ e : A) : Value e ∨ ∃ e', e ⤳
 /-- **Type uniqueness** for the standard judgment. -/
 theorem IsDefEq.uniq' (hΓ : ⊢₀ Γ) (h₁ : Γ ⊢₀ e : A) (h₂ : Γ ⊢₀ e : B) :
     ∃ u, Γ ⊢₀ A ≡ B : .sort u :=
-  have ⟨u, h⟩ := IsDefEq.uniq (Ctx.WF.iff.2 hΓ) ((IsDefEq.iff hΓ).2 h₁) ((IsDefEq.iff hΓ).2 h₂)
+  have ⟨u, h⟩ := ((IsDefEq.iff hΓ).2 h₁).uniq (Ctx.WF.iff.2 hΓ) ((IsDefEq.iff hΓ).2 h₂)
   ⟨u, (IsDefEq.iff hΓ).1 h⟩
 
 /-- Definitional UIP (uniqueness of identity proofs) is disprovable.
 (Propositional UIP is not, since this model can never disprove type inhabitation,
 and indeed with Type : Type every type is inhabited.) -/
-theorem not_UIP (uip : ∀ {Γ A M h}, Γ ⊢ h : .id true A M M → Γ ⊢ h ≡ .refl true M : .id true A M M) :
+theorem not_UIP
+    (uip : ∀ {Γ A M h}, Γ ⊢ h : .id true A M M → Γ ⊢ h ≡ .refl true M : .id true A M M) :
     False := by
   let Γ := [Term.id true .type .type .type]
   refine have hA := .idDF (r := true) .sort .sort .sort; have hΓ : ⊢ Γ := ⟨⟨⟩, _, hA⟩; ?_
   specialize @uip Γ .type .type _ (.bvar₀ hΓ .zero)
   -- at the all-`⊥` valuation the variable has only `⊥`, while `refl type`
   -- has a `refl` shape; soundness would make them the same
-  have hw : TShape.WF Γ (Shape.T (n := 1) (ShapeS.refl)) :=
-    TShape.WF.T.2 trivial
+  have hw : TShape.WF Γ (Shape.T (n := 1) (ShapeS.refl)) := TShape.WF.T.2 trivial
   have hr : Interp Γ Γ (.refl true .type) Subst.id Valuation.nil
-      (Shape.T (n := 1) (ShapeS.refl)) :=
-    .refl (TShape.LE.refl hw)
+      (Shape.T (n := 1) (ShapeS.refl)) := .refl (TShape.LE.refl hw)
   have h := ((IsDefEq.sound hΓ uip).eq (Adm.bot hΓ (Ctx.SubstEq.id hΓ))).2 hr
-  exact absurd (TShape.le_bot hΓ rfl (Interp.bvar_le h)) (by simp [Shape.bot])
+  cases TShape.le_bot hΓ rfl (Interp.bvar_le h)
