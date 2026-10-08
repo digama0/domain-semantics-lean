@@ -4022,7 +4022,7 @@ used, here or there. -/
 /-- What one derivation yields.  A record rather than a tuple: the
 conclusions have grown from two to six, and each addition would
 otherwise renumber every projection in the file. -/
-structure SoundCore (Γ : List Term) (t t' A : Term) : Prop where
+structure Sound (Γ : List Term) (t t' A : Term) : Prop where
   /-- The two sides have the same approximants. -/
   eq : SoundEq Γ t t'
   /-- Semantic typing: every approximant is below a hereditarily typed
@@ -4034,21 +4034,11 @@ structure SoundCore (Γ : List Term) (t t' A : Term) : Prop where
   /-- And for the right-hand side, which `symm` needs. -/
   pin' : t'.Pinned Γ
 
-/-- The four above, plus the syntactic typing.
-
-The typing is not part of the induction: it is `H.hasType.1`, the same
-expression in every case, so `IsDefEq.sound` attaches it once to what
-`IsDefEq.soundCore` proves.  It is a field rather than something each
-consumer re-derives because `StrongSound` bundles it per subterm. -/
-structure Sound (Γ : List Term) (t t' A : Term) : Prop extends SoundCore Γ t t' A where
-  /-- The syntactic typing. -/
-  typed : Γ ⊢ t : A
-
 /-- Attach the two `Pinned` conclusions to a lemma that proves the other
 two, so the atoms and the purely structural rules stay one-liners. -/
 theorem and_pinned {Γ : List Term} {t t' A : Term}
     (h : SoundEq Γ t t' ∧ TypedAt Γ t A) (hp : t.Pinned Γ) (hp' : t'.Pinned Γ)
-    (hd : SoundTy Γ t A) : SoundCore Γ t t' A :=
+    (hd : SoundTy Γ t A) : Sound Γ t t' A :=
   ⟨h.1, hd, hp, hp'⟩
 
 /-- The same, when the type only *filters* -- its approximants are never
@@ -4058,7 +4048,7 @@ theorem and_pinned_filter {Γ : List Term} {t t' A : Term}
     (h : SoundEq Γ t t' ∧ TypedAt Γ t A) (hp : t.Pinned Γ) (hp' : t'.Pinned Γ)
     (hnb : ∀ {Δ : List Term} {σ ρ : _} {a : TShape}, Interp Δ Γ A σ ρ a → ¬ a.IsBinder)
     (hct : CodeAt Γ t) (hcA : CodeAt Γ A) :
-    SoundCore Γ t t' A :=
+    Sound Γ t t' A :=
   ⟨h.1, SoundTy.of_typedAt hnb h.2 hct hcA, hp, hp'⟩
 
 /-- The unit type names itself. -/
@@ -4478,8 +4468,8 @@ theorem sound_fst_snd_to {Γ : List Term} {A B p : Term} {u v : Bool}
 
 /-- The four conclusions proved by the induction itself.  `Sound` adds
 saturation on top, which is where the remaining work is (§4.5g). -/
-theorem IsDefEq.soundCore {Γ : List Term} {t t' A : Term}
-    (hΓ : ⊢ Γ) (H : Γ ⊢ t ≡ t' : A) : SoundCore Γ t t' A := by
+theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
+    (hΓ : ⊢ Γ) (H : Γ ⊢ t ≡ t' : A) : Sound Γ t t' A := by
   induction H with
   -- structural rules: no stage or valuation changes, so these are pure
   -- bookkeeping on the two conclusions
@@ -4739,12 +4729,6 @@ theorem IsDefEq.soundCore {Γ : List Term} {t t' A : Term}
         intro _ _ _ _ hΔ W hAdm _ h
         exact Interp.eq_bot_of_prop (ih₁ hΓ).ty (ih₂ hΓ).ty hΔ W hAdm h))
 
-/-- **Soundness**: the four semantic conclusions of the induction, plus
-the syntactic typing the rule carried in anyway. -/
-theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
-    (hΓ : ⊢ Γ) (H : Γ ⊢ t ≡ t' : A) : Sound Γ t t' A :=
-  ⟨H.soundCore hΓ, H.hasType.1⟩
-
 /-- **Semantic typing.**  Every approximant of a well-typed term is below
 one that is hereditarily typed: the original's `HasFixedness`
 (`rawExtend ⟦A⟧ ⟦t⟧ = ⟦t⟧`), read through "ideal = set of approximants".
@@ -4753,7 +4737,7 @@ a theorem of its own -- because the slot discipline makes the other three
 depend on it: η needs it at the function, `Interp.lam`'s slot needs it at
 the argument, and `Adm` needs it at every variable. -/
 theorem IsDefEq.soundTy {Γ : List Term} {t A : Term} (hΓ : ⊢ Γ) (ht : Γ ⊢ t : A) :
-    SoundTy Γ t A := (IsDefEq.soundCore hΓ ht).ty
+    SoundTy Γ t A := (IsDefEq.sound hΓ ht).ty
 
 /-- **Every well-typed term is pinned.**  This was the development's last
 assumption before saturation; it is the third conclusion of the induction

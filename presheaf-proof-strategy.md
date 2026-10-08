@@ -3566,3 +3566,19 @@ The dependency graph shrinks with the merge: `dom` and `ty` were two nodes
 of the strongly connected component and are now one, so the edge count
 goes from ten of twelve to five of six, and `pin ↔ ty` is the cycle that
 pins `Pinned` into the component.
+
+### 14a. `Sound` is four fields and nothing syntactic
+
+The `typed` field went in with §14 and came straight back out. It was
+`H.hasType.1` in every case — the derivation the caller passed *in* — so
+the record was handing the input back as an output. `Sound` is now the
+four fields the induction proves (`eq`, `ty`, `pin`, `pin'`) and
+`IsDefEq.sound` is the induction itself, with no wrapper.
+
+The one place the bundling was load-bearing is `Strong.lean`, and there it
+belongs: `StrongSound` is a *typing* judgment, so it carries the syntactic
+typing as its own premise (`StrongSound.mk` gained it, `StrongSound.typed`
+reads it) and `StrongSoundCore`'s annotation premises are typings rather
+than `Sound`s. Where a clause needs the semantic half it goes through
+`IsDefEq.soundTy hΓ`, which is a one-liner given the typing it already
+has. Twelve clause premises got simpler for it.

@@ -237,18 +237,18 @@ induction over every rule:
 | `eq : SoundEq Γ t t'` | the two sides have the same approximants at every admissible stage | `HasEquality` |
 | `ty : SoundTy Γ t A` | **semantic typing**: every approximant sits below one that is a `Slot` at an approximant of `A` | `HasFixedness` read through "ideal = set of approximants", now with names |
 | `pin`, `pin'` | both sides are `Pinned` | fields of `RawTermProperties` |
-| `typed : Γ ⊢ t : A` | the syntactic typing | — |
 
-`SoundTy` is the *saturating* form, and it is the only semantic typing
-notion. The weaker reading — every approximant is itself typed at one of
-`A` — is `SoundTy.approx`, a consequence: typing became lower-closed
-(`TShape.HasType.mono_l`), so the saturating witness can be dropped. Every
-lemma that used to take the two separately now takes one.
+Four fields, three notions, and nothing syntactic: the record says only
+what the model adds. `SoundTy` is the *saturating* form and the only
+semantic typing notion. The weaker reading — every approximant is itself
+typed at one of `A` — is `SoundTy.approx`, a consequence: typing became
+lower-closed (`TShape.HasType.mono_l`), so the saturating witness can be
+dropped. Every lemma that used to take the two separately now takes one.
 
-`typed` is not part of the induction. It is `H.hasType.1`, the same
-expression in every case, so `IsDefEq.sound` attaches it once to what
-`IsDefEq.soundCore` proves. It is a field at all because `StrongSound`
-bundles both halves per subterm.
+The syntactic typing is *not* here. It is `H.hasType.1`, which every
+consumer of soundness already holds, so carrying it would be carrying the
+input back out. Where it has to be bundled per subterm — `StrongSound`,
+which is a typing judgment — that judgment carries it itself.
 
 `SoundEq` is type-agnostic, which is what lets the instrumented
 judgment's heterogeneous `trans'` rule go through without sort
@@ -317,8 +317,11 @@ admissible.
 ## 7. Above soundness
 
 **`StrongSound` / `StrongSoundCore`** (`Strong.lean`): a bundled typing
-carrying `SoundTy` for the subterms at the types the corresponding rule
-gives them, with `StrongSound.uniq` the semantic half of type uniqueness.
+carrying, per subterm, the syntactic typing and `Sound` at the type the
+corresponding rule gives it, with `StrongSound.uniq` the semantic half of
+type uniqueness. It carries the syntactic typing because it *is* a typing
+judgment; the semantic halves it does not store it reads back off
+`IsDefEq.soundTy`.
 
 **`Inversion.lean`**: Π-, Σ- and Id-injectivity, fifteen no-confusion
 principles, and `zero_ne_succ`. Each is four steps and none uses
