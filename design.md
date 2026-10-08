@@ -17,6 +17,10 @@ definitions below that have no counterpart on his side.
 Four groups: the domain, its typing, the interpretation, and the
 syntactic bookkeeping that stands in for his quotient.
 
+The files: `Shape`/`HasType` are the domain and its typing, `Interp` the
+interpretation, `Directed` the directedness induction, `Presheaf`
+soundness, and `Strong`/`Inversion`/`Consequences` what follows from it.
+
 ## 1. The domain
 
 **`Entry α`** (`Shape.lean`). One row of a function graph: a syntactic
@@ -152,13 +156,24 @@ that names the type. intgrah's `SourceAdmissible`, plus the naming his
 quotient makes unnecessary. `Adm.bot` holds for free at the all-`⊥`
 valuation, which is the stage every inversion theorem runs at.
 
-**`Interp.Dir`** and **`SoundDir`**: directedness, that two approximants
-have a common upper bound that is still an approximant. This is intgrah's
-`HasIdeality`. He proves it inside the main induction because his `app`
-case needs the function's fixedness; ours is a *separate* induction on
-typing, proved before soundness and running under the weaker
-`Valuation.WF` rather than `Adm`, which works only because `IsDefEq.dir`
+**`SoundDir Γ t`**: directedness, that two approximants of `t` have a
+common upper bound that is still an approximant, at every stage the
+context admits. This is intgrah's `HasIdeality`. He proves it inside the
+main induction because his `app` case needs the function's fixedness; ours
+is `IsDefEq.dir`, a *separate* induction on typing in its own file
+(`Directed.lean`, which imports only `Interp`), running under the weaker
+`Valuation.WF` rather than `Adm` — which works only because `IsDefEq.dir`
 never instantiates a binder.
+
+Standing alone has a consequence worth stating: nothing downstream carries
+a directedness premise. A lemma that needs two approximants joined takes
+the *typing* it already has and reads `SoundDir` off `IsDefEq.dir`.
+`Subst.Dir Γ' θ` (every slot of `θ` is directed) is discharged once by
+`Subst.Dir.one` from the argument's typing and carried under a binder by
+`Subst.Dir.lift`; it is a hypothesis of the substitution lemmas only
+because `θ`'s slots past the context are variables rather than typed
+terms. `Interp.inst`, which used to take directedness of the argument,
+now derives it from the `Γ ⊢ a : A` it was already given.
 
 ## 4. Bookkeeping that replaces the quotient
 

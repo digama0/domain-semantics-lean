@@ -3418,3 +3418,54 @@ uniqueness, subject reduction, progress and `not_UIP` all choice-dependent.
 Worth noting what this does *not* mean. `Quot.sound` remains, and so does
 `propext`; the claim is only that no choice principle is used. And the
 result was free: nothing had to be reproved, only restated.
+
+## 13. `Interp.Dir` eliminated; `Directed.lean` (2026-10-08)
+
+There were two directedness notions: `SoundDir Γ t`, quantified over
+stages, and `Interp.Dir Δ Γ t σ ρ`, its body at one stage, with `SoundDir`
+defined as `∀ Δ σ ρ, … → Interp.Dir Δ Γ t σ ρ`. The second is gone.
+
+`SoundDir` now spells the body out and lives in `Interp.lean` where
+`Interp.Dir` was, with `SoundDir.join` taking it plus the stage data.
+
+What made the split worth doing is a measurement rather than a
+preference. The dependency closure of `IsDefEq.dir` contains 32
+declarations of `Presheaf.lean` and, from the whole tail of `Interp.lean`,
+only three: the definition, `.join`, and `Interp.lift`. So directedness
+does not need the substitution machinery at all — the dependency ran the
+other way. Those 32 now make `Directed.lean`, which imports `Interp` and
+nothing else.
+
+That inverts who owes whom. Ten theorems of `Interp.lean` took a
+directedness premise (`Valuation.Approx.join`/`foldr`, `body_merge`,
+`Saturates.lift`, `to_substTerm`, `substTerm`, `inst`, `Dir.list`, and the
+two transport lemmas `Dir.bvar`/`Dir.weak_slot` that existed only to move
+such a premise along a stage extension). None is needed by `IsDefEq.dir`,
+so all ten move *after* it, into `Presheaf.lean`, and take a typing
+instead:
+
+* `Subst.Dir Γ' θ` is `∀ i, SoundDir Γ' (θ i)` — stage-free, so the
+  recursion under a binder re-instantiates rather than transports.
+  `Subst.Dir.one` builds it from `Γ ⊢ a : A` through `IsDefEq.dir`;
+  `Subst.Dir.lift` carries it under a binder, and `SoundDir.weak` is what
+  it rests on (the arbitrary stage on the extended context splits as a
+  `cons`, and the slot's annotation moves the approximants down).
+* `Interp.Dir.bvar` is subsumed by `dir_bvar`, which already states
+  `SoundDir Γ (.bvar i)` with no hypothesis at all, the slot's
+  well-formedness coming from `SoundDir`'s own `Valuation.WF`.
+* `Interp.Dir.weak_slot` becomes `SoundDir.weak`, stated once on
+  `SoundDir` instead of per stage extension. The seven `fun i => by cases
+  i with | zero => Dir.bvar … | succ => Dir.weak_slot …` blocks inside
+  `to_substTerm` collapse to `Subst.Dir.lift hΓ' (.skip .refl) hgood hθ`.
+* `Interp.inst` loses its directedness premise outright: it already took
+  `hat : Γ ⊢ a : A`, and `Γ ⊢ a : A` *is* `Γ ⊢ a ≡ a : A`, so
+  `IsDefEq.dir` applies to it directly. Twenty call sites dropped an
+  argument.
+* `body_merge`'s `hθ'` — the lifted substitution's directedness at the
+  extended stage, six lines — turned out to be dead already.
+
+Two places keep a stage-specific statement, spelled out rather than named:
+`dir_inst` and `sound_beta_lookup`'s premise. Both need `Interp.inst`,
+which needs `Subst.Saturates`, which needs `Adm` at the stage, and
+`SoundDir` offers only `Valuation.WF` at an arbitrary one. That is the
+honest reason, and it is the whole residue.
