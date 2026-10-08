@@ -1143,3 +1143,104 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
   | Y_unfold _ _ _ _ _ _ ih₃ ih₄ => exact ⟨(ih₃ hΓ).1, (ih₄ hΓ).1⟩
   | tr_refl _ _ _ _ _ _ _ _ ih₄ ih₅ => exact ⟨(ih₅ hΓ).1, (ih₄ hΓ).1⟩
   | proofIrrel _ _ _ _ ih₂ ih₃ => exact ⟨(ih₂ hΓ).1, (ih₃ hΓ).1⟩
+
+/-- Every slot of a substitution is directed.  Stage-free, unlike the
+premise it replaces: a caller discharges it once from the typing it
+already has (`Subst.Dir.one`), and the recursion carries it under a
+binder by `Subst.Dir.lift` rather than transporting a directedness fact
+along each stage extension. -/
+def Subst.Dir (Γ' : List Term) (θ : Subst) : Prop := ∀ i, SoundDir Γ' (θ i)
+
+/-- Directedness survives weakening at a good slot.  `SoundDir` quantifies
+over the stage, so the stage here is an arbitrary one on the extended
+context; it splits as a `cons`, and then the slot's own annotation moves
+the two approximants down and the bound back up. -/
+theorem SoundDir.weak {Γ' Γ'' : List Term} {s : Term} (hΓ' : ⊢ Γ')
+    (WΓ : Ctx.Lift' (.skip .refl) Γ' Γ'') (hs : s.Annot Γ') (h : SoundDir Γ' s) :
+    SoundDir Γ'' s.lift := by
+  intro Δ σ₂ ρ₂ hΔ W hρ m₁ m₂ h₁ h₂
+  have hσ : σ₂ = σ₂.tail.cons σ₂.head := by funext i; cases i <;> rfl
+  have hv : ρ₂ = (Valuation.tail ρ₂).push (ρ₂ 0) := by funext i; cases i <;> rfl
+  have hd : Ctx.SubstEq Δ (σ₂.tail.cons σ₂.head) (σ₂.tail.cons σ₂.head) Γ'' := hσ ▸ W
+  have hiff : ∀ {m}, Interp Δ Γ'' s.lift σ₂ ρ₂ m ↔
+      Interp Δ Γ' s σ₂.tail (Valuation.tail ρ₂) m := fun {_} =>
+    ⟨fun H => Interp.unweak_slot hΔ hΓ' WΓ hs hd (by rw [← hσ, ← hv]; exact H),
+      fun H => Interp.weak' (ρ' := ρ₂) hΓ' H WΓ (fun _ => rfl)⟩
+  have Wt : Ctx.SubstEq Δ σ₂.tail σ₂.tail Γ' := by
+    cases WΓ with
+    | skip W0 =>
+      cases W0
+      cases W with
+      | cons ht _ _ => exact ht
+  obtain ⟨s', hws, hs', hs₁, hs₂⟩ :=
+    h hΔ Wt (fun i => hρ (i+1)) (hiff.1 h₁) (hiff.1 h₂)
+  exact ⟨s', hws, hiff.2 hs', hs₁, hs₂⟩
+
+theorem Subst.Dir.lift {Γ' Γ'' : List Term} {θ : Subst} (hΓ' : ⊢ Γ')
+    (WΓ : Ctx.Lift' (.skip .refl) Γ' Γ'') (hgood : Subst.Good Γ' θ)
+    (h : Subst.Dir Γ' θ) : Subst.Dir Γ'' θ.lift := by
+  intro i
+  cases i with
+  | zero => exact dir_bvar
+  | succ i => exact SoundDir.weak hΓ' WΓ (hgood i) (h i)
+
+/-- The single substitution, from the argument's typing.  This is the step
+that makes a directedness premise unnecessary anywhere downstream. -/
+theorem Subst.Dir.one {Γ : List Term} {a A : Term} (hΓ : ⊢ Γ) (ha : Γ ⊢ a : A) :
+    Subst.Dir Γ (Subst.one a) := by
+  intro i
+  cases i with
+  | zero => exact (IsDefEq.dir hΓ ha).1
+  | succ i => exact dir_bvar
+
+theorem Valuation.Approx.join {Δ Γ : List Term} {θ σ ρ ρ₁ ρ₂} (hΔ : ⊢ Δ)
+    (W : Ctx.SubstEq Δ σ σ Γ) (hwρ : Valuation.WF Δ ρ) (hθ : Subst.Dir Γ θ)
+    (h₁ : Valuation.Approx Δ Γ θ σ ρ ρ₁) (h₂ : Valuation.Approx Δ Γ θ σ ρ ρ₂) :
+    Valuation.Approx Δ Γ θ σ ρ (ρ₁.join ρ₂) ∧
+      Valuation.LE Δ ρ₁ (ρ₁.join ρ₂) ∧ Valuation.LE Δ ρ₂ (ρ₁.join ρ₂) := by
+  have key : ∀ i, Interp Δ Γ (θ i) σ ρ ((ρ₁.join ρ₂) i) ∧
+      TShape.LE Δ (ρ₁ i) ((ρ₁.join ρ₂) i) ∧ TShape.LE Δ (ρ₂ i) ((ρ₁.join ρ₂) i) := by
+    intro i
+    obtain ⟨hc, hj⟩ := (hθ i).join hΔ W hwρ (h₁ i) (h₂ i)
+    obtain ⟨hl₁, hl₂⟩ := TShape.le_join hΔ (h₁ i).wf (h₂ i).wf hc
+    exact ⟨hj, hl₁, hl₂⟩
+  exact ⟨fun i => (key i).1, fun i => (key i).2.1, fun i => (key i).2.2⟩
+
+/-- And a list of them folds to one. -/
+theorem Valuation.Approx.foldr {Δ Γ : List Term} {θ σ ρ} (hΔ : ⊢ Δ)
+    (W : Ctx.SubstEq Δ σ σ Γ) (hwρ : Valuation.WF Δ ρ) (hθ : Subst.Dir Γ θ) :
+    ∀ {l : List Valuation}, (∀ ρ' ∈ l, Valuation.Approx Δ Γ θ σ ρ ρ') →
+      Valuation.Approx Δ Γ θ σ ρ (l.foldr Valuation.join Valuation.nil) ∧
+        ∀ ρ' ∈ l, Valuation.LE Δ ρ' (l.foldr Valuation.join Valuation.nil)
+  | [], _ => ⟨Valuation.Approx.nil, by simp⟩
+  | ρ₀ :: l, h => by
+    obtain ⟨hrest, hle⟩ := Valuation.Approx.foldr (l := l) hΔ W hwρ hθ
+      (fun ρ' hρ' => h ρ' (by simp [hρ']))
+    obtain ⟨hj, hl₁, hl₂⟩ :=
+      Valuation.Approx.join hΔ W hwρ hθ (h ρ₀ (by simp)) hrest
+    refine ⟨hj, fun ρ' hρ' => ?_⟩
+    match List.mem_cons.1 hρ' with
+    | .inl rfl => exact hl₁
+    | .inr hm => exact fun i => TShape.LE.trans hΔ (hle ρ' hm i) (hl₂ i)
+
+/-- Directedness over a list: finitely many approximants of one term have
+one above them all.  `SoundDir.join` iterated, with `⊥` at the empty
+list — what η needs, since the expansion's graph is finite.
+
+Takes the term's typing rather than its directedness, so that callers
+outside this file never have to name `SoundDir`. -/
+theorem Interp.list_ub {Δ Γ : List Term} {t T σ ρ} (hΓ : ⊢ Γ) (ht : Γ ⊢ t : T)
+    (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hρ : Valuation.WF Δ ρ)
+    {α : Type} {ms : α → TShape} : ∀ (l : List α), (∀ a ∈ l, Interp Δ Γ t σ ρ (ms a)) →
+      ∃ s, TShape.WF Δ s ∧ Interp Δ Γ t σ ρ s ∧ ∀ a ∈ l, TShape.LE Δ (ms a) s
+  | [], _ => ⟨TShape.bot, trivial, .bot, fun _ h => absurd h (by simp)⟩
+  | a :: l, hl => by
+    obtain ⟨s, hws, hs, hle⟩ :=
+      Interp.list_ub hΓ ht hΔ W hρ l (fun b hb => hl b (.tail _ hb))
+    have ha := hl a (.head _)
+    obtain ⟨hc, hj⟩ := (IsDefEq.dir hΓ ht).1.join hΔ W hρ ha hs
+    obtain ⟨hla, hls⟩ := TShape.le_join hΔ ha.wf hws hc
+    refine ⟨_, TShape.WF.join hΔ hc ha.wf hws, hj, fun b hb => ?_⟩
+    cases hb with
+    | head => exact hla
+    | tail _ hb => exact TShape.LE.trans hΔ (hle b hb) hls
