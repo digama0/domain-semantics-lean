@@ -528,11 +528,11 @@ theorem TShape.LE.forallE_decomp {Δ : List Term} (hΔ : ⊢ Δ) {n n' k}
     {f' : ShapeFun n'} {f'' : ShapeFun k}
     (h : TShape.LE Δ (Shape.T (n := n+1) (.forallE A B d f))
       (Shape.T (n := n'+1) (.forallE A' B' d' f')))
-    (hw : Shape.WF (n := n+1) Δ (.forallE A B d f))
     (hw' : Shape.WF (n := n'+1) Δ (.forallE A' B' d' f'))
     (hf' : ∀ e ∈ f', TEvaluates Δ f'' A' e.tm e.inp.T e.out.T) :
     PiLabelEq Δ A B A' B' ∧ TShape.LE Δ d.T d'.T ∧
       ∀ e ∈ f, TEvaluates Δ f'' A e.tm e.inp.T e.out.T := by
+  have hw := TShape.LE.wf h
   obtain ⟨M, hn'M, hnM, h2⟩ := TShape.LE.at_succ h
   have hn : n ≤ M := Nat.le_of_succ_le_succ hnM
   have hA : TyEq Δ A' A := TyEq.symm h2.1.1
@@ -547,11 +547,11 @@ theorem TShape.LE.sigma_decomp {Δ : List Term} (hΔ : ⊢ Δ) {n n' k}
     {f' : ShapeFun n'} {f'' : ShapeFun k}
     (h : TShape.LE Δ (Shape.T (n := n+1) (.sigma A B d f))
       (Shape.T (n := n'+1) (.sigma A' B' d' f')))
-    (hw : Shape.WF (n := n+1) Δ (.sigma A B d f))
     (hw' : Shape.WF (n := n'+1) Δ (.sigma A' B' d' f'))
     (hf' : ∀ e ∈ f', TEvaluates Δ f'' A' e.tm e.inp.T e.out.T) :
     PiLabelEq Δ A B A' B' ∧ TShape.LE Δ d.T d'.T ∧
       ∀ e ∈ f, TEvaluates Δ f'' A e.tm e.inp.T e.out.T := by
+  have hw := TShape.LE.wf h
   obtain ⟨M, hn'M, hnM, h2⟩ := TShape.LE.at_succ h
   have hn : n ≤ M := Nat.le_of_succ_le_succ hnM
   have hA : TyEq Δ A' A := TyEq.symm h2.1.1
@@ -566,9 +566,10 @@ carry no information downwards. -/
 theorem TShape.LE.lam_decomp {Δ : List Term} (hΔ : ⊢ Δ) {n n' k} {A A' : Term}
     {g : ShapeFun n} {g' : ShapeFun n'} {f'' : ShapeFun k}
     (h : TShape.LE Δ (Shape.T (n := n+1) (.lam A g)) (Shape.T (n := n'+1) (.lam A' g')))
-    (hw : Shape.WF (n := n+1) Δ (.lam A g)) (hw' : Shape.WF (n := n'+1) Δ (.lam A' g'))
+    (hw' : Shape.WF (n := n'+1) Δ (.lam A' g'))
     (hg' : ∀ e ∈ g', TEvaluates Δ f'' A' e.tm e.inp.T e.out.T) :
     ∀ e ∈ g, TEvaluates Δ f'' A e.tm e.inp.T e.out.T := by
+  have hw := TShape.LE.wf h
   obtain ⟨M, hn'M, hnM, h2⟩ := TShape.LE.at_succ h
   have hA : TyEq Δ A' A := TyEq.symm h2.2.2.2.1
   exact TEvaluates.of_cover_lift hΔ (Nat.le_of_succ_le_succ hnM) hw.2.2.1 h2.1.1
@@ -818,7 +819,7 @@ theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
       | forallE A' B' d' f' =>
         obtain ⟨hd', hf', hw'⟩ := hA'.forallE_inv rfl
         obtain ⟨hPi, _, hcov⟩ :=
-          TShape.LE.forallE_decomp hΔ h hwPi hw' (TEvaluates.refl hw'.2.2.2.1)
+          TShape.LE.forallE_decomp hΔ h hw' (TEvaluates.refl hw'.2.2.2.1)
         exact .lam hd' hf' hwg hw' hwg₀ hg
           (fun e he => (TEvaluates.trans hΔ hcov (hg₀ev e he)).retype hPi.1) hg₀ty
           (hdom.trans hPi.1)
@@ -834,7 +835,7 @@ theorem TShape.HasType.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
       | sigma A' B' d' f' =>
         obtain ⟨hd', hf', hw'⟩ := hA'.sigma_inv rfl
         obtain ⟨hSg, hdd, hcov⟩ :=
-          TShape.LE.sigma_decomp hΔ h hwSg hw' (TEvaluates.refl hw'.2.2.2.1)
+          TShape.LE.sigma_decomp hΔ h hw' (TEvaluates.refl hw'.2.2.2.1)
         refine .pair hd' hf' hwp hw' (ihxd d'.T hdd hd') hxle ?_ hyty (hdom.trans hSg.1)
         exact TEvaluates.retype hSg.1 (TEvaluates.trans hΔ hcov hev)
       | _ => exact absurd h2 (fun x => x)
@@ -1356,7 +1357,7 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
         have hwg' : Shape.WF (n := j+1) Δ (.lam A' g') :=
           (Shape.lift_wf hjM).1 (Shape.LE.wf h2)
         exact .lam hd hf hwg' hwPi hwg₀
-          (TShape.LE.lam_decomp hΔ h hwg' hwg hg) hg₀ev hg₀ty (TyEq.trans h2.2.2.2.1 hdom)
+          (TShape.LE.lam_decomp hΔ h hwg hg) hg₀ev hg₀ty (TyEq.trans h2.2.2.2.1 hdom)
       | _ => exact absurd h2 (fun x => x)
   | pair hd hf hwp hwSg hxd hxle hev hyty hdom _ _ ihxd ihy =>
     intro m' h
@@ -2057,7 +2058,7 @@ theorem TShape.Named.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape}
         · -- the codes are lookups in the bigger graph
           intro p hp
           obtain ⟨hPi, _, hcov⟩ := TShape.LE.forallE_decomp hΔ hle
-            (TShape.HasType.wf hty0).2 hw₂ (fun e he => TEvaluates.refl hw₂.2.2.2.1 e he)
+            hw₂ (fun e he => TEvaluates.refl hw₂.2.2.2.1 e he)
           exact (TEvaluates.trans hΔ hcov (hev p hp)).retype hPi.1
       | .bot | .sort _ | .unit _ | .nat | .zero | .succ _ | .refl | .id _ _ _ _
       | .lam _ _ | .sigma .. | .pair _ _ _ _ => exact absurd h2 (fun x => x)
@@ -2073,7 +2074,7 @@ theorem TShape.Named.mono_r {Δ : List Term} (hΔ : ⊢ Δ) {o} {d x : TShape}
         obtain ⟨hd₂, hf₂, hw₂⟩ := hty.sigma_inv rfl
         have hdle := TShape.LE.sigma_dom hΔ hle
         obtain ⟨hlab, _, hcov⟩ := TShape.LE.sigma_decomp hΔ hle
-          (TShape.HasType.wf hty0).2 hw₂ (fun e he => TEvaluates.refl hw₂.2.2.2.1 e he)
+          hw₂ (fun e he => TEvaluates.refl hw₂.2.2.2.1 e he)
         exact .sg (c := c) (TShape.HasType.mono_r hΔ hty0 _ hle hty) hps
           (fun p hp t ht => hlab.1.defeqDF (hname p hp t ht))
           (fun p hp => ihx p hp hdle hd₂)

@@ -219,9 +219,9 @@ theorem id_rel_inv {Γ : List Term} {r r' s : Bool} {A₀ a₀ b₀ A₁ a₁ b�
       (ShapeS.id r (A₀.subst Subst.id) (a₀.subst Subst.id) (b₀.subst Subst.id))) :=
     Shape.WF.id_of hΓ (Ctx.SubstEq.id hΓ) hA₀ ha₀ hb₀
   have hmove := ((IsDefEq.sound hΓ H).eq (Adm.bot hΓ (Ctx.SubstEq.id hΓ))).1
-    (.id hw (TShape.LE.refl hw) ⟨u, hA₀⟩ ha₀ hb₀)
+    (.id (TShape.LE.refl hw) ⟨u, hA₀⟩ ha₀ hb₀)
   cases hmove with
-  | id _ hle _ _ _ =>
+  | id hle _ _ _ =>
     obtain ⟨M, _, _, h2⟩ := TShape.LE.at_succ hle
     exact h2.1
 
@@ -244,7 +244,7 @@ theorem zero_ne_succ {Γ : List Term} (hΓ : ⊢ Γ) :
   have hws : TShape.WF Γ (Shape.T (n := 2) (Shape.succ Shape.zero)) := TShape.WF.T.2 trivial
   have hs : Interp Γ Γ (.succ .zero) Subst.id Valuation.nil
       (Shape.T (n := 2) (Shape.succ Shape.zero)) :=
-    .succ (.zero hwz (TShape.LE.refl hwz)) hws (TShape.LE.refl hws)
+    .succ (.zero (TShape.LE.refl hwz)) (TShape.LE.refl hws)
   have hle := Interp.le_zero
     (((IsDefEq.sound hΓ h).eq (Adm.bot hΓ (Ctx.SubstEq.id hΓ))).2 hs)
   obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ hle

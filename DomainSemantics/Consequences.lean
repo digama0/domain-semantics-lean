@@ -975,6 +975,6 @@ theorem not_UIP (uip : ∀ {Γ A M h}, Γ ⊢ h : .id true A M M → Γ ⊢ h �
     TShape.WF.T.2 trivial
   have hr : Interp Γ Γ (.refl true .type) Subst.id Valuation.nil
       (Shape.T (n := 1) (ShapeS.refl)) :=
-    .refl hw (TShape.LE.refl hw)
+    .refl (TShape.LE.refl hw)
   have h := ((IsDefEq.sound hΓ uip).eq (Adm.bot hΓ (Ctx.SubstEq.id hΓ))).2 hr
   exact absurd (TShape.le_bot hΓ rfl (Interp.bvar_le h)) (by simp [Shape.bot])
