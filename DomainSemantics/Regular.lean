@@ -163,3 +163,167 @@ theorem IsDefEq.sigma_dom {Γ : List Term} {A B e X : Term}
 theorem IsDefEq.sigma_cod {Γ : List Term} {A B e X : Term}
     (H : Γ ⊢ .sigma A B ≡ e : X) : ∃ v, A :: Γ ⊢ B : .sort v :=
   (H.sigma_regular (.inl rfl)).2
+
+/-! ## Shallow inversion, former by former
+
+Each lemma below reads one layer off a definitional equality: the subject's
+own premises, and typings for its subterms in the contexts they live in.
+Together they are what `Term.Annot` used to carry as a predicate, and the
+induction is the same in each — the former's congruence rule is the only
+case with content, the computation rules go through their reflexive
+premise's induction hypothesis, and everything else is `noConfusion`.
+
+They are two-sided (`e = … ∨ e' = …`) because `symm` and `trans` demand
+it: proving the left side for `symm H` is proving the right side for `H`. -/
+
+theorem IsDefEq.app_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡ e' : X) :
+    ∀ {F a : Term}, e = .app F a ∨ e' = .app F a →
+      (∃ A B, Γ ⊢ F : .forallE A B) ∧ ∃ A₀, Γ ⊢ a : A₀ := by
+  induction H with
+  | appDF _ _ hf ha _ _ _ _ _ _ =>
+    intro F a hh
+    match hh with
+    | .inl hh =>
+      injection hh with h1 h2; subst h1; subst h2
+      exact ⟨⟨_, _, hf.hasType.1⟩, _, ha.hasType.1⟩
+    | .inr hh =>
+      injection hh with h1 h2; subst h1; subst h2
+      exact ⟨⟨_, _, hf.hasType.2⟩, _, ha.hasType.2⟩
+  | _ =>
+    intro F a h
+    rcases h with h | h <;>
+      first
+        | exact Term.noConfusion h
+        | solve_by_elim [Or.inl, Or.inr]
+
+theorem IsDefEq.lam_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡ e' : X) :
+    ∀ {A b : Term}, e = .lam A b ∨ e' = .lam A b →
+      (∃ u, Γ ⊢ A : .sort u) ∧ ∃ B, A :: Γ ⊢ b : B := by
+  induction H with
+  | lamDF hA _ hb hb' _ _ _ _ _ _ =>
+    intro A b hh
+    match hh with
+    | .inl hh =>
+      injection hh with h1 h2; subst h1; subst h2
+      exact ⟨⟨_, hA.hasType.1⟩, _, hb.hasType.1⟩
+    | .inr hh =>
+      injection hh with h1 h2; subst h1; subst h2
+      exact ⟨⟨_, hA.hasType.2⟩, _, hb'.hasType.2⟩
+  | _ =>
+    intro A b h
+    rcases h with h | h <;>
+      first
+        | exact Term.noConfusion h
+        | solve_by_elim [Or.inl, Or.inr]
+
+theorem IsDefEq.bvar_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡ e' : X) :
+    ∀ {i : Nat}, e = .bvar i ∨ e' = .bvar i → ∃ A, Lookup Γ i A := by
+  induction H with
+  | bvar hlk _ _ =>
+    intro i hh
+    match hh with
+    | .inl hh => injection hh with hh; subst hh; exact ⟨_, hlk⟩
+    | .inr hh => injection hh with hh; subst hh; exact ⟨_, hlk⟩
+  | _ =>
+    intro i h
+    rcases h with h | h <;>
+      first
+        | exact Term.noConfusion h
+        | solve_by_elim [Or.inl, Or.inr]
+
+theorem IsDefEq.fst_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡ e' : X) :
+    ∀ {p : Term}, e = .fst p ∨ e' = .fst p → ∃ A B, Γ ⊢ p : .sigma A B := by
+  induction H with
+  | fstDF _ _ hp _ _ _ =>
+    intro p hh
+    match hh with
+    | .inl hh => injection hh with hh; subst hh; exact ⟨_, _, hp.hasType.1⟩
+    | .inr hh => injection hh with hh; subst hh; exact ⟨_, _, hp.hasType.2⟩
+  | _ =>
+    intro p h
+    rcases h with h | h <;>
+      first
+        | exact Term.noConfusion h
+        | solve_by_elim [Or.inl, Or.inr]
+
+theorem IsDefEq.snd_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡ e' : X) :
+    ∀ {p : Term}, e = .snd p ∨ e' = .snd p → ∃ A B, Γ ⊢ p : .sigma A B := by
+  induction H with
+  | sndDF _ _ hp _ _ _ _ =>
+    intro p hh
+    match hh with
+    | .inl hh => injection hh with hh; subst hh; exact ⟨_, _, hp.hasType.1⟩
+    | .inr hh => injection hh with hh; subst hh; exact ⟨_, _, hp.hasType.2⟩
+  | _ =>
+    intro p h
+    rcases h with h | h <;>
+      first
+        | exact Term.noConfusion h
+        | solve_by_elim [Or.inl, Or.inr]
+
+theorem IsDefEq.pair_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡ e' : X) :
+    ∀ {A B a b : Term}, e = .pair A B a b ∨ e' = .pair A B a b →
+      (∃ u, Γ ⊢ A : .sort u) ∧ (∃ v, A :: Γ ⊢ B : .sort v) ∧ (Γ ⊢ a : A) ∧
+        ∃ T, Γ ⊢ b : T := by
+  induction H with
+  | pairDF hA hB hB' ha hb _ _ _ _ _ _ _ _ =>
+    intro A B a b hh
+    match hh with
+    | .inl hh =>
+      injection hh with h1 h2 h3 h4
+      subst h1; subst h2; subst h3; subst h4
+      exact ⟨⟨_, hA.hasType.1⟩, ⟨_, hB.hasType.1⟩, ha.hasType.1, _, hb.hasType.1⟩
+    | .inr hh =>
+      injection hh with h1 h2 h3 h4
+      subst h1; subst h2; subst h3; subst h4
+      exact ⟨⟨_, hA.hasType.2⟩, ⟨_, hB'.hasType.2⟩, hA.defeqDF ha.hasType.2,
+        _, hb.hasType.2⟩
+  | _ =>
+    intro A B a b h
+    rcases h with h | h <;>
+      first
+        | exact Term.noConfusion h
+        | solve_by_elim [Or.inl, Or.inr]
+
+theorem IsDefEq.natCase_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡ e' : X) :
+    ∀ {C M a b : Term}, e = .natCase C M a b ∨ e' = .natCase C M a b →
+      (Γ ⊢ M : .nat) ∧ (∃ T, Γ ⊢ a : T) ∧ ∃ T, Term.nat :: Γ ⊢ b : T := by
+  induction H with
+  | natCaseDF _ hM ha hb _ _ _ _ _ _ =>
+    intro C M a b hh
+    match hh with
+    | .inl hh =>
+      injection hh with h1 h2 h3 h4
+      subst h1; subst h2; subst h3; subst h4
+      exact ⟨hM.hasType.1, ⟨_, ha.hasType.1⟩, _, hb.hasType.1⟩
+    | .inr hh =>
+      injection hh with h1 h2 h3 h4
+      subst h1; subst h2; subst h3; subst h4
+      exact ⟨hM.hasType.2, ⟨_, ha.hasType.2⟩, _, hb.hasType.2⟩
+  | _ =>
+    intro C M a b h
+    rcases h with h | h <;>
+      first
+        | exact Term.noConfusion h
+        | solve_by_elim [Or.inl, Or.inr]
+
+theorem IsDefEq.Y_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡ e' : X) :
+    ∀ {A b : Term}, e = .Y A b ∨ e' = .Y A b →
+      (∃ u, Γ ⊢ A : .sort u) ∧ (Γ ⊢ .Y A b : A) ∧ ∃ T, A :: Γ ⊢ b : T := by
+  induction H with
+  | YDF hA hb hb' _ _ _ =>
+    intro A b hh
+    match hh with
+    | .inl hh =>
+      injection hh with h1 h2; subst h1; subst h2
+      exact ⟨⟨_, hA.hasType.1⟩, (IsDefEq.YDF hA hb hb').hasType.1, _, hb.hasType.1⟩
+    | .inr hh =>
+      injection hh with h1 h2; subst h1; subst h2
+      exact ⟨⟨_, hA.hasType.2⟩, hA.defeqDF (IsDefEq.YDF hA hb hb').hasType.2,
+        _, hb'.hasType.2⟩
+  | _ =>
+    intro A b h
+    rcases h with h | h <;>
+      first
+        | exact Term.noConfusion h
+        | solve_by_elim [Or.inl, Or.inr]
