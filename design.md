@@ -20,8 +20,8 @@ syntactic bookkeeping that stands in for his quotient.
 The files, in dependency order: `Term`/`Label`/`Annot`/`Regular` are the
 syntax and its judgments, `Shape` and `HasType` the domain and its
 typing, `Interp` the interpretation, `Directed` the directedness
-induction, `Presheaf` soundness, and `Strong`/`Inversion`/`Consequences`
-what follows from it.
+induction, `Sound` soundness, and `Inversion`/`Consequences` what follows
+from it.
 
 ## 1. The domain
 
@@ -247,8 +247,7 @@ dropped. Every lemma that used to take the two separately now takes one.
 
 The syntactic typing is *not* here. It is `H.hasType.1`, which every
 consumer of soundness already holds, so carrying it would be carrying the
-input back out. Where it has to be bundled per subterm — `StrongSound`,
-which is a typing judgment — that judgment carries it itself.
+input back out.
 
 `SoundEq` is type-agnostic, which is what lets the instrumented
 judgment's heterogeneous `trans'` rule go through without sort
@@ -315,13 +314,6 @@ approximants are all named `fst #0`. With the naming it is not
 admissible.
 
 ## 7. Above soundness
-
-**`StrongSound` / `StrongSoundCore`** (`Strong.lean`): a bundled typing
-carrying, per subterm, the syntactic typing and `Sound` at the type the
-corresponding rule gives it, with `StrongSound.uniq` the semantic half of
-type uniqueness. It carries the syntactic typing because it *is* a typing
-judgment; the semantic halves it does not store it reads back off
-`IsDefEq.soundTy`.
 
 **`Inversion.lean`**: Π-, Σ- and Id-injectivity, fifteen no-confusion
 principles, and `zero_ne_succ`. Each is four steps and none uses

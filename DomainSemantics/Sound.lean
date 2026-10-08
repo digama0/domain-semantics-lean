@@ -721,7 +721,7 @@ theorem Interp.inst {B : Term} {Γ₀ : List Term} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
 -- with label `A[σ]`, and nothing relates `A[σ']` to it, because no rule
 -- types a label in `Γ` -- `hlab` types it in `Δ`.  So the statement has to
 -- be indexed by a typing derivation of `t`, and it lives with soundness as
--- `IsDefEq.stage` (`Presheaf.lean`).
+-- `IsDefEq.stage` (`Sound.lean`).
 
 /-- The stage an instantiation is read at: `(one a).comp σ` is `σ`
 extended by `a[σ]`. -/
@@ -3601,10 +3601,10 @@ label-only approximant, move it across with the equality at the identity
 stage and the `⊥` valuation (admissible for free, `Adm.bot`), and read the
 label back off the order.
 
-These are stated over `SoundEq` rather than over `Γ ⊢ · ≡ · : _` so that
-they are available *before* soundness — `StrongSound.uniq` needs them, and
-`IsDefEq.strongSound` needs `uniq`.  `Inversion.lean` derives the
-syntactic corollaries by feeding them `IsDefEq.sound`. -/
+These are stated over `SoundEq` rather than over `Γ ⊢ · ≡ · : _` because
+that is the form the `eq` conclusion hands over inside the induction.
+`Inversion.lean` derives the syntactic corollaries by feeding them
+`IsDefEq.sound`. -/
 
 /-- **A one-entry Π-approximant**: a value of the codomain at a typed
 slot, packaged as an approximant of the Π-type itself.  Master's

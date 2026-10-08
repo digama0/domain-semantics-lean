@@ -1,4 +1,4 @@
-import DomainSemantics.Presheaf
+import DomainSemantics.Sound
 import DomainSemantics.Regular
 
 /-! # Inversion from soundness

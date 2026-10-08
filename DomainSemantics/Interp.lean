@@ -591,10 +591,10 @@ labelling.  He proves that the label-only Π atom is a member of a Π value
 equality in his quotient, which is definitional equality, which is our
 `PiLabelEq`.
 
-Master has nothing like this.  In its place master carries
-`StrongSoundCore`, a second inductive with one constructor per term former
-running in lockstep with the semantics, so that the logical relation can
-read the head former back out — and then needs `LogRel.lean` plus
+Master has nothing like this.  In its place master carries a second
+inductive with one constructor per term former running in lockstep with
+the semantics, so that the logical relation can read the head former back
+out — and then needs `LogRel.lean` plus
 `Adequacy.lean` to connect it to reduction.  Here the head former is
 *inside the shape*, so reading it back is a projection out of the order.
 
@@ -1542,7 +1542,7 @@ The forward direction of term substitution reads one valuation out of
 each subderivation and has to return a single one.  Valuations join
 slotwise, and a slot's join is again an approximant of its `θ i` only by
 that term's directedness — so the lemmas that do the merging live past
-`IsDefEq.dir`, in `Presheaf.lean`, and only the two definitions they
+`IsDefEq.dir`, in `Sound.lean`, and only the two definitions they
 merge are here. -/
 
 def Valuation.join (ρ₁ ρ₂ : Valuation) : Valuation := fun i => (ρ₁ i).join (ρ₂ i)
@@ -1679,7 +1679,7 @@ These are `HasFixedness` in the original, where `HasSubstitution.app`
 takes it as a hypothesis and `outputAtom_rawPi_fixed_support` turns it
 into exactly this: a non-`⊥` response sits at a genuine point of the
 domain.  They are stated here without `SoundTy`, so that `Interp.lean`
-stays below it, and discharged in `Presheaf.lean` as a third conclusion of
+stays below it, and discharged in `Sound.lean` as a third conclusion of
 `IsDefEq.sound` (§3.1d of the strategy note). -/
 
 /-- **Every valuation approximating `θ` is below an admissible one that
@@ -1689,7 +1689,7 @@ it is what lets the conditions below be stated where they are *provable*:
 at the `Γ` side, each an immediate consequence of the subterm's own
 `SoundTy`.
 
-`Valuation.Approx.canon_one` (`Presheaf.lean`) is this at a single
+`Valuation.Approx.canon_one` (`Sound.lean`) is this at a single
 substitution, which is the only kind that arises, and `Saturates.lift`
 carries it under a binder. -/
 def Subst.Saturates (Δ Γ₀ Γ Γ' : List Term) (θ σ : Subst) (ρ : Valuation) : Prop :=

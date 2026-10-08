@@ -1,5 +1,4 @@
 import DomainSemantics.Consequences
-import DomainSemantics.Strong
 import DomainSemantics.Inversion
 
 /-! # The axiom board
@@ -129,10 +128,6 @@ open DomainSemantics
 -- projection, because the saturated one is.
 /-- info: 'DomainSemantics.PairCanon.of_dom' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in #print axioms PairCanon.of_dom
-
--- **Type uniqueness** from the labelled model, syntactic and semantic halves.
-/-- info: 'DomainSemantics.StrongSound.uniq' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in #print axioms StrongSound.uniq
 
 -- **A stuck transport has no information**: `tr false nat zero (succ zero)
 -- nat zero h` computes by no rule, because its endpoints are not equal,

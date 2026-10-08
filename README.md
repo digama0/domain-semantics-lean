@@ -87,8 +87,7 @@ The library is a strict dependency chain. Lines are of Lean source.
 | [`Shape.lean`](DomainSemantics/Shape.lean) | 2840 | The domain: level-graded `Shape n`, graphs as labelled `Entry` lists, the total `TShape`, and the order, compatibility, join, lift, substitution and graph lookup (`ShapeFun.Eval`).  `Shape.WF` carries an optional name as its last argument, defaulting to `none`, so canonicity rides the recursion rather than being a predicate of its own; `Shape.LE` carries the same two facts as conjuncts. |
 | [`HasType.lean`](DomainSemantics/HasType.lean) | 2651 | `TShape.HasType`, typing of shapes, one inductive over `TShape`; the total-level lookup `TEvaluates`; `TShape.Named`, hereditary typing indexed by an optional name, with its transport `Named.defeq`; `TShape.Slot`; the subject join. |
 | [`Interp.lean`](DomainSemantics/Interp.lean) | 2698 | `Interp`, the interpretation relation, with one clause per former; admissibility `Adm`; stage invariance, strengthening and substitution. |
-| [`Presheaf.lean`](DomainSemantics/Presheaf.lean) | 5370 | `IsDefEq.sound`: five conclusions (equality, typing, both `Pinned`s, saturation) in one induction, every rule, Σ's η included. |
-| [`Strong.lean`](DomainSemantics/Strong.lean) | 241 | `StrongSound.uniq`, the semantic half of type uniqueness. |
+| [`Sound.lean`](DomainSemantics/Sound.lean) | 4747 | `IsDefEq.sound`: four conclusions (equality, semantic typing, both `Pinned`s) in one induction over every rule. |
 | [`Inversion.lean`](DomainSemantics/Inversion.lean) | 272 | Π-, Σ- and Id-injectivity, fifteen no-confusion principles, and `zero_ne_succ_zero`, all four steps from soundness and none from adequacy. |
 | [`Consequences.lean`](DomainSemantics/Consequences.lean) | 980 | Type uniqueness, sort uniqueness, `IsDefEq.iff`, canonical forms, subject reduction, progress, `not_UIP`. |
 | [`DomainSemantics.lean`](DomainSemantics.lean) | 149 | Umbrella: the axiom board, headline theorems and internals. |

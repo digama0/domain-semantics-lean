@@ -95,7 +95,7 @@ Interp.lean
   Interp.mono, mono_val, ctx   structural                                      [done]
   Interp.subst                 naturality in the stage                         [done]
   Interp.weak', unweak         renaming in the term                            [weak' done]
-Presheaf.lean
+Sound.lean
   IsDefEq.stage                stage invariance under defeq, by ind. on typing [§3.1]
   IsDefEq.dir                  directedness, by ind. on typing                 [§3.2]
   Interp.substTerm, inst       ∃ρ' substitution, parameterised by directedness [§3.3]
@@ -432,7 +432,7 @@ is `Subst.Good Γ' θ` — "every slot is typed in `Γ'` or is a `bvar`" —
 and `Interp.unweak_slot` splits on it: typed slots go by `unweak`,
 variables by hand, since both sides of `Interp.bvar` say `m ≤ ρ j`.
 
-**Status: done.**  The clauses carry their premises, `Presheaf.lean` is
+**Status: done.**  The clauses carry their premises, `Sound.lean` is
 repaired throughout, and `Interp.stage` is the theorem behind
 `IsDefEq.stage`.  §3.1c records what the premises are and what is left.
 
@@ -1752,7 +1752,7 @@ value's label names its *own* first projection — and that is still the
 
 #### 4.7e The other direction is false: a pair's input is not consulted
 
-While proving `sound_fst_snd_of` (the ← direction, `Presheaf.lean`,
+While proving `sound_fst_snd_of` (the ← direction, `Sound.lean`,
 proved against `PairCanon`) I checked the ← /→ split and found that **→
 is false as the model stands** — not blocked, false.  Compare the two
 clauses:
@@ -2158,7 +2158,7 @@ could not be joined.
 consumer of a *relational* lookup needs it.  A lookup's `join` rule returns
 `y₁ ⊔ y₂` with the two sides typed separately, and typing the join is the
 only way to type what the lookup returned; `SoundJoin.hasType_join`
-(`Presheaf.lean`) is the two-line bridge, using that typing is
+(`Sound.lean`) is the two-line bridge, using that typing is
 lower-closed.  Master never meets this because its lookup is a saturated
 max-below *function* — no `join` rule to discharge.  So the current
 consumers are `tr`'s directedness, `appDF`'s `SoundTy` (`sound_app_ty`
@@ -3430,7 +3430,7 @@ defined as `∀ Δ σ ρ, … → Interp.Dir Δ Γ t σ ρ`. The second is gone.
 
 What made the split worth doing is a measurement rather than a
 preference. The dependency closure of `IsDefEq.dir` contains 32
-declarations of `Presheaf.lean` and, from the whole tail of `Interp.lean`,
+declarations of `Sound.lean` and, from the whole tail of `Interp.lean`,
 only three: the definition, `.join`, and `Interp.lift`. So directedness
 does not need the substitution machinery at all — the dependency ran the
 other way. Those 32 now make `Directed.lean`, which imports `Interp` and
@@ -3441,7 +3441,7 @@ directedness premise (`Valuation.Approx.join`/`foldr`, `body_merge`,
 `Saturates.lift`, `to_substTerm`, `substTerm`, `inst`, `Dir.list`, and the
 two transport lemmas `Dir.bvar`/`Dir.weak_slot` that existed only to move
 such a premise along a stage extension). None is needed by `IsDefEq.dir`,
-so all ten move *after* it, into `Presheaf.lean`, and take a typing
+so all ten move *after* it, into `Sound.lean`, and take a typing
 instead:
 
 * `Subst.Dir Γ' θ` is `∀ i, SoundDir Γ' (θ i)` — stage-free, so the
@@ -3499,7 +3499,7 @@ files.
 
 Directedness holds of every well-typed term, so a `SoundDir` premise is
 never information: it is the typing the caller already has, pushed through
-`IsDefEq.dir`. Twenty-four lemmas in `Presheaf.lean` carried one anyway,
+`IsDefEq.dir`. Twenty-four lemmas in `Sound.lean` carried one anyway,
 and `IsDefEq.sound` discharged every one of them at the call site with
 `(IsDefEq.dir hΓ h).1`. All twenty-four premises are gone; each lemma
 derives it from a typing already in its signature (`hB`, `hat`, `he'`,
@@ -3582,3 +3582,24 @@ reads it) and `StrongSoundCore`'s annotation premises are typings rather
 than `Sound`s. Where a clause needs the semantic half it goes through
 `IsDefEq.soundTy hΓ`, which is a one-liner given the typing it already
 has. Twelve clause premises got simpler for it.
+
+## 15. `Strong.lean` deleted; `Presheaf.lean` is `Sound.lean` (2026-10-08)
+
+`StrongSound` was scaffolding for a proof that never needed it. The idea
+was that `SoundEq`/`SoundTy` are flat — neither lets you recover anything
+about the subterms of `t` — so a second, syntax-directed judgment would
+carry the subterms' facts and `StrongSound.uniq` would give type
+uniqueness. In the end `Consequences.lean` derives type uniqueness from
+`IsDefEq.sound` and the nineteen inversion principles, and the reference
+data confirms it: `Consequences` uses nothing from `Strong` at all, and
+nothing else imported the file except the axiom board.
+
+So the file is gone, with its board entry. Type uniqueness
+(`IsDefEq.uniq'`) is unaffected and still on the board; what left was only
+the claim that a *strong* typing's two types agree, which is not a
+deliverable.
+
+`Presheaf.lean` is now `Sound.lean`, which is what it contains. The import
+graph is `Term`/`Label`/`Annot`/`Regular` → `Shape` → `HasType` →
+`Interp` → `Directed` → `Sound` → `Inversion` → `Consequences`, a chain
+with no branches above `Interp`.
