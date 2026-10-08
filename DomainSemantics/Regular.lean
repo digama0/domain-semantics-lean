@@ -327,3 +327,33 @@ theorem IsDefEq.Y_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡ e' 
       first
         | exact Term.noConfusion h
         | solve_by_elim [Or.inl, Or.inr]
+
+/-- The widest of these: `tr` carries the motive's instance at the *source*
+point, which is what the slot rebuild reads, so the witness is existential
+in the point and the motive rather than fixed at `a` and `C`. -/
+theorem IsDefEq.tr_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡ e' : X) :
+    ∀ {r} {A a b C x h : Term}, e = .tr r A a b C x h ∨ e' = .tr r A a b C x h →
+      (∃ u, Γ ⊢ A : .sort u) ∧ (Γ ⊢ a : A) ∧ (Γ ⊢ b : A) ∧ (Γ ⊢ h : .id r A a b) ∧
+        (∃ a₀ C₀ v, (Γ ⊢ x : C₀.inst a₀) ∧ (Γ ⊢ a₀ ≡ a : A) ∧
+          (A :: Γ ⊢ C₀ ≡ C : .sort v)) ∧ (∃ v, A :: Γ ⊢ C : .sort v) := by
+  induction H with
+  | trDF hA ha hb hC hC' hx hh _ _ _ _ _ _ _ _ _ _ =>
+    intro r A a b C x h hh'
+    match hh' with
+    | .inl hh' =>
+      injection hh' with h1 h2 h3 h4 h5 h6 h7
+      subst h1; subst h2; subst h3; subst h4; subst h5; subst h6; subst h7
+      exact ⟨⟨_, hA.hasType.1⟩, ha.hasType.1, hb.hasType.1, hh.hasType.1,
+        ⟨_, _, _, hx.hasType.1, ha.hasType.1, hC.hasType.1⟩, _, hC.hasType.1⟩
+    | .inr hh' =>
+      injection hh' with h1 h2 h3 h4 h5 h6 h7
+      subst h1; subst h2; subst h3; subst h4; subst h5; subst h6; subst h7
+      exact ⟨⟨_, hA.hasType.2⟩, hA.defeqDF ha.hasType.2, hA.defeqDF hb.hasType.2,
+        (IsDefEq.idDF hA ha hb).defeqDF hh.hasType.2,
+        ⟨_, _, _, hx.hasType.2, hA.defeqDF ha, hC'⟩, _, hC'.hasType.2⟩
+  | _ =>
+    intro r A a b C x h hh
+    rcases hh with hh | hh <;>
+      first
+        | exact Term.noConfusion hh
+        | solve_by_elim [Or.inl, Or.inr]
