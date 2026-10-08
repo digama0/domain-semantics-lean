@@ -24,10 +24,13 @@ annotations travel with the term, and the lemmas that need them say so.
 
 namespace DomainSemantics
 
-/-- Every annotation of `t` is typed in the context it occurs in: exactly
-what `Interp`'s clauses ask for, as a structural predicate. -/
+/-- Every annotation of `t` is typed in the context it occurs in, and
+every free variable of `t` is in that context: exactly what `Interp`'s
+clauses ask for, as a structural predicate.  The variable case is what
+`Interp.unweak` reads to know that an index survives the descent, and
+what bounds a valuation's meaningful slots. -/
 def Term.Annot : Term → List Term → Prop
-  | .bvar _, _ => True
+  | .bvar i, Γ => ∃ A, Lookup Γ i A
   | .sort _, _ => True
   | .unit _, _ => True
   | .star _, _ => True
@@ -65,7 +68,8 @@ sides as typing premises, so the induction hypothesis covers them. -/
 theorem IsDefEq.annot {Γ : List Term} {e1 e2 T : Term} (H : Γ ⊢ e1 ≡ e2 : T) :
     e1.Annot Γ ∧ e2.Annot Γ := by
   induction H with
-  | bvar | sort | unit | star | nat | zero => exact ⟨trivial, trivial⟩
+  | bvar h => exact ⟨⟨_, h⟩, ⟨_, h⟩⟩
+  | sort | unit | star | nat | zero => exact ⟨trivial, trivial⟩
   | symm _ ih => exact ⟨ih.2, ih.1⟩
   | trans _ _ ih₁ ih₂ => exact ⟨ih₁.1, ih₂.2⟩
   | trans' _ _ ih₁ ih₂ => exact ⟨ih₁.1, ih₂.2⟩
