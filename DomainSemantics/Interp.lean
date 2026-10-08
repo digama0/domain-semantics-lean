@@ -1,4 +1,3 @@
-import DomainSemantics.Annot
 import DomainSemantics.Regular
 import DomainSemantics.HasType
 import DomainSemantics.HasType
@@ -1303,8 +1302,8 @@ terms move), and an `app`'s or `snd`'s query is `Stable` at the shape's
 label — which is exactly the equation `TEvaluates.mono` asks for, and the
 one thing no typing in `Γ` could supply, the label being a term of `Δ`.
 
-So the induction is structural in the term, with `Term.Annot` for the
-annotations.  `Y` is the one case that is not structural: its tower
+So the induction is structural in the term, with the subject's typing
+inverted a layer at a time (`Regular.lean`) for the annotations.  `Y` is the one case that is not structural: its tower
 premise is the same term one level down, so that case runs on the
 derivation. -/
 theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
@@ -1697,7 +1696,8 @@ theorem Adm.cons {Δ Γ : List Term} {A : Term} {σ ρ x a} (h : Adm Δ Γ σ.ta
 
 `Interp.to_substTerm` takes an interpretation of `t[θ]` in `Γ'` apart and
 rebuilds it for `t` in `Γ`.  Most of each clause's premises come back from
-`Term.Annot`; two do not, and both are *semantic*:
+the subject's typing, inverted a layer at a time (`Regular.lean`); two do
+not, and both are *semantic*:
 
 * at a binder, rebuilding the extended stage's admissibility needs every
   approximant of the annotation to be a type (`IsTypeAt`);
@@ -1758,7 +1758,7 @@ def PinSnd (Γ : List Term) (p : Term) : Prop :=
     Stable Δ Γ σ (Term.fst p) A
 
 /-- The two gathered over the whole term, structurally — the semantic
-counterpart of `Term.Annot`.
+counterpart of the shallow inversions in `Regular.lean`.
 
 A subterm appears here only where `Interp` interprets it, since the only
 consumer is `Interp.to_substTerm`, which recurses exactly where the

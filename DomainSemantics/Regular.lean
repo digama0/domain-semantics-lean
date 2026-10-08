@@ -168,7 +168,8 @@ theorem IsDefEq.sigma_cod {Γ : List Term} {A B e X : Term}
 
 Each lemma below reads one layer off a definitional equality: the subject's
 own premises, and typings for its subterms in the contexts they live in.
-Together they are what `Term.Annot` used to carry as a predicate, and the
+Together they are what `Term.Annot` carried as a predicate before it was
+deleted, and the
 induction is the same in each — the former's congruence rule is the only
 case with content, the computation rules go through their reflexive
 premise's induction hypothesis, and everything else is `noConfusion`.

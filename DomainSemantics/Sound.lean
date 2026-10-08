@@ -73,7 +73,7 @@ theorem Interp.body_merge {Δ Γ₀ Γ' Γ'' : List Term} {A₀ : Term} {α : Ty
     intro ρ'' hρ''
     obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hρ''
     exact fun {_ _} hlk =>
-      Interp.unweak_slot hΔ hΓ' WΓ ((Wθ.lookup hlk).annot.1)
+      Interp.unweak_slot hΔ hΓ' WΓ ((Wθ.lookup hlk))
         (hdcons p.1 (hps ▸ List.mem_map.2 ⟨p, hp, rfl⟩))
         ((hall p hp).2 (.succ hlk))
   obtain ⟨hAj, hles⟩ := Valuation.Approx.foldr hΔ W hwρ hΓ' Wθ htail
@@ -115,7 +115,7 @@ theorem Subst.Saturates.lift {Δ Γ Γ' : List Term} {A : Term} {u : Bool} {θ �
   -- the tail approximates `θ` one context down
   have htail : Valuation.Approx Δ Γ' Γ θ σ ρ (Valuation.tail ρ') := by
     intro i A' hlk
-    exact Interp.unweak_slot hΔ hΓ' (.skip .refl) ((Wθ.lookup hlk).annot.1) hcons
+    exact Interp.unweak_slot hΔ hΓ' (.skip .refl) ((Wθ.lookup hlk)) hcons
       (hρ' (.succ hlk))
   -- saturate the tail together with the annotation's witness
   obtain ⟨hApj, hlj₁, hlj₂⟩ := Valuation.Approx.join hΔ Wσ hwρ hΓ' Wθ htail hApd
@@ -160,7 +160,8 @@ context deeper. -/
 of `t[θ]` is an approximant of `t` at the composed stage, under *some*
 valuation whose slots approximate the `θ i`.
 
-The clauses' `Γ`-level premises come back from `Term.Annot`, and their
+The clauses' `Γ`-level premises come back from the subject's typing by
+shallow inversion (`Regular.lean`), and their
 semantic ones — a binder's annotation being a type, an eliminator's label
 being the subject's own — from `Term.Pinned`, which is the original's
 `HasFixedness` threaded structurally.  The `bvar` case is where the
@@ -168,7 +169,7 @@ valuation is built (slot `i` holds the approximant, every other slot
 `⊥`), the merges are `Valuation.Approx.foldr` through
 `body_merge`/`list_merge` under binders, and `Y` runs on the tower. -/
 theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
-    ∀ {t : Term} {Γ Γ' : List Term} {θ σ ρ m}, ⊢ Γ → t.Annot Γ → t.Pinned Γ → ⊢ Γ' →
+    ∀ {t : Term} {Γ Γ' : List Term} {θ σ ρ m T}, ⊢ Γ → (Γ ⊢ t : T) → t.Pinned Γ → ⊢ Γ' →
       Ctx.SubstEq Γ' θ θ Γ → Ctx.SubstEq Δ σ σ Γ' →
       Adm Δ Γ' σ ρ → Subst.Saturates Δ Γ Γ' θ σ ρ →
       Interp Δ Γ' (t.subst θ) σ ρ m →
@@ -176,8 +177,8 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
   intro t
   induction t with
   | bvar i =>
-    intro Γ Γ' θ σ ρ m _ hAnn _ _ _ _ _ _ H
-    obtain ⟨A, hlk⟩ := hAnn
+    intro Γ Γ' θ σ ρ m T _ hAnn _ _ _ _ _ _ H
+    obtain ⟨A, hlk⟩ := hAnn.bvar_regular (.inl rfl)
     refine ⟨fun j => if j = i then m else TShape.bot, .bvar hlk ?_,
       fun {j _} _ => ?_⟩
     · simp only [if_pos]; exact TShape.LE.refl H.wf
@@ -185,39 +186,40 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
       · subst hj; simpa using H
       · simp only [if_neg hj]; exact .bot
   | sort u =>
-    intro Γ Γ' θ σ ρ m _ _ _ _ _ _ _ _ H
+    intro Γ Γ' θ σ ρ m T _ _ _ _ _ _ _ _ H
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
     | sort hle => exact ⟨Valuation.nil, .sort hle, .nil⟩
   | unit r =>
-    intro Γ Γ' θ σ ρ m _ _ _ _ _ _ _ _ H
+    intro Γ Γ' θ σ ρ m T _ _ _ _ _ _ _ _ H
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
     | unit hle => exact ⟨Valuation.nil, .unit hle, .nil⟩
   | star r =>
-    intro Γ Γ' θ σ ρ m _ _ _ _ _ _ _ _ H
+    intro Γ Γ' θ σ ρ m T _ _ _ _ _ _ _ _ H
     cases H with | bot => exact ⟨Valuation.nil, .bot, .nil⟩
   | nat =>
-    intro Γ Γ' θ σ ρ m _ _ _ _ _ _ _ _ H
+    intro Γ Γ' θ σ ρ m T _ _ _ _ _ _ _ _ H
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
     | nat hle => exact ⟨Valuation.nil, .nat hle, .nil⟩
   | zero =>
-    intro Γ Γ' θ σ ρ m _ _ _ _ _ _ _ _ H
+    intro Γ Γ' θ σ ρ m T _ _ _ _ _ _ _ _ H
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
     | zero hle => exact ⟨Valuation.nil, .zero hle, .nil⟩
   | succ N ih =>
-    intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
+    intro Γ Γ' θ σ ρ m T hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
     have hΔ := hAdm.ctx
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
     | succ hv hle =>
-      obtain ⟨ρ', hv', hA⟩ := ih hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat hv
+      obtain ⟨ρ', hv', hA⟩ :=
+        ih hΓ (hAnn.succ_regular (.inl rfl)) hPin hΓ' Wθ Wσ hAdm hSat hv
       exact ⟨ρ', .succ hv' hle, hA⟩
   | app F a ihF iha =>
-    intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
-    obtain ⟨hAF, hAa⟩ := hAnn
+    intro Γ Γ' θ σ ρ m T hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
+    obtain ⟨⟨_, _, hAF⟩, _, hAa⟩ := hAnn.app_regular (.inl rfl)
     obtain ⟨hpin, hPF, hPa⟩ := hPin
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
@@ -232,32 +234,34 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         (Interp.mono_val hΔ (fun {_ _} hlk => (hl₂ hlk).trans hΔ (hle₃ hlk)) hx') hev hle ?_, hAp₃⟩
       exact hpin hAdm₃ hF₃
   | fst p ih =>
-    intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
+    intro Γ Γ' θ σ ρ m T hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
     | fst hp hle =>
-      obtain ⟨ρ', hp', hA⟩ := ih hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat hp
+      obtain ⟨_, _, hAp⟩ := hAnn.fst_regular (.inl rfl)
+      obtain ⟨ρ', hp', hA⟩ := ih hΓ hAp hPin hΓ' Wθ Wσ hAdm hSat hp
       exact ⟨ρ', .fst hp' hle, hA⟩
   | snd p ih =>
-    intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
+    intro Γ Γ' θ σ ρ m T hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
     obtain ⟨hpin, hPp⟩ := hPin
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
     | snd hp hev hle hty =>
-      obtain ⟨ρ', hp', hA⟩ := ih hΓ hAnn hPp hΓ' Wθ Wσ hAdm hSat hp
+      obtain ⟨_, _, hAp⟩ := hAnn.snd_regular (.inl rfl)
+      obtain ⟨ρ', hp', hA⟩ := ih hΓ hAp hPp hΓ' Wθ Wσ hAdm hSat hp
       obtain ⟨ρ₃, hle₃, hAp₃, hAdm₃⟩ := hSat hA
       simp only [Term.subst, subst_subst] at hev
       have hp₃ := Interp.mono_val hΔ hle₃ hp'
       exact ⟨ρ₃, .snd hp₃ hev hle
         (hpin hAdm₃ hp₃), hAp₃⟩
   | refl r a ih =>
-    intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
+    intro Γ Γ' θ σ ρ m T hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
     | refl hle => exact ⟨Valuation.nil, .refl hle, .nil⟩
   | id r A a b ihA iha ihb =>
-    intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
-    obtain ⟨⟨u, hA⟩, hat, hbt⟩ := hAnn
+    intro Γ Γ' θ σ ρ m T hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
+    obtain ⟨⟨u, hA⟩, hat, hbt⟩ := hAnn.id_regular (.inl rfl)
     obtain ⟨hPA, hPa, hPb⟩ := hPin
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
@@ -265,8 +269,9 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
       simp only [subst_subst] at hle
       exact ⟨Valuation.nil, .id hle ⟨u, hA⟩ hat hbt, .nil⟩
   | lam A b ihA ihb =>
-    intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
-    obtain ⟨⟨u, hA⟩, hAA, hAb⟩ := hAnn
+    intro Γ Γ' θ σ ρ m T hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
+    obtain ⟨⟨u, hA⟩, _, hAb⟩ := hAnn.lam_regular (.inl rfl)
+    have hAA := hA
     obtain ⟨hAty, hPA, hPb⟩ := hPin
     have hAθ : Γ' ⊢ A.subst θ ≡ A.subst θ : Term.sort u := hA.subst hΓ' Wθ
     cases H with
@@ -317,8 +322,10 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         | zero => exact TShape.LE.refl (hwf.2.2.1.1 e he).2.2.1
         | succ hlk => exact hl₂ hlk) (hbody' e he)
   | forallE A B ihA ihB =>
-    intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
-    obtain ⟨⟨u, hA⟩, ⟨v, hB⟩, hAA, hAB⟩ := hAnn
+    intro Γ Γ' θ σ ρ m T hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
+    obtain ⟨⟨u, hA⟩, v, hB⟩ := hAnn.forallE_regular (.inl rfl)
+    have hAA := hA
+    have hAB := hB
     obtain ⟨hAty, hPA, hPB⟩ := hPin
     have hAθ : Γ' ⊢ A.subst θ ≡ A.subst θ : Term.sort u := hA.subst hΓ' Wθ
     cases H with
@@ -366,8 +373,10 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         | zero => exact TShape.LE.refl (hwf.2.2.2.1.1 e he).2.2.1
         | succ hlk => exact hl₂ hlk) (hbody' e he)
   | sigma A B ihA ihB =>
-    intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
-    obtain ⟨⟨u, hA⟩, ⟨v, hB⟩, hAA, hAB⟩ := hAnn
+    intro Γ Γ' θ σ ρ m T hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
+    obtain ⟨⟨u, hA⟩, v, hB⟩ := hAnn.sigma_regular (.inl rfl)
+    have hAA := hA
+    have hAB := hB
     obtain ⟨hAty, hPA, hPB⟩ := hPin
     have hAθ : Γ' ⊢ A.subst θ ≡ A.subst θ : Term.sort u := hA.subst hΓ' Wθ
     cases H with
@@ -415,8 +424,10 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         | zero => exact TShape.LE.refl (hwf.2.2.2.1.1 e he).2.2.1
         | succ hlk => exact hl₂ hlk) (hbody' e he)
   | pair A B a b ihA ihB iha ihb =>
-    intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
-    obtain ⟨⟨u, hA⟩, hat, hAA, hAB, hAa, hAb⟩ := hAnn
+    intro Γ Γ' θ σ ρ m T hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
+    obtain ⟨⟨u, hA⟩, ⟨_, hAB⟩, hat, _, hAb⟩ := hAnn.pair_regular (.inl rfl)
+    have hAA := hA
+    have hAa := hat
     obtain ⟨hAty, hPA, hPB, hPa, hPb⟩ := hPin
     have hAθ : Γ' ⊢ A.subst θ ≡ A.subst θ : Term.sort u := hA.subst hΓ' Wθ
     cases H with
@@ -473,8 +484,9 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         | zero => exact TShape.LE.refl (TShape.WF.T.2 hwf.2.2.2.1)
         | succ hlk => exact TShape.LE.trans hΔ (hl₄ hlk) (hl₆ hlk)) hcode''
   | natCase C M a b ihC ihM iha ihb =>
-    intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
-    obtain ⟨hMt, hAM, hAa, hAb⟩ := hAnn
+    intro Γ Γ' θ σ ρ m T hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
+    obtain ⟨hMt, ⟨_, hAa⟩, _, hAb⟩ := hAnn.natCase_regular (.inl rfl)
+    have hAM := hMt
     obtain ⟨hMty, hPM, hPa, hPb⟩ := hPin
     have hΓN : ⊢ (Term.nat :: Γ) := ⟨hΓ, _, .nat⟩
     have hΓN' : ⊢ (Term.nat :: Γ') := ⟨hΓ', _, .nat⟩
@@ -537,8 +549,9 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         | zero => exact TShape.LE.refl (TShape.WF.T.2 hM₀.wf)
         | succ hlk => exact hl₂ hlk) (hbody' () (by simp))
   | Y A b ihA ihb =>
-    intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
-    obtain ⟨⟨u, hA⟩, hYt, hAA, hAb⟩ := hAnn
+    intro Γ Γ' θ σ ρ m T hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
+    obtain ⟨⟨u, hA⟩, hYt, _, hAb⟩ := hAnn.Y_regular (.inl rfl)
+    have hAA := hA
     obtain ⟨hAty, hPA, hPb⟩ := hPin
     -- the tower is not structural in the term, so this case runs on the
     -- derivation, each level's self-premise being the level below
@@ -601,8 +614,12 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
       | _ => intro ht' _ _ _ _ _; cases ht'
     exact key H rfl hΓ' Wθ Wσ hAdm hSat
   | tr r A a b C X Hp ihA iha ihb ihC ihX ihH =>
-    intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
-    obtain ⟨⟨u, hA⟩, hat, hbt, hht, _, hAA, hAa, hAb, hAC, hAX⟩ := hAnn
+    intro Γ Γ' θ σ ρ m T hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
+    obtain ⟨⟨u, hA⟩, hat, hbt, hht, ⟨_, _, _, hAX, _, _⟩, _, hAC⟩ :=
+      hAnn.tr_regular (.inl rfl)
+    have hAA := hA
+    have hAa := hat
+    have hAb := hbt
     obtain ⟨hAty, hPA, hPa, hPb, hPC, hPX⟩ := hPin
     have hAθ : Γ' ⊢ A.subst θ ≡ A.subst θ : Term.sort u := hA.subst hΓ' Wθ
     have hbθ : Δ ⊢ (b.subst θ).subst σ ≡ (b.subst θ).subst σ : (A.subst θ).subst σ :=
@@ -684,7 +701,7 @@ theorem Interp.substTerm {T : Term} (hΔ : ⊢ Δ) {θ : Subst} (hΓ : ⊢ Γ)
     :
     Interp Δ Γ' (t.subst θ) σ ρ m ↔
     ∃ ρ', Interp Δ Γ t (θ.comp σ) ρ' m ∧ Valuation.Approx Δ Γ' Γ θ σ ρ ρ' :=
-  ⟨Interp.to_substTerm hΔ hΓ ht.annot.1 hPin hΓ' Wθ Wσ hAdm hSat,
+  ⟨Interp.to_substTerm hΔ hΓ ht hPin hΓ' Wθ Wσ hAdm hSat,
     fun ⟨_, h, hs⟩ => Interp.of_substTerm hΔ h hΓ' Wθ rfl hs⟩
 
 /-- The single-substitution form, which is what `beta` uses: `b[a]` at
@@ -705,7 +722,7 @@ theorem Interp.inst {B : Term} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
     · simpa [Subst.one] using Ctx.SubstEq.id hΓ
     · simpa [Subst.one, subst_id] using hat
   ⟨fun h => by
-    obtain ⟨ρ', hb', hs⟩ := Interp.to_substTerm (Γ := A :: Γ) hΔ ⟨hΓ, _, hA⟩ hb.annot.1
+    obtain ⟨ρ', hb', hs⟩ := Interp.to_substTerm (Γ := A :: Γ) hΔ ⟨hΓ, _, hA⟩ hb
       hPin hΓ Wθ Wσ hAdm hSat
       h
     refine ⟨ρ' 0, Interp.mono_val hΔ (fun {_ _} hlk => ?_) hb', hs .zero⟩
@@ -3312,14 +3329,14 @@ theorem sound_natCase_dom {Γ : List Term} {C M a b : Term} {v : Bool} (hΓ : �
     obtain ⟨mb, c, hmb', hmle, hc, hNV, _⟩ := ihbdom hAdm' hmb
     obtain ⟨y, hCy, hsy⟩ := (Interp.inst (A := Term.nat) (b := C.lift' (.cons (.skip .refl)))
       hΔ hΓN .nat (.succDF (.bvar .zero .nat)) hClift
-      (Term.Pinned.weak' hΓN hC.annot.1 (.cons (.skip .refl)) hPC) Wcons hAdm'
+      (Term.Pinned.weak' hΓN hC (.cons (.skip .refl)) hPC) Wcons hAdm'
       (Subst.Saturates.one hΓN hAdm' .nat (.succDF (.bvar .zero .nat))
         (SoundTy.nat TypedAt.succ_bvar0))
       (Valuation.WF.push hwρ hwv')).1 hc
     rw [Subst.one_comp] at hCy
     have hCy' : Interp Δ (Term.nat :: Γ) C (σ.cons ((Term.succ (.bvar 0)).subst (σ.cons t)))
         (ρ.push y) c := by
-      have h := Interp.unweak (Δ := Δ) hΔ hΓN hC.annot.1 (Γ' := Term.nat :: Term.nat :: Γ)
+      have h := Interp.unweak (Δ := Δ) hΔ hΓN hC (Γ' := Term.nat :: Term.nat :: Γ)
         (l := .cons (.skip .refl)) (ρ := ρ.push y)
         (.cons (.skip .refl))
         (show Ctx.SubstEq Δ ((σ.cons t).cons ((Term.succ (.bvar 0)).subst (σ.cons t)))
@@ -3383,7 +3400,7 @@ theorem sound_Y_dom_aux {Δ : List Term} (hΔ : ⊢ Δ) {Γ : List Term} {t : Te
     have hunf := (IsDefEq.Y_unfold₀ hΓ hA hbt).subst hΔ W
     rw [subst_inst, inst_lift_cons] at hunf
     exact ⟨mb, c, .Y hx hd hdty hslotY hmb hAt hYt, hmle,
-      Interp.unweak (Δ := Δ) hΔ hΓ hA.annot.1 (Γ' := A :: Γ') (l := .skip .refl)
+      Interp.unweak (Δ := Δ) hΔ hΓ hA (Γ' := A :: Γ') (l := .skip .refl)
         (.skip .refl) WY (fun i => rfl) hc,
       hNV.defeq hΔ hcc hunf.symm, hcc⟩
   | bot =>
@@ -4188,7 +4205,7 @@ theorem sound_eta_to {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
       | @app _ _ _ _ _ _ k gq xq y Aq hF hx hev hley hst =>
         refine ⟨k, Aq, gq, xq, ?_, ?_, ?_⟩
         · -- the function, one binder down
-          exact Interp.unweak_slot hΔ hΓ (.skip .refl) he.annot.1
+          exact Interp.unweak_slot hΔ hΓ (.skip .refl) he
             (.cons W hA (hwf.2.2.1.1 q hq).2.1) hF
         · exact Interp.le_bvar (i := 0) (ρ := ρ.push q.inp.T) hx
         · subst hqo
@@ -4371,7 +4388,7 @@ theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢
         -- the code for `B[fst p]`, read at the pair's own name
         have hIc : Interp Δ (A :: Γ) B (σ.cons ((Term.fst p).subst σ))
             (ρ.push (Shape.T x)) cc := by
-          refine Interp.stage hΔ hΓA hB.annot.1
+          refine Interp.stage hΔ hΓA hB
             (Ctx.SubstEq.cons (σ := σ.cons a₀) W hA ?_) ?_
           · exact hAlab.defeqDF hname
           · refine sound_graph_lookup hΓA hA hB hΔ W hbodyc hxw hwρ

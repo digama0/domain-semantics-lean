@@ -17,7 +17,7 @@ definitions below that have no counterpart on his side.
 Four groups: the domain, its typing, the interpretation, and the
 syntactic bookkeeping that stands in for his quotient.
 
-The files, in dependency order: `Term`/`Label`/`Annot`/`Regular` are the
+The files, in dependency order: `Term`/`Label`/`Regular` are the
 syntax and its judgments, `Shape` and `HasType` the domain and its
 typing, `Interp` the interpretation, `Directed` the directedness
 induction, `Sound` soundness, and `Inversion`/`Consequences` what follows
@@ -220,8 +220,9 @@ it is both the typing and the bound.
 
 Two definitions supply the bound rather than consume it. `Interp.bvar`
 carries the variable's `Lookup`, which is what `Interp.mono_val` applies
-the order at, and `Term.Annot`'s variable case states it, which is what
-`Interp.unweak` reads to know an index survives the descent. The bound is
+the order at, and `IsDefEq.bvar_regular` reads it off the variable's own
+typing, which is what `Interp.unweak` needs to know an index survives the
+descent. The bound is
 a `Lookup` rather than `i < Γ.length` because `Lookup.weak'` already
 transports it across a context lift; a numeric bound would need a new
 transport lemma at every index-moving step.
@@ -244,12 +245,17 @@ would:
   equality of labels up to definitional equality. Partial equivalences,
   not reflexive on arbitrary terms, which is why every reflexivity lemma
   downstream takes a context.
-- **`Term.Annot t Γ`** (`Annot.lean`): every annotation inside `t` is
-  typed where it occurs. Syntax-directed, and free from the instrumented
-  judgment (`IsDefEq.annot`), because that judgment carries subterm sort
-  proofs. The extrinsic stand-in for intrinsically typed syntax.
+- **The shallow inversions** (`Regular.lean`), one per former: from a
+  definitional equality mentioning `.lam A b` (on either side — `symm` and
+  `trans` force that), the annotation's own typing and a typing for each
+  subterm in the context it lives in. The instrumented judgment carries
+  subterm sort proofs, so each is one induction whose only case with
+  content is the former's congruence rule. The strengthening lemmas take
+  the subject's typing and invert it a layer at a time; a predicate
+  `Term.Annot` gathering all of this used to be threaded through them
+  instead.
 - **`Term.Pinned t Γ`** (`Interp.lean`), built from `IsTypeAt`,
-  `TypedAt`, `PinApp`, `PinSnd`: the *semantic* counterpart of `Annot`,
+  `TypedAt`, `PinApp`, `PinSnd`: the *semantic* counterpart of those,
   being the clause conditions that `Interp.to_substTerm` consumes. It is
   a conclusion of soundness, not a hypothesis, and is quantified over
   later stages *and* over ambient substitutions. It mentions a subterm
