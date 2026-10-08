@@ -3665,3 +3665,21 @@ for the type's `SoundTy` would make `soundTy_sort` refer to itself. That
 is the honest bottom of the recursion — `CodeAt`'s reason for existing is
 to have hypothesis-free producers (`CodeAt.sort` and `CodeAt.nat` take no
 arguments) where `SoundTy` never does.
+
+### 15d. `Adm`'s base context removed
+
+`Adm` carried a fourth context, `Γ₀`, which the definition had already
+marked `_Γ₀` — it was read by nothing. It dates from a design in which
+admissibility was relative to a base context the stage had been extended
+from; the extension discipline moved into `Subst.Saturates` and `Adm`'s
+copy became decoration.
+
+It is gone, and `Subst.Saturates`'s own `Γ₀` with it, since that one
+existed only to be handed to `Adm`. The cost was mechanical but wide: 79
+`Adm` applications, 15 `Saturates` applications, and 130 binder and
+`intro` positions across `Interp.lean` and `Sound.lean`, because every
+`SoundEq`/`SoundTy`/`CodeAt`/`TypedAt`/`IsTypeAt`/`PinApp`/`PinSnd`
+quantifies over the stage and so bound a `Γ₀` it never used. The
+`fun _ _ _ _ hΔ W hA` term proofs each lost an underscore.
+
+`Adm` also gained the docstring it never had.

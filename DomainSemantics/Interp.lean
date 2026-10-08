@@ -1616,20 +1616,28 @@ theorem Interp.unweak_slot {Δ Γ' Γ'' : List Term} {s : Term} (hΔ : ⊢ Δ) (
     Interp Δ Γ' s σ ρ m :=
   Interp.unweak hΔ hΓ' hs WΓ hd (fun _ => rfl) H
 
-def Adm (Δ : List Term) (_Γ₀ Γ : List Term) (σ : Subst) (ρ : Valuation) : Prop :=
+/-- **Admissibility of a stage.**  The valuation is well formed, and every
+variable's slot is an approximant of its type and a `Slot` at it —
+hereditarily typed there, at a code that names the type, and named by the
+variable it stands for.  The other repo's `SourceAdmissible`, plus the
+naming his quotient makes unnecessary.
+
+The last two conjuncts are what the model is for.  Dropping the naming
+makes Σ's η false (see the witness in `design.md` §6), and dropping the
+hereditary typing makes `Interp.lam`'s slot unusable. -/
+def Adm (Δ Γ : List Term) (σ : Subst) (ρ : Valuation) : Prop :=
   Valuation.WF Δ ρ ∧
     ∀ {i A}, Lookup Γ i A → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Slot Δ (A.subst σ) a (σ i) (ρ i)
 
 /-- The all-bottom valuation is admissible, for free.  This is the
-hypothesis every inversion theorem is run under; with the base context
-now vestigial it holds at any. -/
-theorem Adm.bot {Δ Γ : List Term} {σ : Subst} : Adm Δ Γ Γ σ Valuation.nil :=
+hypothesis every inversion theorem is run under. -/
+theorem Adm.bot {Δ Γ : List Term} {σ : Subst} : Adm Δ Γ σ Valuation.nil :=
   ⟨fun _ => trivial, fun _ => ⟨TShape.bot, .bot, .bot (.bot_bot rfl), .bot_mem⟩⟩
 
 /-- Admissible valuations are well formed, slotwise. -/
-theorem Adm.wf {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) : Valuation.WF Δ ρ := h.1
+theorem Adm.wf {Δ Γ : List Term} {σ ρ} (h : Adm Δ Γ σ ρ) : Valuation.WF Δ ρ := h.1
 
-theorem Adm.lookupCanon {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) :
+theorem Adm.lookupCanon {Δ Γ : List Term} {σ ρ} (h : Adm Δ Γ σ ρ) :
     ∀ {i A}, Lookup Γ i A →
       ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Slot Δ (A.subst σ) a (σ i) (ρ i) := h.2
 
@@ -1644,10 +1652,10 @@ theorem Interp.weak_one {Δ Γ Γ' : List Term} {A : Term} {σ ρ x m} (hΓ : �
 constructor, now a lemma.  It asks for `⊢ Γ`, since the slots below are
 re-read one binder up (`Interp.weak_one`).  It does *not* ask that the
 type's approximants be types: `Adm` has no clause that would read it. -/
-theorem Adm.cons {Δ Γ₀ Γ : List Term} {A : Term} {σ ρ x a} (h : Adm Δ Γ₀ Γ σ.tail ρ)
+theorem Adm.cons {Δ Γ : List Term} {A : Term} {σ ρ x a} (h : Adm Δ Γ σ.tail ρ)
     (hΓ : ⊢ Γ) (ha : Interp Δ Γ A σ.tail ρ a) (hx : TShape.WF Δ x)
     (hxa : TShape.Named Δ a x (σ 0)) (hac : TShape.WF Δ a (A.subst σ.tail)) :
-    Adm Δ Γ₀ (A :: Γ) σ (ρ.push x) := by
+    Adm Δ (A :: Γ) σ (ρ.push x) := by
   refine ⟨Valuation.WF.push h.wf hx, ?_⟩
   intro i A' hl
   cases hl with
@@ -1686,16 +1694,16 @@ at the `Γ` side, each an immediate consequence of the subterm's own
 `Valuation.Approx.canon_one` (`Sound.lean`) is this at a single
 substitution, which is the only kind that arises, and `Saturates.lift`
 carries it under a binder. -/
-def Subst.Saturates (Δ Γ₀ Γ Γ' : List Term) (θ σ : Subst) (ρ : Valuation) : Prop :=
+def Subst.Saturates (Δ Γ Γ' : List Term) (θ σ : Subst) (ρ : Valuation) : Prop :=
   ∀ {{ρ'}}, Valuation.Approx Δ Γ' θ σ ρ ρ' →
     ∃ ρ'', Valuation.LE Δ ρ' ρ'' ∧ Valuation.Approx Δ Γ' θ σ ρ ρ'' ∧
-      Adm Δ Γ₀ Γ (θ.comp σ) ρ''
+      Adm Δ Γ (θ.comp σ) ρ''
 
 /-- Every approximant of `A` at an admissible stage is a type:
 `SoundTy Γ A (.sort u)`'s `isType` half, spelled without `SoundTy` so
 that `Interp.lean` stays below it. -/
 def IsTypeAt (Γ : List Term) (A : Term) : Prop :=
-  ∀ {{Δ Γ₀ : List Term}} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
+  ∀ {{Δ : List Term}} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ σ ρ →
     ∀ {c}, Interp Δ Γ A σ ρ c →
       TShape.HasType Δ c TShape.type ∧ TShape.WF Δ c (A.subst σ)
 
@@ -1703,7 +1711,7 @@ def IsTypeAt (Γ : List Term) (A : Term) : Prop :=
 approximant of `A`: `SoundTy Γ t A`'s `approx` half.  Needed at the two
 binders whose slot is not an entry input — `natCase`'s and `Y`'s. -/
 def TypedAt (Γ : List Term) (t A : Term) : Prop :=
-  ∀ {{Δ Γ₀ : List Term}} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
+  ∀ {{Δ : List Term}} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ σ ρ →
     ∀ {m}, Interp Δ Γ t σ ρ m → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.HasType Δ m a
 
 /-- A λ-shape approximating `F` has its label definitionally equal to the
@@ -1711,15 +1719,15 @@ argument's type at the stage.  In the original this is the function's
 Π-fixedness and `outputAtom_rawPi_fixed_support`; here it is
 `Interp.lam_label_ty` on `SoundTy F (Π A B)`. -/
 def PinApp (Γ : List Term) (F a : Term) : Prop :=
-  ∀ {{Δ Γ₀ : List Term}} {σ ρ} {n} {A : Term} {g : ShapeFun n}, ⊢ Δ →
-    Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
+  ∀ {{Δ : List Term}} {σ ρ} {n} {A : Term} {g : ShapeFun n}, ⊢ Δ →
+    Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ σ ρ →
     Interp Δ Γ F σ ρ (Shape.T (n := n+1) (ShapeS.lam A g)) → Stable Δ Γ σ a A
 
 /-- The Σ twin, for `snd`: a pair shape approximating `p` has its label
 definitionally equal to the type of `fst p` at the stage. -/
 def PinSnd (Γ : List Term) (p : Term) : Prop :=
-  ∀ {{Δ Γ₀ : List Term}} {σ ρ} {n} {A a₀ : Term} {x y : Shape n}, ⊢ Δ →
-    Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ₀ Γ σ ρ →
+  ∀ {{Δ : List Term}} {σ ρ} {n} {A a₀ : Term} {x y : Shape n}, ⊢ Δ →
+    Ctx.SubstEq Δ σ σ Γ → Adm Δ Γ σ ρ →
     Interp Δ Γ p σ ρ (Shape.T (n := n+1) (ShapeS.pair A a₀ x y)) →
     Stable Δ Γ σ (Term.fst p) A
 
@@ -1748,14 +1756,14 @@ def Term.Pinned (Γ : List Term) : Term → Prop
 
 /-- `nat` is a type at every stage, so its binders cost nothing. -/
 theorem IsTypeAt.nat {Γ : List Term} : IsTypeAt Γ Term.nat := by
-  intro _ _ _ _ hΔ _ _ _ hb
+  intro _ _ _ hΔ _ _ _ hb
   refine ⟨TShape.HasType.mono_l hΔ .nat (Interp.le_nat hb), ?_⟩
   exact TShape.WF.mono hΔ (Interp.le_nat hb) (x := TShape.nat)
     (show TyEq _ _ _ from TyEq.refl .nat)
 
 /-- `zero` is a numeral at every stage. -/
 theorem TypedAt.zero {Γ : List Term} : TypedAt Γ Term.zero Term.nat := by
-  intro _ _ _ _ hΔ _ _ _ hm
+  intro _ _ _ hΔ _ _ _ hm
   exact ⟨TShape.nat, Interp.nat',
     TShape.HasType.mono_l hΔ (TShape.HasType.zero) (Interp.le_zero hm)⟩
 
@@ -1764,7 +1772,7 @@ numeral because the stage is admissible, so the successor is one too.
 This is the lifted motive's argument at `natCase`. -/
 theorem TypedAt.succ_bvar0 {Γ : List Term} :
     TypedAt (Term.nat :: Γ) (Term.succ (.bvar 0)) Term.nat := by
-  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+  intro Δ σ ρ hΔ W hAdm m hm
   refine ⟨TShape.nat, Interp.nat', ?_⟩
   cases hm with
   | bot => exact .bot .nat
@@ -1781,9 +1789,9 @@ theorem TypedAt.succ_bvar0 {Γ : List Term} :
 smaller context is one of the bigger (`Lookup.weak'`) and its type is the
 same term lifted, so `Interp.unweak` moves that type's approximant down —
 which is exactly the data `Adm` keeps. -/
-theorem Adm.unlift {Δ Γ₀ Γ Γ' : List Term} {l σ ρ} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
-    (WΓ : Ctx.Lift' l Γ Γ') (W : Ctx.SubstEq Δ σ σ Γ') (h : Adm Δ Γ₀ Γ' σ ρ) :
-    Adm Δ Γ₀ Γ (σ.lift_l l) (fun i => ρ (Lift.liftVar l i)) := by
+theorem Adm.unlift {Δ Γ Γ' : List Term} {l σ ρ} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
+    (WΓ : Ctx.Lift' l Γ Γ') (W : Ctx.SubstEq Δ σ σ Γ') (h : Adm Δ Γ' σ ρ) :
+    Adm Δ Γ (σ.lift_l l) (fun i => ρ (Lift.liftVar l i)) := by
   refine ⟨fun i => h.wf _, fun {i A} hlk => ?_⟩
   obtain ⟨a, ha, hn, hac⟩ := h.2 (hlk.weak' WΓ)
   obtain ⟨_, hlkty⟩ := Ctx.WF.lookup hΓ hlk
@@ -1793,7 +1801,7 @@ theorem Adm.unlift {Δ Γ₀ Γ Γ' : List Term} {l σ ρ} (hΔ : ⊢ Δ) (hΓ :
 theorem IsTypeAt.weak' {Γ Γ' : List Term} {l : Lift} {A : Term} (hΓ : ⊢ Γ)
     (hA : A.Annot Γ) (WΓ : Ctx.Lift' l Γ Γ') (h : IsTypeAt Γ A) :
     IsTypeAt Γ' (A.lift' l) := by
-  intro Δ Γ₀ σ ρ hΔ W hAdm c hc
+  intro Δ σ ρ hΔ W hAdm c hc
   have := h hΔ (Ctx.SubstEq.lift_l WΓ hΓ W) (Adm.unlift hΔ hΓ WΓ W hAdm)
     (Interp.unweak hΔ hΓ hA WΓ W (fun _ => rfl) hc)
   rwa [← subst_lift'] at this
@@ -1801,7 +1809,7 @@ theorem IsTypeAt.weak' {Γ Γ' : List Term} {l : Lift} {A : Term} (hΓ : ⊢ Γ)
 theorem TypedAt.weak' {Γ Γ' : List Term} {l : Lift} {t A : Term} (hΓ : ⊢ Γ)
     (ht : t.Annot Γ) (WΓ : Ctx.Lift' l Γ Γ') (h : TypedAt Γ t A) :
     TypedAt Γ' (t.lift' l) (A.lift' l) := by
-  intro Δ Γ₀ σ ρ hΔ W hAdm m hm
+  intro Δ σ ρ hΔ W hAdm m hm
   obtain ⟨a, ha, hty⟩ := h hΔ (Ctx.SubstEq.lift_l WΓ hΓ W) (Adm.unlift hΔ hΓ WΓ W hAdm)
     (Interp.unweak hΔ hΓ ht WΓ W (fun _ => rfl) hm)
   exact ⟨a, Interp.weak' hΓ ha WΓ (fun _ => rfl), hty⟩
@@ -1809,7 +1817,7 @@ theorem TypedAt.weak' {Γ Γ' : List Term} {l : Lift} {t A : Term} (hΓ : ⊢ Γ
 theorem PinApp.weak' {Γ Γ' : List Term} {l : Lift} {F a : Term} (hΓ : ⊢ Γ)
     (hF : F.Annot Γ) (WΓ : Ctx.Lift' l Γ Γ') (h : PinApp Γ F a) :
     PinApp Γ' (F.lift' l) (a.lift' l) := by
-  intro Δ Γ₀ σ ρ n A g hΔ W hAdm hf
+  intro Δ σ ρ n A g hΔ W hAdm hf
   exact Stable.weak' hΓ WΓ
     (h hΔ (Ctx.SubstEq.lift_l WΓ hΓ W) (Adm.unlift hΔ hΓ WΓ W hAdm)
       (Interp.unweak hΔ hΓ hF WΓ W (fun _ => rfl) hf))
@@ -1817,7 +1825,7 @@ theorem PinApp.weak' {Γ Γ' : List Term} {l : Lift} {F a : Term} (hΓ : ⊢ Γ)
 theorem PinSnd.weak' {Γ Γ' : List Term} {l : Lift} {p : Term} (hΓ : ⊢ Γ)
     (hp : p.Annot Γ) (WΓ : Ctx.Lift' l Γ Γ') (h : PinSnd Γ p) :
     PinSnd Γ' (p.lift' l) := by
-  intro Δ Γ₀ σ ρ n A a₀ x y hΔ W hAdm hf
+  intro Δ σ ρ n A a₀ x y hΔ W hAdm hf
   exact Stable.weak' (a := Term.fst p) hΓ WΓ
     (h hΔ (Ctx.SubstEq.lift_l WΓ hΓ W) (Adm.unlift hΔ hΓ WΓ W hAdm)
       (Interp.unweak hΔ hΓ hp WΓ W (fun _ => rfl) hf))

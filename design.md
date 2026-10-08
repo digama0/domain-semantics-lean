@@ -151,7 +151,7 @@ at the source context. Nothing downstream reads them; they are what let
 extended context's well-formedness without taking an annotation
 hypothesis.
 
-**`Adm Δ Γ₀ Γ σ ρ`**, admissibility: the valuation is well formed, and
+**`Adm Δ Γ σ ρ`**, admissibility: the valuation is well formed, and
 every variable's slot is an approximant of its type and a `Slot` at it —
 hereditarily typed there, named by the variable it stands for, at a code
 that names the type. intgrah's `SourceAdmissible`, plus the naming his
