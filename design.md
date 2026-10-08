@@ -252,7 +252,11 @@ would:
   `TypedAt`, `PinApp`, `PinSnd`: the *semantic* counterpart of `Annot`,
   being the clause conditions that `Interp.to_substTerm` consumes. It is
   a conclusion of soundness, not a hypothesis, and is quantified over
-  later stages *and* over ambient substitutions. The `app` and `snd`
+  later stages *and* over ambient substitutions. It mentions a subterm
+  only where a clause interprets one, that consumer recursing exactly
+  where the clauses do: `id` and `refl` are `True`, a `natCase`'s motive
+  and a `tr`'s proof do not appear, and `Y` asks only that its annotation
+  be a type. The `app` and `snd`
   clauses need this rather than a typing, because a typing cannot be
   strengthened out of a larger context while a stage can be extended into
   one.

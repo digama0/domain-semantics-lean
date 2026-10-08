@@ -1725,7 +1725,14 @@ def PinSnd (Γ : List Term) (p : Term) : Prop :=
     Stable Δ Γ σ (Term.fst p) A
 
 /-- The two gathered over the whole term, structurally — the semantic
-counterpart of `Term.Annot`. -/
+counterpart of `Term.Annot`.
+
+A subterm appears here only where `Interp` interprets it, since the only
+consumer is `Interp.to_substTerm`, which recurses exactly where the
+clauses do.  So `id` and `refl` are `True` (their clauses hold no
+interpretation), a `natCase`'s motive and a `tr`'s proof are absent for
+the same reason, and `Y` asks only that its annotation be a type — its
+own typing would have to be proved and nothing reads it. -/
 def Term.Pinned (Γ : List Term) : Term → Prop
   | .app F a => PinApp Γ F a ∧ F.Pinned Γ ∧ a.Pinned Γ
   | .lam A b => IsTypeAt Γ A ∧ A.Pinned Γ ∧ b.Pinned (A :: Γ)
@@ -1736,15 +1743,12 @@ def Term.Pinned (Γ : List Term) : Term → Prop
   | .fst p => p.Pinned Γ
   | .snd p => PinSnd Γ p ∧ p.Pinned Γ
   | .succ n => n.Pinned Γ
-  | .natCase C M a b =>
-    TypedAt Γ M .nat ∧ C.Pinned (.nat :: Γ) ∧ M.Pinned Γ ∧ a.Pinned Γ ∧ b.Pinned (.nat :: Γ)
-  | .Y A b =>
-    IsTypeAt Γ A ∧ TypedAt Γ (.Y A b) A ∧ A.Pinned Γ ∧ b.Pinned (A :: Γ)
-  | .id _ A a b => A.Pinned Γ ∧ a.Pinned Γ ∧ b.Pinned Γ
-  | .refl _ a => a.Pinned Γ
-  | .tr _ A a b C x h =>
+  | .natCase _ M a b =>
+    TypedAt Γ M .nat ∧ M.Pinned Γ ∧ a.Pinned Γ ∧ b.Pinned (.nat :: Γ)
+  | .Y A b => IsTypeAt Γ A ∧ A.Pinned Γ ∧ b.Pinned (A :: Γ)
+  | .tr _ A a b C x _ =>
     IsTypeAt Γ A ∧ A.Pinned Γ ∧ a.Pinned Γ ∧ b.Pinned Γ ∧ C.Pinned (A :: Γ) ∧
-      x.Pinned Γ ∧ h.Pinned Γ
+      x.Pinned Γ
   | _ => True
 
 /-- `nat` is a type at every stage, so its binders cost nothing. -/
@@ -1840,7 +1844,8 @@ theorem Term.Pinned.weak' : ∀ {t : Term} {Γ Γ' : List Term} {l : Lift}, ⊢ 
   induction t with
   | bvar | sort | unit | star | nat | zero => exact fun _ _ _ _ => trivial
   | succ _ ih => exact fun hΓ hA W h => ih hΓ hA W h
-  | fst _ ih | refl _ _ ih => exact fun hΓ hA W h => ih hΓ hA W h
+  | fst _ ih => exact fun hΓ hA W h => ih hΓ hA W h
+  | refl => exact fun _ _ _ _ => trivial
   | app _ _ ihF iha =>
     rintro Γ Γ' l hΓ ⟨_, hAF, hAa⟩ W ⟨hp, hF, ha⟩
     exact ⟨hp.weak' hΓ hAF W, ihF hΓ hAF W hF, iha hΓ hAa W ha⟩
@@ -1865,28 +1870,23 @@ theorem Term.Pinned.weak' : ∀ {t : Term} {Γ Γ' : List Term} {l : Lift}, ⊢ 
     exact ⟨hty.weak' hΓ hAA W, ihA hΓ hAA W hPA, ihB hΓA hAB W.cons hPB,
       iha hΓ hAa W hPa, ihb hΓ hAb W hPb⟩
   | natCase C M a b ihC ihM iha ihb =>
-    rintro Γ Γ' l hΓ ⟨_, hAC, hAM, hAa, hAb⟩ W ⟨hM, hPC, hPM, hPa, hPb⟩
+    rintro Γ Γ' l hΓ ⟨_, hAC, hAM, hAa, hAb⟩ W ⟨hM, hPM, hPa, hPb⟩
     have hΓN : ⊢ (Term.nat :: Γ) := ⟨hΓ, _, .nat⟩
     have WN : Ctx.Lift' l.cons (Term.nat :: Γ) (Term.nat :: Γ') := by
       simpa using W.cons (A := Term.nat)
     have hM' : TypedAt Γ' (M.lift' l) Term.nat := TypedAt.weak' hΓ hAM W hM
-    exact ⟨hM', ihC hΓN hAC WN hPC, ihM hΓ hAM W hPM,
-      iha hΓ hAa W hPa, ihb hΓN hAb WN hPb⟩
+    exact ⟨hM', ihM hΓ hAM W hPM, iha hΓ hAa W hPa, ihb hΓN hAb WN hPb⟩
   | Y A b ihA ihb =>
-    rintro Γ Γ' l hΓ ⟨⟨u, hA⟩, hYtm, hAA, hAb⟩ W ⟨hty, hYt, hPA, hPb⟩
+    rintro Γ Γ' l hΓ ⟨⟨u, hA⟩, _, hAA, hAb⟩ W ⟨hty, hPA, hPb⟩
     have hΓA : ⊢ (A :: Γ) := ⟨hΓ, u, hA⟩
-    have hYt' : TypedAt Γ' (Term.Y (A.lift' l) (b.lift' l.cons)) (A.lift' l) :=
-      TypedAt.weak' (t := Term.Y A b) hΓ ⟨⟨u, hA⟩, hYtm, hAA, hAb⟩ W hYt
-    exact ⟨hty.weak' hΓ hAA W, hYt', ihA hΓ hAA W hPA, ihb hΓA hAb W.cons hPb⟩
-  | id r A a b ihA iha ihb =>
-    rintro Γ Γ' l hΓ ⟨_, _, _, hAA, hAa, hAb⟩ W ⟨hPA, hPa, hPb⟩
-    exact ⟨ihA hΓ hAA W hPA, iha hΓ hAa W hPa, ihb hΓ hAb W hPb⟩
+    exact ⟨hty.weak' hΓ hAA W, ihA hΓ hAA W hPA, ihb hΓA hAb W.cons hPb⟩
+  | id => exact fun _ _ _ _ => trivial
   | tr r A a b C X Hp ihA iha ihb ihC ihX ihH =>
     rintro Γ Γ' l hΓ ⟨⟨u, hA⟩, _, _, _, _, hAA, hAa, hAb, hAC, hAX, hAH⟩ W
-      ⟨hty, hPA, hPa, hPb, hPC, hPX, hPH⟩
+      ⟨hty, hPA, hPa, hPb, hPC, hPX⟩
     have hΓA : ⊢ (A :: Γ) := ⟨hΓ, u, hA⟩
     exact ⟨hty.weak' hΓ hAA W, ihA hΓ hAA W hPA, iha hΓ hAa W hPa, ihb hΓ hAb W hPb,
-      ihC hΓA hAC W.cons hPC, ihX hΓ hAX W hPX, ihH hΓ hAH W hPH⟩
+      ihC hΓA hAC W.cons hPC, ihX hΓ hAX W hPX⟩
 
 /-- The interpretation is closed under moving a shape up a level.  A shape
 and its lift are equivalent in the order and `Interp` is downward closed,
