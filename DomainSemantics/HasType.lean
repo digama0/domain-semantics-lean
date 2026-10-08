@@ -651,7 +651,7 @@ inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
     HasType Δ d.T .type →
     (∀ e ∈ f, HasType Δ e.out.T .type) →
     Shape.WF (n := n+1) Δ (.sigma A B d f) →
-    HasType Δ (Shape.T (n := n+1) (.sigma A B d f)) (Shape.T (n := k) (.sort true))
+    HasType Δ (Shape.T (n := n+1) (.sigma A B d f)) (Shape.T (n := k) .type)
   -- the shape is pinned, the graph is not: `g` is any graph below the
   -- generator `g₀`, which is where the codomain witnesses live (§5.5)
   | lam {n n₀ n'} {A₀ : Term} {g : ShapeFun n} {f : ShapeFun n'}
@@ -1726,16 +1726,17 @@ theorem TShape.WF.lookup {Δ : List Term} (hΔ : ⊢ Δ) {n} {A B q : Term} {u v
 
 /-- **Hereditary typing, with a name when one is asked for.**  The
 `Option Term` index is the name: at `none` it is hereditary typing
-alone, and at `some t` it is that together with "`x` names `t`"
-(`Named.iff` is the equivalence with the conjunction).  The index is the
-last argument and defaults to `none`, so `Named Δ d x` is hereditary
-typing and `Named Δ d x t` is that together with the naming.
+alone, and at `some t` it is that together with "`x` names `t`".  The
+index is the last argument and defaults to `none`, so `Named Δ d x` is
+hereditary typing and `Named Δ d x t` is that together with the naming.
 
-The index threads through every recursive position, so that `none`
-recovers hereditary typing alone and `some t` recovers naming as well.
-An entry's *input* is named at the entry's own label, which is intrinsic
-to the shape; an entry's *output* names the application, and a Σ's
-components the projections. -/
+The index threads through the recursive positions whose name depends on
+it: an entry's *output* names the application and a Σ's components the
+projections, so both carry `o.map`.  An entry's *input* does not — it is
+named at the entry's own label, which is intrinsic to the shape, so that
+premise is at `p.1.tm` whether or not a name is asked for.  That is why
+`Named.forget` does not recurse there: at the input there is nothing to
+forget. -/
 inductive TShape.Named (Δ : List Term) :
     TShape → TShape → (o : Option Term := none) → Prop where
   | base {o} {d x : TShape} : ¬ d.IsBinder → TShape.HasType Δ x d →
@@ -1744,7 +1745,7 @@ inductive TShape.Named (Δ : List Term) :
       {cs : List (Entry TShape × TShape)} :
     TShape.HasType Δ x (Shape.T (n := n+1) (ShapeS.forallE A B d f)) →
     x.entries = cs.map (·.1) →
-    (∀ p ∈ cs, Named Δ d.T p.1.inp (o.map fun _ => p.1.tm)) →
+    (∀ p ∈ cs, Named Δ d.T p.1.inp p.1.tm) →
     (∀ p ∈ cs, TEvaluates Δ f A p.1.tm p.1.inp p.2) →
     (∀ p ∈ cs, Named Δ p.2 p.1.out (o.map fun t => Term.app t p.1.tm)) →
     Named Δ (Shape.T (n := n+1) (ShapeS.forallE A B d f)) x o
@@ -2106,8 +2107,8 @@ theorem TShape.Named.forget {Δ : List Term} {o} {d x : TShape}
     (h : TShape.Named Δ d x o) : TShape.Named Δ d x := by
   induction h with
   | base hnb hty hc => exact .base hnb hty (Shape.WF.forget hc)
-  | @pi o n A B d f x cs hty hent _ hev _ ihin ihout =>
-    exact .pi hty hent (fun p hp => ihin p hp) hev (fun p hp => ihout p hp)
+  | @pi o n A B d f x cs hty hent hin hev _ _ ihout =>
+    exact .pi hty hent hin hev (fun p hp => ihout p hp)
   | @sg o n A B d f x ps c hty hps _ _ hev _ ihx ihy =>
     exact .sg hty hps (fun _ _ => nofun) (fun p hp => ihx p hp) hev (fun p hp => ihy p hp)
 
