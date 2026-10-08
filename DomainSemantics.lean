@@ -116,8 +116,8 @@ open DomainSemantics
 
 -- **Saturation**, what the slot discipline runs on, with names: a
 -- conclusion of the soundness induction.
-/-- info: 'DomainSemantics.IsDefEq.soundDom' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in #print axioms IsDefEq.soundDom
+/-- info: 'DomainSemantics.IsDefEq.soundTy' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms IsDefEq.soundTy
 
 -- **Directedness** — every case proved, and nothing left under it: `dir`
 -- never instantiates, and the joined slot it builds is hereditarily

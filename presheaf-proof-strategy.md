@@ -3524,3 +3524,45 @@ What is left: `SoundDir` occurs outside `Directed.lean` only in prose. The
 two stage-specific statements (`dir_inst`, `sound_beta_lookup`) are
 written out rather than named, both blocked by `Interp.inst` needing `Adm`
 at the stage.
+
+## 14. `SoundTy` and `SoundDom` merged (2026-10-08)
+
+There were two semantic typing notions. `SoundTy` was a structure, the
+syntactic typing paired with "every approximant of `t` is typed at an
+approximant of `A`". `SoundDom` was the saturating form: every approximant
+sits *below* one that is a `Slot` at an approximant of `A`. The second
+implies the first's semantic half — that is `SoundTy.of_dom`, and it
+became provable when typing became lower-closed (`TShape.HasType.mono_l`).
+So the pair was one notion and a corollary, carried everywhere as two.
+
+Now there is one. `SoundTy` *is* the saturating predicate, and the weaker
+reading is `SoundTy.approx`, a theorem. The `Sound` record splits: the
+induction proves `SoundCore` (`eq`, `ty`, `pin`, `pin'`) and
+`IsDefEq.sound` attaches `typed := H.hasType.1` on top — the typing is the
+same expression in every case, so it was never part of the induction, and
+it stays a field only because `StrongSound` bundles both halves per
+subterm.
+
+What this removed, beyond the notion itself:
+
+* Eleven premise *pairs* that had become literally identical —
+  `sound_app_dom`'s `hfty`/`hfdom`, `sound_pair_dom`'s `ihAty`/`ihAd` and
+  `ihaty`/`ihadom`, `SoundEq.inst_cod`'s `ha₀`/`hdom₀`, and so on. Each
+  lemma now takes one.
+* `SoundTy.of_dom`, which became the identity on its second argument, and
+  the second `SoundTy.of_eq` (the old structure's).
+* `sound_pair_ty`, duplicating `sound_pair_dom`.
+* Every `⟨typing, approx⟩` construction. The lemmas that built one now
+  conclude `TypedAt` and are named for it (`sound_forallE_typedAt`,
+  `sound_sigma_typedAt`, `sound_Y_typedAt`); `and_pinned` and
+  `and_pinned_filter` take that half and assemble the record.
+
+`Strong.lean` is where the typing's bundling is real: `StrongSoundCore`'s
+clauses need both halves per subterm, and with `SoundTy` no longer
+carrying the typing they now carry `Sound Γ A A (.sort u)`, which does.
+`StrongSound.sound` returns the `Sound` rather than the `SoundTy`.
+
+The dependency graph shrinks with the merge: `dom` and `ty` were two nodes
+of the strongly connected component and are now one, so the edge count
+goes from ten of twelve to five of six, and `pin ↔ ty` is the cycle that
+pins `Pinned` into the component.

@@ -1657,7 +1657,7 @@ theorem TShape.HasType.proofIrrel {Δ : List Term} (hΔ : ⊢ Δ) {x a : TShape}
 /-! ## Hereditarily typed shapes
 
 `Interp.lam` puts an entry's input in the body's slot and `Adm` asks that
-a slot be typed; η needs more, and so does the `app` case of `SoundDom`:
+a slot be typed; η needs more, and so does the `app` case of `SoundTy`:
 that the *inputs of that input* are typed one binder down, and that an
 entry's *output* is again hereditarily typed at the codomain it is read
 at.  Both are what the original's Π-decoder does — `arrow Q P F = λX. Q
@@ -1669,7 +1669,7 @@ form.
 the codomain code an entry's output is read at is a *lookup* in the Π's
 graph, so it is not a subterm of the code, and a least fixed point says
 what is wanted without a measure.  It is deliberately **not** downward
-closed; the form that is, `SoundDom`, is the saturating one. -/
+closed; the form that is, `SoundTy`, is the saturating one. -/
 
 /-- The graph a shape carries, if it carries one: a λ's or a pair's. -/
 def Shape.graph {n} : Shape (n+1) → List (Entry (Shape n))

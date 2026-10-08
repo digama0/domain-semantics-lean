@@ -235,9 +235,20 @@ induction over every rule:
 | field | meaning | intgrah |
 |---|---|---|
 | `eq : SoundEq Γ t t'` | the two sides have the same approximants at every admissible stage | `HasEquality` |
-| `ty : SoundTy Γ t A` | the syntactic typing, and: every approximant of `t` is typed at one of `A` | `HasFixedness` |
+| `ty : SoundTy Γ t A` | **semantic typing**: every approximant sits below one that is a `Slot` at an approximant of `A` | `HasFixedness` read through "ideal = set of approximants", now with names |
 | `pin`, `pin'` | both sides are `Pinned` | fields of `RawTermProperties` |
-| `dom : SoundDom Γ t A` | **saturation**: every approximant sits below one that is a `Slot` at an approximant of `A` | `HasFixedness` read through "ideal = set of approximants", now with names |
+| `typed : Γ ⊢ t : A` | the syntactic typing | — |
+
+`SoundTy` is the *saturating* form, and it is the only semantic typing
+notion. The weaker reading — every approximant is itself typed at one of
+`A` — is `SoundTy.approx`, a consequence: typing became lower-closed
+(`TShape.HasType.mono_l`), so the saturating witness can be dropped. Every
+lemma that used to take the two separately now takes one.
+
+`typed` is not part of the induction. It is `H.hasType.1`, the same
+expression in every case, so `IsDefEq.sound` attaches it once to what
+`IsDefEq.soundCore` proves. It is a field at all because `StrongSound`
+bundles both halves per subterm.
 
 `SoundEq` is type-agnostic, which is what lets the instrumented
 judgment's heterogeneous `trans'` rule go through without sort
@@ -246,52 +257,44 @@ uniqueness is derived from it.
 
 ### Why they are one induction
 
-They cannot be separated: the four notions are one strongly connected
-component. Reading `X ← Y` as "the proof of `X` consumes `Y` at a
-subterm", ten of the twelve possible edges are there.
+They cannot be separated: the three semantic notions, plus `Pinned`, are
+one strongly connected component. Reading `X ← Y` as "the proof of `X` consumes `Y` at a
+subterm", five of the six possible edges are there.
 
-| | ← `eq` | ← `ty` | ← `pin` | ← `dom` |
-|---|---|---|---|---|
-| **`eq`** | — | yes | yes | yes |
-| **`ty`** | yes | — | *no* | yes |
-| **`pin`** | *no* | yes | — | yes |
-| **`dom`** | yes | yes | yes | — |
+| | ← `eq` | ← `ty` | ← `pin` |
+|---|---|---|---|
+| **`eq`** | — | yes | yes |
+| **`ty`** | yes | — | yes |
+| **`pin`** | *no* | yes | — |
 
 Every edge is at a subterm, which is what a simultaneous induction is
 for. The ones that carry the argument:
 
-- **`pin` ← `ty`, `dom`.** `Term.Pinned` at a binder is `IsTypeAt Γ A`
-  together with the subterms' own, and `IsTypeAt` comes from `SoundTy`
-  *and* `SoundDom` at a sort (`SoundTy.isTypeAt`). `PinApp.of_sound` and
-  `PinSnd.of_sound` are the other two.
-- **`dom` ← `pin`.** Every `sound_*_dom` takes the codomain's or motive's
+- **`pin` ← `ty`.** `Term.Pinned` at a binder is `IsTypeAt Γ A` together
+  with the subterms' own, and `IsTypeAt` comes from `SoundTy` at a sort
+  (`SoundTy.isTypeAt`). `PinApp.of_sound` and `PinSnd.of_sound` are the
+  others.
+- **`ty` ← `pin`.** Every `sound_*_dom` takes the codomain's or motive's
   `Pinned`, because saturating the result means instantiating, and
   `Interp.inst` is what consumes `Pinned`.
-- **`ty` ← `dom`.** `SoundTy.of_dom`: an approximant sits below a
-  hereditarily typed one and typing is lower-closed. So wherever `dom` is
-  proved on its own, `ty` is a corollary rather than an obligation.
-- **`ty`, `dom` ← `eq`.** `symm` rebuilds both for the other side, with
-  `SoundTy.of_eq` and `SoundDom.of_eq`.
-- **`eq` ← all three**, at the computation rules: `sound_beta`,
+- **`ty` ← `eq`.** `symm` rebuilds it for the other side
+  (`SoundTy.of_eq`).
+- **`eq` ← both others**, at the computation rules: `sound_beta`,
   `sound_Y_unfold` and `SoundEq.inst_cod` each take some of them.
 
-So the tightest cycles are two long: `eq ↔ ty`, `eq ↔ dom`, `ty ↔ dom`,
-and — the one that pins `pin` into the component — `pin ↔ dom`.
+So the tightest cycles are two long: `eq ↔ ty`, and — the one that pins
+`pin` into the component — `pin ↔ ty`.
 
-The two absent edges are worth naming, because the obvious guesses are
-wrong. **`ty` does not need `pin`**: at `tr` and `natCase` the typing used
-to come from its own lemma taking the motive's `Pinned`, but those cases
-now read `ty` off their own `dom` through `SoundTy.of_dom`, so the
-dependency goes through `dom` instead. And **`pin` does not need `eq`** at
-all; the right-hand side's `pin'` is built from the *other* side's `ty`
-and `dom`, not from the equation.
+The one absent edge is worth naming: **`pin` does not need `eq`**. The
+right-hand side's `pin'` is built from the *other* side's `ty`, not from
+the equation.
 
-At `lam`, `natCase` and `tr` the cases read `ty` off their own `dom`. The
-implication runs the other way at the type formers, where `dom` comes from
-`SoundDom.of_sort` applied to `ty`.
+At the type formers the saturation comes from `SoundTy.of_sort` applied to
+a `TypedAt`, which is what `sound_forallE_typedAt` and friends now produce
+— the only thing left of the lemmas that used to prove the weaker reading.
 
 Two derived notions sit on top. **`CodeAt Γ t`** says every approximant
-of `t`, read as a code, names `t`; it follows from any `SoundDom` at a
+of `t`, read as a code, names `t`; it follows from any `SoundTy` at a
 sort. **`PairCanon`** says every pair-approximant of `p` is named by
 `p`'s own first projection, and `PairCanon.of_dom` derives it from
 saturation. That is the last step of Σ's η.

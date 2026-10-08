@@ -31,7 +31,7 @@ structural derivation at some `A'` semantically equal to `A`.  The
 intermediate `A'` lets each clause use whatever Π/Σ/sort form is natural
 while still concluding at the type the judgment wants. -/
 inductive StrongSound : List Term → Term → Term → Prop where
-  | mk : SoundTy Γ t A →
+  | mk : Sound Γ t t A →
     StrongSoundCore Γ t A' → SoundEq Γ A' A → (∃ u, Γ ⊢ A' ≡ A : .sort u) →
     StrongSound Γ t A
 
@@ -43,21 +43,21 @@ inductive StrongSoundCore : List Term → Term → Term → Prop where
   | sort : StrongSoundCore Γ (.sort r) .type
   | unit : StrongSoundCore Γ (.unit r) (.sort r)
   | star : StrongSoundCore Γ (.star r) (.unit r)
-  | lam : SoundTy Γ A (.sort u) →
+  | lam : Sound Γ A A (.sort u) →
     StrongSound (A::Γ) e B → StrongSoundCore Γ (.lam A e) (.forallE A B)
-  | app : SoundTy Γ A (.sort u) →
+  | app : Sound Γ A A (.sort u) →
     StrongSound Γ f (.forallE A B) → StrongSound Γ a A →
     StrongSoundCore Γ (.app f a) (B.inst a)
   | forallE : StrongSound Γ A (.sort u) → StrongSound (A::Γ) B (.sort v) →
     StrongSoundCore Γ (.forallE A B) (.sort v)
   | sigma : StrongSound Γ A (.sort u) → StrongSound (A::Γ) B (.sort v) →
     StrongSoundCore Γ (.sigma A B) .type
-  | pair : SoundTy Γ A (.sort u) → SoundTy (A::Γ) B (.sort v) →
+  | pair : Sound Γ A A (.sort u) → Sound (A::Γ) B B (.sort v) →
     StrongSound Γ a A → StrongSound Γ b (B.inst a) →
     StrongSoundCore Γ (.pair A B a b) (.sigma A B)
-  | fst : SoundTy Γ A (.sort u) → SoundTy (A::Γ) B (.sort v) →
+  | fst : Sound Γ A A (.sort u) → Sound (A::Γ) B B (.sort v) →
     StrongSound Γ p (.sigma A B) → StrongSoundCore Γ (.fst p) A
-  | snd : SoundTy Γ A (.sort u) → SoundTy (A::Γ) B (.sort v) →
+  | snd : Sound Γ A A (.sort u) → Sound (A::Γ) B B (.sort v) →
     StrongSound Γ p (.sigma A B) →
     StrongSoundCore Γ (.snd p) (B.inst (.fst p))
   | nat : StrongSoundCore Γ .nat .type
@@ -68,20 +68,20 @@ inductive StrongSoundCore : List Term → Term → Term → Prop where
     StrongSound Γ a (C.inst .zero) →
     StrongSound (.nat::Γ) b ((C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0))) →
     StrongSoundCore Γ (.natCase C M a b) (C.inst M)
-  | Y : SoundTy Γ A (.sort u) → StrongSound (A::Γ) b A.lift →
+  | Y : Sound Γ A A (.sort u) → StrongSound (A::Γ) b A.lift →
     StrongSoundCore Γ (.Y A b) A
   | id : StrongSound Γ A (.sort u) →
     StrongSound Γ a A → StrongSound Γ b A →
     StrongSoundCore Γ (.id r A a b) (.sort r)
-  | refl : SoundTy Γ A (.sort u) → StrongSound Γ a A →
+  | refl : Sound Γ A A (.sort u) → StrongSound Γ a A →
     StrongSoundCore Γ (.refl r a) (.id r A a a)
-  | tr : SoundTy Γ A (.sort u) → SoundTy Γ a A → SoundTy Γ b A →
+  | tr : Sound Γ A A (.sort u) → Sound Γ a a A → Sound Γ b b A →
     StrongSound (A::Γ) C (.sort v) →
     StrongSound Γ x (C.inst a) → StrongSound Γ h (.id r A a b) →
     StrongSoundCore Γ (.tr r A a b C x h) (C.inst b)
 end
 
-theorem StrongSound.sound : StrongSound Γ t A → SoundTy Γ t A
+theorem StrongSound.sound : StrongSound Γ t A → Sound Γ t t A
   | ⟨h, _, _, _⟩ => h
 
 theorem StrongSound.uniq_of_core'
@@ -184,7 +184,7 @@ theorem StrongSound.uniq : ∀ {t : Term} {Γ : List Term} {A B : Term}, ⊢ Γ 
     refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
     cases H1 with | lam a1 a2 => cases H2 with | lam b1 b2 =>
     have ⟨hs, _, h⟩ := ihe (show ⊢ (A₀ :: Γ) from ⟨hΓ, _, a1.typed⟩) a2 b2
-    exact ⟨sound_forallE_eq a1.typed h h SoundEq.refl (IsDefEq.soundDom hΓ a1.typed) hs hs, _, .forallEDF a1.typed h h⟩
+    exact ⟨sound_forallE_eq a1.typed h h SoundEq.refl (IsDefEq.soundTy hΓ a1.typed) hs hs, _, .forallEDF a1.typed h h⟩
   | app f a ihf _ =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
@@ -199,9 +199,8 @@ theorem StrongSound.uniq : ∀ {t : Term} {Γ : List Term} {A B : Term}, ⊢ Γ 
     have hΓA₁ : ⊢ (_ :: Γ) := ⟨hΓ, _, b1.typed⟩
     exact ⟨SoundEq.inst_cod (IsDefEq.pinned hΓA₀ hB₀) (IsDefEq.pinned hΓA₁ hB₁)
         hΓ a1.typed hB₀ b1.typed hB₁
-        a3.sound b3.sound (IsDefEq.soundDom hΓ a3.sound.typed)
-        (IsDefEq.soundDom hΓ b3.sound.typed) a1 b1
-        (IsDefEq.soundDom hΓA₀ hB₀).codeAt (IsDefEq.soundDom hΓA₁ hB₁).codeAt hs,
+        a3.sound.typed b3.sound.typed a3.sound.ty b3.sound.ty a1.ty b1.ty
+        (IsDefEq.soundTy hΓA₀ hB₀).codeAt (IsDefEq.soundTy hΓA₁ hB₁).codeAt hs,
       _, IsDefEq.inst_cod hΓ a1.typed a3.sound.typed hcod⟩
   | fst p ihp =>
     intro Γ A B hΓ
@@ -209,8 +208,9 @@ theorem StrongSound.uniq : ∀ {t : Term} {Γ : List Term} {A B : Term}, ⊢ Γ 
     cases H1 with | fst a1 a2 a3 => cases H2 with | fst b1 b2 b3 =>
     have ⟨hs, _, _⟩ := ihp hΓ a3 b3
     have ⟨_, _, hdom, _⟩ := SoundEq.sigma_inv hΓ a1.typed a2.typed hs
-    exact ⟨SoundEq.sigma_dom a1 a2.typed (IsDefEq.soundDom hΓ a1.typed).codeAt
-      b1 b2.typed (IsDefEq.soundDom hΓ b1.typed).codeAt hs, _, hdom⟩
+    exact ⟨SoundEq.sigma_dom a1.typed b1.typed a1.ty a2.typed
+      (IsDefEq.soundTy hΓ a1.typed).codeAt b1.ty b2.typed
+      (IsDefEq.soundTy hΓ b1.typed).codeAt hs, _, hdom⟩
   | snd p ihp =>
     intro Γ A B hΓ
     refine uniq_of_core' fun {A B} _ _ H1 H2 => ?_
@@ -224,11 +224,9 @@ theorem StrongSound.uniq : ∀ {t : Term} {Γ : List Term} {A B : Term}, ⊢ Γ 
     have hΓA₁ : ⊢ (_ :: Γ) := ⟨hΓ, _, b1.typed⟩
     exact ⟨SoundEq.inst_cod_sigma (IsDefEq.pinned hΓA₀ a2.typed)
         (IsDefEq.pinned hΓA₁ b2.typed) hΓ a1.typed a2.typed b1.typed b2.typed
-        (sound_fst a1.typed a2.typed SoundEq.refl a3.sound).2
-        (sound_fst b1.typed b2.typed SoundEq.refl b3.sound).2
-        (IsDefEq.soundDom hΓ hfst) (IsDefEq.soundDom hΓ hfst')
-        a1 b1
-        (IsDefEq.soundDom hΓA₀ a2.typed).codeAt (IsDefEq.soundDom hΓA₁ b2.typed).codeAt hs,
+        hfst hfst' (IsDefEq.soundTy hΓ hfst) (IsDefEq.soundTy hΓ hfst')
+        a1.ty b1.ty
+        (IsDefEq.soundTy hΓA₀ a2.typed).codeAt (IsDefEq.soundTy hΓA₁ b2.typed).codeAt hs,
       _, IsDefEq.inst_cod hΓ a1.typed hfst hcod⟩
   | refl r a iha =>
     intro Γ A B hΓ
