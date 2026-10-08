@@ -886,17 +886,17 @@ theorem dir_natCase {Γ : List Term} {C M a b B : Term} (hΓ : ⊢ Γ)
     | natCase_zero _ _ ha₂ _ =>
       obtain ⟨s, hws, hs, hs₁, hs₂⟩ := iha hΔ W hwρ ha₁ ha₂
       exact ⟨s, hws, .natCase_zero hM₁ hz₁ hs hMt, hs₁, hs₂⟩
-    | natCase_succ hM₂ _ _ _ _ =>
+    | natCase_succ hM₂ _ _ _ =>
       obtain ⟨_, hwz, _, hz₁, hz₂⟩ := ihM hΔ W hwρ hM₁ hM₂
       cases TShape.LE.zero_succ_absurd hz₁ hz₂
-  | @natCase_succ _ _ _ _ _ _ _ _ n₁ v₁ t₁ hM₁ hwv₁ heq₁ hbody₁ hMt =>
+  | @natCase_succ _ _ _ _ _ _ _ _ n₁ v₁ t₁ hM₁ heq₁ hbody₁ hMt =>
     cases h₂ with
-    | bot => exact ⟨_, hbody₁.wf, .natCase_succ hM₁ hwv₁ heq₁ hbody₁ hMt,
+    | bot => exact ⟨_, hbody₁.wf, .natCase_succ hM₁ heq₁ hbody₁ hMt,
         TShape.LE.refl hbody₁.wf, TShape.bot_le' rfl⟩
     | natCase_zero hM₂ _ _ _ =>
       obtain ⟨_, hwz, _, hz₁, hz₂⟩ := ihM hΔ W hwρ hM₁ hM₂
       cases TShape.LE.zero_succ_absurd hz₂ hz₁
-    | @natCase_succ _ _ _ _ _ _ _ _ n₂ v₂ t₂ hM₂ hwv₂ heq₂ hbody₂ _ =>
+    | @natCase_succ _ _ _ _ _ _ _ _ n₂ v₂ t₂ hM₂ heq₂ hbody₂ _ =>
       -- one `succ`-shape above both, so one slot above both predecessors
       obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := ihM hΔ W hwρ hM₁ hM₂
       obtain ⟨k, w, rfl⟩ := TShape.LE.succ_ub hz₁
@@ -917,7 +917,7 @@ theorem dir_natCase {Γ : List Term} {C M a b B : Term} (hΓ : ⊢ Γ)
       have hww : TShape.WF Δ w.T := hwz
       obtain ⟨s, hws, hs, hs₁, hs₂⟩ :=
         ihb hΔ Wdiag (Valuation.WF.push hwρ hww) hB₁ hB₂
-      exact ⟨s, hws, .natCase_succ hz hww heq₁ hs hMt, hs₁, hs₂⟩
+      exact ⟨s, hws, .natCase_succ hz heq₁ hs hMt, hs₁, hs₂⟩
 
 /-- Directedness for `.Y`.
 
@@ -941,21 +941,21 @@ theorem dir_Y_aux {Δ : List Term} (hΔ : ⊢ Δ) {Γ : List Term} {t : Term} {�
         ∃ s, TShape.WF Δ s ∧ Interp Δ Γ t σ ρ s ∧ TShape.LE Δ m₁ s ∧ TShape.LE Δ m₂ s := by
   induction h₁ with
   | bot => exact fun _ _ _ _ _ _ _ h₂ => ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, .refl h₂.wf⟩
-  | @Y _ _ _ _ _ _ _ _ hx₁ hwx₁ hA₁ hdty₁ hslotY₁ hbody₁ hAt hYt ihx₁ ihA₁ _ => ?_
+  | @Y _ _ _ _ _ _ _ _ hx₁ hA₁ hdty₁ hslotY₁ hbody₁ hAt hYt ihx₁ ihA₁ _ => ?_
   | _ => nofun
   rintro A b ⟨⟩ hwρ WΓ WY ihA ihb m₂ h₂
   cases h₂ with
   | bot =>
-    exact ⟨_, hbody₁.wf, .Y hx₁ hwx₁ hA₁ hdty₁ hslotY₁ hbody₁ hAt hYt,
+    exact ⟨_, hbody₁.wf, .Y hx₁ hA₁ hdty₁ hslotY₁ hbody₁ hAt hYt,
       .refl hbody₁.wf, TShape.bot_le' rfl⟩
-  | @Y _ _ _ _ _ _ x₂ d₂ hx₂ hwx₂ hA₂ hdty₂ hslotY₂ hbody₂ _ _
+  | @Y _ _ _ _ _ _ x₂ d₂ hx₂ hA₂ hdty₂ hslotY₂ hbody₂ _ _
   -- one tower above both, by the first derivation's own induction
   obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := ihx₁ rfl hwρ WΓ WY ihA ihb hx₂
   -- the slot is their *join*: it is below that bound, so it is an
   -- approximant too, and `Named` is closed under the join — which the
   -- clause needs, since `Adm` reads the slot hereditarily
   have hcj := TShape.Compat.of_common_upper hΔ hwz hz₁ hz₂
-  have hwj := TShape.WF.join hΔ hcj hwx₁ hwx₂
+  have hwj := TShape.WF.join hΔ hcj hx₁.wf hx₂.wf
   have hjx := Interp.mono hΔ (TShape.join_le hΔ hz₁ hz₂) hz
   -- and their *codes* join too, by the annotation's own directedness
   obtain ⟨dc, hwdc, hdc, hdc₁, hdc₂⟩ := ihA hΔ WΓ hwρ hA₁ hA₂
@@ -966,13 +966,13 @@ theorem dir_Y_aux {Δ : List Term} (hΔ : ⊢ Δ) {Γ : List Term} {t : Term} {�
   obtain ⟨c₁, c₂⟩ := TShape.le_join hΔ hdty₁.wf.1 hdty₂.wf.1 hcd
   have hjd := TShape.Named.join hΔ hcj (TShape.Named.mono_r hΔ hslotY₁.1 c₁ hdcty)
     (TShape.Named.mono_r hΔ hslotY₂.1 c₂ hdcty)
-  obtain ⟨j₁, j₂⟩ := TShape.le_join hΔ hwx₁ hwx₂ hcj
+  obtain ⟨j₁, j₂⟩ := TShape.le_join hΔ hx₁.wf hx₂.wf hcj
   obtain ⟨s, hws, hs, hs₁, hs₂⟩ := ihb hΔ WY (Valuation.WF.push hwρ hwj)
     (Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, j₁⟩) hbody₁)
     (Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, j₂⟩) hbody₂)
   -- the slot and the code keep their names through the join
   have hjc := TShape.WF.join hΔ hcd hslotY₁.2 hslotY₂.2
-  exact ⟨s, hws, .Y hjx hwj hdcI hdcty ⟨hjd, hjc⟩ hs hAt hYt, hs₁, hs₂⟩
+  exact ⟨s, hws, .Y hjx hdcI hdcty ⟨hjd, hjc⟩ hs hAt hYt, hs₁, hs₂⟩
 
 theorem dir_Y {Γ : List Term} {A b : Term} {u : Bool} (hA : Γ ⊢ A : .sort u)
     (hY : Γ ⊢ .Y A b : A) (ihA : SoundDir Γ A) (ihb : SoundDir (A :: Γ) b) :
@@ -1017,16 +1017,16 @@ theorem dir_tr {Γ : List Term} {r : Bool} {A a b C X H : Term} {u : Bool}
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | tr hle₁ hX₁ ha₁ hb₁ hA₁ hwv₁ hslotv₁ hC₁ hcb₁ hslotc₁ hH₁ heq₁ hAt hat hbt
+  | tr hle₁ hX₁ ha₁ hb₁ hA₁ hslotv₁ hC₁ hcb₁ hslotc₁ hH₁ heq₁ hAt hat hbt
   cases h₂ with
   | bot =>
-    exact ⟨_, hX₁.wf, .tr (TShape.LE.refl hX₁.wf) hX₁ ha₁ hb₁ hA₁ hwv₁ hslotv₁ hC₁ hcb₁ hslotc₁ hH₁ heq₁ hAt hat hbt, hle₁, TShape.bot_le' rfl⟩
-  | tr hle₂ hX₂ ha₂ hb₂ hA₂ hwv₂ hslotv₂ hC₂ hcb₂ hslotc₂ hH₂ _ _ _ _
+    exact ⟨_, hX₁.wf, .tr (TShape.LE.refl hX₁.wf) hX₁ ha₁ hb₁ hA₁ hslotv₁ hC₁ hcb₁ hslotc₁ hH₁ heq₁ hAt hat hbt, hle₁, TShape.bot_le' rfl⟩
+  | tr hle₂ hX₂ ha₂ hb₂ hA₂ hslotv₂ hC₂ hcb₂ hslotc₂ hH₂ _ _ _ _
   -- the witness: the join interprets both endpoints
   have ⟨hcv, hav⟩ := iha.join hΔ W hwρ ha₁ ha₂
   have ⟨_, hbv⟩ := ihb.join hΔ W hwρ hb₁ hb₂
-  have hwv := TShape.WF.join hΔ hcv hwv₁ hwv₂
-  have hvle := TShape.le_join hΔ hwv₁ hwv₂ hcv
+  have hwv := TShape.WF.join hΔ hcv ha₁.wf ha₂.wf
+  have hvle := TShape.le_join hΔ ha₁.wf ha₂.wf hcv
   -- its type
   have ⟨hcA, hAv⟩ := ihA.join hΔ W hwρ hA₁ hA₂
   have hvAty := TShape.HasType.join hΔ hcA (TShape.Named.of_isType hslotv₁.1.hasType.isType)
@@ -1055,7 +1055,7 @@ theorem dir_tr {Γ : List Term} {r : Bool} {A a b C X H : Term} {u : Bool}
   have hvcj := TShape.WF.join hΔ hcA hslotv₁.2 hslotv₂.2
   have hcbcj := TShape.WF.join hΔ hccb hslotc₁.2 hslotc₂.2
   exact ⟨_, hwm', .tr (TShape.LE.refl hwm')
-      hXv hav hbv hAv hwv ⟨hty, hvcj⟩ hcbv hcbty ⟨hm'ty, hcbcj⟩ hH₁ heq₁ hAt hat hbt,
+      hXv hav hbv hAv ⟨hty, hvcj⟩ hcbv hcbty ⟨hm'ty, hcbcj⟩ hH₁ heq₁ hAt hat hbt,
     hle₁.trans hΔ hm'le.1, hle₂.trans hΔ hm'le.2⟩
 
 /-- **Directedness**, its own induction on typing.
