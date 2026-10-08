@@ -758,7 +758,7 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
     have heq' := heq.subst hΘ W
     rw [subst_subst, subst_subst, subst_subst] at heq'
     refine .tr (hle.subst hΘ W) (ihX hΘ W) (iha hΘ W) (ihb hΘ W) (ihA hΘ W)
-      
+
       (by simpa [subst_subst] using TShape.Slot.subst hΘ W hslotv)
       ?_ (hcb.subst hΘ W)
       (by have h := TShape.Slot.subst hΘ W hslotc
@@ -1083,7 +1083,7 @@ theorem Interp.unweak {Δ : List Term} (hΔ : ⊢ Δ) :
     | succ hv hle => exact .succ (ih hΓ hAnn WΓ hd hρ hv) hle
   | app F a ihF iha =>
     intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
-    obtain ⟨hat, hAF, hAa⟩ := hAnn
+    obtain ⟨hAF, hAa⟩ := hAnn
     cases H with
     | bot => exact .bot
     | app hF hx hev hle hty =>
@@ -1146,7 +1146,7 @@ theorem Interp.unweak {Δ : List Term} (hΔ : ⊢ Δ) :
         (hbody e he)
   | pair A B a b ihA ihB iha ihb =>
     intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
-    obtain ⟨⟨u, hA⟩, ⟨v, hB⟩, hat, hAA, hAB, hAa, hAb⟩ := hAnn
+    obtain ⟨⟨u, hA⟩, hat, hAA, hAB, hAa, hAb⟩ := hAnn
     cases H with
     | bot => exact .bot
     | pair hainp hbout hAint hdty hslot hwf hcode hcty hle _ _ =>
@@ -1168,16 +1168,15 @@ theorem Interp.unweak {Δ : List Term} (hΔ : ⊢ Δ) :
     | fst hp hle => exact .fst (ih hΓ hAnn WΓ hd hρ hp) hle
   | snd p ih =>
     intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
-    obtain ⟨hft, hAp⟩ := hAnn
     cases H with
     | bot => exact .bot
     | snd hp hev hle hty =>
       simp only [Term.subst, subst_lift'] at hev
-      exact .snd (ih hΓ hAp WΓ hd hρ hp) hev hle
+      exact .snd (ih hΓ hAnn WΓ hd hρ hp) hev hle
         (Stable.unweak (a := Term.fst p) WΓ hd hty)
   | natCase C M a b ihC ihM iha ihb =>
     intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
-    obtain ⟨hMt, hAC, hAM, hAa, hAb⟩ := hAnn
+    obtain ⟨hMt, hAM, hAa, hAb⟩ := hAnn
     cases H with
     | bot => exact .bot
     | natCase_zero hM hz ha _ =>
@@ -1226,7 +1225,7 @@ theorem Interp.unweak {Δ : List Term} (hΔ : ⊢ Δ) :
     exact key H rfl WΓ hd hρ
   | id r A a b ihA iha ihb =>
     intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
-    obtain ⟨⟨u, hA⟩, hat, hbt, hAA, hAa, hAb⟩ := hAnn
+    obtain ⟨⟨u, hA⟩, hat, hbt⟩ := hAnn
     cases H with
     | bot => exact .bot
     | id hle _ _ _ =>
@@ -1239,7 +1238,8 @@ theorem Interp.unweak {Δ : List Term} (hΔ : ⊢ Δ) :
     | refl hle => exact .refl hle
   | tr r A a b C X Hp ihA iha ihb ihC ihX ihH =>
     intro Γ Γ' l σ' ρ ρ' m hΓ hAnn WΓ hd hρ H
-    obtain ⟨⟨u, hA⟩, hat, hbt, hht, _, hAA, hAa, hAb, hAC, hAX, hAH⟩ := hAnn
+    obtain ⟨⟨u, hA⟩, hat, hbt, hht, ⟨a₀, C₀, v₀, hx₀, ha₀, hC₀⟩,
+      hAA, hAa, hAb, hAC, hAX⟩ := hAnn
     cases H with
     | bot => exact .bot
     | tr hle hX ha hb hAint hslotv hC hcb hslotc hH heq _ _ _ =>
@@ -1329,7 +1329,7 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
     | succ hv hle => exact .succ (ih hΓ hAnn W hv) hle
   | app F a ihF iha =>
     intro Γ σ σ₂ ρ m hΓ hAnn W H
-    obtain ⟨hat, hAF, hAa⟩ := hAnn
+    obtain ⟨hAF, hAa⟩ := hAnn
     cases H with
     | bot => exact .bot
     | app hF hx hev hle hty =>
@@ -1409,7 +1409,7 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
       exact ihB hΓA hAB W' (hbody e he)
   | pair A B a b ihA ihB iha ihb =>
     intro Γ σ σ₂ ρ m hΓ hAnn W H
-    obtain ⟨⟨u, hA⟩, ⟨v, hB⟩, hat, hAA, hAB, hAa, hAb⟩ := hAnn
+    obtain ⟨⟨u, hA⟩, hat, hAA, hAB, hAa, hAb⟩ := hAnn
     have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
     have hAσ : TyEq Δ (A.subst σ) (A.subst σ₂) := ⟨u, IsDefEq.subst' hΔ W hA⟩
     have haσ : Δ ⊢ a.subst σ ≡ a.subst σ₂ : A.subst σ := IsDefEq.subst' hΔ W hat
@@ -1436,15 +1436,14 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
     | fst hp hle => exact .fst (ih hΓ hAnn W hp) hle
   | snd p ih =>
     intro Γ σ σ₂ ρ m hΓ hAnn W H
-    obtain ⟨hft, hAp⟩ := hAnn
     cases H with
     | bot => exact .bot
     | snd hp hlab hle hty =>
       have heq := hty.move hΔ W
-      exact .snd (ih hΓ hAp W hp) (hlab.trans heq) hle (hty.stage W)
+      exact .snd (ih hΓ hAnn W hp) (hlab.trans heq) hle (hty.stage W)
   | natCase C M a b ihC ihM iha ihb =>
     intro Γ σ σ₂ ρ m hΓ hAnn W H
-    obtain ⟨hMt, hAC, hAM, hAa, hAb⟩ := hAnn
+    obtain ⟨hMt, hAM, hAa, hAb⟩ := hAnn
     have hΓN : ⊢ (Term.nat :: Γ) := ⟨hΓ, _, .nat⟩
     have hMσ : Δ ⊢ M.subst σ ≡ M.subst σ₂ : Term.nat := IsDefEq.subst' hΔ W hMt
     cases H with
@@ -1481,7 +1480,7 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
     exact key H rfl hΓ hAnn W
   | id r A a b ihA iha ihb =>
     intro Γ σ σ₂ ρ m hΓ hAnn W H
-    obtain ⟨⟨u, hA⟩, hat, hbt, hAA, hAa, hAb⟩ := hAnn
+    obtain ⟨⟨u, hA⟩, hat, hbt⟩ := hAnn
     cases H with
     | bot => exact .bot
     | id hle _ _ _ =>
@@ -1495,8 +1494,8 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
     | refl hle => exact .refl hle
   | tr r A a b C X Hp ihA iha ihb ihC ihX ihH =>
     intro Γ σ σ₂ ρ m hΓ hAnn W H
-    obtain ⟨⟨u, hA⟩, hat, hbt, hht, ⟨a₀, C₀, v₀, hx₀, ha₀, hC₀⟩, hAA, hAa, hAb, hAC, hAX, hAH⟩ :=
-      hAnn
+    obtain ⟨⟨u, hA⟩, hat, hbt, hht, ⟨a₀, C₀, v₀, hx₀, ha₀, hC₀⟩,
+      hAA, hAa, hAb, hAC, hAX⟩ := hAnn
     have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hA⟩
     have hbσ : Δ ⊢ b.subst σ ≡ b.subst σ₂ : A.subst σ := IsDefEq.subst' hΔ W hbt
     have haσ : Δ ⊢ a.subst σ ≡ a.subst σ₂ : A.subst σ := IsDefEq.subst' hΔ W hat
@@ -1738,8 +1737,7 @@ def Term.Pinned (Γ : List Term) : Term → Prop
   | .lam A b => IsTypeAt Γ A ∧ A.Pinned Γ ∧ b.Pinned (A :: Γ)
   | .forallE A B => IsTypeAt Γ A ∧ A.Pinned Γ ∧ B.Pinned (A :: Γ)
   | .sigma A B => IsTypeAt Γ A ∧ A.Pinned Γ ∧ B.Pinned (A :: Γ)
-  | .pair A B a b =>
-    IsTypeAt Γ A ∧ A.Pinned Γ ∧ B.Pinned (A :: Γ) ∧ a.Pinned Γ ∧ b.Pinned Γ
+  | .pair A B a b => IsTypeAt Γ A ∧ A.Pinned Γ ∧ B.Pinned (A :: Γ) ∧ a.Pinned Γ ∧ b.Pinned Γ
   | .fst p => p.Pinned Γ
   | .snd p => PinSnd Γ p ∧ p.Pinned Γ
   | .succ n => n.Pinned Γ
@@ -1747,8 +1745,7 @@ def Term.Pinned (Γ : List Term) : Term → Prop
     TypedAt Γ M .nat ∧ M.Pinned Γ ∧ a.Pinned Γ ∧ b.Pinned (.nat :: Γ)
   | .Y A b => IsTypeAt Γ A ∧ A.Pinned Γ ∧ b.Pinned (A :: Γ)
   | .tr _ A a b C x _ =>
-    IsTypeAt Γ A ∧ A.Pinned Γ ∧ a.Pinned Γ ∧ b.Pinned Γ ∧ C.Pinned (A :: Γ) ∧
-      x.Pinned Γ
+    IsTypeAt Γ A ∧ A.Pinned Γ ∧ a.Pinned Γ ∧ b.Pinned Γ ∧ C.Pinned (A :: Γ) ∧ x.Pinned Γ
   | _ => True
 
 /-- `nat` is a type at every stage, so its binders cost nothing. -/
@@ -1847,11 +1844,11 @@ theorem Term.Pinned.weak' : ∀ {t : Term} {Γ Γ' : List Term} {l : Lift}, ⊢ 
   | fst _ ih => exact fun hΓ hA W h => ih hΓ hA W h
   | refl => exact fun _ _ _ _ => trivial
   | app _ _ ihF iha =>
-    rintro Γ Γ' l hΓ ⟨_, hAF, hAa⟩ W ⟨hp, hF, ha⟩
+    rintro Γ Γ' l hΓ ⟨hAF, hAa⟩ W ⟨hp, hF, ha⟩
     exact ⟨hp.weak' hΓ hAF W, ihF hΓ hAF W hF, iha hΓ hAa W ha⟩
   | snd _ ih =>
-    rintro Γ Γ' l hΓ ⟨_, hAp⟩ W ⟨hp, hpp⟩
-    exact ⟨hp.weak' hΓ hAp W, ih hΓ hAp W hpp⟩
+    rintro Γ Γ' l hΓ hAnn W ⟨hp, hpp⟩
+    exact ⟨hp.weak' hΓ hAnn W, ih hΓ hAnn W hpp⟩
   | lam A b ihA ihb =>
     rintro Γ Γ' l hΓ ⟨⟨u, hA⟩, hAA, hAb⟩ W ⟨hty, hPA, hPb⟩
     have hΓA : ⊢ (A :: Γ) := ⟨hΓ, u, hA⟩
@@ -1865,12 +1862,12 @@ theorem Term.Pinned.weak' : ∀ {t : Term} {Γ Γ' : List Term} {l : Lift}, ⊢ 
     have hΓA : ⊢ (A :: Γ) := ⟨hΓ, u, hA⟩
     exact ⟨hty.weak' hΓ hAA W, ihA hΓ hAA W hPA, ihB hΓA hAB W.cons hPB⟩
   | pair A B a b ihA ihB iha ihb =>
-    rintro Γ Γ' l hΓ ⟨⟨u, hA⟩, _, _, hAA, hAB, hAa, hAb⟩ W ⟨hty, hPA, hPB, hPa, hPb⟩
+    rintro Γ Γ' l hΓ ⟨⟨u, hA⟩, _, hAA, hAB, hAa, hAb⟩ W ⟨hty, hPA, hPB, hPa, hPb⟩
     have hΓA : ⊢ (A :: Γ) := ⟨hΓ, u, hA⟩
     exact ⟨hty.weak' hΓ hAA W, ihA hΓ hAA W hPA, ihB hΓA hAB W.cons hPB,
       iha hΓ hAa W hPa, ihb hΓ hAb W hPb⟩
   | natCase C M a b ihC ihM iha ihb =>
-    rintro Γ Γ' l hΓ ⟨_, hAC, hAM, hAa, hAb⟩ W ⟨hM, hPM, hPa, hPb⟩
+    rintro Γ Γ' l hΓ ⟨_, hAM, hAa, hAb⟩ W ⟨hM, hPM, hPa, hPb⟩
     have hΓN : ⊢ (Term.nat :: Γ) := ⟨hΓ, _, .nat⟩
     have WN : Ctx.Lift' l.cons (Term.nat :: Γ) (Term.nat :: Γ') := by
       simpa using W.cons (A := Term.nat)
@@ -1882,7 +1879,7 @@ theorem Term.Pinned.weak' : ∀ {t : Term} {Γ Γ' : List Term} {l : Lift}, ⊢ 
     exact ⟨hty.weak' hΓ hAA W, ihA hΓ hAA W hPA, ihb hΓA hAb W.cons hPb⟩
   | id => exact fun _ _ _ _ => trivial
   | tr r A a b C X Hp ihA iha ihb ihC ihX ihH =>
-    rintro Γ Γ' l hΓ ⟨⟨u, hA⟩, _, _, _, _, hAA, hAa, hAb, hAC, hAX, hAH⟩ W
+    rintro Γ Γ' l hΓ ⟨⟨u, hA⟩, _, _, _, _, hAA, hAa, hAb, hAC, hAX⟩ W
       ⟨hty, hPA, hPa, hPb, hPC, hPX⟩
     have hΓA : ⊢ (A :: Γ) := ⟨hΓ, u, hA⟩
     exact ⟨hty.weak' hΓ hAA W, ihA hΓ hAA W hPA, iha hΓ hAa W hPa, ihb hΓ hAb W hPb,

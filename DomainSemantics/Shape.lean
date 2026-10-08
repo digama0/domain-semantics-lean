@@ -1215,82 +1215,37 @@ theorem ShapeFun.Compat.subst {Δ Θ : List Term} {τ : Subst}
   exact h e he e' he' Ξ (τ.comp υ) hΞ hcomp hlab hin
 
 theorem Shape.Compat.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
-    (W : Ctx.SubstEq Θ τ τ Δ) : ∀ {n} {x y : Shape n},
-    Shape.Compat Δ x y → Shape.Compat Θ (x.subst τ) (y.subst τ) := by
-  have hfun {n} {Ty : Term} {f f' : ShapeFun n} := @ShapeFun.Compat.subst _ _ _ W n Ty f f'
-  intro n
+    (W : Ctx.SubstEq Θ τ τ Δ) {n} {x y : Shape n}
+    (h : Shape.Compat Δ x y) : Shape.Compat Θ (x.subst τ) (y.subst τ) := by
   induction n with
-  | zero => intro x y h; cases x <;> cases y <;> simp_all [Shape.Compat, Shape.subst]
-  | succ n ih =>
-    intro x y h
-    cases x with
-    | bot => trivial
-    | lam Af f =>
-      cases y with
-      | bot => trivial
-      | lam Af' f' => exact ⟨h.1.subst hΘ W, hfun h.2⟩
-      | _ => exact absurd h id
-    | forallE A B d f =>
-      cases y with
-      | bot => trivial
-      | lam Af' f' => exact absurd h id
-      | forallE A' B' d' f' => exact ⟨h.1.subst hΘ W, ih h.2.1, hfun h.2.2⟩
-      | _ => exact absurd h id
-    | sigma A B d f =>
-      cases y with
-      | bot => trivial
-      | lam Af' f' => exact absurd h id
-      | sigma A' B' d' f' => exact ⟨h.1.subst hΘ W, ih h.2.1, hfun h.2.2⟩
-      | _ => exact absurd h id
-    | succ v =>
-      cases y with
-      | bot => trivial
-      | lam Af' f' => exact absurd h id
-      | succ v' => exact ih h
-      | _ => exact absurd h id
-    | refl =>
-      cases y with
-      | bot => trivial
-      | lam Af' f' => exact absurd h id
-      | refl => trivial
-      | _ => exact absurd h id
-    | pair a b =>
-      cases y with
-      | bot => trivial
-      | lam Af' f' => exact absurd h id
-      | pair A' a' x' y' =>
-        exact ⟨h.1.subst hΘ W, IsDefEq.subst hΘ W h.2.1, ih h.2.2.1, ih h.2.2.2⟩
-      | _ => exact absurd h id
-    | id r A a b =>
-      cases y with
-      | bot => trivial
-      | lam Af' f' => exact absurd h id
-      | id r' A' a' b' => exact ⟨h.1, h.2.subst hΘ W⟩
-      | _ => exact absurd h id
-    | sort r =>
-      cases y with
-      | bot => trivial
-      | lam Af' f' => exact absurd h id
-      | sort r' => exact h
-      | _ => exact absurd h id
-    | unit r =>
-      cases y with
-      | bot => trivial
-      | lam Af' f' => exact absurd h id
-      | unit r' => exact h
-      | _ => exact absurd h id
-    | nat =>
-      cases y with
-      | bot => trivial
-      | lam Af' f' => exact absurd h id
-      | nat => trivial
-      | _ => exact absurd h id
-    | zero =>
-      cases y with
-      | bot => trivial
-      | lam Af' f' => exact absurd h id
-      | zero => trivial
-      | _ => exact absurd h id
+  | zero => cases x <;> cases y <;> simp_all [Shape.Compat, Shape.subst]
+  | succ n ih
+  have hfun {Ty : Term} {f f' : ShapeFun n} := @ShapeFun.Compat.subst _ _ _ W n Ty f f'
+  cases x with
+  | bot => trivial
+  | lam Af f =>
+    cases y with | bot => trivial | lam Af' f' => ?_ | _ => cases h
+    exact ⟨h.1.subst hΘ W, hfun h.2⟩
+  | forallE A B d f =>
+    cases y with | bot => trivial | forallE A' B' d' f' => ?_ | _ => cases h
+    exact ⟨h.1.subst hΘ W, ih h.2.1, hfun h.2.2⟩
+  | sigma A B d f =>
+    cases y with | bot => trivial | sigma A' B' d' f' => ?_ | _ => cases h
+    exact ⟨h.1.subst hΘ W, ih h.2.1, hfun h.2.2⟩
+  | succ v =>
+    cases y with | bot => trivial | succ v' => ?_ | _ => cases h
+    exact ih h
+  | refl => cases y with | bot | refl => trivial | _ => cases h
+  | pair a b =>
+    cases y with | bot => trivial | pair A' a' x' y' => ?_ | _ => cases h
+    exact ⟨h.1.subst hΘ W, IsDefEq.subst hΘ W h.2.1, ih h.2.2.1, ih h.2.2.2⟩
+  | id r A a b =>
+    cases y with | bot => trivial | id r' A' a' b' => ?_ | _ => cases h
+    exact ⟨h.1, h.2.subst hΘ W⟩
+  | sort r => cases y with | bot => trivial | sort r' => exact h | _ => cases h
+  | unit r => cases y with | bot => trivial | unit r' => exact h | _ => cases h
+  | nat => cases y with | bot | nat => trivial | _ => cases h
+  | zero => cases y with | bot | zero => trivial | _ => cases h
 
 theorem ShapeFun.WF.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f : ShapeFun n}
     (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
@@ -1324,67 +1279,60 @@ theorem TyEqO.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.Sub
   | none => trivial
   | some T => exact TyEq.subst hΘ W h
 
-theorem Shape.WF.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ) :
-    ∀ {n} {o} {s : Shape n}, Shape.WF Δ s o → Shape.WF Θ (s.subst τ) (o.map (·.subst τ)) := by
-  intro n
-  induction n with
-  | zero => intro o s hs; cases s <;> first | trivial | exact TyEqO.subst hΘ W hs
-  | succ n ih =>
-    intro o s hs
-    cases s with
-    | bot | zero | refl => trivial
-    | sort | unit | nat => exact TyEqO.subst hΘ W hs
-    | succ v => exact ih hs
-    | pair A a x y =>
-      refine ⟨?_, IsDefEq.subst hΘ W hs.2.1, hs.2.2.1.subst hΘ W,
-        ih hs.2.2.2.1, ih hs.2.2.2.2⟩
-      intro hbb
-      exact hs.1 ⟨Shape.isBot_subst_iff.1 hbb.1, Shape.isBot_subst_iff.1 hbb.2⟩
-    | id r A a b =>
-      have ⟨⟨u, hA⟩, ha, hb, hn⟩ := hs
-      exact ⟨⟨u, hA.subst hΘ W⟩, ha.subst hΘ W, hb.subst hΘ W, TyEqO.subst hΘ W hn⟩
-    | lam Af f =>
-      refine ⟨?_, ?_, ShapeFun.WF.subst_of hΘ W ih hs.2.2.1, hs.2.2.2.subst hΘ W⟩
-      · intro hnil; simp [ShapeFun.subst] at hnil; exact hs.1 hnil
-      · intro d hd
-        obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
-        exact fun hb => hs.2.1 e he (Shape.isBot_subst_iff.1 hb)
-    | forallE A B d f | sigma A B d f =>
-      all_goals
-        have ⟨⟨u, hA⟩, ⟨v, hB⟩, hd, hf, hn⟩ := hs
-        have hA' := hA.subst hΘ W
-        have hΘA : ⊢ A.subst τ :: Θ := ⟨hΘ, _, hA'⟩
-        exact ⟨⟨u, hA'⟩, ⟨v, hB.subst hΘA (W.lift hA hA')⟩, ih hd,
-          ShapeFun.WF.subst_of hΘ W ih hf, TyEqO.subst hΘ W hn⟩
+theorem Shape.WF.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.SubstEq Θ τ τ Δ)
+    {n o} {s : Shape n} (hs : Shape.WF Δ s o) : Shape.WF Θ (s.subst τ) (o.map (·.subst τ)) := by
+  induction n generalizing o with
+  | zero => cases s <;> first | trivial | exact TyEqO.subst hΘ W hs
+  | succ n ih
+  cases s with
+  | bot | zero | refl => trivial
+  | sort | unit | nat => exact TyEqO.subst hΘ W hs
+  | succ v => exact ih hs
+  | pair A a x y =>
+    have ⟨_, ha, hb, hx, hy⟩ := hs
+    refine ⟨fun hbb => ?_, IsDefEq.subst hΘ W ha, hb.subst hΘ W, ih hx, ih hy⟩
+    exact hs.1 ⟨Shape.isBot_subst_iff.1 hbb.1, Shape.isBot_subst_iff.1 hbb.2⟩
+  | id r A a b =>
+    have ⟨⟨u, hA⟩, ha, hb, hn⟩ := hs
+    exact ⟨⟨u, hA.subst hΘ W⟩, ha.subst hΘ W, hb.subst hΘ W, TyEqO.subst hΘ W hn⟩
+  | lam Af f =>
+    refine ⟨?_, fun d hd => ?_, ShapeFun.WF.subst_of hΘ W ih hs.2.2.1, hs.2.2.2.subst hΘ W⟩
+    · intro hnil; simp [ShapeFun.subst] at hnil; exact hs.1 hnil
+    · obtain ⟨e, he, rfl⟩ := ShapeFun.mem_subst.1 hd
+      exact fun hb => hs.2.1 e he (Shape.isBot_subst_iff.1 hb)
+  | forallE A B d f | sigma A B d f =>
+    have ⟨⟨u, hA⟩, ⟨v, hB⟩, hd, hf, hn⟩ := hs
+    have hA' := hA.subst hΘ W
+    have hΘA : ⊢ A.subst τ :: Θ := ⟨hΘ, _, hA'⟩
+    exact ⟨⟨u, hA'⟩, ⟨v, hB.subst hΘA (W.lift hA hA')⟩, ih hd,
+      ShapeFun.WF.subst_of hΘ W ih hf, TyEqO.subst hΘ W hn⟩
 
 theorem Shape.join_subst {τ : Subst} {n} {x y : Shape n} :
     (x.join y).subst τ = (x.subst τ).join (y.subst τ) := by
-  induction n with
-  | zero => cases x <;> cases y <;> rfl
-  | succ n ih =>
-    cases x with
-    | bot => rfl
-    | lam Af f =>
-      cases y with | lam Af' f' => ?_ | _ => rfl
-      show Shape.lam _ _ = Shape.lam _ _; simp [ShapeFun.subst]
-    | forallE A B d f =>
-      cases y with | forallE A' B' d' f' => ?_ | _ => rfl
-      show ShapeS.forallE _ _ _ _ = ShapeS.forallE _ _ _ _
-      simp [ShapeFun.subst, ih]
-    | sigma A B d f =>
-      cases y with | sigma A' B' d' f' => ?_ | _ => rfl
-      show ShapeS.sigma _ _ _ _ = ShapeS.sigma _ _ _ _
-      simp [ShapeFun.subst, ih]
-    | succ v =>
-      cases y with | succ v' => ?_ | _ => rfl
-      show Shape.succ _ = Shape.succ _; rw [ih]
-    | refl =>
-      cases y with | refl => ?_ | _ => rfl
-      rfl
-    | pair A a x₁ y₁ =>
-      cases y with | pair A' a' x' y' => ?_ | _ => rfl
-      show ShapeS.pair _ _ _ _ = ShapeS.pair _ _ _ _; simp [ih]
-    | _ => cases y <;> rfl
+  induction n with | zero => cases x <;> cases y <;> rfl | succ n ih
+  cases x with
+  | bot => rfl
+  | lam Af f =>
+    cases y with | lam Af' f' => ?_ | _ => rfl
+    show Shape.lam _ _ = Shape.lam _ _; simp [ShapeFun.subst]
+  | forallE A B d f =>
+    cases y with | forallE A' B' d' f' => ?_ | _ => rfl
+    show ShapeS.forallE _ _ _ _ = ShapeS.forallE _ _ _ _
+    simp [ShapeFun.subst, ih]
+  | sigma A B d f =>
+    cases y with | sigma A' B' d' f' => ?_ | _ => rfl
+    show ShapeS.sigma _ _ _ _ = ShapeS.sigma _ _ _ _
+    simp [ShapeFun.subst, ih]
+  | succ v =>
+    cases y with | succ v' => ?_ | _ => rfl
+    show Shape.succ _ = Shape.succ _; rw [ih]
+  | refl =>
+    cases y with | refl => ?_ | _ => rfl
+    rfl
+  | pair A a x₁ y₁ =>
+    cases y with | pair A' a' x' y' => ?_ | _ => rfl
+    show ShapeS.pair _ _ _ _ = ShapeS.pair _ _ _ _; simp [ih]
+  | _ => cases y <;> rfl
 
 /-! ### Is `IsBot` a usable invariant?
 
@@ -1419,37 +1367,37 @@ theorem Shape.Compat.symm {n} {Δ : List Term} {a b : Shape n} (hΔ : ⊢ Δ)
     (h : Shape.Compat Δ a b) : Shape.Compat Δ b a := by
   induction n generalizing Δ with
   | zero => cases a <;> cases b <;> simp_all [Shape.Compat]
-  | succ n ih =>
-    have hfun : ∀ {Ty : Term} {f g : ShapeFun n}, ShapeFun.Compat Shape.Compat Δ Ty f g →
-        ShapeFun.Compat Shape.Compat Δ Ty g f := by
-      intro Ty f g hfg e he e' he' Θ τ hΘ W hlab hin
-      exact ih hΘ (hfg e' he' e he Θ τ hΘ W hlab.symm (ih hΘ hin))
-    cases a with
-    | bot => cases b <;> trivial
-    | lam Af f =>
-      cases b with
-      | bot => trivial
-      | lam Ag g => exact ⟨h.1.symm, (hfun h.2).retype h.1⟩
-      | _ => cases h
-    | forallE A B d f =>
-      cases b with | bot => trivial | forallE A' B' d' f' => ?_ | _ => cases h
-      exact ⟨h.1.symm hΔ, ih hΔ h.2.1, (hfun h.2.2).retype h.1.1⟩
-    | sigma A B d f =>
-      cases b with | bot => trivial | sigma A' B' d' f' => ?_ | _ => cases h
-      exact ⟨h.1.symm hΔ, ih hΔ h.2.1, (hfun h.2.2).retype h.1.1⟩
-    | succ v => cases b with | bot => trivial | succ v' => exact ih hΔ h | _ => cases h
-    | refl => cases b with | bot => trivial | refl => trivial | _ => cases h
-    | pair A a x y =>
-      cases b with | bot => trivial | pair A' a' x' y' => ?_ | _ => cases h
-      exact ⟨h.1.symm, h.1.defeqDF h.2.1.symm, ih hΔ h.2.2.1,
-        ih hΔ h.2.2.2⟩
-    | id r A a' b' =>
-      cases b with | bot => trivial | id r' A'' a'' b'' => ?_ | _ => cases h
-      exact ⟨h.1.symm, h.2.symm⟩
-    | sort r => cases b with | bot => trivial | sort r' => exact Eq.symm h | _ => cases h
-    | unit r => cases b with | bot => trivial | unit r' => exact Eq.symm h | _ => cases h
-    | nat => cases b with | bot => trivial | nat => trivial | _ => cases h
-    | zero => cases b with | bot => trivial | zero => trivial | _ => cases h
+  | succ n ih
+  have hfun : ∀ {Ty : Term} {f g : ShapeFun n}, ShapeFun.Compat Shape.Compat Δ Ty f g →
+      ShapeFun.Compat Shape.Compat Δ Ty g f := by
+    intro Ty f g hfg e he e' he' Θ τ hΘ W hlab hin
+    exact ih hΘ (hfg e' he' e he Θ τ hΘ W hlab.symm (ih hΘ hin))
+  cases a with
+  | bot => cases b <;> trivial
+  | lam Af f =>
+    cases b with
+    | bot => trivial
+    | lam Ag g => exact ⟨h.1.symm, (hfun h.2).retype h.1⟩
+    | _ => cases h
+  | forallE A B d f =>
+    cases b with | bot => trivial | forallE A' B' d' f' => ?_ | _ => cases h
+    exact ⟨h.1.symm hΔ, ih hΔ h.2.1, (hfun h.2.2).retype h.1.1⟩
+  | sigma A B d f =>
+    cases b with | bot => trivial | sigma A' B' d' f' => ?_ | _ => cases h
+    exact ⟨h.1.symm hΔ, ih hΔ h.2.1, (hfun h.2.2).retype h.1.1⟩
+  | succ v => cases b with | bot => trivial | succ v' => exact ih hΔ h | _ => cases h
+  | refl => cases b with | bot => trivial | refl => trivial | _ => cases h
+  | pair A a x y =>
+    cases b with | bot => trivial | pair A' a' x' y' => ?_ | _ => cases h
+    exact ⟨h.1.symm, h.1.defeqDF h.2.1.symm, ih hΔ h.2.2.1,
+      ih hΔ h.2.2.2⟩
+  | id r A a' b' =>
+    cases b with | bot => trivial | id r' A'' a'' b'' => ?_ | _ => cases h
+    exact ⟨h.1.symm, h.2.symm⟩
+  | sort r => cases b with | bot => trivial | sort r' => exact Eq.symm h | _ => cases h
+  | unit r => cases b with | bot => trivial | unit r' => exact Eq.symm h | _ => cases h
+  | nat => cases b with | bot => trivial | nat => trivial | _ => cases h
+  | zero => cases b with | bot => trivial | zero => trivial | _ => cases h
 
 /-- The lookup transports along a typed substitution.  Mutual with
 `Shape.LE.subst` across the level: this is the level-`n` statement, and
@@ -1500,114 +1448,61 @@ theorem Shape.LE.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.
   | id => cases t <;> cases h; exact ⟨‹_›, .subst hΘ W ‹_›⟩
   | forallE | sigma =>
     cases t <;> cases h; rename_i h₁ h₂
-    exact ⟨h₁.subst hΘ W, ih h₂.1, ShapeFun.LE.subst_of hΘ W ih h₂.2.1,
-      Shape.WF.subst hΘ W h₂.2.2.1, fun e he => by
-        obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
-        have := Shape.WF.subst hΘ W (h₂.2.2.2 e₀ he₀)
-        simpa [subst_inst] using this⟩
+    refine ⟨h₁.subst hΘ W, ih h₂.1, ShapeFun.LE.subst_of hΘ W ih h₂.2.1,
+      Shape.WF.subst hΘ W h₂.2.2.1, fun e he => ?_⟩
+    obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
+    have := Shape.WF.subst hΘ W (h₂.2.2.2 e₀ he₀)
+    simpa [subst_inst] using this
   | _ => cases t <;> simp_all [Shape.LE, Shape.subst]
 
 @[simp] theorem Shape.Compat.bot_left {n} {Δ : List Term} {b : Shape n} :
     Shape.Compat Δ .bot b := by cases n <;> trivial
 
 @[simp] theorem Shape.Compat.bot_right {n} {Δ : List Term} {a : Shape n} :
-    Shape.Compat Δ a .bot := by
-  cases n with
-  | zero => cases a <;> trivial
-  | succ n => cases a <;> trivial
+    Shape.Compat Δ a .bot := by cases n <;> cases a <;> trivial
 
 /-- The join of two shapes compatible with `d` is compatible with `d`.
 This is the other repo's `cSup_compatible`, and it is what lets the graph
 lookup be closed under joins without losing coherence. -/
-theorem Shape.Compat.join : ∀ {n} {Δ : List Term} {y z d : Shape n}, ⊢ Δ →
-    Shape.Compat Δ y d → Shape.Compat Δ z d → Shape.Compat Δ (y.join z) d := by
-  intro n
-  induction n with
-  | zero =>
-    intro Δ y z d _ hy hz
-    cases y <;> cases z <;> cases d <;> simp_all [Shape.Compat, Shape.join]
-  | succ n ih =>
-    intro Δ y z d hΔ hy hz
-    cases y with
-    | bot => exact hz
-    | lam Af f =>
-      cases z with
-      | bot => exact hy
-      | lam Ag g =>
-        cases d with
-        | bot => trivial
-        | lam Ah h =>
-          refine ⟨hy.1, fun e he e' he' Θ τ hΘ W hlab hin => ?_⟩
-          match List.mem_append.1 he with
-          | .inl he => exact hy.2 e he e' he' Θ τ hΘ W hlab hin
-          | .inr he => exact (hz.2.retype (hz.1.trans hy.1.symm)) e he e' he' Θ τ hΘ W hlab hin
-        | _ => exact absurd hy id
-      | _ => exact hy
-    | succ v =>
-      cases z with
-      | bot => exact hy
-      | succ w =>
-        cases d with
-        | bot => trivial
-        | succ u =>
-          exact ih hΔ hy hz
-        | _ => exact absurd hy id
-      | _ => exact hy
-    | refl =>
-      cases z with
-      | bot => exact hy
-      | refl =>
-        cases d with
-        | bot => trivial
-        | refl =>
-          trivial
-        | _ => exact absurd hy id
-      | _ => exact hy
-    | pair A₁ a₁ x₁ y₁ =>
-      cases z with
-      | bot => exact hy
-      | pair A₂ a₂ x₂ y₂ =>
-        cases d with
-        | bot => trivial
-        | pair A₃ a₃ x₃ y₃ =>
-          exact ⟨hy.1, hy.2.1, ih hΔ hy.2.2.1 hz.2.2.1, ih hΔ hy.2.2.2 hz.2.2.2⟩
-        | _ => exact absurd hy id
-      | _ => exact hy
-    | forallE A₁ B₁ d₁ f =>
-      cases z with
-      | bot => exact hy
-      | forallE A₂ B₂ d₂ g =>
-        cases d with
-        | bot => trivial
-        | forallE A₃ B₃ d₃ h =>
-          refine ⟨hy.1, ih hΔ hy.2.1 hz.2.1, ?_⟩
-          intro e he e' he' Θ τ hΘ W hlab hin
-          match List.mem_append.1 he with
-          | .inl he => exact hy.2.2 e he e' he' Θ τ hΘ W hlab hin
-          | .inr he =>
-            exact (hz.2.2.retype (TyEq.trans hz.1.1 (TyEq.symm hy.1.1))) e he e' he' Θ τ hΘ W hlab hin
-        | _ => exact absurd hy id
-      | _ => exact hy
-    | sigma A₁ B₁ d₁ f =>
-      cases z with
-      | bot => exact hy
-      | sigma A₂ B₂ d₂ g =>
-        cases d with
-        | bot => trivial
-        | sigma A₃ B₃ d₃ h =>
-          refine ⟨hy.1, ih hΔ hy.2.1 hz.2.1, ?_⟩
-          intro e he e' he' Θ τ hΘ W hlab hin
-          match List.mem_append.1 he with
-          | .inl he => exact hy.2.2 e he e' he' Θ τ hΘ W hlab hin
-          | .inr he =>
-            exact (hz.2.2.retype (TyEq.trans hz.1.1 (TyEq.symm hy.1.1))) e he e' he' Θ τ hΘ W hlab hin
-        | _ => exact absurd hy id
-      | _ => exact hy
-    | sort r => cases z with | bot => exact hy | _ => exact hy
-    | unit r => cases z with | bot => exact hy | _ => exact hy
-    | nat => cases z with | bot => exact hy | _ => exact hy
-    | zero => cases z with | bot => exact hy | _ => exact hy
-    | id r A₁ a₁ b₁ => cases z with | bot => exact hy | _ => exact hy
+theorem Shape.Compat.join {n} {Δ : List Term} {y z d : Shape n} (hΔ : ⊢ Δ)
+    (hy : Shape.Compat Δ y d) (hz : Shape.Compat Δ z d) : Shape.Compat Δ (y.join z) d := by
+  induction n generalizing Δ with
+  | zero => cases y <;> cases z <;> cases d <;> simp_all [Shape.Compat, Shape.join]
+  | succ n ih
+  cases y with
+  | bot => exact hz
+  | lam Af f =>
+    cases z with | lam Ag g => ?_ | _ => exact hy
+    cases d with | bot => trivial | lam Ah h => ?_ | _ => cases hy
+    refine ⟨hy.1, fun e he e' he' Θ τ hΘ W hlab hin => ?_⟩
+    cases List.mem_append.1 he with | inl he => exact hy.2 e he e' he' Θ τ hΘ W hlab hin | inr he
+    exact (hz.2.retype (hz.1.trans hy.1.symm)) e he e' he' Θ τ hΘ W hlab hin
+  | succ v =>
+    cases z with | succ w => ?_ | _ => exact hy
+    cases d with | bot => trivial | succ u => ?_ | _ => cases hy
+    exact ih hΔ hy hz
+  | refl =>
+    cases z with | refl => ?_ | _ => exact hy
+    cases d with | bot | refl => trivial | _ => cases hy
+  | pair A₁ a₁ x₁ y₁ =>
+    cases z with | pair A₂ a₂ x₂ y₂ => ?_ | _ => exact hy
+    cases d with | bot => trivial | pair A₃ a₃ x₃ y₃ => ?_ | _ => cases hy
+    exact ⟨hy.1, hy.2.1, ih hΔ hy.2.2.1 hz.2.2.1, ih hΔ hy.2.2.2 hz.2.2.2⟩
+  | forallE A₁ B₁ d₁ f =>
+    cases z with | forallE A₂ B₂ d₂ g => ?_ | _ => exact hy
+    cases d with | bot => trivial | forallE A₃ B₃ d₃ h => ?_ | _ => cases hy
+    refine ⟨hy.1, ih hΔ hy.2.1 hz.2.1, ?_⟩
+    intro e he e' he' Θ τ hΘ W hlab hin
+    cases List.mem_append.1 he with | inl he => exact hy.2.2 e he e' he' Θ τ hΘ W hlab hin | inr he
+    exact (hz.2.2.retype (TyEq.trans hz.1.1 (TyEq.symm hy.1.1))) e he e' he' Θ τ hΘ W hlab hin
+  | sigma A₁ B₁ d₁ f =>
+    cases z with | sigma A₂ B₂ d₂ g => ?_ | _ => exact hy
+    cases d with | bot => trivial | sigma A₃ B₃ d₃ h => ?_ | _ => cases hy
+    refine ⟨hy.1, ih hΔ hy.2.1 hz.2.1, ?_⟩
+    intro e he e' he' Θ τ hΘ W hlab hin
+    cases List.mem_append.1 he with | inl he => exact hy.2.2 e he e' he' Θ τ hΘ W hlab hin | inr he
+    exact (hz.2.2.retype (TyEq.trans hz.1.1 (TyEq.symm hy.1.1))) e he e' he' Θ τ hΘ W hlab hin
+  | sort | unit | nat | zero | id => cases z <;> exact hy
 
 /-- The graph half of `Shape.Compat.anti_right`, once, for the three
 clauses that carry a graph.  The covering fact is a lookup derivation, so
@@ -1621,19 +1516,18 @@ theorem ShapeFun.Compat.anti_right_of {Δ : List Term} {n} {f g g' : ShapeFun n}
     (hb : ∀ e ∈ g', ShapeFun.Eval Δ (Shape.LE Δ) g Ty e.tm e.inp e.out) :
     ShapeFun.Compat Shape.Compat Δ Ty f g' := by
   intro e he e' he' Θ τ hΘ W hlab hin
-  have key : ∀ {y}, ShapeFun.Eval Δ (Shape.LE Δ) g Ty e'.tm e'.inp y →
-      Shape.Compat Θ (e.out.subst τ) (y.subst τ) := by
-    intro y hy
-    induction hy with
-    | bot => simpa only [Shape.subst_bot] using Shape.Compat.bot_right
-    | entry e₂ he₂ hl₂ hi₂ =>
-      exact h e he e₂ he₂ Θ τ hΘ W
-        (hlab.trans (hl₂.subst hΘ W).symm)
-        (ih hΘ hin (Shape.LE.subst hΘ W hi₂))
-    | lower hle _ ihz => exact ih hΘ ihz (Shape.LE.subst hΘ W hle)
-    | join _ _ _ ih₁ ih₂ =>
-      exact Shape.join_subst ▸ ((ih₁.symm hΘ).join hΘ (ih₂.symm hΘ)).symm hΘ
-  exact key (hb e' he')
+  suffices key : ∀ {y}, ShapeFun.Eval Δ (Shape.LE Δ) g Ty e'.tm e'.inp y →
+      Shape.Compat Θ (e.out.subst τ) (y.subst τ) from key (hb e' he')
+  intro y hy
+  induction hy with
+  | bot => simpa only [Shape.subst_bot] using Shape.Compat.bot_right
+  | entry e₂ he₂ hl₂ hi₂ =>
+    exact h e he e₂ he₂ Θ τ hΘ W
+      (hlab.trans (hl₂.subst hΘ W).symm)
+      (ih hΘ hin (Shape.LE.subst hΘ W hi₂))
+  | lower hle _ ihz => exact ih hΘ ihz (Shape.LE.subst hΘ W hle)
+  | join _ _ _ ih₁ ih₂ =>
+    exact Shape.join_subst ▸ ((ih₁.symm hΘ).join hΘ (ih₂.symm hΘ)).symm hΘ
 
 /-- Compatibility is **anti-monotone on the right**.
 

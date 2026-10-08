@@ -34,32 +34,31 @@ def Term.Annot : Term → List Term → Prop
   | .sort _, _ => True
   | .unit _, _ => True
   | .star _, _ => True
-  | .app f a, Γ => (∃ A₀, Γ ⊢ a : A₀) ∧ f.Annot Γ ∧ a.Annot Γ
+  | .app f a, Γ => f.Annot Γ ∧ a.Annot Γ
   | .lam A b, Γ => (∃ u, Γ ⊢ A : .sort u) ∧ A.Annot Γ ∧ b.Annot (A :: Γ)
   | .forallE A B, Γ =>
     (∃ u, Γ ⊢ A : .sort u) ∧ (∃ v, A :: Γ ⊢ B : .sort v) ∧ A.Annot Γ ∧ B.Annot (A :: Γ)
   | .sigma A B, Γ =>
     (∃ u, Γ ⊢ A : .sort u) ∧ (∃ v, A :: Γ ⊢ B : .sort v) ∧ A.Annot Γ ∧ B.Annot (A :: Γ)
   | .pair A B a b, Γ =>
-    (∃ u, Γ ⊢ A : .sort u) ∧ (∃ v, A :: Γ ⊢ B : .sort v) ∧ (Γ ⊢ a : A) ∧
+    (∃ u, Γ ⊢ A : .sort u) ∧ (Γ ⊢ a : A) ∧
       A.Annot Γ ∧ B.Annot (A :: Γ) ∧ a.Annot Γ ∧ b.Annot Γ
   | .fst p, Γ => p.Annot Γ
-  | .snd p, Γ => (∃ A₀, Γ ⊢ Term.fst p : A₀) ∧ p.Annot Γ
+  | .snd p, Γ => p.Annot Γ
   | .nat, _ => True
   | .zero, _ => True
   | .succ n, Γ => n.Annot Γ
-  | .natCase C M a b, Γ =>
-    (Γ ⊢ M : .nat) ∧ C.Annot (.nat :: Γ) ∧ M.Annot Γ ∧ a.Annot Γ ∧ b.Annot (.nat :: Γ)
+  | .natCase _ M a b, Γ =>
+    (Γ ⊢ M : .nat) ∧ M.Annot Γ ∧ a.Annot Γ ∧ b.Annot (.nat :: Γ)
   | .Y A b, Γ =>
     (∃ u, Γ ⊢ A : .sort u) ∧ (Γ ⊢ .Y A b : A) ∧ A.Annot Γ ∧ b.Annot (A :: Γ)
   | .id _ A a b, Γ =>
-    (∃ u, Γ ⊢ A : .sort u) ∧ (Γ ⊢ a : A) ∧ (Γ ⊢ b : A) ∧
-      A.Annot Γ ∧ a.Annot Γ ∧ b.Annot Γ
-  | .refl _ a, Γ => a.Annot Γ
+    (∃ u, Γ ⊢ A : .sort u) ∧ (Γ ⊢ a : A) ∧ (Γ ⊢ b : A)
+  | .refl _ _, _ => True
   | .tr r A a b C x h, Γ =>
     (∃ u, Γ ⊢ A : .sort u) ∧ (Γ ⊢ a : A) ∧ (Γ ⊢ b : A) ∧ (Γ ⊢ h : .id r A a b) ∧
       (∃ a₀ C₀ v, (Γ ⊢ x : C₀.inst a₀) ∧ (Γ ⊢ a₀ ≡ a : A) ∧ (A :: Γ ⊢ C₀ ≡ C : .sort v)) ∧
-      A.Annot Γ ∧ a.Annot Γ ∧ b.Annot Γ ∧ C.Annot (A :: Γ) ∧ x.Annot Γ ∧ h.Annot Γ
+      A.Annot Γ ∧ a.Annot Γ ∧ b.Annot Γ ∧ C.Annot (A :: Γ) ∧ x.Annot Γ
 
 /-- **Every term in a derivation is well-annotated.**  One case per rule:
 a congruence has its subterms' sort proofs as premises (this is what the
@@ -74,8 +73,7 @@ theorem IsDefEq.annot {Γ : List Term} {e1 e2 T : Term} (H : Γ ⊢ e1 ≡ e2 : 
   | trans _ _ ih₁ ih₂ => exact ⟨ih₁.1, ih₂.2⟩
   | trans' _ _ ih₁ ih₂ => exact ⟨ih₁.1, ih₂.2⟩
   | defeqDF _ _ _ ih => exact ih
-  | appDF _ _ _ haa' _ _ _ ihf iha =>
-    exact ⟨⟨⟨_, haa'.hasType.1⟩, ihf.1, iha.1⟩, ⟨_, haa'.hasType.2⟩, ihf.2, iha.2⟩
+  | appDF _ _ _ _ _ _ _ ihf iha => exact ⟨⟨ihf.1, iha.1⟩, ihf.2, iha.2⟩
   | lamDF hAA' _ _ _ _ ihA _ ihb ihb' _ =>
     exact ⟨⟨⟨_, hAA'.hasType.1⟩, ihA.1, ihb.1⟩, ⟨_, hAA'.hasType.2⟩, ihA.2, ihb'.2⟩
   | forallEDF hAA' hB hB' ihA ihb ihb' =>
@@ -84,37 +82,34 @@ theorem IsDefEq.annot {Γ : List Term} {e1 e2 T : Term} (H : Γ ⊢ e1 ≡ e2 : 
   | sigmaDF hAA' hB hB' ihA ihb ihb' =>
     exact ⟨⟨⟨_, hAA'.hasType.1⟩, ⟨_, hB.hasType.1⟩, ihA.1, ihb.1⟩,
       ⟨_, hAA'.hasType.2⟩, ⟨_, hB'.hasType.2⟩, ihA.2, ihb'.2⟩
-  | pairDF hAA' hB hB' haa' _ _ _ ihA ihB ihB' iha ihb _ _ =>
-    refine ⟨⟨⟨_, hAA'.hasType.1⟩, ⟨_, hB.hasType.1⟩, haa'.hasType.1,
+  | pairDF hAA' _ _ haa' _ _ _ ihA ihB ihB' iha ihb _ _ =>
+    refine ⟨⟨⟨_, hAA'.hasType.1⟩, haa'.hasType.1,
       ihA.1, ihB.1, iha.1, ihb.1⟩, ?_⟩
-    exact ⟨⟨_, hAA'.hasType.2⟩, ⟨_, hB'.hasType.2⟩, hAA'.defeqDF haa'.hasType.2,
+    exact ⟨⟨_, hAA'.hasType.2⟩, hAA'.defeqDF haa'.hasType.2,
       ihA.2, ihB'.2, iha.2, ihb.2⟩
   | fstDF _ _ _ _ _ ihp => exact ⟨ihp.1, ihp.2⟩
-  | @sndDF _ A u B v p p' hA hB hpp' _ _ _ ihp _ =>
-    exact ⟨⟨⟨A, IsDefEq.fstDF hA hB hpp'.hasType.1⟩, ihp.1⟩,
-      ⟨A, IsDefEq.fstDF hA hB hpp'.hasType.2⟩, ihp.2⟩
+  | sndDF _ _ _ _ _ _ ihp _ => exact ⟨ihp.1, ihp.2⟩
   | succDF _ ih => exact ⟨ih.1, ih.2⟩
-  | natCaseDF _ hMM' _ _ _ ihC ihM iha ihb _ =>
-    exact ⟨⟨hMM'.hasType.1, ihC.1, ihM.1, iha.1, ihb.1⟩,
-      hMM'.hasType.2, ihC.2, ihM.2, iha.2, ihb.2⟩
+  | natCaseDF _ hMM' _ _ _ _ ihM iha ihb _ =>
+    exact ⟨⟨hMM'.hasType.1, ihM.1, iha.1, ihb.1⟩,
+      hMM'.hasType.2, ihM.2, iha.2, ihb.2⟩
   | YDF hAA' _ _ ihA ihb ihb' =>
     refine ⟨⟨⟨_, hAA'.hasType.1⟩, ?_, ihA.1, ihb.1⟩,
       ⟨_, hAA'.hasType.2⟩, ?_, ihA.2, ihb'.2⟩
     · exact (IsDefEq.YDF hAA' ‹_› ‹_›).hasType.1
     · exact hAA'.defeqDF (IsDefEq.YDF hAA' ‹_› ‹_›).hasType.2
-  | idDF hAA' haa' hbb' ihA iha ihb =>
-    exact ⟨⟨⟨_, hAA'.hasType.1⟩, haa'.hasType.1, hbb'.hasType.1, ihA.1, iha.1, ihb.1⟩,
-      ⟨_, hAA'.hasType.2⟩, hAA'.defeqDF haa'.hasType.2, hAA'.defeqDF hbb'.hasType.2,
-      ihA.2, iha.2, ihb.2⟩
-  | reflDF _ _ _ _ iha _ => exact ⟨iha.1, iha.2⟩
-  | trDF hAA' haa' hbb' hCC' hCC'' hxx' hhh' _ _ ihA iha ihb ihC ihC' ihx ihh _ _ =>
+  | idDF hAA' haa' hbb' _ _ _ =>
+    exact ⟨⟨⟨_, hAA'.hasType.1⟩, haa'.hasType.1, hbb'.hasType.1⟩,
+      ⟨_, hAA'.hasType.2⟩, hAA'.defeqDF haa'.hasType.2, hAA'.defeqDF hbb'.hasType.2⟩
+  | reflDF => exact ⟨trivial, trivial⟩
+  | trDF hAA' haa' hbb' hCC' hCC'' hxx' hhh' _ _ ihA iha ihb ihC ihC' ihx _ _ _ =>
     exact ⟨⟨⟨_, hAA'.hasType.1⟩, haa'.hasType.1, hbb'.hasType.1, hhh'.hasType.1,
         ⟨_, _, _, hxx'.hasType.1, haa'.hasType.1, hCC'.hasType.1⟩,
-        ihA.1, iha.1, ihb.1, ihC.1, ihx.1, ihh.1⟩,
+        ihA.1, iha.1, ihb.1, ihC.1, ihx.1⟩,
       ⟨_, hAA'.hasType.2⟩, hAA'.defeqDF haa'.hasType.2, hAA'.defeqDF hbb'.hasType.2,
       (IsDefEq.idDF hAA' haa' hbb').defeqDF hhh'.hasType.2,
       ⟨_, _, _, hxx'.hasType.2, hAA'.defeqDF haa', hCC''⟩,
-      ihA.2, iha.2, ihb.2, ihC'.2, ihx.2, ihh.2⟩
+      ihA.2, iha.2, ihb.2, ihC'.2, ihx.2⟩
   -- the computation rules: both sides are typing premises
   | beta _ _ he' _ _ _ _ _ ihl ihr => exact ⟨ihl.1, ihr.1⟩
   | eta _ _ ih₁ ih₂ => exact ⟨ih₂.1, ih₁.1⟩

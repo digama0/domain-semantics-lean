@@ -217,7 +217,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
       exact ⟨ρ', .succ hv' hle, hA⟩
   | app F a ihF iha =>
     intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
-    obtain ⟨⟨T, hat⟩, hAF, hAa⟩ := hAnn
+    obtain ⟨hAF, hAa⟩ := hAnn
     obtain ⟨hpin, hPF, hPa⟩ := hPin
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
@@ -240,12 +240,11 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
       exact ⟨ρ', .fst hp' hle, hA⟩
   | snd p ih =>
     intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
-    obtain ⟨⟨T, hft⟩, hAp⟩ := hAnn
     obtain ⟨hpin, hPp⟩ := hPin
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
     | snd hp hev hle hty =>
-      obtain ⟨ρ', hp', hA⟩ := ih hΓ hAp hPp hΓ' Wθ Wσ hAdm hSat hp
+      obtain ⟨ρ', hp', hA⟩ := ih hΓ hAnn hPp hΓ' Wθ Wσ hAdm hSat hp
       obtain ⟨ρ₃, hle₃, hAp₃, hAdm₃⟩ := hSat hA
       simp only [Term.subst, subst_subst] at hev
       have hp₃ := Interp.mono_val hΔ hle₃ hp'
@@ -258,7 +257,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
     | refl hle => exact ⟨Valuation.nil, .refl hle, .nil⟩
   | id r A a b ihA iha ihb =>
     intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
-    obtain ⟨⟨u, hA⟩, hat, hbt, hAA, hAa, hAb⟩ := hAnn
+    obtain ⟨⟨u, hA⟩, hat, hbt⟩ := hAnn
     obtain ⟨hPA, hPa, hPb⟩ := hPin
     cases H with
     | bot => exact ⟨Valuation.nil, .bot, .nil⟩
@@ -417,7 +416,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         | succ hlk => exact hl₂ hlk) (hbody' e he)
   | pair A B a b ihA ihB iha ihb =>
     intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
-    obtain ⟨⟨u, hA⟩, ⟨v, hB⟩, hat, hAA, hAB, hAa, hAb⟩ := hAnn
+    obtain ⟨⟨u, hA⟩, hat, hAA, hAB, hAa, hAb⟩ := hAnn
     obtain ⟨hAty, hPA, hPB, hPa, hPb⟩ := hPin
     have hAθ : Γ' ⊢ A.subst θ ≡ A.subst θ : Term.sort u := hA.subst hΓ' Wθ
     cases H with
@@ -475,7 +474,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
         | succ hlk => exact TShape.LE.trans hΔ (hl₄ hlk) (hl₆ hlk)) hcode''
   | natCase C M a b ihC ihM iha ihb =>
     intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
-    obtain ⟨hMt, hAC, hAM, hAa, hAb⟩ := hAnn
+    obtain ⟨hMt, hAM, hAa, hAb⟩ := hAnn
     obtain ⟨hMty, hPM, hPa, hPb⟩ := hPin
     have hΓN : ⊢ (Term.nat :: Γ) := ⟨hΓ, _, .nat⟩
     have hΓN' : ⊢ (Term.nat :: Γ') := ⟨hΓ', _, .nat⟩
@@ -603,7 +602,7 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ) :
     exact key H rfl hΓ' Wθ Wσ hAdm hSat
   | tr r A a b C X Hp ihA iha ihb ihC ihX ihH =>
     intro Γ Γ' θ σ ρ m hΓ hAnn hPin hΓ' Wθ Wσ hAdm hSat H
-    obtain ⟨⟨u, hA⟩, hat, hbt, hht, _, hAA, hAa, hAb, hAC, hAX, hAH⟩ := hAnn
+    obtain ⟨⟨u, hA⟩, hat, hbt, hht, _, hAA, hAa, hAb, hAC, hAX⟩ := hAnn
     obtain ⟨hAty, hPA, hPa, hPb, hPC, hPX⟩ := hPin
     have hAθ : Γ' ⊢ A.subst θ ≡ A.subst θ : Term.sort u := hA.subst hΓ' Wθ
     have hbθ : Δ ⊢ (b.subst θ).subst σ ≡ (b.subst θ).subst σ : (A.subst θ).subst σ :=
