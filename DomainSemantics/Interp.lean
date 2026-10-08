@@ -301,6 +301,12 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
     (∃ u, Γ ⊢ A : .sort u) → (Γ ⊢ a : A) → (Γ ⊢ b : A) →
     Interp Δ Γ (.tr r A a b C X H) σ ρ m
 
+theorem Interp.of_bot {Δ Γ σ ρ} {t : Term} {m : TShape} (h : m.2 = Shape.bot) :
+    Interp Δ Γ t σ ρ m := by
+  have hm : m = Shape.T (n := m.1) m.2 := rfl
+  rw [h] at hm
+  exact hm ▸ .bot
+
 /-! ## Monotonicity
 
 Both directions master has: down in the shape, up in the valuation.
@@ -1516,48 +1522,6 @@ theorem Interp.stage {Δ : List Term} (hΔ : ⊢ Δ) :
       have h1 : Δ ⊢ a.subst σ₂ ≡ b.subst σ₂ : A.subst σ :=
         (haσ.symm.trans heq).trans hbσ
       exact ((IsDefEq.subst' hΔ W hA)).defeqDF h1
-
-/-- Directedness of the approximant set: his `HasIdeality`.
-
-**Not** a conclusion of `IsDefEq.sound`, and not a lemma about `Interp`
-alone either — it is `IsDefEq.dir`, its own induction on *typing*.  Two
-things decide that.
-
-It cannot be about raw terms, because joining two λ-shapes appends their
-graphs and the `lam` rule demands the result well formed, whose coherence
-conjunct includes the cross pairs: entries of the two graphs whose labels
-become definitionally equal at a later stage must have compatible outputs
-there.  Discharging that moves both bodies to one stage along the label
-equation, and the hypothesis of `IsDefEq.stage` is a *typed* substitution
-equality — so the binder's annotation has to be typed, which a raw term
-does not say.  That is the whole residue of the other repo's quotient,
-where a stage is a morphism and carries its typing.
-
-But it need not travel with `SoundEq`/`SoundTy` either, and it should not:
-the hypothesis here is `Valuation.WF`, not `Adm`, so the recursive call
-under a binder — at the joined argument slot — has nothing to type.  With
-`Adm` it would need the joined slot typed at an approximant of `⟦A⟧`,
-which is `SoundJoin` and, at Σ, unproved.  His `IsIdealValued` is likewise
-directedness at *every* shape, and master's `compat_join` takes no `Fits`.
-His bundling into `RawTermProperties` is forced only because his
-application is a sup over `sourceQuery` and needs `PiReady` plus
-fixedness to collapse; ours names the label and looks up once.
-
-The conclusion is his `IsDirected` — a common upper bound *in the set* —
-rather than master's `Compat ∧ join`, which is `SoundDir.join`. -/
-def SoundDir (Γ : List Term) (t : Term) : Prop :=
-  ∀ {{Δ : List Term}} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Valuation.WF Δ ρ →
-    ∀ {{m₁ m₂}}, Interp Δ Γ t σ ρ m₁ → Interp Δ Γ t σ ρ m₂ →
-      ∃ s, TShape.WF Δ s ∧ Interp Δ Γ t σ ρ s ∧ TShape.LE Δ m₁ s ∧ TShape.LE Δ m₂ s
-
-/-- Directedness gives compatibility and the join, master's form. -/
-theorem SoundDir.join {Γ : List Term} {t} (h : SoundDir Γ t) {Δ σ ρ} (hΔ : ⊢ Δ)
-    (W : Ctx.SubstEq Δ σ σ Γ) (hρ : Valuation.WF Δ ρ) {m₁ m₂}
-    (h₁ : Interp Δ Γ t σ ρ m₁) (h₂ : Interp Δ Γ t σ ρ m₂) :
-    TShape.Compat Δ m₁ m₂ ∧ Interp Δ Γ t σ ρ (m₁.join m₂) := by
-  obtain ⟨s, hws, hs, hle₁, hle₂⟩ := h hΔ W hρ h₁ h₂
-  have hc := TShape.Compat.of_common_upper hΔ hws hle₁ hle₂
-  exact ⟨hc, hs.mono hΔ (TShape.WF.join hΔ hc h₁.wf h₂.wf) (TShape.join_le hΔ hle₁ hle₂)⟩
 
 /-- Collect a per-element existential into a list of pairs. -/
 theorem List.exists_pairs {α β : Type _} {P : α → β → Prop} :

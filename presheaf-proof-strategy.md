@@ -3469,3 +3469,28 @@ Two places keep a stage-specific statement, spelled out rather than named:
 which needs `Subst.Saturates`, which needs `Adm` at the stage, and
 `SoundDir` offers only `Valuation.WF` at an arbitrary one. That is the
 honest reason, and it is the whole residue.
+
+### 13a. The `_ub`/`_dir` pairs merged
+
+`sound_forallE_ub`, `sound_sigma_ub`, `sound_lam_ub` and `dir_pair_ub`
+each had exactly one caller: their `_dir` partner. The split cost an
+18-line hypothesis list and a 4-line conclusion apiece, and every one of
+those hypotheses was a field the partner's `cases` had just produced,
+restated under the same name. So the `_ub` statement carried no
+information — it was the `cases` pattern written out twice.
+
+Each body now sits in its `_dir`, with one change: the two `TShape.LE`
+components of the `refine` are wrapped in `TShape.LE.trans hΔ hle₁/hle₂`,
+which is exactly what the `exact` after the old call did. The levels and
+graphs that were implicit binders of `_ub` are named in the `cases`
+pattern instead (`| @forallE _ _ _ _ n₁ g₁ d₁ _ _ hA₁ …`, the four
+leading holes being the inductive's auto-bound `Γ σ ρ m`).
+
+One trap: `dir_pair_ub`'s body has its own `hle₁`/`hle₂`, a pair of
+`Valuation.LE`s, so the bounds coming from the `cases` are `hlm₁`/`hlm₂`
+there.
+
+`TShape.LE.lam_ub`, `TShape.LE.pair_ub` and `TShape.LE.succ_ub` stay.
+They are a different species — inversion of the order at a head, giving
+back the upper bound's shape — and `pair_ub` has four callers across two
+files.

@@ -16,19 +16,53 @@ carrying a directedness premise of its own. -/
 
 namespace DomainSemantics
 
-theorem Interp.of_bot {Δ Γ σ ρ} {t : Term} {m : TShape} (h : m.2 = Shape.bot) :
-    Interp Δ Γ t σ ρ m := by
-  have hm : m = Shape.T (n := m.1) m.2 := rfl
-  rw [h] at hm
-  exact hm ▸ .bot
+/-- Directedness of the approximant set: his `HasIdeality`.
+
+**Not** a conclusion of `IsDefEq.sound`, and not a lemma about `Interp`
+alone either — it is `IsDefEq.dir`, its own induction on *typing*.  Two
+things decide that.
+
+It cannot be about raw terms, because joining two λ-shapes appends their
+graphs and the `lam` rule demands the result well formed, whose coherence
+conjunct includes the cross pairs: entries of the two graphs whose labels
+become definitionally equal at a later stage must have compatible outputs
+there.  Discharging that moves both bodies to one stage along the label
+equation, and the hypothesis of `IsDefEq.stage` is a *typed* substitution
+equality — so the binder's annotation has to be typed, which a raw term
+does not say.  That is the whole residue of the other repo's quotient,
+where a stage is a morphism and carries its typing.
+
+But it need not travel with `SoundEq`/`SoundTy` either, and it should not:
+the hypothesis here is `Valuation.WF`, not `Adm`, so the recursive call
+under a binder — at the joined argument slot — has nothing to type.  With
+`Adm` it would need the joined slot typed at an approximant of `⟦A⟧`,
+which is `SoundJoin` and, at Σ, unproved.  His `IsIdealValued` is likewise
+directedness at *every* shape, and master's `compat_join` takes no `Fits`.
+His bundling into `RawTermProperties` is forced only because his
+application is a sup over `sourceQuery` and needs `PiReady` plus
+fixedness to collapse; ours names the label and looks up once.
+
+The conclusion is his `IsDirected` — a common upper bound *in the set* —
+rather than master's `Compat ∧ join`, which is `SoundDir.join`. -/
+def SoundDir (Γ : List Term) (t : Term) : Prop :=
+  ∀ {{Δ : List Term}} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Valuation.WF Δ ρ →
+    ∀ {{m₁ m₂}}, Interp Δ Γ t σ ρ m₁ → Interp Δ Γ t σ ρ m₂ →
+      ∃ s, TShape.WF Δ s ∧ Interp Δ Γ t σ ρ s ∧ TShape.LE Δ m₁ s ∧ TShape.LE Δ m₂ s
+
+/-- Directedness gives compatibility and the join, master's form. -/
+theorem SoundDir.join {Γ : List Term} {t} (h : SoundDir Γ t) {Δ σ ρ} (hΔ : ⊢ Δ)
+    (W : Ctx.SubstEq Δ σ σ Γ) (hρ : Valuation.WF Δ ρ) {m₁ m₂}
+    (h₁ : Interp Δ Γ t σ ρ m₁) (h₂ : Interp Δ Γ t σ ρ m₂) :
+    TShape.Compat Δ m₁ m₂ ∧ Interp Δ Γ t σ ρ (m₁.join m₂) := by
+  obtain ⟨s, hws, hs, hle₁, hle₂⟩ := h hΔ W hρ h₁ h₂
+  have hc := TShape.Compat.of_common_upper hΔ hws hle₁ hle₂
+  exact ⟨hc, hs.mono hΔ (TShape.WF.join hΔ hc h₁.wf h₂.wf) (TShape.join_le hΔ hle₁ hle₂)⟩
 
 /-- Directedness for such a term: `⊥` is its own upper bound. -/
 theorem dir_of_bot {Γ : List Term} {t : Term}
-    (h : ∀ {Δ Γ' σ ρ m}, Interp Δ Γ' t σ ρ m → m.2 = Shape.bot) : SoundDir Γ t :=
-  by
+    (h : ∀ {Δ Γ' σ ρ m}, Interp Δ Γ' t σ ρ m → m.2 = Shape.bot) : SoundDir Γ t := by
   intro _ _ _ _ _ _ _ _ hm₁ hm₂
-  exact ⟨TShape.bot, trivial, Interp.of_bot rfl,
-    TShape.bot_le' (h hm₁), TShape.bot_le' (h hm₂)⟩
+  exact ⟨.bot, trivial, .of_bot rfl, TShape.bot_le' (h hm₁), TShape.bot_le' (h hm₂)⟩
 
 /-- Directedness for a variable: its slot bounds everything. -/
 theorem dir_bvar {Γ : List Term} {i : Nat} : SoundDir Γ (.bvar i) := by
@@ -82,26 +116,22 @@ its argument through `rawExtend ⟦A⟧` first.  Ours is `SoundDir` under a
 `Valuation.WF` hypothesis, which asks nothing of the slot either — and
 that is what keeps `SoundJoin` out of this proof. -/
 
-theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
+/-- Directedness of a Π-type's interpretation: the `forallEDF` case of
+`IsDefEq.dir`. -/
+theorem sound_forallE_dir {Γ : List Term} {A B : Term} {u v : Bool}
     (hΓ : ⊢ Γ) (hAty : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B ≡ B : .sort v)
-    (ihAdir : SoundDir Γ A) (ihBdir : SoundDir (A :: Γ) B)
-    {Δ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hwρ : Valuation.WF Δ ρ)
-    {n₁ n₂} {d₁ : Shape n₁} {g₁ : ShapeFun n₁} {d₂ : Shape n₂} {g₂ : ShapeFun n₂}
-    (hA₁ : Interp Δ Γ A σ ρ (Shape.T d₁))
-    (hd₁ : TShape.HasType Δ (Shape.T d₁) TShape.type)
-    (hwf₁ : Shape.WF (n := n₁+1) Δ (.forallE (A.subst σ) (B.subst σ.lift) d₁ g₁))
-    (hNV₁ : ∀ e ∈ g₁, TShape.Named Δ (Shape.T d₁) (Shape.T e.inp) e.tm)
-    (hbody₁ : ∀ e ∈ g₁,
-      Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push (Shape.T e.inp)) (Shape.T e.out))
-    (hA₂ : Interp Δ Γ A σ ρ (Shape.T d₂))
-    (hd₂ : TShape.HasType Δ (Shape.T d₂) TShape.type)
-    (hwf₂ : Shape.WF (n := n₂+1) Δ (.forallE (A.subst σ) (B.subst σ.lift) d₂ g₂))
-    (hNV₂ : ∀ e ∈ g₂, TShape.Named Δ (Shape.T d₂) (Shape.T e.inp) e.tm)
-    (hbody₂ : ∀ e ∈ g₂,
-      Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push (Shape.T e.inp)) (Shape.T e.out)) :
-    ∃ s, TShape.WF Δ s ∧ Interp Δ Γ (.forallE A B) σ ρ s ∧
-      TShape.LE Δ (Shape.T (n := n₁+1) (.forallE (A.subst σ) (B.subst σ.lift) d₁ g₁)) s ∧
-      TShape.LE Δ (Shape.T (n := n₂+1) (.forallE (A.subst σ) (B.subst σ.lift) d₂ g₂)) s := by
+    (ihAdir : SoundDir Γ A) (ihBdir : SoundDir (A :: Γ) B) :
+    SoundDir Γ (.forallE A B) := by
+  intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
+  cases h₁ with
+  | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
+  | @forallE _ _ _ _ n₁ g₁ d₁ _ _ hA₁ hd₁ hwf₁ hNV₁ hbody₁ hw₁ hle₁ hAt hBt
+  cases h₂ with
+  | bot =>
+    refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
+    · exact hwf₁
+    · exact .forallE hA₁ hd₁  hwf₁ hNV₁ hbody₁ hwf₁ (TShape.LE.refl hwf₁) hAt hBt
+  | @forallE _ _ _ _ n₂ g₂ d₂ _ _ hA₂ hd₂ hwf₂ hNV₂ hbody₂ hw₂ hle₂ _ _
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hAty⟩
   have k₁ : n₁ ≤ max n₁ n₂ := Nat.le_max_left ..
   have k₂ : n₂ ≤ max n₁ n₂ := Nat.le_max_right ..
@@ -209,8 +239,8 @@ theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
       ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))
       (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₁ ++ ShapeFun.lift (Shape.lift (max n₁ n₂)) g₂)),
     hwSJ, .forallE hdj' hdjty hwSJ ?_ ?_ hwSJ (TShape.LE.refl hwSJ) ⟨u, hAty⟩ ⟨v, hB⟩,
-    (TShape.LE.def hΔ (Nat.succ_le_succ k₁) (Nat.le_refl _)).2 ?_,
-    (TShape.LE.def hΔ (Nat.succ_le_succ k₂) (Nat.le_refl _)).2 ?_⟩
+    TShape.LE.trans hΔ hle₁ ((TShape.LE.def hΔ (Nat.succ_le_succ k₁) (Nat.le_refl _)).2 ?_),
+    TShape.LE.trans hΔ hle₂ ((TShape.LE.def hΔ (Nat.succ_le_succ k₂) (Nat.le_refl _)).2 ?_)⟩
   · -- inputs typed at the joined domain, with their names
     intro e he
     match List.mem_append.1 he with
@@ -238,54 +268,30 @@ theorem sound_forallE_ub {Γ : List Term} {A B : Term} {u v : Bool}
   · rw [Shape.lift_self]; exact (Shape.le_join hΔ hwS₁ hwS₂ hcS).1
   · rw [Shape.lift_self]; exact (Shape.le_join hΔ hwS₁ hwS₂ hcS).2
 
-/-- Directedness of a Π-type's interpretation: the `forallEDF` case of
-`IsDefEq.dir`. -/
-theorem sound_forallE_dir {Γ : List Term} {A B : Term} {u v : Bool}
+/-- Directedness of a Σ-type's interpretation: the `sigmaDF` case of
+`IsDefEq.dir`.
+
+The upper bound of two Σ-shapes has the same labels (both come from the
+same term at the same stage), the domains joined by `A`'s directedness,
+and the graphs appended.  All the content is the appended graph's
+coherence, and there the cross pairs; see the section comment.  The
+domain of the joined shape is a type because each domain is — the
+`Interp.sigma` premise added for exactly this — and `HasType.join` at a
+*sort* is available. -/
+theorem sound_sigma_dir {Γ : List Term} {A B : Term} {u v : Bool}
     (hΓ : ⊢ Γ) (hAty : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B ≡ B : .sort v)
     (ihAdir : SoundDir Γ A) (ihBdir : SoundDir (A :: Γ) B) :
-    SoundDir Γ (.forallE A B) := by
+    SoundDir Γ (.sigma A B) := by
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | forallE hA₁ hd₁ hwf₁ hNV₁ hbody₁ hw₁ hle₁ hAt hBt =>
-    cases h₂ with
-    | bot =>
-      refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
-      · exact hwf₁
-      · exact .forallE hA₁ hd₁  hwf₁ hNV₁ hbody₁ hwf₁ (TShape.LE.refl hwf₁) hAt hBt
-    | forallE hA₂ hd₂ hwf₂ hNV₂ hbody₂ hw₂ hle₂ _ _ =>
-      obtain ⟨s, hws, hs, hs₁, hs₂⟩ := sound_forallE_ub hΓ hAty hB ihAdir ihBdir
-        hΔ W hwρ hA₁ hd₁ hwf₁ hNV₁ hbody₁ hA₂ hd₂ hwf₂ hNV₂ hbody₂
-      exact ⟨s, hws, hs, TShape.LE.trans hΔ hle₁ hs₁, TShape.LE.trans hΔ hle₂ hs₂⟩
-
-/-- The common upper bound of two Σ-shapes: same labels (both come from
-the same term at the same stage), domains joined by `A`'s directedness,
-graphs appended.
-
-All the content is the appended graph's coherence, and there the cross
-pairs; see the section comment.  The domain of the joined shape is a type
-because each domain is — the `Interp.sigma` premise added for exactly
-this — and `HasType.join` at a *sort* is available. -/
-theorem sound_sigma_ub {Γ : List Term} {A B : Term} {u v : Bool}
-    (hΓ : ⊢ Γ) (hAty : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B ≡ B : .sort v)
-    (ihAdir : SoundDir Γ A) (ihBdir : SoundDir (A :: Γ) B)
-    {Δ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hwρ : Valuation.WF Δ ρ)
-    {n₁ n₂} {d₁ : Shape n₁} {g₁ : ShapeFun n₁} {d₂ : Shape n₂} {g₂ : ShapeFun n₂}
-    (hA₁ : Interp Δ Γ A σ ρ (Shape.T d₁))
-    (hd₁ : TShape.HasType Δ (Shape.T d₁) TShape.type)
-    (hwf₁ : Shape.WF (n := n₁+1) Δ (.sigma (A.subst σ) (B.subst σ.lift) d₁ g₁))
-    (hNV₁ : ∀ e ∈ g₁, TShape.Named Δ (Shape.T d₁) (Shape.T e.inp) e.tm)
-    (hbody₁ : ∀ e ∈ g₁,
-      Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push (Shape.T e.inp)) (Shape.T e.out))
-    (hA₂ : Interp Δ Γ A σ ρ (Shape.T d₂))
-    (hd₂ : TShape.HasType Δ (Shape.T d₂) TShape.type)
-    (hwf₂ : Shape.WF (n := n₂+1) Δ (.sigma (A.subst σ) (B.subst σ.lift) d₂ g₂))
-    (hNV₂ : ∀ e ∈ g₂, TShape.Named Δ (Shape.T d₂) (Shape.T e.inp) e.tm)
-    (hbody₂ : ∀ e ∈ g₂,
-      Interp Δ (A :: Γ) B (σ.cons e.tm) (ρ.push (Shape.T e.inp)) (Shape.T e.out)) :
-    ∃ s, TShape.WF Δ s ∧ Interp Δ Γ (.sigma A B) σ ρ s ∧
-      TShape.LE Δ (Shape.T (n := n₁+1) (.sigma (A.subst σ) (B.subst σ.lift) d₁ g₁)) s ∧
-      TShape.LE Δ (Shape.T (n := n₂+1) (.sigma (A.subst σ) (B.subst σ.lift) d₂ g₂)) s := by
+  | @sigma _ _ _ _ n₁ g₁ d₁ _ _ hA₁ hd₁ hwf₁ hNV₁ hbody₁ hw₁ hle₁ hAt hBt
+  cases h₂ with
+  | bot =>
+    refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
+    · exact hwf₁
+    · exact .sigma hA₁ hd₁  hwf₁ hNV₁ hbody₁ hwf₁ (TShape.LE.refl hwf₁) hAt hBt
+  | @sigma _ _ _ _ n₂ g₂ d₂ _ _ hA₂ hd₂ hwf₂ hNV₂ hbody₂ hw₂ hle₂ _ _
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hAty⟩
   have k₁ : n₁ ≤ max n₁ n₂ := Nat.le_max_left ..
   have k₂ : n₂ ≤ max n₁ n₂ := Nat.le_max_right ..
@@ -393,8 +399,8 @@ theorem sound_sigma_ub {Γ : List Term} {A B : Term} {u v : Bool}
       ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))
       (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₁ ++ ShapeFun.lift (Shape.lift (max n₁ n₂)) g₂)),
     hwSJ, .sigma hdj' hdjty hwSJ ?_ ?_ hwSJ (TShape.LE.refl hwSJ) ⟨u, hAty⟩ ⟨v, hB⟩,
-    (TShape.LE.def hΔ (Nat.succ_le_succ k₁) (Nat.le_refl _)).2 ?_,
-    (TShape.LE.def hΔ (Nat.succ_le_succ k₂) (Nat.le_refl _)).2 ?_⟩
+    TShape.LE.trans hΔ hle₁ ((TShape.LE.def hΔ (Nat.succ_le_succ k₁) (Nat.le_refl _)).2 ?_),
+    TShape.LE.trans hΔ hle₂ ((TShape.LE.def hΔ (Nat.succ_le_succ k₂) (Nat.le_refl _)).2 ?_)⟩
   · -- inputs typed at the joined domain, with their names
     intro e he
     match List.mem_append.1 he with
@@ -422,46 +428,24 @@ theorem sound_sigma_ub {Γ : List Term} {A B : Term} {u v : Bool}
   · rw [Shape.lift_self]; exact (Shape.le_join hΔ hwS₁ hwS₂ hcS).1
   · rw [Shape.lift_self]; exact (Shape.le_join hΔ hwS₁ hwS₂ hcS).2
 
-/-- Directedness of a Σ-type's interpretation: the `sigmaDF` case of
-`IsDefEq.dir`. -/
-theorem sound_sigma_dir {Γ : List Term} {A B : Term} {u v : Bool}
-    (hΓ : ⊢ Γ) (hAty : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B ≡ B : .sort v)
-    (ihAdir : SoundDir Γ A) (ihBdir : SoundDir (A :: Γ) B) :
-    SoundDir Γ (.sigma A B) := by
+/-- Directedness of a λ: the `lamDF` case of `IsDefEq.dir`.
+
+The upper bound of two λ-shapes has one label (both come from the same
+term at the same stage) and the graphs appended. -/
+theorem sound_lam_dir {Γ : List Term} {A B b : Term} {u : Bool}
+    (hΓ : ⊢ Γ) (hAty : Γ ⊢ A : .sort u) (hb : A :: Γ ⊢ b : B)
+    (ihAdir : SoundDir Γ A) (ihbdir : SoundDir (A :: Γ) b) :
+    SoundDir Γ (.lam A b) := by
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | sigma hA₁ hd₁ hwf₁ hNV₁ hbody₁ hw₁ hle₁ hAt hBt =>
-    cases h₂ with
-    | bot =>
-      refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
-      · exact hwf₁
-      · exact .sigma hA₁ hd₁  hwf₁ hNV₁ hbody₁ hwf₁ (TShape.LE.refl hwf₁) hAt hBt
-    | sigma hA₂ hd₂ hwf₂ hNV₂ hbody₂ hw₂ hle₂ _ _ =>
-      obtain ⟨s, hws, hs, hs₁, hs₂⟩ := sound_sigma_ub hΓ hAty hB ihAdir ihBdir
-        hΔ W hwρ hA₁ hd₁ hwf₁ hNV₁ hbody₁ hA₂ hd₂ hwf₂ hNV₂ hbody₂
-      exact ⟨s, hws, hs, TShape.LE.trans hΔ hle₁ hs₁, TShape.LE.trans hΔ hle₂ hs₂⟩
-
-/-- The common upper bound of two λ-shapes: one label (both come from the
-same term at the same stage), graphs appended. -/
-theorem sound_lam_ub {Γ : List Term} {A B b : Term} {u : Bool}
-    (hΓ : ⊢ Γ) (hAty : Γ ⊢ A : .sort u) (hb : A :: Γ ⊢ b : B)
-    (ihAdir : SoundDir Γ A) (ihbdir : SoundDir (A :: Γ) b)
-    {Δ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hwρ : Valuation.WF Δ ρ)
-    {n₁ n₂} {d₁ d₂ : TShape} {g₁ : ShapeFun n₁} {g₂ : ShapeFun n₂}
-    (hA₁ : Interp Δ Γ A σ ρ d₁)
-    (hd₁ : TShape.HasType Δ d₁ TShape.type)
-    (hwf₁ : Shape.WF (n := n₁+1) Δ (.lam (A.subst σ) g₁))
-    (hNV₁ : ∀ e ∈ g₁, TShape.Named Δ d₁ e.inp.T e.tm)
-    (hbody₁ : ∀ e ∈ g₁, Interp Δ (A :: Γ) b (σ.cons e.tm) (ρ.push e.inp.T) e.out.T)
-    (hA₂ : Interp Δ Γ A σ ρ d₂)
-    (hd₂ : TShape.HasType Δ d₂ TShape.type)
-    (hwf₂ : Shape.WF (n := n₂+1) Δ (.lam (A.subst σ) g₂))
-    (hNV₂ : ∀ e ∈ g₂, TShape.Named Δ d₂ e.inp.T e.tm)
-    (hbody₂ : ∀ e ∈ g₂, Interp Δ (A :: Γ) b (σ.cons e.tm) (ρ.push e.inp.T) e.out.T) :
-    ∃ s, TShape.WF Δ s ∧ Interp Δ Γ (.lam A b) σ ρ s ∧
-      TShape.LE Δ (Shape.T (n := n₁+1) (.lam (A.subst σ) g₁)) s ∧
-      TShape.LE Δ (Shape.T (n := n₂+1) (.lam (A.subst σ) g₂)) s := by
+  | @lam _ _ _ _ n₁ g₁ d₁ _ _ hA₁ hd₁ hwf₁ hNV₁ hbody₁ hw₁ hle₁ hAt
+  cases h₂ with
+  | bot =>
+    refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
+    · exact hwf₁
+    · exact .lam hA₁ hd₁ hwf₁ hNV₁ hbody₁ hwf₁ (TShape.LE.refl hwf₁) hAt
+  | @lam _ _ _ _ n₂ g₂ d₂ _ _ hA₂ hd₂ hwf₂ hNV₂ hbody₂ hw₂ hle₂ _
   have hΓA : ⊢ (A :: Γ) := ⟨hΓ, _, hAty⟩
   have k₁ : n₁ ≤ max n₁ n₂ := Nat.le_max_left ..
   have k₂ : n₂ ≤ max n₁ n₂ := Nat.le_max_right ..
@@ -537,8 +521,8 @@ theorem sound_lam_ub {Γ : List Term} {A B b : Term} {u : Bool}
   refine ⟨Shape.T (n := max n₁ n₂ + 1) (.lam (A.subst σ)
       (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₁ ++ ShapeFun.lift (Shape.lift (max n₁ n₂)) g₂)),
     hwSJ, .lam hdj hdjty hwSJ ?_ ?_ hwSJ (TShape.LE.refl hwSJ) ⟨u, hAty⟩,
-    (TShape.LE.def hΔ (Nat.succ_le_succ k₁) (Nat.le_refl _)).2 ?_,
-    (TShape.LE.def hΔ (Nat.succ_le_succ k₂) (Nat.le_refl _)).2 ?_⟩
+    TShape.LE.trans hΔ hle₁ ((TShape.LE.def hΔ (Nat.succ_le_succ k₁) (Nat.le_refl _)).2 ?_),
+    TShape.LE.trans hΔ hle₂ ((TShape.LE.def hΔ (Nat.succ_le_succ k₂) (Nat.le_refl _)).2 ?_)⟩
   · -- inputs typed at the joined domain, with their names
     intro e he
     match List.mem_append.1 he with
@@ -566,53 +550,27 @@ theorem sound_lam_ub {Γ : List Term} {A B b : Term} {u : Bool}
   · rw [Shape.lift_self]; exact (Shape.le_join hΔ hwS₁ hwS₂ hcS).1
   · rw [Shape.lift_self]; exact (Shape.le_join hΔ hwS₁ hwS₂ hcS).2
 
-/-- Directedness of a λ: the `lamDF` case of `IsDefEq.dir`. -/
-theorem sound_lam_dir {Γ : List Term} {A B b : Term} {u : Bool}
-    (hΓ : ⊢ Γ) (hAty : Γ ⊢ A : .sort u) (hb : A :: Γ ⊢ b : B)
-    (ihAdir : SoundDir Γ A) (ihbdir : SoundDir (A :: Γ) b) :
-    SoundDir Γ (.lam A b) := by
+/-- Directedness of a pair: the `pairDF` case of `IsDefEq.dir`.
+
+The upper bound has the components joined by their own directedness, the
+name shared (the clause reads it off the term), and the codomain code
+joined by the body's.  With the graph gone this is shorter than the λ
+case: there are no entries to merge and no stage to move. -/
+theorem dir_pair {Γ : List Term} {A B a b : Term}
+    (ihA : SoundDir Γ A) (ihB : SoundDir (A :: Γ) B)
+    (iha : SoundDir Γ a) (ihb : SoundDir Γ b) :
+    SoundDir Γ (.pair A B a b) := by
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | lam hA₁ hd₁ hwf₁ hNV₁ hbody₁ hw₁ hle₁ hAt =>
-    cases h₂ with
-    | bot =>
-      refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
-      · exact hwf₁
-      · exact .lam hA₁ hd₁ hwf₁ hNV₁ hbody₁ hwf₁ (TShape.LE.refl hwf₁) hAt
-    | lam hA₂ hd₂ hwf₂ hNV₂ hbody₂ hw₂ hle₂ _ =>
-      obtain ⟨s, hws, hs, hs₁, hs₂⟩ := sound_lam_ub hΓ hAty hb ihAdir ihbdir
-        hΔ W hwρ hA₁ hd₁ hwf₁ hNV₁ hbody₁ hA₂ hd₂ hwf₂ hNV₂ hbody₂
-      exact ⟨s, hws, hs, TShape.LE.trans hΔ hle₁ hs₁, TShape.LE.trans hΔ hle₂ hs₂⟩
-
-/-- The common upper bound of two pair shapes: the components joined by
-their own directedness, the name shared (the clause reads it off the
-term), and the codomain code joined by the body's.  With the graph gone
-this is shorter than the λ case: there are no entries to merge and no
-stage to move. -/
-theorem dir_pair_ub {Γ : List Term} {A B a b : Term}
-    (hAt : ∃ u, Γ ⊢ A : .sort u) (hat : Γ ⊢ a : A)
-    (ihA : SoundDir Γ A) (ihB : SoundDir (A :: Γ) B)
-    (iha : SoundDir Γ a) (ihb : SoundDir Γ b)
-    {Δ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hwρ : Valuation.WF Δ ρ)
-    {n₁ n₂} {x₁ y₁ : Shape n₁} {x₂ y₂ : Shape n₂} {d₁ d₂ c₁ c₂ : TShape}
-    (ha₁ : Interp Δ Γ a σ ρ (Shape.T x₁)) (hb₁ : Interp Δ Γ b σ ρ (Shape.T y₁))
-    (hA₁ : Interp Δ Γ A σ ρ d₁) (hd₁ : TShape.HasType Δ d₁ TShape.type)
-    (hNV₁ : TShape.Named Δ d₁ (Shape.T x₁) (a.subst σ))
-    (hdc₁ : TShape.WF Δ d₁ (A.subst σ))
-    (hwf₁ : Shape.WF (n := n₁+1) Δ (.pair (A.subst σ) (a.subst σ) x₁ y₁))
-    (hcode₁ : Interp Δ (A :: Γ) B (σ.cons (a.subst σ)) (ρ.push (Shape.T x₁)) c₁)
-    (hcty₁ : TShape.Named Δ c₁ (Shape.T y₁) none)
-    (ha₂ : Interp Δ Γ a σ ρ (Shape.T x₂)) (hb₂ : Interp Δ Γ b σ ρ (Shape.T y₂))
-    (hA₂ : Interp Δ Γ A σ ρ d₂) (hd₂ : TShape.HasType Δ d₂ TShape.type)
-    (hNV₂ : TShape.Named Δ d₂ (Shape.T x₂) (a.subst σ))
-    (hdc₂ : TShape.WF Δ d₂ (A.subst σ))
-    (hwf₂ : Shape.WF (n := n₂+1) Δ (.pair (A.subst σ) (a.subst σ) x₂ y₂))
-    (hcode₂ : Interp Δ (A :: Γ) B (σ.cons (a.subst σ)) (ρ.push (Shape.T x₂)) c₂)
-    (hcty₂ : TShape.Named Δ c₂ (Shape.T y₂) none) :
-    ∃ s, TShape.WF Δ s ∧ Interp Δ Γ (.pair A B a b) σ ρ s ∧
-      TShape.LE Δ (Shape.T (n := n₁+1) (.pair (A.subst σ) (a.subst σ) x₁ y₁)) s ∧
-      TShape.LE Δ (Shape.T (n := n₂+1) (.pair (A.subst σ) (a.subst σ) x₂ y₂)) s := by
+  | @pair _ _ _ _ n₁ x₁ y₁ d₁ c₁ _ _ _ _ ha₁ hb₁ hA₁ hd₁ hNV₁ hdc₁ hwf₁ hcode₁ hcty₁ hw₁
+      hlm₁ hAt hat
+  cases h₂ with
+  | bot =>
+    exact ⟨_, hw₁, .pair ha₁ hb₁ hA₁ hd₁ hNV₁ hdc₁ hwf₁ hcode₁ hcty₁ hw₁ hlm₁ hAt hat,
+      TShape.LE.refl hw₁, TShape.bot_le' rfl⟩
+  | @pair _ _ _ _ n₂ x₂ y₂ d₂ c₂ _ _ _ _ ha₂ hb₂ hA₂ hd₂ hNV₂ hdc₂ hwf₂ hcode₂ hcty₂ hw₂
+      hlm₂ _ _
   have k₁ : n₁ ≤ max n₁ n₂ := Nat.le_max_left ..
   have k₂ : n₂ ≤ max n₁ n₂ := Nat.le_max_right ..
   -- the components and the domain join, by their own directedness
@@ -689,7 +647,8 @@ theorem dir_pair_ub {Γ : List Term} {A B a b : Term}
       TShape.WF.join hΔ hcd hdc₁ hdc₂
     exact Interp.pair hjx' hjy' hjd hdjty hdomj hdcj hwS hjc' hctyj hwS'
       (TShape.LE.refl hwS') hAt hat
-  · refine (TShape.LE.def hΔ (Nat.succ_le_succ k₁) (Nat.le_refl _)).2 ?_
+  · refine TShape.LE.trans hΔ hlm₁
+      ((TShape.LE.def hΔ (Nat.succ_le_succ k₁) (Nat.le_refl _)).2 ?_)
     rw [Shape.lift_self]
     exact ⟨(Shape.le_join hΔ ((Shape.lift_wf k₁).2 hwf₁.2.2.2.1)
         ((Shape.lift_wf k₂).2 hwf₂.2.2.2.1) ((TShape.Compat.def k₁ k₂).1 hcx)).1,
@@ -698,7 +657,8 @@ theorem dir_pair_ub {Γ : List Term} {A B a b : Term}
       (Shape.lift_wf (s := ShapeS.pair ..) (Nat.succ_le_succ k₁)).2 hwf₁ |>.1,
       ((Shape.lift_wf (s := ShapeS.pair ..) (Nat.succ_le_succ k₁)).2 hwf₁).2.2.1,
       ((Shape.lift_wf (s := ShapeS.pair ..) (Nat.succ_le_succ k₁)).2 hwf₁).2.1⟩
-  · refine (TShape.LE.def hΔ (Nat.succ_le_succ k₂) (Nat.le_refl _)).2 ?_
+  · refine TShape.LE.trans hΔ hlm₂
+      ((TShape.LE.def hΔ (Nat.succ_le_succ k₂) (Nat.le_refl _)).2 ?_)
     rw [Shape.lift_self]
     exact ⟨(Shape.le_join hΔ ((Shape.lift_wf k₁).2 hwf₁.2.2.2.1)
         ((Shape.lift_wf k₂).2 hwf₂.2.2.2.1) ((TShape.Compat.def k₁ k₂).1 hcx)).2,
@@ -707,25 +667,6 @@ theorem dir_pair_ub {Γ : List Term} {A B a b : Term}
       ((Shape.lift_wf (s := ShapeS.pair ..) (Nat.succ_le_succ k₂)).2 hwf₂).1,
       ((Shape.lift_wf (s := ShapeS.pair ..) (Nat.succ_le_succ k₂)).2 hwf₂).2.2.1,
       ((Shape.lift_wf (s := ShapeS.pair ..) (Nat.succ_le_succ k₂)).2 hwf₂).2.1⟩
-
-/-- Directedness of a pair: the `pairDF` case of `IsDefEq.dir`. -/
-theorem dir_pair {Γ : List Term} {A B a b : Term}
-    (ihA : SoundDir Γ A) (ihB : SoundDir (A :: Γ) B)
-    (iha : SoundDir Γ a) (ihb : SoundDir Γ b) :
-    SoundDir Γ (.pair A B a b) := by
-  intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
-  cases h₁ with
-  | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | pair ha₁ hb₁ hA₁ hd₁ hNV₁ hdc₁ hwf₁ hcode₁ hcty₁ hw₁ hle₁ hAt hat =>
-    cases h₂ with
-    | bot =>
-      exact ⟨_, hw₁, .pair ha₁ hb₁ hA₁ hd₁ hNV₁ hdc₁ hwf₁ hcode₁ hcty₁ hw₁ hle₁ hAt hat,
-        TShape.LE.refl hw₁, TShape.bot_le' rfl⟩
-    | pair ha₂ hb₂ hA₂ hd₂ hNV₂ hdc₂ hwf₂ hcode₂ hcty₂ hw₂ hle₂ _ _ =>
-      obtain ⟨s, hws, hs, hs₁, hs₂⟩ :=
-        dir_pair_ub hAt hat ihA ihB iha ihb hΔ W hwρ ha₁ hb₁ hA₁ hd₁ hNV₁ hdc₁ hwf₁
-          hcode₁ hcty₁ ha₂ hb₂ hA₂ hd₂ hNV₂ hdc₂ hwf₂ hcode₂ hcty₂
-      exact ⟨s, hws, hs, hle₁.trans hΔ hs₁, hle₂.trans hΔ hs₂⟩
 
 /-- Above a λ-shape there is only a λ-shape. -/
 theorem TShape.LE.lam_ub {Δ : List Term} {n} {A : Term} {g : ShapeFun n} {z : TShape}
@@ -755,40 +696,40 @@ theorem dir_app {Γ : List Term} {F a : Term}
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | app hF₁ ha₁ hev₁ hw₁ hle₁ hty₁ =>
-    cases h₂ with
-    | bot =>
-      exact ⟨_, hw₁, .app hF₁ ha₁ hev₁ hw₁ hle₁ hty₁, TShape.LE.refl hw₁, TShape.bot_le' rfl⟩
-    | app hF₂ ha₂ hev₂ hw₂ hle₂ _ =>
-      -- one λ-shape above both, and one shape above both arguments
-      obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := ihF hΔ W hwρ hF₁ hF₂
-      obtain ⟨k, A, g, rfl⟩ := TShape.LE.lam_ub hz₁
-      obtain ⟨x, hwx, hx, hx₁, hx₂⟩ := iha hΔ W hwρ ha₁ ha₂
-      have hwg := ShapeFun.WF.forget hwz.2.2.1
-      have hout : ∀ e ∈ g, TShape.WF Δ e.out.T := fun e he => (hwg.1 e he).2.2.2
-      -- both lookups move into the big graph, at its label and its input
-      have hmove {n'} {A' : Term} {g' : ShapeFun n'} {x' y' : TShape}
-          (hF' : Interp Δ Γ F σ ρ (Shape.T (n := n'+1) (ShapeS.lam A' g')))
-          (hz' : TShape.LE Δ (Shape.T (n := n'+1) (ShapeS.lam A' g'))
-            (Shape.T (n := k+1) (ShapeS.lam A g)))
-          (hx' : TShape.LE Δ x' x)
-          (hev : TEvaluates Δ g' A' (a.subst σ) x' y') :
-          TEvaluates Δ g A (a.subst σ) x y' :=
-        TEvaluates.mono_inp hΔ hx' <| (TEvaluates.trans hΔ
-          (TShape.LE.lam_decomp hΔ hz' hF'.wf hwz (TEvaluates.refl hwg)) hev).retype
-          (TShape.LE.lam_dom hz')
-      have hev₁' := hmove hF₁ hz₁ hx₁ hev₁
-      have hev₂' := hmove hF₂ hz₂ hx₂ hev₂
-      have hc := TEvaluates.compat hΔ hwg.2 hwx hev₁' hev₂'
-      have hwy := TShape.WF.join hΔ hc (TEvaluates.wf hΔ hout hev₁')
-        (TEvaluates.wf hΔ hout hev₂')
-      refine ⟨_, hwy, .app hz hx (.join hc hev₁' hev₂') hwy (TShape.LE.refl hwy)
-          (hty₁.retype (TShape.LE.lam_dom hz₁)),
-        hle₁.trans hΔ ?_, hle₂.trans hΔ ?_⟩
-      · exact (TShape.le_join hΔ (TEvaluates.wf hΔ hout hev₁')
-          (TEvaluates.wf hΔ hout hev₂') hc).1
-      · exact (TShape.le_join hΔ (TEvaluates.wf hΔ hout hev₁')
-          (TEvaluates.wf hΔ hout hev₂') hc).2
+  | app hF₁ ha₁ hev₁ hw₁ hle₁ hty₁
+  cases h₂ with
+  | bot =>
+    exact ⟨_, hw₁, .app hF₁ ha₁ hev₁ hw₁ hle₁ hty₁, TShape.LE.refl hw₁, TShape.bot_le' rfl⟩
+  | app hF₂ ha₂ hev₂ hw₂ hle₂ _
+  -- one λ-shape above both, and one shape above both arguments
+  obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := ihF hΔ W hwρ hF₁ hF₂
+  obtain ⟨k, A, g, rfl⟩ := TShape.LE.lam_ub hz₁
+  obtain ⟨x, hwx, hx, hx₁, hx₂⟩ := iha hΔ W hwρ ha₁ ha₂
+  have hwg := ShapeFun.WF.forget hwz.2.2.1
+  have hout : ∀ e ∈ g, TShape.WF Δ e.out.T := fun e he => (hwg.1 e he).2.2.2
+  -- both lookups move into the big graph, at its label and its input
+  have hmove {n'} {A' : Term} {g' : ShapeFun n'} {x' y' : TShape}
+      (hF' : Interp Δ Γ F σ ρ (Shape.T (n := n'+1) (ShapeS.lam A' g')))
+      (hz' : TShape.LE Δ (Shape.T (n := n'+1) (ShapeS.lam A' g'))
+        (Shape.T (n := k+1) (ShapeS.lam A g)))
+      (hx' : TShape.LE Δ x' x)
+      (hev : TEvaluates Δ g' A' (a.subst σ) x' y') :
+      TEvaluates Δ g A (a.subst σ) x y' :=
+    TEvaluates.mono_inp hΔ hx' <| (TEvaluates.trans hΔ
+      (TShape.LE.lam_decomp hΔ hz' hF'.wf hwz (TEvaluates.refl hwg)) hev).retype
+      (TShape.LE.lam_dom hz')
+  have hev₁' := hmove hF₁ hz₁ hx₁ hev₁
+  have hev₂' := hmove hF₂ hz₂ hx₂ hev₂
+  have hc := TEvaluates.compat hΔ hwg.2 hwx hev₁' hev₂'
+  have hwy := TShape.WF.join hΔ hc (TEvaluates.wf hΔ hout hev₁')
+    (TEvaluates.wf hΔ hout hev₂')
+  refine ⟨_, hwy, .app hz hx (.join hc hev₁' hev₂') hwy (TShape.LE.refl hwy)
+      (hty₁.retype (TShape.LE.lam_dom hz₁)),
+    hle₁.trans hΔ ?_, hle₂.trans hΔ ?_⟩
+  · exact (TShape.le_join hΔ (TEvaluates.wf hΔ hout hev₁')
+      (TEvaluates.wf hΔ hout hev₂') hc).1
+  · exact (TShape.le_join hΔ (TEvaluates.wf hΔ hout hev₁')
+      (TEvaluates.wf hΔ hout hev₂') hc).2
 
 /-- Above a pair shape there is only a pair shape. -/
 theorem TShape.LE.pair_ub {Δ : List Term} {n} {A a : Term} {x y : Shape n}
@@ -797,12 +738,8 @@ theorem TShape.LE.pair_ub {Δ : List Term} {n} {A a : Term} {x y : Shape n}
       z = Shape.T (n := k+1) (ShapeS.pair A' a' x' y') := by
   obtain ⟨j, t⟩ := z
   obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
-  cases j with
-  | zero => cases t <;> exact absurd h2 (fun x => x)
-  | succ j =>
-    cases t with
-    | pair A' a' x' y' => exact ⟨j, A', a', x', y', rfl⟩
-    | _ => exact absurd h2 (fun x => x)
+  cases j with | zero => cases t <;> cases h2 | succ j
+  cases t with | pair A' a' x' y' => exact ⟨j, A', a', x', y', rfl⟩ | _ => cases h2
 
 /-- And its domain label is the same one. -/
 theorem TShape.LE.pair_dom {Δ : List Term} {n k} {A A' a a' : Term} {x y : Shape n}
@@ -818,17 +755,17 @@ theorem dir_fst {Γ : List Term} {p : Term} (h : SoundDir Γ p) : SoundDir Γ (.
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | fst hp₁ hw₁ hle₁ =>
-    cases h₂ with
-    | bot => exact ⟨_, hw₁, .fst hp₁ hw₁ hle₁, TShape.LE.refl hw₁, TShape.bot_le' rfl⟩
-    | fst hp₂ _ hle₂ =>
-      obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := h hΔ W hwρ hp₁ hp₂
-      obtain ⟨k, A', a', x', y', rfl⟩ := TShape.LE.pair_ub hz₁
-      obtain ⟨_, _, hx₁, _⟩ := TShape.LE.pair_decomp hΔ hz₁
-      obtain ⟨_, _, hx₂, _⟩ := TShape.LE.pair_decomp hΔ hz₂
-      exact ⟨Shape.T x', TShape.WF.T.2 hwz.2.2.2.1,
-        .fst hz (TShape.WF.T.2 hwz.2.2.2.1) (TShape.LE.refl (TShape.WF.T.2 hwz.2.2.2.1)),
-        hle₁.trans hΔ hx₁, hle₂.trans hΔ hx₂⟩
+  | fst hp₁ hw₁ hle₁
+  cases h₂ with
+  | bot => exact ⟨_, hw₁, .fst hp₁ hw₁ hle₁, TShape.LE.refl hw₁, TShape.bot_le' rfl⟩
+  | fst hp₂ _ hle₂
+  obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := h hΔ W hwρ hp₁ hp₂
+  obtain ⟨k, A', a', x', y', rfl⟩ := TShape.LE.pair_ub hz₁
+  obtain ⟨_, _, hx₁, _⟩ := TShape.LE.pair_decomp hΔ hz₁
+  obtain ⟨_, _, hx₂, _⟩ := TShape.LE.pair_decomp hΔ hz₂
+  exact ⟨Shape.T x', TShape.WF.T.2 hwz.2.2.2.1,
+    .fst hz (TShape.WF.T.2 hwz.2.2.2.1) (TShape.LE.refl (TShape.WF.T.2 hwz.2.2.2.1)),
+    hle₁.trans hΔ hx₁, hle₂.trans hΔ hx₂⟩
 
 /-- Directedness for `.snd`: with the second component unconditional
 this is `dir_fst`'s twin — the upper bound's own second component, with
@@ -837,20 +774,20 @@ theorem dir_snd {Γ : List Term} {p : Term} (h : SoundDir Γ p) : SoundDir Γ (.
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | snd hp₁ hlab₁ hw₁ hle₁ hty₁ =>
-    cases h₂ with
-    | bot =>
-      exact ⟨_, hw₁, .snd hp₁ hlab₁ hw₁ hle₁ hty₁, TShape.LE.refl hw₁, TShape.bot_le' rfl⟩
-    | snd hp₂ hlab₂ _ hle₂ _ =>
-      obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := h hΔ W hwρ hp₁ hp₂
-      obtain ⟨k, A', a', x', y', rfl⟩ := TShape.LE.pair_ub hz₁
-      obtain ⟨hA₁, ha₁, _, hy₁⟩ := TShape.LE.pair_decomp hΔ hz₁
-      obtain ⟨_, _, _, hy₂⟩ := TShape.LE.pair_decomp hΔ hz₂
-      have hwy : TShape.WF Δ (Shape.T y') := TShape.WF.T.2 hwz.2.2.2.2
-      refine ⟨Shape.T y', hwy, .snd hz ?_ hwy (TShape.LE.refl hwy)
-          (hty₁.retype (TShape.LE.pair_dom hz₁)),
-        hle₁.trans hΔ hy₁, hle₂.trans hΔ hy₂⟩
-      exact hA₁.defeqDF (ha₁.symm.trans hlab₁)
+  | snd hp₁ hlab₁ hw₁ hle₁ hty₁
+  cases h₂ with
+  | bot =>
+    exact ⟨_, hw₁, .snd hp₁ hlab₁ hw₁ hle₁ hty₁, TShape.LE.refl hw₁, TShape.bot_le' rfl⟩
+  | snd hp₂ hlab₂ _ hle₂ _
+  obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := h hΔ W hwρ hp₁ hp₂
+  obtain ⟨k, A', a', x', y', rfl⟩ := TShape.LE.pair_ub hz₁
+  obtain ⟨hA₁, ha₁, _, hy₁⟩ := TShape.LE.pair_decomp hΔ hz₁
+  obtain ⟨_, _, _, hy₂⟩ := TShape.LE.pair_decomp hΔ hz₂
+  have hwy : TShape.WF Δ (Shape.T y') := TShape.WF.T.2 hwz.2.2.2.2
+  refine ⟨Shape.T y', hwy, .snd hz ?_ hwy (TShape.LE.refl hwy)
+      (hty₁.retype (TShape.LE.pair_dom hz₁)),
+    hle₁.trans hΔ hy₁, hle₂.trans hΔ hy₂⟩
+  exact hA₁.defeqDF (ha₁.symm.trans hlab₁)
 
 /-- The canonical `id`-shape at a stage, and its well-formedness. -/
 theorem Shape.WF.id_of {Γ Δ : List Term} {σ} {A a b : Term} {u : Bool} {r : Bool}
@@ -879,18 +816,18 @@ theorem dir_succ {Γ : List Term} {N : Term} (h : SoundDir Γ N) : SoundDir Γ (
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | succ hv₁ _ hle₁ =>
-    cases h₂ with
-    | bot =>
-      refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
-      · exact hv₁.wf
-      · exact .succ hv₁ hv₁.wf (TShape.LE.refl hv₁.wf)
-    | succ hv₂ _ hle₂ =>
-      obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := h hΔ W hwρ hv₁ hv₂
-      refine ⟨_, ?_, ?_, hle₁.trans hΔ (TShape.LE.succ_of hΔ hz₁),
-        hle₂.trans hΔ (TShape.LE.succ_of hΔ hz₂)⟩
-      · exact hwz
-      · exact .succ hz hwz (TShape.LE.refl hwz)
+  | succ hv₁ _ hle₁
+  cases h₂ with
+  | bot =>
+    refine ⟨_, ?_, ?_, hle₁, TShape.bot_le' rfl⟩
+    · exact hv₁.wf
+    · exact .succ hv₁ hv₁.wf (TShape.LE.refl hv₁.wf)
+  | succ hv₂ _ hle₂
+  obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := h hΔ W hwρ hv₁ hv₂
+  refine ⟨_, ?_, ?_, hle₁.trans hΔ (TShape.LE.succ_of hΔ hz₁),
+    hle₂.trans hΔ (TShape.LE.succ_of hΔ hz₂)⟩
+  · exact hwz
+  · exact .succ hz hwz (TShape.LE.refl hwz)
 
 /-- Above a `succ`-shape there is only a `succ`-shape. -/
 theorem TShape.LE.succ_ub {Δ : List Term} {n} {v : Shape n} {z : TShape}
@@ -898,12 +835,8 @@ theorem TShape.LE.succ_ub {Δ : List Term} {n} {v : Shape n} {z : TShape}
     ∃ (k : Nat) (w : Shape k), z = Shape.T (n := k+1) (ShapeS.succ w) := by
   obtain ⟨j, t⟩ := z
   obtain ⟨M, _, _, h2⟩ := TShape.LE.src_succ h
-  cases j with
-  | zero => cases t <;> exact absurd h2 (fun x => x)
-  | succ j =>
-    cases t with
-    | succ w => exact ⟨j, w, rfl⟩
-    | _ => exact absurd h2 (fun x => x)
+  cases j with | zero => cases t <;> cases h2 | succ j
+  cases t with | succ w => exact ⟨j, w, rfl⟩ | _ => cases h2
 
 /-- And the order between two of them is the order between their
 predecessors: the converse of `TShape.LE.succ_of`. -/
@@ -922,7 +855,7 @@ theorem TShape.LE.zero_succ_absurd {Δ : List Term} {n} {v : Shape n} {z : TShap
   obtain ⟨M', _, _, h2'⟩ := TShape.LE.src_succ h₂
   cases j with
   | zero => cases t <;> exact absurd h2 (fun x => x)
-  | succ j => cases t <;> first | exact absurd h2 (fun x => x) | exact absurd h2' (fun x => x)
+  | succ j => cases t <;> first | exact h2.elim | cases h2'
 
 /-- Directedness for `.natCase`.
 
@@ -944,21 +877,20 @@ theorem dir_natCase {Γ : List Term} {C M a b B : Term} (hΓ : ⊢ Γ)
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
   | natCase_zero hM₁ hz₁ ha₁ hMt =>
     cases h₂ with
-    | bot => exact ⟨_, ha₁.wf, .natCase_zero hM₁ hz₁ ha₁ hMt, TShape.LE.refl ha₁.wf,
-        TShape.bot_le' rfl⟩
+    | bot => exact ⟨_, ha₁.wf, .natCase_zero hM₁ hz₁ ha₁ hMt, .refl ha₁.wf, TShape.bot_le' rfl⟩
     | natCase_zero _ _ ha₂ _ =>
       obtain ⟨s, hws, hs, hs₁, hs₂⟩ := iha hΔ W hwρ ha₁ ha₂
       exact ⟨s, hws, .natCase_zero hM₁ hz₁ hs hMt, hs₁, hs₂⟩
     | natCase_succ hM₂ _ _ _ _ =>
       obtain ⟨_, hwz, _, hz₁, hz₂⟩ := ihM hΔ W hwρ hM₁ hM₂
-      exact absurd (TShape.LE.zero_succ_absurd hz₁ hz₂) not_false
+      cases TShape.LE.zero_succ_absurd hz₁ hz₂
   | @natCase_succ _ _ _ _ _ _ _ _ n₁ v₁ t₁ hM₁ hwv₁ heq₁ hbody₁ hMt =>
     cases h₂ with
     | bot => exact ⟨_, hbody₁.wf, .natCase_succ hM₁ hwv₁ heq₁ hbody₁ hMt,
         TShape.LE.refl hbody₁.wf, TShape.bot_le' rfl⟩
     | natCase_zero hM₂ _ _ _ =>
       obtain ⟨_, hwz, _, hz₁, hz₂⟩ := ihM hΔ W hwρ hM₁ hM₂
-      exact absurd (TShape.LE.zero_succ_absurd hz₂ hz₁) not_false
+      cases TShape.LE.zero_succ_absurd hz₂ hz₁
     | @natCase_succ _ _ _ _ _ _ _ _ n₂ v₂ t₂ hM₂ hwv₂ heq₂ hbody₂ _ =>
       -- one `succ`-shape above both, so one slot above both predecessors
       obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := ihM hΔ W hwρ hM₁ hM₂
@@ -1003,41 +935,39 @@ theorem dir_Y_aux {Δ : List Term} (hΔ : ⊢ Δ) {Γ : List Term} {t : Term} {�
       SoundDir Γ A → SoundDir (A :: Γ) b → ∀ {m₂}, Interp Δ Γ t σ ρ m₂ →
         ∃ s, TShape.WF Δ s ∧ Interp Δ Γ t σ ρ s ∧ TShape.LE Δ m₁ s ∧ TShape.LE Δ m₂ s := by
   induction h₁ with
-  | @Y _ _ _ _ _ _ _ _ hx₁ hwx₁ hA₁ hdty₁ hNVY hcc₁ hbody₁ hAt hYt ihx₁ ihA₁ _ =>
-    rintro A b ⟨⟩ hwρ WΓ WY ihA ihb m₂ h₂
-    cases h₂ with
-    | bot =>
-      exact ⟨_, hbody₁.wf, .Y hx₁ hwx₁ hA₁ hdty₁ (hNVY) hcc₁ hbody₁ hAt hYt,
-        TShape.LE.refl hbody₁.wf, TShape.bot_le' rfl⟩
-    | @Y _ _ _ _ _ _ x₂ d₂ hx₂ hwx₂ hA₂ hdty₂ hNVY₂ hcc₂ hbody₂ _ _ =>
-      -- one tower above both, by the first derivation's own induction
-      obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := ihx₁ rfl hwρ WΓ WY ihA ihb hx₂
-      -- the slot is their *join*: it is below that bound, so it is an
-      -- approximant too, and `Named` is closed under the join — which the
-      -- clause needs, since `Adm` reads the slot hereditarily
-      have hcj := TShape.Compat.of_common_upper hΔ hwz hz₁ hz₂
-      have hwj := TShape.WF.join hΔ hcj hwx₁ hwx₂
-      have hjx := Interp.mono hΔ hwj (TShape.join_le hΔ hz₁ hz₂) hz
-      -- and their *codes* join too, by the annotation's own directedness
-      obtain ⟨dc, hwdc, hdc, hdc₁, hdc₂⟩ := ihA hΔ WΓ hwρ hA₁ hA₂
-      have hcd := TShape.Compat.of_common_upper hΔ hwdc hdc₁ hdc₂
-      have hdcty := TShape.HasType.join_sort' hΔ rfl hdty₁ hdty₂ hcd
-      have hdcI := Interp.mono hΔ (TShape.WF.join hΔ hcd hdty₁.wf.1 hdty₂.wf.1)
-        (TShape.join_le hΔ hdc₁ hdc₂) hdc
-      obtain ⟨c₁, c₂⟩ := TShape.le_join hΔ hdty₁.wf.1 hdty₂.wf.1 hcd
-      have hjd := TShape.Named.join hΔ hcj (TShape.Named.mono_r hΔ hNVY c₁ hdcty)
-        (TShape.Named.mono_r hΔ hNVY₂ c₂ hdcty)
-      obtain ⟨j₁, j₂⟩ := TShape.le_join hΔ hwx₁ hwx₂ hcj
-      obtain ⟨s, hws, hs, hs₁, hs₂⟩ := ihb hΔ WY (Valuation.WF.push hwρ hwj)
-        (Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, j₁⟩) hbody₁)
-        (Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, j₂⟩) hbody₂)
-      -- the slot and the code keep their names through the join
-      have hjc := TShape.WF.join hΔ hcd hcc₁ hcc₂
-      exact ⟨s, hws, .Y hjx hwj hdcI hdcty hjd hjc hs hAt hYt, hs₁, hs₂⟩
+  | bot => exact fun _ _ _ _ _ _ _ h₂ => ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, .refl h₂.wf⟩
+  | @Y _ _ _ _ _ _ _ _ hx₁ hwx₁ hA₁ hdty₁ hNVY hcc₁ hbody₁ hAt hYt ihx₁ ihA₁ _ => ?_
+  | _ => nofun
+  rintro A b ⟨⟩ hwρ WΓ WY ihA ihb m₂ h₂
+  cases h₂ with
   | bot =>
-    exact fun _ _ _ _ _ _ _ h₂ =>
-      ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | _ => intro A b hne; cases hne
+    exact ⟨_, hbody₁.wf, .Y hx₁ hwx₁ hA₁ hdty₁ hNVY hcc₁ hbody₁ hAt hYt,
+      .refl hbody₁.wf, TShape.bot_le' rfl⟩
+  | @Y _ _ _ _ _ _ x₂ d₂ hx₂ hwx₂ hA₂ hdty₂ hNVY₂ hcc₂ hbody₂ _ _
+  -- one tower above both, by the first derivation's own induction
+  obtain ⟨z, hwz, hz, hz₁, hz₂⟩ := ihx₁ rfl hwρ WΓ WY ihA ihb hx₂
+  -- the slot is their *join*: it is below that bound, so it is an
+  -- approximant too, and `Named` is closed under the join — which the
+  -- clause needs, since `Adm` reads the slot hereditarily
+  have hcj := TShape.Compat.of_common_upper hΔ hwz hz₁ hz₂
+  have hwj := TShape.WF.join hΔ hcj hwx₁ hwx₂
+  have hjx := Interp.mono hΔ hwj (TShape.join_le hΔ hz₁ hz₂) hz
+  -- and their *codes* join too, by the annotation's own directedness
+  obtain ⟨dc, hwdc, hdc, hdc₁, hdc₂⟩ := ihA hΔ WΓ hwρ hA₁ hA₂
+  have hcd := TShape.Compat.of_common_upper hΔ hwdc hdc₁ hdc₂
+  have hdcty := TShape.HasType.join_sort' hΔ rfl hdty₁ hdty₂ hcd
+  have hdcI := Interp.mono hΔ (TShape.WF.join hΔ hcd hdty₁.wf.1 hdty₂.wf.1)
+    (TShape.join_le hΔ hdc₁ hdc₂) hdc
+  obtain ⟨c₁, c₂⟩ := TShape.le_join hΔ hdty₁.wf.1 hdty₂.wf.1 hcd
+  have hjd := TShape.Named.join hΔ hcj (TShape.Named.mono_r hΔ hNVY c₁ hdcty)
+    (TShape.Named.mono_r hΔ hNVY₂ c₂ hdcty)
+  obtain ⟨j₁, j₂⟩ := TShape.le_join hΔ hwx₁ hwx₂ hcj
+  obtain ⟨s, hws, hs, hs₁, hs₂⟩ := ihb hΔ WY (Valuation.WF.push hwρ hwj)
+    (Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, j₁⟩) hbody₁)
+    (Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, j₂⟩) hbody₂)
+  -- the slot and the code keep their names through the join
+  have hjc := TShape.WF.join hΔ hcd hcc₁ hcc₂
+  exact ⟨s, hws, .Y hjx hwj hdcI hdcty hjd hjc hs hAt hYt, hs₁, hs₂⟩
 
 theorem dir_Y {Γ : List Term} {A b : Term} {u : Bool} (hA : Γ ⊢ A : .sort u)
     (hY : Γ ⊢ .Y A b : A) (ihA : SoundDir Γ A) (ihb : SoundDir (A :: Γ) b) :
@@ -1053,12 +983,12 @@ theorem dir_refl {Γ : List Term} {a : Term} {r : Bool} : SoundDir Γ (.refl r a
   have hwz : TShape.WF Δ (Shape.T (n := 1) ShapeS.refl) := TShape.WF.T.2 trivial
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | refl hw₁ hle₁ =>
-    cases h₂ with
-    | bot => exact ⟨_, hw₁, .refl hw₁ hle₁, TShape.LE.refl hw₁, TShape.bot_le' rfl⟩
-    | refl _ hle₂ =>
-      exact ⟨_, hwz, .refl hwz (TShape.LE.refl hwz),
-        hle₁.trans hΔ (TShape.LE.refl_of hΔ), hle₂.trans hΔ (TShape.LE.refl_of hΔ)⟩
+  | refl hw₁ hle₁
+  cases h₂ with
+  | bot => exact ⟨_, hw₁, .refl hw₁ hle₁, TShape.LE.refl hw₁, TShape.bot_le' rfl⟩
+  | refl _ hle₂
+  exact ⟨_, hwz, .refl hwz (TShape.LE.refl hwz),
+    hle₁.trans hΔ (TShape.LE.refl_of hΔ), hle₂.trans hΔ (TShape.LE.refl_of hΔ)⟩
 
 /-- **Directedness for `.tr`** — the case the plan called open, and the
 case `SoundJoin` was meant for.  In the event it goes through
@@ -1082,48 +1012,47 @@ theorem dir_tr {Γ : List Term} {r : Bool} {A a b C X H : Term} {u : Bool}
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
   | bot => exact ⟨_, h₂.wf, h₂, TShape.bot_le' rfl, TShape.LE.refl h₂.wf⟩
-  | tr hw₁ hle₁ hX₁ ha₁ hb₁ hA₁ hwv₁ hNVb₁ hvc₁ hC₁ hcb₁ hNV2b₁ hcbc₁ hH₁ heq₁ hAt hat
-      hbt =>
-    cases h₂ with
-    | bot =>
-      exact ⟨_, hX₁.wf, .tr hX₁.wf (TShape.LE.refl hX₁.wf) hX₁ ha₁ hb₁ hA₁ hwv₁ hNVb₁
-        hvc₁ hC₁ hcb₁ hNV2b₁ hcbc₁ hH₁ heq₁ hAt hat hbt, hle₁, TShape.bot_le' rfl⟩
-    | tr hw₂ hle₂ hX₂ ha₂ hb₂ hA₂ hwv₂ hNVb₂ hvc₂ hC₂ hcb₂ hNV2b₂ hcbc₂ hH₂ _ _ _ _ =>
-      -- the witness: the join interprets both endpoints
-      have ⟨hcv, hav⟩ := iha.join hΔ W hwρ ha₁ ha₂
-      have ⟨_, hbv⟩ := ihb.join hΔ W hwρ hb₁ hb₂
-      have hwv := TShape.WF.join hΔ hcv hwv₁ hwv₂
-      have hvle := TShape.le_join hΔ hwv₁ hwv₂ hcv
-      -- its type
-      have ⟨hcA, hAv⟩ := ihA.join hΔ W hwρ hA₁ hA₂
-      have hvAty := TShape.HasType.join hΔ hcA (TShape.Named.of_isType hNVb₁.hasType.isType)
-        (TShape.Named.of_isType hNVb₂.hasType.isType)
-      have hvAle := TShape.le_join hΔ hNVb₁.hasType.isType.wf.1 hNVb₂.hasType.isType.wf.1 hcA
-      have hty := TShape.Named.join hΔ hcv
-        (TShape.Named.mono_r hΔ hNVb₁ hvAle.1 hvAty) (TShape.Named.mono_r hΔ hNVb₂ hvAle.2 hvAty)
-      -- the motive, at the joined slot
-      have WA : Ctx.SubstEq Δ (σ.cons (b.subst σ)) (σ.cons (b.subst σ)) (A :: Γ) :=
-        .cons W hA (hb.subst hΔ W)
-      have hC₁' := Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hvle.1⟩) hC₁
-      have hC₂' := Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hvle.2⟩) hC₂
-      have ⟨hccb, hcbv⟩ :=
-        ihC.join hΔ WA (Valuation.WF.push hwρ hwv) hC₁' hC₂'
-      have hcbty := TShape.HasType.join hΔ hccb (TShape.Named.of_isType hcb₁)
-        (TShape.Named.of_isType hcb₂)
-      have hcble := TShape.le_join hΔ hcb₁.wf.1 hcb₂.wf.1 hccb
-      -- the transported shape
-      have ⟨hcm, hXv⟩ := ihX.join hΔ W hwρ hX₁ hX₂
-      have hm'ty := TShape.Named.join hΔ hcm
-        (TShape.Named.mono_r hΔ hNV2b₁ hcble.1 hcbty) (TShape.Named.mono_r hΔ hNV2b₂ hcble.2 hcbty)
-      have hm'le := TShape.le_join hΔ hNV2b₁.hasType.wf.1 hNV2b₂.hasType.wf.1 hcm
-      -- and the proof premise, by `H`'s own directedness
-      have hwm' := TShape.WF.join hΔ hcm hNV2b₁.hasType.wf.1 hNV2b₂.hasType.wf.1
-      -- the slot and its type keep their names through the joins
-      have hvcj := TShape.WF.join hΔ hcA hvc₁ hvc₂
-      have hcbcj := TShape.WF.join hΔ hccb hcbc₁ hcbc₂
-      exact ⟨_, hwm', .tr hwm' (TShape.LE.refl hwm')
-          hXv hav hbv hAv hwv hty hvcj hcbv hcbty hm'ty hcbcj hH₁ heq₁ hAt hat hbt,
-        hle₁.trans hΔ hm'le.1, hle₂.trans hΔ hm'le.2⟩
+  | tr hw₁ hle₁ hX₁ ha₁ hb₁ hA₁ hwv₁ hNVb₁ hvc₁ hC₁ hcb₁ hNV2b₁ hcbc₁ hH₁ heq₁ hAt hat hbt
+  cases h₂ with
+  | bot =>
+    exact ⟨_, hX₁.wf, .tr hX₁.wf (TShape.LE.refl hX₁.wf) hX₁ ha₁ hb₁ hA₁ hwv₁ hNVb₁
+      hvc₁ hC₁ hcb₁ hNV2b₁ hcbc₁ hH₁ heq₁ hAt hat hbt, hle₁, TShape.bot_le' rfl⟩
+  | tr hw₂ hle₂ hX₂ ha₂ hb₂ hA₂ hwv₂ hNVb₂ hvc₂ hC₂ hcb₂ hNV2b₂ hcbc₂ hH₂ _ _ _ _
+  -- the witness: the join interprets both endpoints
+  have ⟨hcv, hav⟩ := iha.join hΔ W hwρ ha₁ ha₂
+  have ⟨_, hbv⟩ := ihb.join hΔ W hwρ hb₁ hb₂
+  have hwv := TShape.WF.join hΔ hcv hwv₁ hwv₂
+  have hvle := TShape.le_join hΔ hwv₁ hwv₂ hcv
+  -- its type
+  have ⟨hcA, hAv⟩ := ihA.join hΔ W hwρ hA₁ hA₂
+  have hvAty := TShape.HasType.join hΔ hcA (TShape.Named.of_isType hNVb₁.hasType.isType)
+    (TShape.Named.of_isType hNVb₂.hasType.isType)
+  have hvAle := TShape.le_join hΔ hNVb₁.hasType.isType.wf.1 hNVb₂.hasType.isType.wf.1 hcA
+  have hty := TShape.Named.join hΔ hcv
+    (TShape.Named.mono_r hΔ hNVb₁ hvAle.1 hvAty) (TShape.Named.mono_r hΔ hNVb₂ hvAle.2 hvAty)
+  -- the motive, at the joined slot
+  have WA : Ctx.SubstEq Δ (σ.cons (b.subst σ)) (σ.cons (b.subst σ)) (A :: Γ) :=
+    .cons W hA (hb.subst hΔ W)
+  have hC₁' := Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hvle.1⟩) hC₁
+  have hC₂' := Interp.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hvle.2⟩) hC₂
+  have ⟨hccb, hcbv⟩ :=
+    ihC.join hΔ WA (Valuation.WF.push hwρ hwv) hC₁' hC₂'
+  have hcbty := TShape.HasType.join hΔ hccb (TShape.Named.of_isType hcb₁)
+    (TShape.Named.of_isType hcb₂)
+  have hcble := TShape.le_join hΔ hcb₁.wf.1 hcb₂.wf.1 hccb
+  -- the transported shape
+  have ⟨hcm, hXv⟩ := ihX.join hΔ W hwρ hX₁ hX₂
+  have hm'ty := TShape.Named.join hΔ hcm
+    (TShape.Named.mono_r hΔ hNV2b₁ hcble.1 hcbty) (TShape.Named.mono_r hΔ hNV2b₂ hcble.2 hcbty)
+  have hm'le := TShape.le_join hΔ hNV2b₁.hasType.wf.1 hNV2b₂.hasType.wf.1 hcm
+  -- and the proof premise, by `H`'s own directedness
+  have hwm' := TShape.WF.join hΔ hcm hNV2b₁.hasType.wf.1 hNV2b₂.hasType.wf.1
+  -- the slot and its type keep their names through the joins
+  have hvcj := TShape.WF.join hΔ hcA hvc₁ hvc₂
+  have hcbcj := TShape.WF.join hΔ hccb hcbc₁ hcbc₂
+  exact ⟨_, hwm', .tr hwm' (TShape.LE.refl hwm')
+      hXv hav hbv hAv hwv hty hvcj hcbv hcbty hm'ty hcbcj hH₁ heq₁ hAt hat hbt,
+    hle₁.trans hΔ hm'le.1, hle₂.trans hΔ hm'le.2⟩
 
 /-- **Directedness**, its own induction on typing.
 
