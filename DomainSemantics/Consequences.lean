@@ -977,4 +977,4 @@ theorem not_UIP (uip : ∀ {Γ A M h}, Γ ⊢ h : .id true A M M → Γ ⊢ h �
       (Shape.T (n := 1) (ShapeS.refl)) :=
     .refl hw (TShape.LE.refl hw)
   have h := ((IsDefEq.sound hΓ uip).eq (Adm.bot hΓ (Ctx.SubstEq.id hΓ))).2 hr
-  exact absurd (TShape.le_bot hΓ rfl (Interp.bvar_iff.1 h).2) (by simp [Shape.bot])
+  exact absurd (TShape.le_bot hΓ rfl (Interp.bvar_le h)) (by simp [Shape.bot])

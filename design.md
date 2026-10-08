@@ -184,12 +184,11 @@ already has. Each lemma derives what it needs from a typing in its own
 signature, which is why `Interp.inst` takes no directedness of its
 argument and the `sound_*` lemmas take none of their subterms'.
 
-For a substitution the same fact is `Subst.Good.dir`: a slot of a good
-substitution is either typed, and `IsDefEq.dir` applies, or a variable,
-and `dir_bvar` does. `Subst.Good` says exactly that — "typed in the
-target context or a variable", which is what its docstring always
-claimed — and the substitution lemmas carry it anyway, for strengthening.
-So the merges (`to_substTerm`, `substTerm`, `body_merge`,
+For a substitution the same fact is `Ctx.SubstEq.dir`: the stage types
+the slot, so `IsDefEq.dir` applies. There is no second case, because
+nothing ever asks about a slot the stage does not type — see
+*Where a substitution ends* below. The substitution lemmas carry the
+stage anyway, so the merges (`to_substTerm`, `substTerm`, `body_merge`,
 `Subst.Saturates.lift`, the `Valuation.Approx` joins) have no
 directedness hypothesis either.
 
@@ -197,6 +196,40 @@ The merging lemmas — `to_substTerm`, `substTerm`, `inst`, `body_merge` —
 are about `Interp` alone but each needs a slot's two approximants joined,
 so they sit after `IsDefEq.dir` rather than beside the rest of `Interp`'s
 theory.
+
+### Where a substitution ends
+
+A `Subst` is `Nat → Term` and a `Valuation` is `Nat → TShape`: both are
+total, so both have slots past the end of the context they belong to.
+`Subst.one a` is the example — slot `0` is the argument and slot `i+1` is
+`.bvar i`, for every `i`, in range or not. Those slots are junk, and
+every relation on valuations is quantified so as not to mention them:
+
+    Valuation.LE Δ Γ ρ ρ'        ∀ {{i A}}, Lookup Γ i A → TShape.LE Δ (ρ i) (ρ' i)
+    Valuation.WF Δ Γ ρ           ∀ {{i A}}, Lookup Γ i A → TShape.WF Δ (ρ i)
+    Valuation.Approx Δ Γ' Γ θ σ ρ ρ'
+                                 ∀ {{i A}}, Lookup Γ i A → Interp Δ Γ' (θ i) σ ρ (ρ' i)
+
+`Approx` names two contexts because a substitution has two: `Γ` is its
+source, which is what says where it ends, and `Γ'` its target, where the
+approximants live. `Ctx.SubstEq Γ' θ θ Γ` types exactly the slots these
+quantifiers reach, which is why it is the only premise the merges need —
+it is both the typing and the bound.
+
+Two definitions supply the bound rather than consume it. `Interp.bvar`
+carries the variable's `Lookup`, which is what `Interp.mono_val` applies
+the order at, and `Term.Annot`'s variable case states it, which is what
+`Interp.unweak` reads to know an index survives the descent. The bound is
+a `Lookup` rather than `i < Γ.length` because `Lookup.weak'` already
+transports it across a context lift; a numeric bound would need a new
+transport lemma at every index-moving step.
+
+This is why there is no predicate saying a substitution's junk is
+harmless. An earlier version had one — `Subst.Good`, "every slot is typed
+in the target or is a variable" — carried by every merge and read for
+both strengthening and directedness. It existed only because the
+valuation relations ranged over every natural number. Bounding them
+deleted it.
 
 ## 4. Bookkeeping that replaces the quotient
 

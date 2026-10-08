@@ -445,6 +445,13 @@ theorem Ctx.SubstEq.defeqHead {Γ : List Term} {A A' : Term} {u : Bool} (hΓ : �
   exact (hAA'.weak' (Ctx.Lift'.skip (A := A') .refl)).symm.defeqDF
     (.bvar Lookup.zero (hAA'.hasType.2.weak' (Ctx.Lift'.skip (A := A') .refl)))
 
+/-- The lookup transport `Interp.ctx` asks for when only the head of the
+context changed, which is the only way its callers use it. -/
+theorem Lookup.cons_head {Γ : List Term} {A A' : Term} :
+    ∀ {{i B}}, Lookup (A :: Γ) i B → ∃ B', Lookup (A' :: Γ) i B'
+  | _, _, .zero => ⟨_, .zero⟩
+  | _, _, .succ h => ⟨_, .succ h⟩
+
 /-- The lookup transport `Interp.ctx` asks for, extended by a binder. -/
 theorem Lookup.cons_transport {Γ Γ' : List Term} {A : Term}
     (hL : ∀ {{i B}}, Lookup Γ i B → ∃ B', Lookup Γ' i B') :
@@ -910,11 +917,11 @@ clause is rebuilt verbatim, with `subst_subst` for the labels and
 theorem Interp.of_substTerm {Δ Γ : List Term} {t : Term} {τ ρ' m} (hΔ : ⊢ Δ)
     (H : Interp Δ Γ t τ ρ' m) :
     ∀ {Γ' : List Term} {θ σ ρ}, ⊢ Γ' → Ctx.SubstEq Γ' θ θ Γ → τ = θ.comp σ →
-      (∀ i, Interp Δ Γ' (θ i) σ ρ (ρ' i)) →
+      (∀ {{i A'}}, Lookup Γ i A' → Interp Δ Γ' (θ i) σ ρ (ρ' i)) →
       Interp Δ Γ' (t.subst θ) σ ρ m := by
   induction H with
   | bot => intro _ _ _ _ _ _ _ _; exact .bot
-  | bvar hlk hw h1 => intro _ _ _ _ _ _ _ hθ; exact Interp.mono hΔ hw h1 (hθ _)
+  | bvar hlk hw h1 => intro _ _ _ _ _ _ _ hθ; exact Interp.mono hΔ hw h1 (hθ hlk)
   | sort hw h1 => intro _ _ _ _ _ _ _ _; exact .sort hw h1
   | unit hw h1 => intro _ _ _ _ _ _ _ _; exact .unit hw h1
   | nat hw h1 => intro _ _ _ _ _ _ _ _; exact .nat hw h1
@@ -933,10 +940,10 @@ theorem Interp.of_substTerm {Δ Γ : List Term} {t : Term} {τ ρ' m} (hΔ : ⊢
     obtain ⟨u, hAty⟩ := hAt
     have hAθ : Γ' ⊢ A.subst θ ≡ A.subst θ : Term.sort u := hAty.subst hΓ' Wθ
     refine .lam (ihA hΓ' Wθ rfl hθ) hd hwf hNV (fun e he => ?_) hw h1 ⟨u, hAθ⟩
-    refine ihbody e he ⟨hΓ', _, hAθ⟩ (Wθ.lift hAty hAθ) Subst.lift_comp_cons.symm (fun i => ?_)
-    cases i with
+    refine ihbody e he ⟨hΓ', _, hAθ⟩ (Wθ.lift hAty hAθ) Subst.lift_comp_cons.symm (fun {_ _} hlk => ?_)
+    cases hlk with
     | zero => exact .bvar .zero (hwf.2.2.1.1 e he).2.2.1 (TShape.LE.refl (hwf.2.2.1.1 e he).2.2.1)
-    | succ i => exact Interp.weak' (l := .skip .refl) hΓ' (hθ i) (.skip .refl) (fun _ => rfl)
+    | succ hlk => exact Interp.weak' (l := .skip .refl) hΓ' (hθ hlk) (.skip .refl) (fun _ => rfl)
   | @forallE _ _ _ _ _ _ _ A B hA hd hwf hNV hbody hw h1 hAt hBt ihA ihbody =>
     intro Γ' θ σ ρ hΓ' Wθ hτ hθ
     subst hτ
@@ -947,11 +954,11 @@ theorem Interp.of_substTerm {Δ Γ : List Term} {t : Term} {τ ρ' m} (hΔ : ⊢
     have hΓ'A : ⊢ (A.subst θ :: Γ') := ⟨hΓ', _, hAθ⟩
     refine .forallE (ihA hΓ' Wθ rfl hθ) hd hwf hNV (fun e he => ?_) hw h1
       ⟨u, hAθ⟩ ⟨v, hBty.subst hΓ'A (Wθ.lift hAty hAθ)⟩
-    · refine ihbody e he hΓ'A (Wθ.lift hAty hAθ) Subst.lift_comp_cons.symm (fun i => ?_)
-      cases i with
+    · refine ihbody e he hΓ'A (Wθ.lift hAty hAθ) Subst.lift_comp_cons.symm (fun {_ _} hlk => ?_)
+      cases hlk with
       | zero =>
         exact .bvar .zero (hwf.2.2.2.1.1 e he).2.2.1 (TShape.LE.refl (hwf.2.2.2.1.1 e he).2.2.1)
-      | succ i => exact Interp.weak' (l := .skip .refl) hΓ' (hθ i) (.skip .refl) (fun _ => rfl)
+      | succ hlk => exact Interp.weak' (l := .skip .refl) hΓ' (hθ hlk) (.skip .refl) (fun _ => rfl)
   | @sigma _ _ _ _ _ _ _ A B hA hd hwf hNV hbody hw h1 hAt hBt ihA ihbody =>
     intro Γ' θ σ ρ hΓ' Wθ hτ hθ
     subst hτ
@@ -962,11 +969,11 @@ theorem Interp.of_substTerm {Δ Γ : List Term} {t : Term} {τ ρ' m} (hΔ : ⊢
     have hΓ'A : ⊢ (A.subst θ :: Γ') := ⟨hΓ', _, hAθ⟩
     refine .sigma (ihA hΓ' Wθ rfl hθ) hd hwf hNV (fun e he => ?_) hw h1
       ⟨u, hAθ⟩ ⟨v, hBty.subst hΓ'A (Wθ.lift hAty hAθ)⟩
-    · refine ihbody e he hΓ'A (Wθ.lift hAty hAθ) Subst.lift_comp_cons.symm (fun i => ?_)
-      cases i with
+    · refine ihbody e he hΓ'A (Wθ.lift hAty hAθ) Subst.lift_comp_cons.symm (fun {_ _} hlk => ?_)
+      cases hlk with
       | zero =>
         exact .bvar .zero (hwf.2.2.2.1.1 e he).2.2.1 (TShape.LE.refl (hwf.2.2.2.1.1 e he).2.2.1)
-      | succ i => exact Interp.weak' (l := .skip .refl) hΓ' (hθ i) (.skip .refl) (fun _ => rfl)
+      | succ hlk => exact Interp.weak' (l := .skip .refl) hΓ' (hθ hlk) (.skip .refl) (fun _ => rfl)
   | pair _ _ _ hd hNV hdc hwf _ hcty hw h1 hAt hat iha ihb ihA ihcode =>
     intro Γ' θ σ ρ hΓ' Wθ hτ hθ
     subst hτ
@@ -977,11 +984,11 @@ theorem Interp.of_substTerm {Δ Γ : List Term} {t : Term} {τ ρ' m} (hΔ : ⊢
       (by simpa [← subst_subst] using hwf) ?_ hcty hw
       (by simpa [← subst_subst] using h1) ⟨u, hAθ⟩ (hat.subst hΓ' Wθ)
     refine ihcode ⟨hΓ', _, hAθ⟩ (Wθ.lift hAty hAθ)
-      (by rw [← subst_subst]; exact Subst.lift_comp_cons.symm) (fun i => ?_)
-    cases i with
+      (by rw [← subst_subst]; exact Subst.lift_comp_cons.symm) (fun {_ _} hlk => ?_)
+    cases hlk with
     | zero =>
       exact .bvar .zero (TShape.WF.T.2 hwf.2.2.2.1) (TShape.LE.refl (TShape.WF.T.2 hwf.2.2.2.1))
-    | succ i => exact Interp.weak' (l := .skip .refl) hΓ' (hθ i) (.skip .refl) (fun _ => rfl)
+    | succ hlk => exact Interp.weak' (l := .skip .refl) hΓ' (hθ hlk) (.skip .refl) (fun _ => rfl)
   | fst _ hw h1 ihp =>
     intro _ _ _ _ hΓ' Wθ hτ hθ; exact .fst (ihp hΓ' Wθ hτ hθ) hw h1
   | snd _ hlab hw h1 hty ihp =>
@@ -1001,10 +1008,10 @@ theorem Interp.of_substTerm {Δ Γ : List Term} {t : Term} {τ ρ' m} (hΔ : ⊢
     rw [← subst_subst] at heq
     refine .natCase_succ (ihM hΓ' Wθ rfl hθ) hwv heq ?_ (by simpa using hMt.subst hΓ' Wθ)
     refine ihb (θ := θ.lift) ⟨hΓ', _, (.nat : Γ' ⊢ Term.nat : Term.type)⟩
-      (by simpa using Wθ.lift (.nat) (.nat)) Subst.lift_comp_cons.symm (fun i => ?_)
-    cases i with
+      (by simpa using Wθ.lift (.nat) (.nat)) Subst.lift_comp_cons.symm (fun {_ _} hlk => ?_)
+    cases hlk with
     | zero => exact .bvar .zero (TShape.WF.T.2 hwv) (TShape.LE.refl (TShape.WF.T.2 hwv))
-    | succ i => exact Interp.weak' (l := .skip .refl) hΓ' (hθ i) (.skip .refl) (fun _ => rfl)
+    | succ hlk => exact Interp.weak' (l := .skip .refl) hΓ' (hθ hlk) (.skip .refl) (fun _ => rfl)
   | @Y _ _ _ _ A b _ _ _ hwx _ hdty hNV hdc _ hAt hYt ihself ihA ihb =>
     intro Γ' θ σ ρ hΓ' Wθ hτ hθ
     subst hτ
@@ -1014,10 +1021,10 @@ theorem Interp.of_substTerm {Δ Γ : List Term} {t : Term} {τ ρ' m} (hΔ : ⊢
     refine .Y (ihself hΓ' Wθ rfl hθ) hwx (ihA hΓ' Wθ rfl hθ) hdty hNV hdc ?_ ⟨u, hAθ⟩
       (by simpa using hYt.subst hΓ' Wθ)
     simp only [Term.subst, subst_subst, ← Subst.comp_lift]
-    refine ihb ⟨hΓ', _, hAθ⟩ (Wθ.lift hAty hAθ) Subst.lift_comp_cons.symm (fun i => ?_)
-    cases i with
+    refine ihb ⟨hΓ', _, hAθ⟩ (Wθ.lift hAty hAθ) Subst.lift_comp_cons.symm (fun {_ _} hlk => ?_)
+    cases hlk with
     | zero => exact .bvar .zero hwx (TShape.LE.refl hwx)
-    | succ i => exact Interp.weak' (l := .skip .refl) hΓ' (hθ i) (.skip .refl) (fun _ => rfl)
+    | succ hlk => exact Interp.weak' (l := .skip .refl) hΓ' (hθ hlk) (.skip .refl) (fun _ => rfl)
   | id hw h1 hAt hat hbt =>
     intro Γ' θ σ ρ hΓ' Wθ hτ hθ
     subst hτ
@@ -1042,10 +1049,10 @@ theorem Interp.of_substTerm {Δ Γ : List Term} {t : Term} {τ ρ' m} (hΔ : ⊢
       (fun hr => by simpa only [← subst_subst] using hH hr) heq
       ⟨u, hAθ⟩ (hat.subst hΓ' Wθ) (hbt.subst hΓ' Wθ)
     rw [subst_subst]
-    refine ihC ⟨hΓ', _, hAθ⟩ (Wθ.lift hAty hAθ) Subst.lift_comp_cons.symm (fun i => ?_)
-    cases i with
+    refine ihC ⟨hΓ', _, hAθ⟩ (Wθ.lift hAty hAθ) Subst.lift_comp_cons.symm (fun {_ _} hlk => ?_)
+    cases hlk with
     | zero => exact .bvar .zero hwv (TShape.LE.refl hwv)
-    | succ i => exact Interp.weak' (l := .skip .refl) hΓ' (hθ i) (.skip .refl) (fun _ => rfl)
+    | succ hlk => exact Interp.weak' (l := .skip .refl) hΓ' (hθ hlk) (.skip .refl) (fun _ => rfl)
 
 /-- **Strengthening along a renaming**, the direction `Interp.weak'` does
 not give.  With the labels' typings in the clauses this is no longer a
@@ -1573,15 +1580,17 @@ merge are here. -/
 
 def Valuation.join (ρ₁ ρ₂ : Valuation) : Valuation := fun i => (ρ₁ i).join (ρ₂ i)
 
-/-- A valuation whose every slot over `Γ`'s variables approximates the
-corresponding `θ i`.  `Γ` is the substitution's *source*, so this says
-nothing about `θ`'s junk slots, which is why nothing is ever asked of
-them: `Ctx.SubstEq Γ' θ θ Γ` types exactly the slots mentioned here. -/
-def Valuation.Approx (Δ Γ : List Term) (θ σ : Subst) (ρ ρ' : Valuation) : Prop :=
-  ∀ {{i A}}, Lookup Γ i A → Interp Δ Γ (θ i) σ ρ (ρ' i)
+/-- A valuation whose every slot approximates the corresponding `θ i`,
+over the variables of `Γ` — the substitution's **source** — with the
+approximants living in `Γ'`, its target.  The two contexts are separate
+because that is the only way to say where the substitution ends: `θ` is
+total, so it has junk past `Γ`, and `Ctx.SubstEq Γ' θ θ Γ` types exactly
+the slots named here. -/
+def Valuation.Approx (Δ Γ' Γ : List Term) (θ σ : Subst) (ρ ρ' : Valuation) : Prop :=
+  ∀ {{i A}}, Lookup Γ i A → Interp Δ Γ' (θ i) σ ρ (ρ' i)
 
-theorem Valuation.Approx.nil {Δ Γ : List Term} {θ σ ρ} :
-    Valuation.Approx Δ Γ θ σ ρ Valuation.nil := fun {_ _} _ => .bot
+theorem Valuation.Approx.nil {Δ Γ' Γ : List Term} {θ σ ρ} :
+    Valuation.Approx Δ Γ' Γ θ σ ρ Valuation.nil := fun {_ _} _ => .bot
 
 theorem Interp.tr_bot_of_ne {Δ Γ : List Term} {r : Bool} {A a b C X H : Term} {σ ρ m}
     (h : Interp Δ Γ (.tr r A a b C X H) σ ρ m)
@@ -1699,8 +1708,8 @@ at the `Γ` side, each an immediate consequence of the subterm's own
 substitution, which is the only kind that arises, and `Saturates.lift`
 carries it under a binder. -/
 def Subst.Saturates (Δ Γ Γ' : List Term) (θ σ : Subst) (ρ : Valuation) : Prop :=
-  ∀ {{ρ'}}, Valuation.Approx Δ Γ' θ σ ρ ρ' →
-    ∃ ρ'', Valuation.LE Δ Γ' ρ' ρ'' ∧ Valuation.Approx Δ Γ' θ σ ρ ρ'' ∧
+  ∀ {{ρ'}}, Valuation.Approx Δ Γ' Γ θ σ ρ ρ' →
+    ∃ ρ'', Valuation.LE Δ Γ ρ' ρ'' ∧ Valuation.Approx Δ Γ' Γ θ σ ρ ρ'' ∧
       Adm Δ Γ (θ.comp σ) ρ''
 
 /-- Every approximant of `A` at an admissible stage is a type:

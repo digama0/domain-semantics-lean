@@ -15,7 +15,8 @@ Because it stands alone, directedness holds of every well-typed term
 before anything downstream runs — so nothing downstream carries a
 directedness premise, and `SoundDir` is not mentioned outside this file.
 A lemma that needs two approximants joined takes a *typing* and reads
-`IsDefEq.dir`; a substitution's slots go through `Subst.Good.dir`. -/
+`IsDefEq.dir`; a substitution's in-range slots go through
+`Ctx.SubstEq.dir`, and nothing asks about the others. -/
 
 namespace DomainSemantics
 
@@ -48,13 +49,13 @@ fixedness to collapse; ours names the label and looks up once.
 The conclusion is his `IsDirected` — a common upper bound *in the set* —
 rather than master's `Compat ∧ join`, which is `SoundDir.join`. -/
 def SoundDir (Γ : List Term) (t : Term) : Prop :=
-  ∀ {{Δ : List Term}} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Valuation.WF Δ ρ →
+  ∀ {{Δ : List Term}} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Valuation.WF Δ Γ ρ →
     ∀ {{m₁ m₂}}, Interp Δ Γ t σ ρ m₁ → Interp Δ Γ t σ ρ m₂ →
       ∃ s, TShape.WF Δ s ∧ Interp Δ Γ t σ ρ s ∧ TShape.LE Δ m₁ s ∧ TShape.LE Δ m₂ s
 
 /-- Directedness gives compatibility and the join, master's form. -/
 theorem SoundDir.join {Γ : List Term} {t} (h : SoundDir Γ t) {Δ σ ρ} (hΔ : ⊢ Δ)
-    (W : Ctx.SubstEq Δ σ σ Γ) (hρ : Valuation.WF Δ ρ) {m₁ m₂}
+    (W : Ctx.SubstEq Δ σ σ Γ) (hρ : Valuation.WF Δ Γ ρ) {m₁ m₂}
     (h₁ : Interp Δ Γ t σ ρ m₁) (h₂ : Interp Δ Γ t σ ρ m₂) :
     TShape.Compat Δ m₁ m₂ ∧ Interp Δ Γ t σ ρ (m₁.join m₂) := by
   obtain ⟨s, hws, hs, hle₁, hle₂⟩ := h hΔ W hρ h₁ h₂
@@ -68,15 +69,16 @@ theorem dir_of_bot {Γ : List Term} {t : Term}
   exact ⟨.bot, trivial, .of_bot rfl, TShape.bot_le' (h hm₁), TShape.bot_le' (h hm₂)⟩
 
 /-- Directedness for a variable: its slot bounds everything. -/
-theorem dir_bvar {Γ : List Term} {i : Nat} : SoundDir Γ (.bvar i) := by
+theorem dir_bvar {Γ : List Term} {i : Nat} {A : Term} (hlk : Lookup Γ i A) :
+    SoundDir Γ (.bvar i) := by
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
-  refine ⟨ρ i, hwρ i, .bvar (hwρ i) (TShape.LE.refl (hwρ i)), ?_, ?_⟩
+  refine ⟨ρ i, hwρ hlk, .bvar hlk (hwρ hlk) (TShape.LE.refl (hwρ hlk)), ?_, ?_⟩
   · cases h₁ with
     | bot => exact TShape.bot_le' rfl
-    | bvar _ hle => exact hle
+    | bvar _ _ hle => exact hle
   · cases h₂ with
     | bot => exact TShape.bot_le' rfl
-    | bvar _ hle => exact hle
+    | bvar _ _ hle => exact hle
 
 /-- Directedness for such a term: the canonical shape bounds everything. -/
 theorem dir_atom {Γ : List Term} {t : Term} {s : TShape}
@@ -181,7 +183,7 @@ theorem sound_forallE_dir {Γ : List Term} {A B : Term} {u v : Bool}
     have hwa := hwf₁.2.2.2.1.1 a ha
     have hwb := hwf₂.2.2.2.1.1 b hb
     have Wc : Ctx.SubstEq Θ (σ.comp τ) (σ.comp τ) Γ := Ctx.SubstEq.comp hΘ Wτ W
-    have hwρτ : Valuation.WF Θ (ρ.subst τ) := Valuation.WF.subst hΘ Wτ hwρ
+    have hwρτ : Valuation.WF Θ Γ (ρ.subst τ) := Valuation.WF.subst hΘ Wτ hwρ
     -- the two inputs, read at the common level, and their join
     rw [← Shape.lift_subst, ← Shape.lift_subst] at hin
     have hwx₁ : TShape.WF Θ (Shape.T ((a.inp.subst τ).lift (max n₁ n₂))) :=
@@ -341,7 +343,7 @@ theorem sound_sigma_dir {Γ : List Term} {A B : Term} {u v : Bool}
     have hwa := hwf₁.2.2.2.1.1 a ha
     have hwb := hwf₂.2.2.2.1.1 b hb
     have Wc : Ctx.SubstEq Θ (σ.comp τ) (σ.comp τ) Γ := Ctx.SubstEq.comp hΘ Wτ W
-    have hwρτ : Valuation.WF Θ (ρ.subst τ) := Valuation.WF.subst hΘ Wτ hwρ
+    have hwρτ : Valuation.WF Θ Γ (ρ.subst τ) := Valuation.WF.subst hΘ Wτ hwρ
     -- the two inputs, read at the common level, and their join
     rw [← Shape.lift_subst, ← Shape.lift_subst] at hin
     have hwx₁ : TShape.WF Θ (Shape.T ((a.inp.subst τ).lift (max n₁ n₂))) :=
@@ -472,7 +474,7 @@ theorem sound_lam_dir {Γ : List Term} {A B b : Term} {u : Bool}
     have hwa := hwf₁.2.2.1.1 a ha
     have hwc := hwf₂.2.2.1.1 c hc
     have Wc : Ctx.SubstEq Θ (σ.comp τ) (σ.comp τ) Γ := Ctx.SubstEq.comp hΘ Wτ W
-    have hwρτ : Valuation.WF Θ (ρ.subst τ) := Valuation.WF.subst hΘ Wτ hwρ
+    have hwρτ : Valuation.WF Θ Γ (ρ.subst τ) := Valuation.WF.subst hΘ Wτ hwρ
     rw [← Shape.lift_subst, ← Shape.lift_subst] at hin
     have hwx₁ : TShape.WF Θ (Shape.T ((a.inp.subst τ).lift (max n₁ n₂))) :=
       (Shape.lift_wf k₁).2 (Shape.WF.subst hΘ Wτ hwa.2.2.1)
@@ -594,9 +596,9 @@ theorem dir_pair {Γ : List Term} {A B a b : Term}
   have hwx₁ : TShape.WF Δ (Shape.T x₁) := TShape.WF.T.2 hwf₁.2.2.2.1
   have hwx₂ : TShape.WF Δ (Shape.T x₂) := TShape.WF.T.2 hwf₂.2.2.2.1
   -- the codes, read at the joined slot and joined there
-  have hle₁ : Valuation.LE Δ (ρ.push (Shape.T x₁)) (ρ.push (Shape.T x₁ |>.join (Shape.T x₂))) :=
+  have hle₁ : Valuation.LE Δ (A :: Γ) (ρ.push (Shape.T x₁)) (ρ.push (Shape.T x₁ |>.join (Shape.T x₂))) :=
     Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, (TShape.le_join hΔ hwx₁ hwx₂ hcx).1⟩
-  have hle₂ : Valuation.LE Δ (ρ.push (Shape.T x₂)) (ρ.push (Shape.T x₁ |>.join (Shape.T x₂))) :=
+  have hle₂ : Valuation.LE Δ (A :: Γ) (ρ.push (Shape.T x₂)) (ρ.push (Shape.T x₁ |>.join (Shape.T x₂))) :=
     Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, (TShape.le_join hΔ hwx₁ hwx₂ hcx).2⟩
   have hcode₁' := Interp.mono_val hΔ hle₁ hcode₁
   have hcode₂' := Interp.mono_val hΔ hle₂ hcode₂
@@ -933,7 +935,7 @@ substitution into `A :: Γ`, which is what lets the body's `SoundDir` be
 applied at all. -/
 theorem dir_Y_aux {Δ : List Term} (hΔ : ⊢ Δ) {Γ : List Term} {t : Term} {σ ρ} {m₁ : TShape}
     (h₁ : Interp Δ Γ t σ ρ m₁) :
-    ∀ {A b : Term}, t = .Y A b → Valuation.WF Δ ρ → Ctx.SubstEq Δ σ σ Γ →
+    ∀ {A b : Term}, t = .Y A b → Valuation.WF Δ Γ ρ → Ctx.SubstEq Δ σ σ Γ →
       Ctx.SubstEq Δ (σ.cons ((A.Y b).subst σ)) (σ.cons ((A.Y b).subst σ)) (A :: Γ) →
       SoundDir Γ A → SoundDir (A :: Γ) b → ∀ {m₂}, Interp Δ Γ t σ ρ m₂ →
         ∃ s, TShape.WF Δ s ∧ Interp Δ Γ t σ ρ s ∧ TShape.LE Δ m₁ s ∧ TShape.LE Δ m₂ s := by
@@ -1087,7 +1089,7 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
       sound_forallE_dir hΓ hAA'.hasType.2 hB'.hasType.2 (ihA hΓ).2 (ihB' ⟨hΓ, _, hAA'.hasType.2⟩).2⟩
   -- `bvar` reads the slot's well-formedness off `Valuation.WF`; the rest
   -- are one per term former, each the other repo's `*_isDirected`
-  | bvar => exact and_self_iff.2 dir_bvar
+  | bvar h => exact and_self_iff.2 (dir_bvar h)
   -- the λ-shape's domain label is what makes this one standalone (§5.5b)
   | appDF _ _ _ _ _ _ _ ihf iha _ =>
     exact ⟨dir_app (ihf hΓ).1 (iha hΓ).1, dir_app (ihf hΓ).2 (iha hΓ).2⟩
@@ -1147,45 +1149,47 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
   | tr_refl _ _ _ _ _ _ _ _ ih₄ ih₅ => exact ⟨(ih₅ hΓ).1, (ih₄ hΓ).1⟩
   | proofIrrel _ _ _ _ ih₂ ih₃ => exact ⟨(ih₂ hΓ).1, (ih₃ hΓ).1⟩
 
-/-- **Every slot of a good substitution is directed.**  A slot is either
-typed, and then `IsDefEq.dir` applies, or a variable, and then `dir_bvar`
-does.  This is why none of the substitution lemmas carries a directedness
-premise: `Subst.Good` is already on all of them, for strengthening. -/
-theorem Subst.Good.dir {Γ' : List Term} {θ : Subst} (hΓ' : ⊢ Γ')
-    (h : Subst.Good Γ' θ) (i : Nat) : SoundDir Γ' (θ i) := by
-  match h i with
-  | .inl ⟨_, ht⟩ => exact (IsDefEq.dir hΓ' ht).1
-  | .inr ⟨_, hk⟩ => rw [hk]; exact dir_bvar
+/-- **Every in-range slot of a typed substitution is directed.**  The
+stage types the slot, so `IsDefEq.dir` applies.  Out of range there is
+nothing to say and nothing asks, which is why none of the substitution
+lemmas carries a directedness premise: the stage's typing is already on
+all of them. -/
+theorem Ctx.SubstEq.dir {Γ Γ' : List Term} {θ : Subst} (hΓ' : ⊢ Γ')
+    (Wθ : Ctx.SubstEq Γ' θ θ Γ) {i A} (hlk : Lookup Γ i A) : SoundDir Γ' (θ i) :=
+  (IsDefEq.dir hΓ' (Wθ.lookup hlk)).1
 
-theorem Valuation.Approx.join {Δ Γ : List Term} {θ σ ρ ρ₁ ρ₂} (hΔ : ⊢ Δ)
-    (W : Ctx.SubstEq Δ σ σ Γ) (hwρ : Valuation.WF Δ ρ) (hgood : Subst.Good Γ θ)
-    (h₁ : Valuation.Approx Δ Γ θ σ ρ ρ₁) (h₂ : Valuation.Approx Δ Γ θ σ ρ ρ₂) :
-    Valuation.Approx Δ Γ θ σ ρ (ρ₁.join ρ₂) ∧
-      Valuation.LE Δ ρ₁ (ρ₁.join ρ₂) ∧ Valuation.LE Δ ρ₂ (ρ₁.join ρ₂) := by
-  have key : ∀ i, Interp Δ Γ (θ i) σ ρ ((ρ₁.join ρ₂) i) ∧
+theorem Valuation.Approx.join {Δ Γ Γ' : List Term} {θ σ ρ ρ₁ ρ₂} (hΔ : ⊢ Δ)
+    (W : Ctx.SubstEq Δ σ σ Γ') (hwρ : Valuation.WF Δ Γ' ρ) (hΓ' : ⊢ Γ')
+    (Wθ : Ctx.SubstEq Γ' θ θ Γ)
+    (h₁ : Valuation.Approx Δ Γ' Γ θ σ ρ ρ₁) (h₂ : Valuation.Approx Δ Γ' Γ θ σ ρ ρ₂) :
+    Valuation.Approx Δ Γ' Γ θ σ ρ (ρ₁.join ρ₂) ∧
+      Valuation.LE Δ Γ ρ₁ (ρ₁.join ρ₂) ∧ Valuation.LE Δ Γ ρ₂ (ρ₁.join ρ₂) :=
+  have key : ∀ {{i A}}, Lookup Γ i A → Interp Δ Γ' (θ i) σ ρ ((ρ₁.join ρ₂) i) ∧
       TShape.LE Δ (ρ₁ i) ((ρ₁.join ρ₂) i) ∧ TShape.LE Δ (ρ₂ i) ((ρ₁.join ρ₂) i) := by
-    intro i
-    obtain ⟨hc, hj⟩ := (hgood.dir W.wf i).join hΔ W hwρ (h₁ i) (h₂ i)
-    obtain ⟨hl₁, hl₂⟩ := TShape.le_join hΔ (h₁ i).wf (h₂ i).wf hc
+    intro i A hlk
+    obtain ⟨hc, hj⟩ := (Wθ.dir hΓ' hlk).join hΔ W hwρ (h₁ hlk) (h₂ hlk)
+    obtain ⟨hl₁, hl₂⟩ := TShape.le_join hΔ (h₁ hlk).wf (h₂ hlk).wf hc
     exact ⟨hj, hl₁, hl₂⟩
-  exact ⟨fun i => (key i).1, fun i => (key i).2.1, fun i => (key i).2.2⟩
+  ⟨fun {_ _} hlk => (key hlk).1, fun {_ _} hlk => (key hlk).2.1,
+    fun {_ _} hlk => (key hlk).2.2⟩
 
 /-- And a list of them folds to one. -/
-theorem Valuation.Approx.foldr {Δ Γ : List Term} {θ σ ρ} (hΔ : ⊢ Δ)
-    (W : Ctx.SubstEq Δ σ σ Γ) (hwρ : Valuation.WF Δ ρ) (hgood : Subst.Good Γ θ) :
-    ∀ {l : List Valuation}, (∀ ρ' ∈ l, Valuation.Approx Δ Γ θ σ ρ ρ') →
-      Valuation.Approx Δ Γ θ σ ρ (l.foldr Valuation.join Valuation.nil) ∧
-        ∀ ρ' ∈ l, Valuation.LE Δ ρ' (l.foldr Valuation.join Valuation.nil)
+theorem Valuation.Approx.foldr {Δ Γ Γ' : List Term} {θ σ ρ} (hΔ : ⊢ Δ)
+    (W : Ctx.SubstEq Δ σ σ Γ') (hwρ : Valuation.WF Δ Γ' ρ) (hΓ' : ⊢ Γ')
+    (Wθ : Ctx.SubstEq Γ' θ θ Γ) :
+    ∀ {l : List Valuation}, (∀ ρ' ∈ l, Valuation.Approx Δ Γ' Γ θ σ ρ ρ') →
+      Valuation.Approx Δ Γ' Γ θ σ ρ (l.foldr Valuation.join Valuation.nil) ∧
+        ∀ ρ' ∈ l, Valuation.LE Δ Γ ρ' (l.foldr Valuation.join Valuation.nil)
   | [], _ => ⟨Valuation.Approx.nil, by simp⟩
   | ρ₀ :: l, h => by
-    obtain ⟨hrest, hle⟩ := Valuation.Approx.foldr (l := l) hΔ W hwρ hgood
+    obtain ⟨hrest, hle⟩ := Valuation.Approx.foldr (l := l) hΔ W hwρ hΓ' Wθ
       (fun ρ' hρ' => h ρ' (by simp [hρ']))
     obtain ⟨hj, hl₁, hl₂⟩ :=
-      Valuation.Approx.join hΔ W hwρ hgood (h ρ₀ (by simp)) hrest
+      Valuation.Approx.join hΔ W hwρ hΓ' Wθ (h ρ₀ (by simp)) hrest
     refine ⟨hj, fun ρ' hρ' => ?_⟩
     match List.mem_cons.1 hρ' with
     | .inl rfl => exact hl₁
-    | .inr hm => exact fun i => TShape.LE.trans hΔ (hle ρ' hm i) (hl₂ i)
+    | .inr hm => exact fun {_ _} hlk => TShape.LE.trans hΔ (hle ρ' hm hlk) (hl₂ hlk)
 
 /-- Directedness over a list: finitely many approximants of one term have
 one above them all.  `SoundDir.join` iterated, with `⊥` at the empty
@@ -1194,7 +1198,7 @@ list — what η needs, since the expansion's graph is finite.
 Takes the term's typing rather than its directedness, so that callers
 outside this file never have to name `SoundDir`. -/
 theorem Interp.list_ub {Δ Γ : List Term} {t T σ ρ} (hΓ : ⊢ Γ) (ht : Γ ⊢ t : T)
-    (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hρ : Valuation.WF Δ ρ)
+    (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hρ : Valuation.WF Δ Γ ρ)
     {α : Type} {ms : α → TShape} : ∀ (l : List α), (∀ a ∈ l, Interp Δ Γ t σ ρ (ms a)) →
       ∃ s, TShape.WF Δ s ∧ Interp Δ Γ t σ ρ s ∧ ∀ a ∈ l, TShape.LE Δ (ms a) s
   | [], _ => ⟨TShape.bot, trivial, .bot, fun _ h => absurd h (by simp)⟩
