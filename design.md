@@ -293,7 +293,14 @@ a `TypedAt`, which is what `sound_forallE_typedAt` and friends now produce
 — the only thing left of the lemmas that used to prove the weaker reading.
 
 One derived notion sits on top: **`CodeAt Γ t`** says every approximant of
-`t`, read as a code, names `t`, and follows from any `SoundTy` at a sort.
+`t`, read as a code, names `t`. It is the same shape as `SoundTy` with a
+different conclusion, and at a *sort* the two are interderivable:
+`SoundTy.codeAt` goes one way (the approximants of a type are codes, and
+naming is downward closed on codes, so the name comes down off the
+saturated witness), `SoundTy.of_sort` and `SoundTy.of_typedAt` the other.
+`CodeAt` is the half that survives going down the order, which is why it
+can be an input to `SoundTy.of_typedAt` without circularity. It has no
+relation to `SoundEq` or `SoundDir` — `Directed.lean` never reads a name.
 The last step of Σ's η is a lemma rather than a notion —
 **`SoundTy.pair_name`**, that every pair-approximant of `p` is named by
 `p`'s own first projection, read off the saturated one above it.

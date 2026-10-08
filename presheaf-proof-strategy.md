@@ -3618,3 +3618,26 @@ So the definition is gone and the producer absorbed it:
 A₀` for a pair-approximant), `sound_fst_snd_to` derives it from `ihpty` at
 its three use sites, and the board entry for Σ's η names the lemma instead
 of the predicate.
+
+### 15b. `CodeAt` premises, and what `Strong.lean`'s removal orphaned
+
+`CodeAt` is `SoundTy`'s shape with a different conclusion — the
+approximant *itself* names `t`, rather than sitting below something that
+does — and at a sort the two are interderivable (`SoundTy.codeAt` one way,
+`SoundTy.of_sort`/`of_typedAt` the other). So a `CodeAt` premise standing
+beside a `SoundTy … (.sort _)` premise on the same subject is the caller
+computing `.codeAt` for the callee. Seven were: `lam_pi_code`,
+`sound_lam_dom` and `sound_pair_dom`'s `ihBc`, `pair_sigma_code`'s `ihAc`
+and `ihBc`, and `SoundEq.sigma_dom`'s `hAc` and `hA'c`. All gone.
+
+The other four were on `SoundEq.inst_cod` and `inst_cod_sigma`, and they
+went a different way: those two lemmas had no callers left. `Strong.lean`
+was their only user, so they died with it — 127 lines. `Adm.lookup` went
+the same way, as the typing-only projection of `Adm.lookupCanon` whose
+last user was the `bvar` case of the induction before it was shortened to
+`SoundTy.bvar`.
+
+Three `CodeAt` premises are genuine and stay: `SoundTy.of_typedAt`,
+`SoundTy.of_sort` and `and_pinned_filter` all take one for a subject that
+is not a type, where it comes from `CodeAt.nat`, `CodeAt.forallE` and
+friends and nothing derives it.

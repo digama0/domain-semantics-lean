@@ -1629,12 +1629,6 @@ theorem Adm.bot {Δ Γ : List Term} {σ : Subst} : Adm Δ Γ Γ σ Valuation.nil
 /-- Admissible valuations are well formed, slotwise. -/
 theorem Adm.wf {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) : Valuation.WF Δ ρ := h.1
 
-/-- The slot a variable reads is typed at an approximant of its type:
-what `SoundTy`'s `bvar` case needs, and now the definition. -/
-theorem Adm.lookup {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) (_hΓ : ⊢ Γ) :
-    ∀ {i A}, Lookup Γ i A → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.HasType Δ (ρ i) a :=
-  fun hl => (h.2 hl).imp fun _ ⟨hI, hD, _⟩ => ⟨hI, hD.hasType⟩
-
 theorem Adm.lookupCanon {Δ Γ₀ Γ : List Term} {σ ρ} (h : Adm Δ Γ₀ Γ σ ρ) :
     ∀ {i A}, Lookup Γ i A →
       ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.Slot Δ (A.subst σ) a (σ i) (ρ i) := h.2
@@ -1731,31 +1725,26 @@ def PinSnd (Γ : List Term) (p : Term) : Prop :=
 
 /-- The two gathered over the whole term, structurally — the semantic
 counterpart of `Term.Annot`. -/
-def Term.Pinned : Term → List Term → Prop
-  | .bvar _, _ => True
-  | .sort _, _ => True
-  | .unit _, _ => True
-  | .star _, _ => True
-  | .nat, _ => True
-  | .zero, _ => True
-  | .app F a, Γ => PinApp Γ F a ∧ F.Pinned Γ ∧ a.Pinned Γ
-  | .lam A b, Γ => IsTypeAt Γ A ∧ A.Pinned Γ ∧ b.Pinned (A :: Γ)
-  | .forallE A B, Γ => IsTypeAt Γ A ∧ A.Pinned Γ ∧ B.Pinned (A :: Γ)
-  | .sigma A B, Γ => IsTypeAt Γ A ∧ A.Pinned Γ ∧ B.Pinned (A :: Γ)
-  | .pair A B a b, Γ =>
+def Term.Pinned (Γ : List Term) : Term → Prop
+  | .app F a => PinApp Γ F a ∧ F.Pinned Γ ∧ a.Pinned Γ
+  | .lam A b => IsTypeAt Γ A ∧ A.Pinned Γ ∧ b.Pinned (A :: Γ)
+  | .forallE A B => IsTypeAt Γ A ∧ A.Pinned Γ ∧ B.Pinned (A :: Γ)
+  | .sigma A B => IsTypeAt Γ A ∧ A.Pinned Γ ∧ B.Pinned (A :: Γ)
+  | .pair A B a b =>
     IsTypeAt Γ A ∧ A.Pinned Γ ∧ B.Pinned (A :: Γ) ∧ a.Pinned Γ ∧ b.Pinned Γ
-  | .fst p, Γ => p.Pinned Γ
-  | .snd p, Γ => PinSnd Γ p ∧ p.Pinned Γ
-  | .succ n, Γ => n.Pinned Γ
-  | .natCase C M a b, Γ =>
+  | .fst p => p.Pinned Γ
+  | .snd p => PinSnd Γ p ∧ p.Pinned Γ
+  | .succ n => n.Pinned Γ
+  | .natCase C M a b =>
     TypedAt Γ M .nat ∧ C.Pinned (.nat :: Γ) ∧ M.Pinned Γ ∧ a.Pinned Γ ∧ b.Pinned (.nat :: Γ)
-  | .Y A b, Γ =>
+  | .Y A b =>
     IsTypeAt Γ A ∧ TypedAt Γ (.Y A b) A ∧ A.Pinned Γ ∧ b.Pinned (A :: Γ)
-  | .id _ A a b, Γ => A.Pinned Γ ∧ a.Pinned Γ ∧ b.Pinned Γ
-  | .refl _ a, Γ => a.Pinned Γ
-  | .tr _ A a b C x h, Γ =>
+  | .id _ A a b => A.Pinned Γ ∧ a.Pinned Γ ∧ b.Pinned Γ
+  | .refl _ a => a.Pinned Γ
+  | .tr _ A a b C x h =>
     IsTypeAt Γ A ∧ A.Pinned Γ ∧ a.Pinned Γ ∧ b.Pinned Γ ∧ C.Pinned (A :: Γ) ∧
       x.Pinned Γ ∧ h.Pinned Γ
+  | _ => True
 
 /-- `nat` is a type at every stage, so its binders cost nothing. -/
 theorem IsTypeAt.nat {Γ : List Term} : IsTypeAt Γ Term.nat := by
