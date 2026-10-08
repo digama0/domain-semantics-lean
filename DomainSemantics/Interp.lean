@@ -246,13 +246,13 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
     Interp Δ Γ (.Y A b) σ ρ m
   /-- The identity type is **label-only**: no sub-shapes, so the shape
   records nothing but the syntax. -/
-  | id : TShape.WF Δ m →
+  | protected id : TShape.WF Δ m →
     TShape.LE Δ m (Shape.T (n := 1) (.id r (A.subst σ) (a.subst σ) (b.subst σ))) →
     (∃ u, Γ ⊢ A : .sort u) → (Γ ⊢ a : A) → (Γ ⊢ b : A) →
     Interp Δ Γ (.id r A a b) σ ρ m
   /-- `refl` has a shape only in the proof-relevant sort; at `r = false`
   the `bot` rule is all there is, which is proof irrelevance. -/
-  | refl {n} :
+  | protected refl {n} :
     TShape.WF Δ m →
     TShape.LE Δ m (Shape.T (n := n+1) .refl) →
     Interp Δ Γ (.refl true a) σ ρ m

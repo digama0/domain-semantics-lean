@@ -299,8 +299,14 @@ different conclusion, and at a *sort* the two are interderivable:
 naming is downward closed on codes, so the name comes down off the
 saturated witness), `SoundTy.of_sort` and `SoundTy.of_typedAt` the other.
 `CodeAt` is the half that survives going down the order, which is why it
-can be an input to `SoundTy.of_typedAt` without circularity. It has no
-relation to `SoundEq` or `SoundDir` — `Directed.lean` never reads a name.
+can be an input to `SoundTy.of_typedAt` without circularity — and that is
+now the only place a `CodeAt` on a *type* is asked for. It has to be: the
+atoms' own `SoundTy`s (`soundTy_sort`, `soundTy_nat`, `soundTy_unit`,
+`soundTy_zero`, hypothesis-free theorems rather than cases of the
+induction) are proved *through* `of_typedAt`, so asking it for a `SoundTy`
+of the type would make `soundTy_sort` refer to itself. Everywhere else the
+type's `CodeAt` is now a `SoundTy … (.sort u)`. `CodeAt` has no relation
+to `SoundEq` or `SoundDir` — `Directed.lean` never reads a name.
 The last step of Σ's η is a lemma rather than a notion —
 **`SoundTy.pair_name`**, that every pair-approximant of `p` is named by
 `p`'s own first projection, read off the saturated one above it.

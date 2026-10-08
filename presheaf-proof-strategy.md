@@ -3641,3 +3641,27 @@ Three `CodeAt` premises are genuine and stay: `SoundTy.of_typedAt`,
 `SoundTy.of_sort` and `and_pinned_filter` all take one for a subject that
 is not a type, where it comes from `CodeAt.nat`, `CodeAt.forallE` and
 friends and nothing derives it.
+
+### 15c. The atoms' `SoundTy` upfront, and one `CodeAt Γ A` left
+
+I had claimed a `SoundTy` for an atom's type was unavailable inside the
+induction. Wrong: the `sort`, `unit`, `nat` and `zero` cases use no
+induction hypothesis at all, so they are theorems, not cases.
+`soundTy_sort`, `soundTy_unit`, `soundTy_nat` and `soundTy_zero` now stand
+on their own, and those four cases of the induction cite them instead of
+rebuilding the argument.
+
+With them in hand, `and_pinned_filter`'s premise on the *type* becomes
+`SoundTy Γ A (.sort u)` — the type of an atom is an atom, so the fact
+asked for is one of the four (or, at `refl`, `SoundTy.of_sort` of
+`sound_id`, which is itself hypothesis-free). `SoundEq.sigma_dom`'s two
+also went, from the `SoundTy`s beside them; §15b's message claimed those
+two and was wrong — only five premises went that round, plus four by
+deleting `inst_cod`.
+
+What is left is one `CodeAt Γ A`, on `SoundTy.of_typedAt`, and it cannot
+go: the atoms' `SoundTy`s are proved *through* `of_typedAt`, so asking it
+for the type's `SoundTy` would make `soundTy_sort` refer to itself. That
+is the honest bottom of the recursion — `CodeAt`'s reason for existing is
+to have hypothesis-free producers (`CodeAt.sort` and `CodeAt.nat` take no
+arguments) where `SoundTy` never does.
