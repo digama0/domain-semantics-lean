@@ -67,7 +67,7 @@ inductive Term where
   | succ (n : Term)
   | natCase (C M a b : Term)
   | Y (A b : Term)
-  | id (r : Bool) (A a b : Term)
+  | protected id (r : Bool) (A a b : Term)
   | refl (r : Bool) (a : Term)
   | tr (r : Bool) (A a b C x h : Term)
 
@@ -134,13 +134,13 @@ def Subst.lift (σ : Subst) : Subst
   | i+1 => (σ i).lift
 
 /-- The identity substitution `i ↦ bvar i`. -/
-def Subst.id : Subst := .bvar
+protected def Subst.id : Subst := .bvar
 /-- First component of a substitution viewed as a stream. -/
 def Subst.head (σ : Subst) : Term := σ 0
 /-- Drop the head — `σ.tail i := σ (i+1)`. -/
 def Subst.tail (σ : Subst) : Subst := fun n => σ (n+1)
 
-theorem Subst.Depth.id : Subst.id.Depth 0 0 := fun _ => rfl
+protected theorem Subst.Depth.id : Subst.id.Depth 0 0 := fun _ => rfl
 /-- Prepend a term to a substitution. `(σ.cons e) 0 = e` and
 `(σ.cons e) (i+1) = σ i`. -/
 def Subst.cons (σ : Subst) (e : Term) : Subst
@@ -786,7 +786,7 @@ theorem Ctx.SubstEq.lift (W : SubstEq Γ₀ σ σ' Γ) (hA : Γ ⊢ A : .sort u)
   exact .bvar .zero (hA'.weak' (.skip .refl))
 
 /-- Identity substitution from any well-formed context to itself. -/
-theorem Ctx.SubstEq.id {Γ} (hΓ : ⊢ Γ) : SubstEq Γ .id .id Γ := by
+protected theorem Ctx.SubstEq.id {Γ} (hΓ : ⊢ Γ) : SubstEq Γ .id .id Γ := by
   induction Γ with | nil => exact .nil | cons A Γ ih
   let ⟨hΓ, _, hA⟩ := hΓ
   refine .cons (ih hΓ).skip hA ?_

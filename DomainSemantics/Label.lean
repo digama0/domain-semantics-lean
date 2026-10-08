@@ -103,7 +103,7 @@ end PiLabelEq
 namespace IdLabelEq
 
 /-- And for the identity type. -/
-theorem id {r : Bool} :
+protected theorem id {r : Bool} :
     IdLabelEq Δ A a b A' a' b' → TyEq Δ (.id r A a b) (.id r A' a' b')
   | ⟨⟨_, h1⟩, h2, h3⟩ => ⟨_, .idDF h1 h2 h3⟩
 

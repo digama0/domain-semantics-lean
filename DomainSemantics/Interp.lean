@@ -414,7 +414,7 @@ theorem Ctx.SubstEq.id_lift {Γ Γ' : List Term} {A : Term} {u : Bool} (hΓ' : �
 along a definitional equality. -/
 theorem Ctx.SubstEq.defeqHead {Γ : List Term} {A A' : Term} {u : Bool} (hΓ : ⊢ Γ)
     (hAA' : Γ ⊢ A ≡ A' : .sort u) : SubstEq (A' :: Γ) .id .id (A :: Γ) := by
-  refine .cons (id hΓ).skip hAA'.hasType.1 ?_
+  refine .cons (SubstEq.id hΓ).skip hAA'.hasType.1 ?_
   rw [show A.subst Subst.id.tail = A.lift' (.skip .refl) by
     show A.subst (Subst.id.lift_r (.skip .refl)) = _
     rw [← lift'_subst, subst_id]]

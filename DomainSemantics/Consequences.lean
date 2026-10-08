@@ -78,7 +78,7 @@ inductive HasType : List Term → Term → Term → Bool → Prop where
     .nat::Γ ⊨ b : (C.lift' (.cons (.skip .refl))).inst (.succ (.bvar 0)) →
     Γ ⊨ .natCase C M a b :! C.inst M
   | Y : Γ ⊨ A : .sort u → A::Γ ⊨ body : A.lift → Γ ⊨ .Y A body :! A
-  | id :
+  | protected id :
     Γ ⊨ A : .sort u → Γ ⊨ a : A → Γ ⊨ b : A →
     Γ ⊨ .id r A a b :! .sort r
   | refl :
@@ -691,7 +691,7 @@ inductive Value : Term → Prop where
   | nat : Value .nat
   | zero : Value .zero
   | succ : Value (.succ n)
-  | id : Value (.id r A a b)
+  | protected id : Value (.id r A a b)
   | refl : Value (.refl r a)
 
 /-- Canonical forms at function type: a value typed by a `forallE` is a `lam`.

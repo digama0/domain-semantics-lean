@@ -619,7 +619,7 @@ inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
   | zero : HasType Δ (Shape.T (n := n+1) .zero) (Shape.T (n := k+1) .nat)
   | succ {n k} {v : Shape n} : v.IsNumeral →
     HasType Δ (Shape.T (n := n+1) (.succ v)) (Shape.T (n := k+1) .nat)
-  | id {n k r j} {A x y : Term} : r ≤ j → Shape.WF (n := n+1) Δ (.id r A x y) →
+  | protected id {n k r j} {A x y : Term} : r ≤ j → Shape.WF (n := n+1) Δ (.id r A x y) →
     HasType Δ (Shape.T (n := n+1) (.id r A x y)) (Shape.T (n := k) (.sort j))
   -- stated directly on `d` and `f`: `mono_l` pushes the premises into a
   -- smaller Π through `Eval.tHasType`, whose `join` case is `join_sort`.

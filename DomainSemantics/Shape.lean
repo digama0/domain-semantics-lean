@@ -70,7 +70,7 @@ inductive ShapeS (Shape : Type) : Type where
   | nat : ShapeS Shape
   | zero : ShapeS Shape
   | succ (n : Shape) : ShapeS Shape
-  | id (rel : Bool) (A a b : Term) : ShapeS Shape
+  | protected id (rel : Bool) (A a b : Term) : ShapeS Shape
   | refl : ShapeS Shape
 
 /-- The graded shape domain: `Shape 0 = Shape0`, `Shape (n+1) = ShapeS (Shape n)`. -/

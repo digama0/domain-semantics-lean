@@ -3724,7 +3724,7 @@ theorem CodeAt.unit {Γ : List Term} {r : Bool} : CodeAt Γ (.unit r) :=
     (fun _ _ => show TyEq _ _ _ from .refl .unit)
 
 /-- So does an identity type, its label being the stage's instance. -/
-theorem CodeAt.id {Γ : List Term} {r u : Bool} {A a b : Term} (hA : Γ ⊢ A : .sort u)
+protected theorem CodeAt.id {Γ : List Term} {r u : Bool} {A a b : Term} (hA : Γ ⊢ A : .sort u)
     (ha : Γ ⊢ a : A) (hb : Γ ⊢ b : A) : CodeAt Γ (.id r A a b) := by
   intro Δ σ ρ hAdm m hm
   have hΔ := hAdm.ctx
