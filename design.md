@@ -292,11 +292,11 @@ At the type formers the saturation comes from `SoundTy.of_sort` applied to
 a `TypedAt`, which is what `sound_forallE_typedAt` and friends now produce
 — the only thing left of the lemmas that used to prove the weaker reading.
 
-Two derived notions sit on top. **`CodeAt Γ t`** says every approximant
-of `t`, read as a code, names `t`; it follows from any `SoundTy` at a
-sort. **`PairCanon`** says every pair-approximant of `p` is named by
-`p`'s own first projection, and `PairCanon.of_dom` derives it from
-saturation. That is the last step of Σ's η.
+One derived notion sits on top: **`CodeAt Γ t`** says every approximant of
+`t`, read as a code, names `t`, and follows from any `SoundTy` at a sort.
+The last step of Σ's η is a lemma rather than a notion —
+**`SoundTy.pair_name`**, that every pair-approximant of `p` is named by
+`p`'s own first projection, read off the saturated one above it.
 
 ## 6. Why the naming is there
 

@@ -3603,3 +3603,18 @@ deliverable.
 graph is `Term`/`Label`/`Annot`/`Regular` → `Shape` → `HasType` →
 `Interp` → `Directed` → `Sound` → `Inversion` → `Consequences`, a chain
 with no branches above `Interp`.
+
+### 15a. `PairCanon` inlined
+
+`PairCanon` was a predicate with one producer (`PairCanon.of_dom`, from
+saturation) and one consumer (`sound_fst_snd_to`, which took it as a
+premise). The one call site built it from `(ihp hΓ).ty` — and
+`sound_fst_snd_to` already takes that same `SoundTy` as `ihpty`, so the
+premise was the caller computing something the callee could have asked
+for itself. The same shape as the directedness premises in §13b.
+
+So the definition is gone and the producer absorbed it:
+`SoundTy.pair_name` states the conclusion directly (`Δ ⊢ a₀ ≡ (fst p)[σ] :
+A₀` for a pair-approximant), `sound_fst_snd_to` derives it from `ihpty` at
+its three use sites, and the board entry for Σ's η names the lemma instead
+of the predicate.

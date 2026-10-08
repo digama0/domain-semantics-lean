@@ -4292,19 +4292,14 @@ theorem sound_eta_to {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
 /-- **The §4.7a label invariant.**  Every pair-approximant of `p` is
 named by `p`'s *own* first projection.  It is what Σ's η needs, and it
 is false for an admissibility that does not ask slots to name their
-terms (§4.7i); with `Adm` asking that, it follows from saturation
-(`PairCanon.of_dom`). -/
-def PairCanon (Δ Γ : List Term) (σ : Subst) (ρ : Valuation) (p : Term) : Prop :=
-  ∀ {n} {A₀ a₀ : Term} {x y : Shape n},
-    Interp Δ Γ p σ ρ (Shape.T (n := n+1) (ShapeS.pair A₀ a₀ x y)) →
-    Δ ⊢ a₀ ≡ (Term.fst p).subst σ : A₀
-
-/-- **Pair names come from saturation**: a pair-approximant sits below
-the saturated one, which names `fst p`, and the order compares names. -/
-theorem PairCanon.of_dom {Γ : List Term} {A B p : Term} (h : SoundTy Γ p (.sigma A B))
-    {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ) :
-    PairCanon Δ Γ σ ρ p := by
-  intro n A₀ a₀ x y hP
+terms (§4.7i); with `Adm` asking that, it follows from saturation: the
+pair-approximant sits below the saturated one, which names `fst p`, and
+the order compares names. -/
+theorem SoundTy.pair_name {Γ : List Term} {A B p : Term} (h : SoundTy Γ p (.sigma A B))
+    {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
+    {n} {A₀ a₀ : Term} {x y : Shape n}
+    (hP : Interp Δ Γ p σ ρ (Shape.T (n := n+1) (ShapeS.pair A₀ a₀ x y))) :
+    Δ ⊢ a₀ ≡ (Term.fst p).subst σ : A₀ := by
   obtain ⟨P', _, _, hle, _, hNV, _⟩ := h hΔ W hAdm hP
   obtain ⟨k, A', a', x', y', rfl⟩ := TShape.LE.pair_ub hle
   obtain ⟨hAA, haa, _, _⟩ := TShape.LE.pair_decomp hΔ hle
@@ -4428,7 +4423,6 @@ theorem sound_fst_snd_to {Γ : List Term} {A B p : Term} {u v : Bool}
     (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v) (hp : Γ ⊢ p : .sigma A B)
     (ihpty : SoundTy Γ p (.sigma A B))
     {Δ Γ₀ : List Term} {σ ρ} (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ₀ Γ σ ρ)
-    (hcanon : PairCanon Δ Γ σ ρ p)
     {m : TShape} (hm : Interp Δ Γ (.pair A B (.fst p) (.snd p)) σ ρ m) :
     Interp Δ Γ p σ ρ m := by
   have ihpdir := (IsDefEq.dir W.wf hp).1
@@ -4446,14 +4440,14 @@ theorem sound_fst_snd_to {Γ : List Term} {A B p : Term} {u v : Bool}
         refine Interp.mono hΔ hw (TShape.LE.trans hΔ hle ?_) hP₂
         have hAP := Interp.pair_label_ty hΔ W hAdm ihpty hP₂
         exact TShape.LE.pair_mk hΔ (TShape.bot_le' rfl) hle₂ hwf.1 (TyEq.symm hAP)
-          (hAP.defeqDF (hcanon hP₂).symm)
+          (hAP.defeqDF (ihpty.pair_name hΔ W hAdm hP₂).symm)
     | fst hP₁ hwx hlex =>
       cases hy with
       | bot =>
         refine Interp.mono hΔ hw (TShape.LE.trans hΔ hle ?_) hP₁
         have hAP := Interp.pair_label_ty hΔ W hAdm ihpty hP₁
         exact TShape.LE.pair_mk hΔ hlex (TShape.bot_le' rfl) hwf.1 (TyEq.symm hAP)
-          (hAP.defeqDF (hcanon hP₁).symm)
+          (hAP.defeqDF (ihpty.pair_name hΔ W hAdm hP₁).symm)
       | snd hP₂ hlab₂ hwy hley hst₂ =>
         -- one pair-approximant above both
         obtain ⟨P, hwP, hP, hleP₁, hleP₂⟩ := ihpdir hΔ W hwρ hP₁ hP₂
@@ -4464,7 +4458,7 @@ theorem sound_fst_snd_to {Γ : List Term} {A B p : Term} {u v : Bool}
         have hAP := Interp.pair_label_ty hΔ W hAdm ihpty hP
         exact TShape.LE.pair_mk hΔ (TShape.LE.trans hΔ hlex hx₁)
           (TShape.LE.trans hΔ hley hy₂) hwf.1 (TyEq.symm hAP)
-          (hAP.defeqDF (hcanon hP).symm)
+          (hAP.defeqDF (ihpty.pair_name hΔ W hAdm hP).symm)
 
 /-- The four conclusions proved by the induction itself.  `Sound` adds
 saturation on top, which is where the remaining work is (§4.5g). -/
@@ -4623,7 +4617,7 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
   | @fst_snd Γ p A B hp hpair ihp ihpair =>
     -- both directions of Σ's η, against the one condition the model does
     -- not yet give: a pair-approximant's name is the subject's own first
-    -- projection (§4.7a, `PairCanon`)
+    -- projection (§4.7a, `SoundTy.pair_name`)
     obtain ⟨hAty, hpb, hpB, hpa⟩ := (ihpair hΓ).pin
     obtain ⟨_, hSg⟩ := (hp.isType hΓ)
     obtain ⟨u, hA⟩ := IsDefEq.sigma_dom hSg
@@ -4633,8 +4627,7 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
       intro Δ Γ₀ σ ρ hΔ W hAdm m
       -- a pair-approximant's name is the subject's own first projection,
       -- because the saturated one names it (§4.7i)
-      exact ⟨sound_fst_snd_to hA hB hp (ihp hΓ).ty hΔ W hAdm
-          (PairCanon.of_dom (ihp hΓ).ty hΔ W hAdm),
+      exact ⟨sound_fst_snd_to hA hB hp (ihp hΓ).ty hΔ W hAdm,
         sound_fst_snd_of hΓ hA hB hp (ihp hΓ).ty hΔ W hAdm⟩
     exact ⟨he, (ihpair hΓ).ty, (ihpair hΓ).pin, (ihp hΓ).pin⟩
   | nat =>

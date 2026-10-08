@@ -126,8 +126,8 @@ open DomainSemantics
 
 -- **Σ's η**: a pair-approximant is named by the subject's first
 -- projection, because the saturated one is.
-/-- info: 'DomainSemantics.PairCanon.of_dom' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in #print axioms PairCanon.of_dom
+/-- info: 'DomainSemantics.SoundTy.pair_name' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms SoundTy.pair_name
 
 -- **A stuck transport has no information**: `tr false nat zero (succ zero)
 -- nat zero h` computes by no rule, because its endpoints are not equal,
