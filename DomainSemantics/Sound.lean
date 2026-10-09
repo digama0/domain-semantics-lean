@@ -615,35 +615,6 @@ theorem Interp.substTerm {T : Term} (hΔ : ⊢ Δ) {θ : Subst} (hΓ : ⊢ Γ)
   ⟨to_substTerm hΔ hΓ ht hPin hΓ' Wθ Wσ hAdm hSat,
     fun ⟨_, h, hs⟩ => h.of_substTerm hΔ hΓ' Wθ rfl hs⟩
 
-/-- The single-substitution form, which is what `beta` uses: `b[a]` at
-stage `σ` is `b` at the stage extended by `a[σ]`, under the valuation
-extended by an approximant of `a`.  Master's `LE_Interp.inst`. -/
-theorem Interp.inst {B : Term} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
-    (hA : Γ ⊢ A : .sort u) (hat : Γ ⊢ a : A) (hb : A :: Γ ⊢ b : B)
-    (hPin : b.Pinned (A :: Γ)) (Wσ : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ σ ρ)
-    (hSat : (Subst.one a).Saturates Δ (A :: Γ) Γ σ ρ)
-    (hρ : ρ.WF Δ Γ) :
-    Interp Δ Γ (b.inst a) σ ρ m ↔
-    ∃ x, Interp Δ (A :: Γ) b ((Subst.one a).comp σ) (ρ.push x) m ∧ Interp Δ Γ a σ ρ x := by
-  -- at `θ = one a`: slot `0` holds the argument's approximant and slot
-  -- `i+1` the valuation's own; the stage types slot `0` and nothing asks
-  -- about the rest
-  have Wθ : Ctx.SubstEq Γ (.one a) (.one a) (A :: Γ) := by
-    refine .cons ?_ hA ?_
-    · simpa [Subst.one] using Ctx.SubstEq.id hΓ
-    · simpa [Subst.one, subst_id] using hat
-  refine ⟨fun h => ?_, fun ⟨x, hb', hx⟩ => ?_⟩
-  · obtain ⟨ρ', hb', hs⟩ :=
-      to_substTerm (Γ := A :: Γ) hΔ ⟨hΓ, _, hA⟩ hb hPin hΓ Wθ Wσ hAdm hSat h
-    refine ⟨ρ' 0, hb'.mono_val hΔ (fun {_ _} hlk => ?_), hs .zero⟩
-    cases hlk with
-    | zero => exact .refl (hs .zero).wf
-    | succ hlk => exact le_bvar (Γ := Γ) (σ := σ) (ρ := ρ) (hs (.succ hlk))
-  · refine hb'.of_substTerm hΔ hΓ Wθ rfl (fun {_ _} hlk => ?_)
-    cases hlk with
-    | zero => exact hx
-    | succ hlk => exact .bvar hlk (.refl (hρ hlk))
-
 -- Stage invariance under a definitionally equal stage is **not** a lemma
 -- about `Interp`: for a raw `t` it is false.  Take `t = .forallE A B` with
 -- `A` ill-typed in `Γ` but `A[σ]` typed in `Δ`; the `forallE` rule holds
@@ -967,6 +938,35 @@ theorem Subst.Saturates.one {Γ Δ : List Term} {A a : Term} {u : Bool} {σ ρ}
     (hAt : Γ ⊢ A : .sort u) (hat : Γ ⊢ a : A) (hadom : SoundTy Γ a A) :
     (Subst.one a).Saturates Δ (A :: Γ) Γ σ ρ := fun _ hρ' =>
   let ⟨_, h⟩ := hρ'.canon_one hΓ hAdm hAt hat hadom; ⟨_, h⟩
+
+/-- The single-substitution form, which is what `beta` uses: `b[a]` at
+stage `σ` is `b` at the stage extended by `a[σ]`, under the valuation
+extended by an approximant of `a`.  Master's `LE_Interp.inst`. -/
+theorem Interp.inst {B : Term} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
+    (hA : Γ ⊢ A : .sort u) (hat : Γ ⊢ a : A) (hb : A :: Γ ⊢ b : B)
+    (hPin : b.Pinned (A :: Γ)) (Wσ : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ σ ρ)
+    (hadom : SoundTy Γ a A) (hρ : ρ.WF Δ Γ) :
+    Interp Δ Γ (b.inst a) σ ρ m ↔
+    ∃ x, Interp Δ (A :: Γ) b ((Subst.one a).comp σ) (ρ.push x) m ∧ Interp Δ Γ a σ ρ x := by
+  -- at `θ = one a`: slot `0` holds the argument's approximant and slot
+  -- `i+1` the valuation's own; the stage types slot `0` and nothing asks
+  -- about the rest
+  have hSat := Subst.Saturates.one hΓ hAdm hA hat hadom
+  have Wθ : Ctx.SubstEq Γ (.one a) (.one a) (A :: Γ) := by
+    refine .cons ?_ hA ?_
+    · simpa [Subst.one] using Ctx.SubstEq.id hΓ
+    · simpa [Subst.one, subst_id] using hat
+  refine ⟨fun h => ?_, fun ⟨x, hb', hx⟩ => ?_⟩
+  · obtain ⟨ρ', hb', hs⟩ :=
+      to_substTerm (Γ := A :: Γ) hΔ ⟨hΓ, _, hA⟩ hb hPin hΓ Wθ Wσ hAdm hSat h
+    refine ⟨ρ' 0, hb'.mono_val hΔ (fun {_ _} hlk => ?_), hs .zero⟩
+    cases hlk with
+    | zero => exact .refl (hs .zero).wf
+    | succ hlk => exact le_bvar (Γ := Γ) (σ := σ) (ρ := ρ) (hs (.succ hlk))
+  · refine hb'.of_substTerm hΔ hΓ Wθ rfl (fun {_ _} hlk => ?_)
+    cases hlk with
+    | zero => exact hx
+    | succ hlk => exact .bvar hlk (.refl (hρ hlk))
 
 theorem sound_forallE_typedAt {Γ : List Term} {A B : Term} {u v : Bool}
     (ihAd : SoundTy Γ A (.sort u)) (ihB : SoundTy (A :: Γ) B (.sort v))
@@ -1724,9 +1724,8 @@ theorem sound_pair_snd {Γ : List Term} {A B a b : Term} {u v : Bool}
   -- component comes with the code that types it
   obtain ⟨⟨nb, sb⟩, c, hmb, hmle, hc, hNV, _⟩ := ihbdom hAdm h
   have hdc := hNV.forget
-  have hone := Subst.Saturates.one hΓ hAdm hA ha ihadom
   obtain ⟨x₀, hbody₀, hx₀⟩ :=
-    (Interp.inst (A := A) (b := B) hΔ hΓ hA ha hB hPB W hAdm hone hwρ).1 hc
+    (Interp.inst (A := A) (b := B) hΔ hΓ hA ha hB hPB W hAdm ihadom hwρ).1 hc
   obtain ⟨x, d, hx, hlex, hd, hNV, hdcx⟩ := ihadom hAdm hx₀
   have hbody : Interp Δ (A :: Γ) B ((Subst.one a).comp σ) (ρ.push x) c :=
     hbody₀.mono_val hΔ (Valuation.LE.push.2 ⟨.refl hwρ, hlex⟩)
@@ -1989,9 +1988,8 @@ theorem sound_pair_dom {Γ : List Term} {A B a b : Term} {u v : Bool}
   obtain ⟨y', cb, hy', hyle, hcb, hNV, hcbc⟩ := ihbdom hAdm hb
   have hdy' := hNV
   -- that code is `B` read at a slot approximating `a`
-  have hone := Subst.Saturates.one hΓ hAdm hAty hat ihaty
   obtain ⟨x₀, hbody₀, hx₀⟩ :=
-    (Interp.inst (A := A) (b := B) hΔ hΓ hAty hat hB hPB W hAdm hone hwρ).1 hcb
+    (Interp.inst (A := A) (b := B) hΔ hΓ hAty hat hB hPB W hAdm ihaty hwρ).1 hcb
   -- joined with the given first component, then saturated
   obtain ⟨x₁, _, hx₁, hxx₁, hx₀x₁⟩ := ihadir hΔ W hwρ ha hx₀
   obtain ⟨x', d', hx', hx₁x', hd', hNV, hd'c⟩ := ihaty hAdm hx₁
@@ -2168,7 +2166,7 @@ theorem dir_inst {Γ Δ : List Term} {A a b B : Term} {u : Bool} {σ ρ}
   have hwρ : ρ.WF Δ Γ := hAdm.wf
   have hinst {m : TShape} : Interp Δ Γ (b.inst a) σ ρ m ↔
       ∃ x, Interp Δ (A :: Γ) b ((Subst.one a).comp σ) (ρ.push x) m ∧ Interp Δ Γ a σ ρ x :=
-    Interp.inst hΔ W.wf hA ha hb hPb W hAdm (.one hΓ hAdm hA ha hadom) hwρ
+    Interp.inst hΔ W.wf hA ha hb hPb W hAdm hadom hwρ
   obtain ⟨x₁, hb₁, hx₁⟩ := hinst.1 h₁
   obtain ⟨x₂, hb₂, hx₂⟩ := hinst.1 h₂
   obtain ⟨x, hwx, hx, hxle₁, hxle₂⟩ := iha hΔ W hwρ hx₁ hx₂
@@ -2288,8 +2286,7 @@ theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
   -- is an approximant of `B[a]`
   have toI {c : TShape} (hc : TEvaluates Δ fP (A.subst σ) (a.subst σ) x c) :
       Interp Δ Γ (B.inst a) σ ρ c := by
-    have hone := Subst.Saturates.one hΓ hAdm hA ha hadom
-    refine (Interp.inst (A := A) (b := B) hΔ hΓ hA ha hB hPB W hAdm hone hwρ).2 ⟨x, ?_, hx⟩
+    refine (Interp.inst (A := A) (b := B) hΔ hΓ hA ha hB hPB W hAdm hadom hwρ).2 ⟨x, ?_, hx⟩
     rw [Subst.one_comp]
     refine sound_graph_lookup hΓA hA hB hΔ W hbodyc hx.wf hwρ haσ (TyEq.refl hAσ) ?_
     exact hc.trans hΔ fun e he => (hcovc e he).retype hPiLab.1
@@ -2465,8 +2462,7 @@ theorem sound_snd_dom {Γ : List Term} {A B p : Term} {u v : Bool}
   have hdomy : TShape.Named Δ cc (Shape.T y') (Term.snd (p.subst σ)) := by
     simpa using hout _ (show _ ∈ _ by rw [← hps]; rfl)
   have hIc : Interp Δ Γ (B.inst (.fst p)) σ ρ cc := by
-    have hone := Subst.Saturates.one hΓ hAdm hA hfst hfdom
-    refine (Interp.inst (A := A) (b := B) hΔ hΓ hA hfst hB hPB W hAdm hone hwρ).2
+    refine (Interp.inst (A := A) (b := B) hΔ hΓ hA hfst hB hPB W hAdm hfdom hwρ).2
       ⟨Shape.T x', ?_, hx'I⟩
     rw [Subst.one_comp]
     refine sound_graph_lookup hΓA hA hB hΔ W hbodyc hx'w hwρ ?_ hSgLab.1 ?_
@@ -2703,7 +2699,7 @@ theorem sound_beta {Γ : List Term} {A B e e' : Term} {u : Bool}
   have he'σ : Δ ⊢ e'.subst σ : A.subst σ := he'.subst hΔ W
   have hinst {m : TShape} : Interp Δ Γ (e.inst e') σ ρ m ↔
       ∃ x, Interp Δ (A :: Γ) e ((Subst.one e').comp σ) (ρ.push x) m ∧ Interp Δ Γ e' σ ρ x :=
-    Interp.inst hΔ hΓ hA he' hbe hPe W hAdm (.one hΓ hAdm hA he' ihe'dom) hwρ
+    Interp.inst hΔ hΓ hA he' hbe hPe W hAdm ihe'dom hwρ
   have hdir := dir_inst (b := e) hA he' hbe hPe hAdm hΓ ihe'dom
   constructor
   · intro h
@@ -2787,7 +2783,7 @@ theorem sound_natCase_succ {Γ : List Term} {C a b n : Term}
   have hnσ : Δ ⊢ n.subst σ : .nat := hn.subst hΔ W
   have hinst {m : TShape} : Interp Δ Γ (b.inst n) σ ρ m ↔
       ∃ x, Interp Δ (.nat :: Γ) b ((Subst.one n).comp σ) (ρ.push x) m ∧ Interp Δ Γ n σ ρ x :=
-    Interp.inst hΔ hΓ .nat hn hb hPb W hAdm (.one hΓ hAdm .nat hn ihndom) hwρ
+    Interp.inst hΔ hΓ .nat hn hb hPb W hAdm ihndom hwρ
   refine ⟨fun h => ?_, fun h => ?_⟩
   · cases h with
     | bot => exact .bot
@@ -2820,7 +2816,7 @@ theorem sound_Y_unfold {Γ : List Term} {A b : Term} {u : Bool} (hΓ : ⊢ Γ)
   have hinst {m : TShape} : Interp Δ Γ (b.inst (.Y A b)) σ ρ m ↔
       ∃ x, Interp Δ (A :: Γ) b ((Subst.one (.Y A b)).comp σ) (ρ.push x) m ∧
         Interp Δ Γ (.Y A b) σ ρ x :=
-    Interp.inst hΔ hΓ hA hY hb hPb W hAdm (.one hΓ hAdm hA hY ihYdom) hwρ
+    Interp.inst hΔ hΓ hA hY hb hPb W hAdm ihYdom hwρ
   refine ⟨fun h => ?_, fun h => ?_⟩
   · cases h with | bot => exact .bot | Y hx hA' hdty _ hbody
     refine hinst.2 ⟨_, ?_, hx⟩
@@ -2952,15 +2948,13 @@ theorem sound_natCase_dom {Γ : List Term} {C M a b : Term} {v : Bool} (hΓ : �
     exact ⟨.bot, .bot, .bot, TShape.bot_le' rfl, .bot, .bot (.bot (.bot .sort)), .bot⟩
   | natCase_zero hMz hz hma hMt =>
     obtain ⟨ma, c, hma', hmle, hc, hNV, _⟩ := ihadom hAdm hma
-    have hone := Subst.Saturates.one hΓ hAdm .nat .zero (.nat .zero)
     obtain ⟨x, hCx, hxz⟩ :=
-      (Interp.inst (A := .nat) (b := C) hΔ hΓ .nat .zero hC hPC W hAdm hone hwρ).1 hc
+      (Interp.inst (A := .nat) (b := C) hΔ hΓ .nat .zero hC hPC W hAdm (.nat .zero) hwρ).1 hc
     rw [Subst.one_comp] at hCx
     have W0 : Ctx.SubstEq Δ (σ.cons (Term.zero.subst σ)) (σ.cons (M.subst σ))
         (.nat :: Γ) := .cons W .nat hz.symm
     have hIc : Interp Δ Γ (C.inst M) σ ρ c := by
-      have honeM := Subst.Saturates.one hΓ hAdm .nat hMt ihMty
-      refine (Interp.inst (A := .nat) (b := C) hΔ hΓ .nat hMt hC hPC W hAdm honeM hwρ).2
+      refine (Interp.inst (A := .nat) (b := C) hΔ hΓ .nat hMt hC hPC W hAdm ihMty hwρ).2
         ⟨x, ?_, hMz.mono hΔ hxz.le_zero⟩
       rw [Subst.one_comp]; exact hC.stage hΓN hΔ W0 hCx
     have hcc := hCMd.codeAt hAdm hIc
@@ -2978,9 +2972,9 @@ theorem sound_natCase_dom {Γ : List Term} {C M a b : Term} {v : Bool} (hΓ : �
     exact Shape.WF.numeral_mem (htyM.isNumeral hΔ hcM.le_nat).pred hvnat.wf.1
   obtain ⟨mb, c, hmb', hmle, hc, hNV, _⟩ := ihbdom hAdm' hmb
   have hPC' := hPC.weak' hΓN hC (.cons (.skip (A := .nat) .refl))
-  have hone := Subst.Saturates.one hΓN hAdm' .nat (.succDF (.bvar .zero .nat)) (.nat .succ_bvar0)
   obtain ⟨y, hCy, hsy⟩ := (Interp.inst (A := .nat) (b := C.lift' (.cons (.skip .refl)))
-    hΔ hΓN .nat (.succDF (.bvar .zero .nat)) hClift hPC' Wcons hAdm' hone (hwρ.push hwv')).1 hc
+    hΔ hΓN .nat (.succDF (.bvar .zero .nat)) hClift hPC' Wcons hAdm' (.nat .succ_bvar0)
+    (hwρ.push hwv')).1 hc
   rw [Subst.one_comp] at hCy
   have hCy' : Interp Δ (.nat :: Γ) C (σ.cons ((Term.succ (.bvar 0)).subst (σ.cons t)))
       (ρ.push y) c := by
@@ -3000,8 +2994,7 @@ theorem sound_natCase_dom {Γ : List Term} {C M a b : Term} {v : Bool} (hΓ : �
   have W1 : Ctx.SubstEq Δ (σ.cons ((Term.succ (.bvar 0)).subst (σ.cons t)))
       (σ.cons (M.subst σ)) (.nat :: Γ) := .cons W .nat heq.symm
   have hIc : Interp Δ Γ (C.inst M) σ ρ c := by
-    have honeM := Subst.Saturates.one hΓ hAdm .nat hMt ihMty
-    refine (Interp.inst (A := .nat) (b := C) hΔ hΓ .nat hMt hC hPC W hAdm honeM hwρ).2
+    refine (Interp.inst (A := .nat) (b := C) hΔ hΓ .nat hMt hC hPC W hAdm ihMty hwρ).2
       ⟨y, ?_, hMs.mono hΔ hyle⟩
     rw [Subst.one_comp]; exact hC.stage hΓN hΔ W1 hCy'
   have hcc := hCMd.codeAt hAdm hIc
@@ -3247,8 +3240,7 @@ theorem sound_tr_dom {Γ : List Term} {A a b C X H : Term} {r u v : Bool} (hΓ :
   rw [← inst_lift_cons, ← subst_inst] at hcb'
   refine ⟨_, _, ?_, hle, ?_, ?_, hcb'⟩
   · exact .tr (.refl hslotc.1.hasType.wf.1) hX' ha' hbv hAv hslotv hCv hcb hslotc hH heq hAt hat hbt
-  · have hone := Subst.Saturates.one hΓ hAdm hA hb ihbdom
-    refine (Interp.inst (A := A) (b := C) hΔ hΓ hA hb hC hPC W hAdm hone hwρ).2 ⟨_, ?_, hbv⟩
+  · refine (Interp.inst (A := A) (b := C) hΔ hΓ hA hb hC hPC W hAdm ihbdom hwρ).2 ⟨_, ?_, hbv⟩
     rw [Subst.one_comp]
     exact hCv
   exact hslotc.1.defeq hΔ hcb' (hA.tr_stage hΔ W ha hb hC hX hHt heq hH).symm
@@ -3276,8 +3268,8 @@ theorem sound_tr_refl_eq {Γ : List Term} {A a C X : Term} {u v : Bool} {r : Boo
     | tr hle hX => exact hX.mono hΔ hle
   · intro h
     obtain ⟨mX, c, hmX, hmle, hc, hNVX, hcc⟩ := ihxdom hAdm h
-    have hone := Subst.Saturates.one hΓ hAdm hA ha ihadom
-    obtain ⟨x₀, hC₀, ha₀⟩ := (Interp.inst (A := A) (b := C) hΔ hΓ hA ha hC hPC W hAdm hone hwρ).1 hc
+    obtain ⟨x₀, hC₀, ha₀⟩ :=
+      (Interp.inst (A := A) (b := C) hΔ hΓ hA ha hC hPC W hAdm ihadom hwρ).1 hc
     rw [Subst.one_comp] at hC₀
     -- the slot is the argument's approximant, hereditarily typed
     obtain ⟨x, vA, ha', hlex, hvA, hNV, hvAc⟩ := ihadom hAdm ha₀
