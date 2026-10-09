@@ -963,8 +963,7 @@ theorem Interp.inst {B : Term} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
     · simpa [Subst.one] using Ctx.SubstEq.id hΓ
     · simpa [Subst.one, subst_id] using hat
   refine ⟨fun h => ?_, fun ⟨x, hb', hx⟩ => ?_⟩
-  · obtain ⟨ρ', hb', hs⟩ :=
-      to_substTerm (Γ := A :: Γ) hΔ ⟨hΓ, _, hA⟩ hb hPin hΓ Wθ Wσ hAdm hSat h
+  · obtain ⟨ρ', hb', hs⟩ := to_substTerm (Γ := A :: Γ) hΔ ⟨hΓ, _, hA⟩ hb hPin hΓ Wθ Wσ hAdm hSat h
     refine ⟨ρ' 0, hb'.mono_val hΔ (fun {_ _} hlk => ?_), hs .zero⟩
     cases hlk with
     | zero => exact .refl (hs .zero).wf
@@ -3309,175 +3308,6 @@ that is the form the `eq` conclusion hands over inside the induction.
 `Inversion.lean` derives the syntactic corollaries by feeding them
 `IsDefEq.sound`. -/
 
-/-- **A one-entry Π-approximant**: a value of the codomain at a typed
-slot, packaged as an approximant of the Π-type itself.  Master's
-`WShapeFun.single`, and the probe the codomain inversion below needs: it
-is how a fact about `B` is pushed into a fact about `Π A B`, where the
-semantic equality of two Π-types can see it.
-
-The level bookkeeping is the same as everywhere: the domain shape, the
-slot and the value live at three levels and the entry needs one. -/
-theorem Interp.forallE_single {Γ Δ : List Term} {A B t : Term} {σ ρ} {u v : Bool}
-    (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hwρ : ρ.WF Δ Γ)
-    (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v) (ht : Δ ⊢ t : A.subst σ)
-    {d x c : TShape} (hdint : Interp Δ Γ A σ ρ d) (hdty : d.HasType Δ .type)
-    (hxd : d.Named Δ x t)
-    (hdc : d.WF Δ (A.subst σ))
-    (hcc : c.WF Δ ((B.subst σ.lift).inst t))
-    (hc : Interp Δ (A :: Γ) B (σ.cons t) (ρ.push x) c) :
-    ∃ (k : Nat) (dk xk ck : Shape k),
-      Interp Δ Γ (.forallE A B) σ ρ (Shape.T (n := k+1)
-        (.forallE (A.subst σ) (B.subst σ.lift) dk [⟨t, xk, ck⟩])) ∧
-      TShape.LE Δ c (Shape.T ck) ∧ TShape.LE Δ (Shape.T xk) x := by
-  obtain ⟨k, hkd, hkx, hkc⟩ : ∃ k, d.1 ≤ k ∧ x.1 ≤ k ∧ c.1 ≤ k :=
-    ⟨max (max d.1 x.1) c.1, Nat.le_trans (Nat.le_max_left ..) (Nat.le_max_left ..),
-      Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_left ..), Nat.le_max_right ..⟩
-  have hAσ : Δ ⊢ A.subst σ : .sort u := hA.subst hΔ W
-  have hΔA : ⊢ (A.subst σ :: Δ) := ⟨hΔ, _, hAσ⟩
-  have hwd : (d.2.lift k).WF Δ := (Shape.lift_wf hkd).2 hdty.wf.1
-  have hwx : (x.2.lift k).WF Δ := (Shape.lift_wf hkx).2 hxd.hasType.wf.1
-  have hwc : (c.2.lift k).WF Δ := (Shape.lift_wf hkc).2 hc.wf
-  have hwf : Shape.WF (n := k+1) Δ
-      (.forallE (A.subst σ) (B.subst σ.lift) (d.2.lift k)
-        [⟨t, x.2.lift k, c.2.lift k⟩]) := by
-    refine ⟨⟨u, hAσ⟩, ⟨v, hB.subst hΔA (W.lift hA hAσ)⟩, (Shape.lift_wf hkd).2 hdc, ?_, trivial⟩
-    refine ShapeFun.WF.name ⟨?_, ?_⟩ ?_
-    · intro e he
-      cases List.mem_singleton.1 he
-      exact ⟨⟨u, hAσ⟩, ht, hwx, hwc⟩
-    · intro e he e' he' Θ τ hΘ Wτ _ _
-      cases List.mem_singleton.1 he
-      cases List.mem_singleton.1 he'
-      exact (hwc.subst hΘ Wτ).coherent
-    · intro e he
-      cases List.mem_singleton.1 he
-      exact (Shape.lift_wf hkc).2 hcc
-  refine ⟨k, _, _, _, .forallE ?_ ?_ hwf ?_ ?_ (.refl hwf) ⟨u, hA⟩ ⟨v, hB⟩, ?_, ?_⟩
-  · exact hdint.mono hΔ (TShape.LE.lift_le hΔ (m := d) hkd hdty.wf.1)
-  · exact hdty.lift_subject hΔ hkd
-  · intro e he
-    cases List.mem_singleton.1 he
-    refine (hxd.lift_subject hΔ hkx).mono_r hΔ ?_ (hdty.lift_subject hΔ hkd)
-    exact TShape.LE.le_lift hΔ (m := d) hkd hdty.wf.1
-  · intro e he
-    cases List.mem_singleton.1 he
-    refine mono hΔ (TShape.LE.lift_le hΔ (m := c) hkc hc.wf) ?_
-    refine hc.mono_val hΔ (Valuation.LE.push.2 ⟨.refl hwρ, ?_⟩)
-    exact TShape.LE.le_lift hΔ (m := x) hkx hxd.hasType.wf.1
-  · exact TShape.LE.le_lift hΔ (m := c) hkc hc.wf
-  · exact TShape.LE.lift_le hΔ (m := x) hkx hxd.hasType.wf.1
-
-/-- The Σ twin of `Interp.forallE_single`. -/
-theorem Interp.sigma_single {Γ Δ : List Term} {A B t : Term} {σ ρ} {u v : Bool}
-    (hΔ : ⊢ Δ) (W : Ctx.SubstEq Δ σ σ Γ) (hwρ : ρ.WF Δ Γ)
-    (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v) (ht : Δ ⊢ t : A.subst σ)
-    {d x c : TShape} (hdint : Interp Δ Γ A σ ρ d) (hdty : d.HasType Δ .type)
-    (hxd : d.Named Δ x t)
-    (hdc : d.WF Δ (A.subst σ))
-    (hcc : c.WF Δ ((B.subst σ.lift).inst t))
-    (hc : Interp Δ (A :: Γ) B (σ.cons t) (ρ.push x) c) :
-    ∃ (k : Nat) (dk xk ck : Shape k),
-      Interp Δ Γ (.sigma A B) σ ρ (Shape.T (n := k+1)
-        (.sigma (A.subst σ) (B.subst σ.lift) dk [⟨t, xk, ck⟩])) ∧
-      TShape.LE Δ c (Shape.T ck) ∧ TShape.LE Δ (Shape.T xk) x := by
-  obtain ⟨k, hkd, hkx, hkc⟩ : ∃ k, d.1 ≤ k ∧ x.1 ≤ k ∧ c.1 ≤ k :=
-    ⟨max (max d.1 x.1) c.1, Nat.le_trans (Nat.le_max_left ..) (Nat.le_max_left ..),
-      Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_left ..), Nat.le_max_right ..⟩
-  have hAσ : Δ ⊢ A.subst σ : .sort u := hA.subst hΔ W
-  have hΔA : ⊢ (A.subst σ :: Δ) := ⟨hΔ, _, hAσ⟩
-  have hwd : (d.2.lift k).WF Δ := (Shape.lift_wf hkd).2 hdty.wf.1
-  have hwx : (x.2.lift k).WF Δ := (Shape.lift_wf hkx).2 hxd.hasType.wf.1
-  have hwc : (c.2.lift k).WF Δ := (Shape.lift_wf hkc).2 hc.wf
-  have hwf : Shape.WF (n := k+1) Δ
-      (.sigma (A.subst σ) (B.subst σ.lift) (d.2.lift k)
-        [⟨t, x.2.lift k, c.2.lift k⟩]) := by
-    refine ⟨⟨u, hAσ⟩, ⟨v, hB.subst hΔA (W.lift hA hAσ)⟩, (Shape.lift_wf hkd).2 hdc, ?_, trivial⟩
-    refine ShapeFun.WF.name ⟨?_, ?_⟩ ?_
-    · intro e he
-      cases List.mem_singleton.1 he
-      exact ⟨⟨u, hAσ⟩, ht, hwx, hwc⟩
-    · intro e he e' he' Θ τ hΘ Wτ _ _
-      cases List.mem_singleton.1 he
-      cases List.mem_singleton.1 he'
-      exact (hwc.subst hΘ Wτ).coherent
-    · intro e he
-      cases List.mem_singleton.1 he
-      exact (Shape.lift_wf hkc).2 hcc
-  refine ⟨k, _, _, _, .sigma ?_ ?_ hwf ?_ ?_ (.refl hwf) ⟨u, hA⟩ ⟨v, hB⟩, ?_, ?_⟩
-  · exact hdint.mono hΔ (TShape.LE.lift_le hΔ (m := d) hkd hdty.wf.1)
-  · exact hdty.lift_subject hΔ hkd
-  · intro e he
-    cases List.mem_singleton.1 he
-    refine (hxd.lift_subject hΔ hkx).mono_r hΔ ?_ (hdty.lift_subject hΔ hkd)
-    exact TShape.LE.le_lift hΔ (m := d) hkd hdty.wf.1
-  · intro e he
-    cases List.mem_singleton.1 he
-    refine mono hΔ (TShape.LE.lift_le hΔ (m := c) hkc hc.wf) ?_
-    refine hc.mono_val hΔ (Valuation.LE.push.2 ⟨.refl hwρ, ?_⟩)
-    exact TShape.LE.le_lift hΔ (m := x) hkx hxd.hasType.wf.1
-  · exact TShape.LE.le_lift hΔ (m := c) hkc hc.wf
-  · exact TShape.LE.lift_le hΔ (m := x) hkx hxd.hasType.wf.1
-
-/-- **The codomains of two semantically equal Π-types agree, semantically.**
-`forallE_inv` reads the *labels* off the two Π-shapes; this reads the
-*graphs*.  A value of the first codomain at a typed slot becomes a
-one-entry approximant of the Π-type (`Interp.forallE_single`); the
-semantic equality carries it to the other Π-type, whose clause covers
-that entry by a lookup in its own graph; and `sound_graph_lookup` turns
-that lookup back into a value of the second codomain at the same slot. -/
-theorem SoundEq.forallE_cod {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {u v u' v' : Bool}
-    (hΓ : ⊢ Γ) (hA₀ : Γ ⊢ A₀ : .sort u) (hB₀ : A₀ :: Γ ⊢ B₀ : .sort v)
-    (hA₁ : Γ ⊢ A₁ : .sort u') (hB₁ : A₁ :: Γ ⊢ B₁ : .sort v')
-    (H : SoundEq Γ (.forallE A₀ B₀) (.forallE A₁ B₁))
-    {Δ : List Term} {σ ρ} (hAdm : Adm Δ Γ σ ρ)
-    {t : Term} (ht : Δ ⊢ t : A₀.subst σ)
-    {d x c : TShape} (hdint : Interp Δ Γ A₀ σ ρ d) (hdty : d.HasType Δ .type)
-    (hxd : d.Named Δ x t)
-    (hdc : d.WF Δ (A₀.subst σ))
-    (hcc : TShape.WF Δ c ((B₀.subst σ.lift).inst t))
-    (hc : Interp Δ (A₀ :: Γ) B₀ (σ.cons t) (ρ.push x) c) :
-    Interp Δ (A₁ :: Γ) B₁ (σ.cons t) (ρ.push x) c := by
-  have hΔ := hAdm.ctx
-  have W := hAdm.stage
-  have hB₁dir := (hB₁.dir (show ⊢ (A₁ :: Γ) from ⟨hΓ, _, hA₁⟩)).1
-  have hwρ := hAdm.wf
-  obtain ⟨k, dk, xk, ck, hprobe, hcle, hxle⟩ :=
-    hdint.forallE_single hΔ W hwρ hA₀ hB₀ ht hdty hxd hdc hcc hc
-  have hpr := (H hAdm).1 hprobe
-  cases hpr with | forallE hA₁int hd₁ hwf₁ _ hbody₁ hle₁
-  obtain ⟨hPi, _, hcov⟩ := TShape.LE.forallE_decomp hΔ hle₁ hwf₁ (TEvaluates.refl hwf₁.2.2.2.1)
-  have hev := hcov ⟨t, xk, ck⟩ (by simp)
-  have hwx := TShape.WF.T.2 (hprobe.wf.2.2.2.1.1 ⟨t, xk, ck⟩ (by simp)).2.2.1
-  have hB := sound_graph_lookup (B := B₁) ⟨hΓ, _, hA₁⟩ hA₁ hB₁ hΔ W hbody₁ hwx hwρ ht hPi.1 hev
-  exact (hB.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hxle⟩)).mono hΔ hcle
-
-/-- The Σ twin of `SoundEq.forallE_cod`. -/
-theorem SoundEq.sigma_cod {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {u v u' v' : Bool}
-    (hΓ : ⊢ Γ) (hA₀ : Γ ⊢ A₀ : .sort u) (hB₀ : A₀ :: Γ ⊢ B₀ : .sort v)
-    (hA₁ : Γ ⊢ A₁ : .sort u') (hB₁ : A₁ :: Γ ⊢ B₁ : .sort v')
-    (H : SoundEq Γ (.sigma A₀ B₀) (.sigma A₁ B₁))
-    {Δ : List Term} {σ ρ} (hAdm : Adm Δ Γ σ ρ)
-    {t : Term} (ht : Δ ⊢ t : A₀.subst σ)
-    {d x c : TShape} (hdint : Interp Δ Γ A₀ σ ρ d) (hdty : d.HasType Δ .type)
-    (hxd : d.Named Δ x t)
-    (hdc : d.WF Δ (A₀.subst σ))
-    (hcc : TShape.WF Δ c ((B₀.subst σ.lift).inst t))
-    (hc : Interp Δ (A₀ :: Γ) B₀ (σ.cons t) (ρ.push x) c) :
-    Interp Δ (A₁ :: Γ) B₁ (σ.cons t) (ρ.push x) c := by
-  have hΔ := hAdm.ctx
-  have W := hAdm.stage
-  have hB₁dir := (hB₁.dir (show ⊢ (A₁ :: Γ) from ⟨hΓ, _, hA₁⟩)).1
-  have hwρ := hAdm.wf
-  obtain ⟨k, dk, xk, ck, hprobe, hcle, hxle⟩ :=
-    hdint.sigma_single hΔ W hwρ hA₀ hB₀ ht hdty hxd hdc hcc hc
-  have hpr := (H hAdm).1 hprobe
-  cases hpr with | sigma hA₁int hd₁ hwf₁ _ hbody₁ hle₁
-  obtain ⟨hSg, _, hcov⟩ := TShape.LE.sigma_decomp hΔ hle₁ hwf₁ (TEvaluates.refl hwf₁.2.2.2.1)
-  have hev := hcov ⟨t, xk, ck⟩ (by simp)
-  have hwx := TShape.WF.T.2 (hprobe.wf.2.2.2.1.1 ⟨t, xk, ck⟩ (by simp)).2.2.1
-  have hB := sound_graph_lookup (B := B₁) ⟨hΓ, _, hA₁⟩ hA₁ hB₁ hΔ W hbody₁ hwx hwρ ht hSg.1 hev
-  exact (hB.mono_val hΔ (Valuation.LE.push.2 ⟨Valuation.LE.refl hwρ, hxle⟩)).mono hΔ hcle
-
 theorem SoundEq.sort_inv {Γ : List Term} {u v : Bool}
     (hΓ : ⊢ Γ) (H : SoundEq Γ (.sort u) (.sort v)) : u = v := by
   have h := (H (.bot hΓ (.id hΓ))).1 .sort'
@@ -3521,41 +3351,6 @@ theorem SoundEq.sigma_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {u v : B
   obtain ⟨u', hu⟩ := hlab.1
   obtain ⟨v', hv⟩ := hlab.2
   exact ⟨u', v', hu, hv⟩
-
-/-- The *semantic* half of Σ domain inversion, at every stage: an
-approximant of the domain moves across by being wrapped as the domain of
-an otherwise empty Σ-shape.  Master's `SoundEq.sigma_inv`, first
-component.  The syntactic `sigma_inv` above does not give this — a
-definitional equality of domains becomes a `SoundEq` only through
-soundness. -/
-theorem SoundEq.sigma_dom {Γ : List Term} {A B A' B' : Term} {u u' v v' : Bool}
-    (hAt : Γ ⊢ A : .sort u) (hA't : Γ ⊢ A' : .sort u')
-    (hA : SoundTy Γ A (.sort u)) (hB : A :: Γ ⊢ B : .sort v)
-    (hA' : SoundTy Γ A' (.sort u')) (hB' : A' :: Γ ⊢ B' : .sort v')
-    (H : SoundEq Γ (.sigma A B) (.sigma A' B')) : SoundEq Γ A A' := by
-  suffices key : ∀ {A B A' B' : Term} {u v : Bool}, (Γ ⊢ A : .sort u) →
-      SoundTy Γ A (.sort u) →
-      A :: Γ ⊢ B : .sort v → SoundEq Γ (.sigma A B) (.sigma A' B') →
-      ∀ {Δ σ ρ}, Adm Δ Γ σ ρ →
-      ∀ {m}, Interp Δ Γ A σ ρ m → Interp Δ Γ A' σ ρ m by
-    intro Δ σ ρ hAdm m
-    have hΔ := hAdm.ctx
-    have W := hAdm.stage
-    exact ⟨key hAt hA hB H hAdm, key hA't hA' hB' H.symm hAdm⟩
-  intro A B A' B' u v hAt hA hB H Δ σ ρ hAdm m hm
-  have hΔ := hAdm.ctx
-  have W := hAdm.stage
-  have ⟨⟨_, hAσ⟩, _, hBσ⟩ := PiLabelEq.subst hΔ W ⟨⟨u, hAt⟩, v, hB⟩
-  have hw : Shape.WF (n := m.1+1) Δ (.sigma (A.subst σ) (B.subst σ.lift) m.2 []) :=
-    ⟨⟨_, hAσ.hasType.1⟩, ⟨_, hBσ.hasType.1⟩, hA.codeAt hAdm hm,
-      ShapeFun.WF.name ⟨nofun, nofun⟩ nofun, trivial⟩
-  have hprobe : Interp Δ Γ (.sigma A B) σ ρ
-      (Shape.T (n := m.1+1) (.sigma (A.subst σ) (B.subst σ.lift) m.2 [])) :=
-    .sigma hm (hA.isType hAdm hm) hw nofun nofun (.refl hw) ⟨u, hAt⟩ ⟨v, hB⟩
-  have hmove := (H hAdm).1 hprobe
-  cases hmove with | sigma hA'' _ hwf _ _ hle
-  obtain ⟨_, hdd, _⟩ := hle.sigma_decomp hΔ hwf (.refl hwf.2.2.2.1)
-  exact hA''.mono hΔ hdd
 
 /-- Inversion at `id`.  The `id` former is label-only, so it needs no
 atom: its own interpretation at the identity stage *is* the probe, and the
@@ -4053,7 +3848,7 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
     exact ⟨he, hd.of_tyEq hAB heAB, hpL, hpR⟩
   -- everything below is one rule of the induction, each an independent
   -- obligation; see §4 of `presheaf-proof-strategy.md` for what each needs
-  -- the slot's typing is `Adm`'s own, read off at the index by `Adm.lookup`
+  -- the slot's typing is `Adm`'s own, read off at the index by `Adm.lookupCanon`
   | @bvar _ _ _ _ hl hA =>
     exact ⟨.refl, .bvar hl, trivial, trivial⟩
   | sort =>

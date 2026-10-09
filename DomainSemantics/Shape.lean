@@ -20,7 +20,7 @@ order `Shape.LE Δ` is context-indexed and `Prop`-valued (the old `ble` and
 `Compat` were `Bool`-valued). The saturation conditions of the old
 `ShapeFun.WF` (a `⊥`-input entry, closure under compatible joins, monotone
 samples) are gone: graph lookup is now the join of *all* matching entries
-(`Evaluates`, in a later file) rather than a search for a maximal one. -/
+(`ShapeFun.Eval`, below) rather than a search for a maximal one. -/
 
 namespace DomainSemantics
 
@@ -318,7 +318,7 @@ The `Option Term` index is what used to be two conjuncts bolted onto the
 Π and Σ clauses: a domain code is now well formed *at `A`* and an entry's
 output *at `B.inst e.tm`*, so the recursion carries canonicity instead of
 restating it.  At `none` nothing is asked beyond the structure, which is
-`Shape.WF`, and `Shape.WF.iff` says the two halves separate. -/
+`Shape.WF` itself. -/
 def Shape.WF (Γ : List Term) : ∀ {n}, Shape n → (o : Option Term := none) → Prop
   | 0, .bot, _ | _+1, .bot, _ | _+1, .zero, _ | _+1, .refl, _ => True
   | 0, .sort r, o | _+1, .sort r, o => TyEqO Γ o (.sort r)
@@ -366,21 +366,6 @@ theorem Shape.WF.forget {n} {Γ : List Term} {o} {s : Shape n} (h : s.WF Γ o) :
 
 @[simp] theorem Shape.WF.bot_mem {Γ : List Term} {n} {o} :
     (Shape.bot (n := n)).WF Γ o := by cases n <;> trivial
-
-/-- **And back**: an index built from the pointwise named forms. -/
-theorem Shape.WF.named_of {Γ : List Term} {o} {n} {s : Shape n}
-    (h : s.WF Γ) (hc : ∀ T ∈ o, s.WF Γ (some T)) : s.WF Γ o := by
-  cases o with
-  | none => exact h
-  | some T => exact hc T rfl
-
-/-- The index at a name that is there. -/
-theorem Shape.WF.mem {Γ : List Term} {o} {n} {s : Shape n}
-    (h : s.WF Γ o) : ∀ T ∈ o, s.WF Γ (some T) := by
-  intro T hT
-  cases o with
-  | none => cases hT
-  | some u => simp only [Option.mem_def, Option.some.injEq] at hT; subst hT; exact h
 
 /-- **A name moves along an equality of types.**  Only the head mentions
 it, so this is one `cases` and the other conjuncts ride along. -/
@@ -466,10 +451,10 @@ entry coverage because its graphs are saturated, so a join of matching
 outputs *is* an entry; the other repo because a λ-value is an ideal,
 closed under every graph valid for its action.
 
-The lookup is `Evaluates`, and it is defined here, **parameterised by the
-order one level down**, which is what closes the recursion: `LE` at `n+1`
-needs the lookup at `n`, which needs `LE` at `n`.  `HasType.lean`'s
-`Evaluates` is this one at `R := Shape.LE Δ`. -/
+The lookup is `ShapeFun.Eval`, and it is defined here, **parameterised by
+the order one level down**, which is what closes the recursion: `LE` at
+`n+1` needs the lookup at `n`, which needs `LE` at `n`.  `HasType.lean`'s
+`TEvaluates` is this one at `R := Shape.LE Δ`. -/
 
 /-- The graph lookup at a label and an input: `⊥`, the outputs of matching
 entries, closed downwards and under compatible joins.  The other repo's
@@ -2379,9 +2364,6 @@ namespace TShape
 
 /-- Move a shape up to level `k`. -/
 def lift (m : TShape) (k : Nat) : TShape := ⟨k, m.2.lift k⟩
-
-theorem WF.lift {Δ : List Term} {m : TShape} {o} {k} (hk : m.1 ≤ k)
-    (h : m.WF Δ o) : (m.lift k).WF Δ o := (Shape.lift_wf hk).2 h
 
 theorem LE.lift_le {Δ : List Term} (hΔ : ⊢ Δ) {m : TShape} {k} (hk : m.1 ≤ k)
     (h : m.WF Δ) : (m.lift k).LE Δ m := by

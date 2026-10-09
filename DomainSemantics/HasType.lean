@@ -341,7 +341,7 @@ theorem TEvaluates.retype {Δ : List Term} {n} {f : ShapeFun n} {A A' a : Term}
   | join hc _ _ ih₁ ih₂ => exact .join hc ih₁ ih₂
 
 /-- Two lookups at one query in one coherent graph are compatible, so
-their join exists.  `Evaluates.compat` at the total level, with the same
+their join exists.  `ShapeFun.Eval.compat` at the total level, with the same
 double induction. -/
 theorem TEvaluates.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n} {A a : Term}
     {x : TShape} (hf : f.Compat Shape.Compat Δ A f) (hwx : x.WF Δ)
