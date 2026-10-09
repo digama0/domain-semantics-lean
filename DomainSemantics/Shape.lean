@@ -858,11 +858,9 @@ theorem Shape.lift_compat {n m} (h : n ≤ m) {Δ : List Term} {s t : Shape n} :
       ShapeFun.Compat Compat Δ Ty f f' := by
     constructor
     · intro H e he e' he' Θ τ hΘ W hlab hin
-      have := H ⟨e.tm, e.inp.lift m, e.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩)
-        ⟨e'.tm, e'.inp.lift m, e'.out.lift m⟩ (ShapeFun.mem_lift.2 ⟨e', he', rfl⟩)
+      have := H _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩) _ (ShapeFun.mem_lift.2 ⟨e', he', rfl⟩)
         Θ τ hΘ W hlab
-      rw [← lift_subst, ← lift_subst, ← lift_subst,
-        ← lift_subst] at this
+      rw [← lift_subst, ← lift_subst, ← lift_subst, ← lift_subst] at this
       exact (ih h').1 (this ((ih h').2 hin))
     · intro H e'' he'' e''' he''' Θ τ hΘ W hlab hin
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
@@ -883,11 +881,8 @@ theorem ShapeFun.lift_compat {n m} (h : n ≤ m) {Δ : List Term} {f f' : ShapeF
     Compat Shape.Compat Δ Ty f f' := by
   constructor
   · intro H e he e' he' Θ τ hΘ W hlab hin
-    have := H ⟨e.tm, e.inp.lift m, e.out.lift m⟩ (mem_lift.2 ⟨e, he, rfl⟩)
-      ⟨e'.tm, e'.inp.lift m, e'.out.lift m⟩ (mem_lift.2 ⟨e', he', rfl⟩)
-      Θ τ hΘ W hlab
-    rw [← Shape.lift_subst, ← Shape.lift_subst, ← Shape.lift_subst,
-      ← Shape.lift_subst] at this
+    have := H _ (mem_lift.2 ⟨e, he, rfl⟩) _ (mem_lift.2 ⟨e', he', rfl⟩) Θ τ hΘ W hlab
+    rw [← Shape.lift_subst, ← Shape.lift_subst, ← Shape.lift_subst, ← Shape.lift_subst] at this
     exact (Shape.lift_compat h).1 (this ((Shape.lift_compat h).2 hin))
   · intro H e₁ he₁ e₂ he₂ Θ τ hΘ W hlab hin
     obtain ⟨e, he, rfl⟩ := mem_lift.1 he₁
@@ -924,8 +919,7 @@ theorem Shape.lift_wf {n m} (h : n ≤ m) {o} {s : Shape n} :
       (∀ e ∈ ShapeFun.lift (lift m) f, ¬ e.out.IsBot) ↔ (∀ e ∈ f, ¬ e.out.IsBot) := by
     constructor
     · intro H e he hb
-      exact H ⟨e.tm, e.inp.lift m, e.out.lift m⟩
-        (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩) ((lift_isBot h').2 hb)
+      exact H _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩) ((lift_isBot h').2 hb)
     · intro H e'' he'' hb
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
       exact H e he ((lift_isBot h').1 hb)
@@ -959,11 +953,10 @@ theorem ShapeFun.lift_wf {n m} (h : n ≤ m) {Δ : List Term} {f : ShapeFun n} :
 theorem ShapeFun.codeCanonS_lift_iff {n m} (h : n ≤ m) {Δ : List Term} {B : Term}
     {f : ShapeFun n} :
     (∀ e ∈ lift (Shape.lift m) f, e.out.WF Δ (B.inst e.tm)) ↔
-      ∀ e ∈ f, e.out.WF Δ (B.inst e.tm) :=
-  ⟨fun H e he => (Shape.lift_wf h).1 (H _ (mem_lift.2 ⟨e, he, rfl⟩)),
-   fun H e he => by
-     obtain ⟨a, ha, rfl⟩ := mem_lift.1 he
-     exact (Shape.lift_wf h).2 (H a ha)⟩
+      ∀ e ∈ f, e.out.WF Δ (B.inst e.tm) := by
+  refine ⟨fun H e he => (Shape.lift_wf h).1 (H _ (mem_lift.2 ⟨e, he, rfl⟩)), fun H e he => ?_⟩
+  obtain ⟨a, ha, rfl⟩ := mem_lift.1 he
+  exact (Shape.lift_wf h).2 (H a ha)
 
 /-- Substitution composes on shapes, as it does on terms. -/
 theorem Shape.subst_subst {σ τ : Subst} {n} {x : Shape n} :
@@ -1069,8 +1062,8 @@ theorem Shape.LE.trans (hΓ : ⊢ Γ) {n} {s t u : Shape n}
   | lam Af f =>
     cases t with | lam Af' f' => ?_ | _ => cases h₁
     cases u with | lam Af'' f'' => ?_ | _ => cases h₂
-    exact ⟨h₁.1.trans_of ih (h₂.1.retype h₁.2.2.2.1.symm), h₁.2.1, h₁.2.2.1,
-      h₁.2.2.2.1.trans h₂.2.2.2.1, h₁.2.2.2.2⟩
+    refine ⟨?_, h₁.2.1, h₁.2.2.1, h₁.2.2.2.1.trans h₂.2.2.2.1, h₁.2.2.2.2⟩
+    exact h₁.1.trans_of ih (h₂.1.retype h₁.2.2.2.1.symm)
   | succ =>
     cases t <;> try cases h₁
     cases u <;> try cases h₂
@@ -1082,9 +1075,8 @@ theorem Shape.LE.trans (hΓ : ⊢ Γ) {n} {s t u : Shape n}
   | pair =>
     cases t <;> try exact absurd h₁ id
     cases u <;> try exact absurd h₂ id
-    exact ⟨ih h₁.1 h₂.1, ih h₁.2.1 h₂.2.1, h₁.2.2.1,
-      h₁.2.2.2.1.trans h₂.2.2.2.1,
-      h₁.2.2.2.2.trans ((h₁.2.2.2.1.symm).defeqDF h₂.2.2.2.2)⟩
+    refine ⟨ih h₁.1 h₂.1, ih h₁.2.1 h₂.2.1, h₁.2.2.1, h₁.2.2.2.1.trans h₂.2.2.2.1, ?_⟩
+    exact h₁.2.2.2.2.trans (h₁.2.2.2.1.symm.defeqDF h₂.2.2.2.2)
   | id =>
     cases t <;> cases h₁
     cases u <;> cases h₂
@@ -1092,8 +1084,8 @@ theorem Shape.LE.trans (hΓ : ⊢ Γ) {n} {s t u : Shape n}
   | forallE | sigma =>
     cases t <;> cases h₁; rename_i h₁₁ h₁₂
     cases u <;> cases h₂; rename_i h₂₁ h₂₂
-    exact ⟨h₁₁.trans hΓ h₂₁, ih h₁₂.1 h₂₂.1,
-      h₁₂.2.1.trans_of ih (h₂₂.2.1.retype h₁₁.1.symm), h₁₂.2.2.1, h₁₂.2.2.2⟩
+    refine ⟨h₁₁.trans hΓ h₂₁, ih h₁₂.1 h₂₂.1, ?_, h₁₂.2.2.1, h₁₂.2.2.2⟩
+    exact h₁₂.2.1.trans_of ih (h₂₂.2.1.retype h₁₁.1.symm)
   | _ => cases t <;> cases u <;> simp_all [LE]
 
 /-! ## Preservation under typed substitution
@@ -1243,8 +1235,8 @@ nonrec theorem Shape.WF.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W
     have ⟨⟨u, hA⟩, ⟨v, hB⟩, hd, hf, hn⟩ := hs
     have hA' := hA.subst hΘ W
     have hΘA : ⊢ A.subst τ :: Θ := ⟨hΘ, _, hA'⟩
-    exact ⟨⟨u, hA'⟩, ⟨v, hB.subst hΘA (W.lift hA hA')⟩, ih hd,
-      hf.subst_of hΘ W ih, hn.subst hΘ W⟩
+    refine ⟨⟨u, hA'⟩, ⟨v, ?_⟩, ih hd, hf.subst_of hΘ W ih, hn.subst hΘ W⟩
+    exact hB.subst hΘA (W.lift hA hA')
 
 theorem Shape.join_subst {τ : Subst} {n} {x y : Shape n} :
     (x.join y).subst τ = (x.subst τ).join (y.subst τ) := by
@@ -1356,7 +1348,7 @@ theorem ShapeFun.LE.subst_of {Δ Θ : List Term} {τ : Subst} {n} {f f' : ShapeF
     (f.subst (Shape.subst · τ) τ).LE Θ (Shape.LE Θ) (@Shape.WF Θ _) (Ty.subst τ)
       (f'.subst (Shape.subst · τ) τ) := by
   refine ⟨fun d hd => ?_, h.2.1.subst_of hΘ W (Shape.WF.subst hΘ W),
-    WF.subst_of hΘ W (Shape.WF.subst hΘ W) h.2.2⟩
+    h.2.2.subst_of hΘ W (Shape.WF.subst hΘ W)⟩
   obtain ⟨e, he, rfl⟩ := mem_subst.1 hd
   exact Eval.subst_of hΘ W ih (h.1 e he)
 
@@ -1378,10 +1370,9 @@ theorem Shape.LE.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.
   | id => cases t <;> cases h; exact ⟨‹_›, .subst hΘ W ‹_›⟩
   | forallE | sigma =>
     cases t <;> cases h; rename_i h₁ h₂
-    refine ⟨h₁.subst hΘ W, ih h₂.1, h₂.2.1.subst_of hΘ W ih,
-      WF.subst hΘ W h₂.2.2.1, fun e he => ?_⟩
+    refine ⟨h₁.subst hΘ W, ih h₂.1, h₂.2.1.subst_of hΘ W ih, h₂.2.2.1.subst hΘ W, fun e he => ?_⟩
     obtain ⟨e₀, he₀, rfl⟩ := ShapeFun.mem_subst.1 he
-    have := WF.subst hΘ W (h₂.2.2.2 e₀ he₀)
+    have := (h₂.2.2.2 e₀ he₀).subst hΘ W
     simpa [subst_inst] using this
   | _ => cases t <;> simp_all [LE, Shape.subst]
 
@@ -1452,9 +1443,7 @@ theorem ShapeFun.Compat.anti_right_of {Δ : List Term} {n} {f g g' : ShapeFun n}
   induction hy with
   | bot => simpa only [Shape.subst_bot] using Shape.Compat.bot_right
   | entry e₂ he₂ hl₂ hi₂ =>
-    exact h e he e₂ he₂ Θ τ hΘ W
-      (hlab.trans (hl₂.subst hΘ W).symm)
-      (ih hΘ hin (hi₂.subst hΘ W))
+    exact h e he e₂ he₂ Θ τ hΘ W (hlab.trans (hl₂.subst hΘ W).symm) (ih hΘ hin (hi₂.subst hΘ W))
   | lower hle _ ihz => exact ih hΘ ihz (hle.subst hΘ W)
   | join _ _ _ ih₁ ih₂ =>
     exact Shape.join_subst ▸ ((ih₁.symm hΘ).join hΘ (ih₂.symm hΘ)).symm hΘ
@@ -1551,8 +1540,7 @@ theorem Shape.Compat.anti_right {n} {Δ : List Term} {a b b' : Shape n} (hΔ : �
 theorem Shape.Compat.anti {n} {Δ : List Term} {a b a' b' : Shape n} (hΔ : ⊢ Δ)
     (h : a.Compat Δ b) (ha : a'.LE Δ a) (hb : b'.LE Δ b) :
     a'.Compat Δ b' :=
-  symm hΔ (anti_right hΔ
-    ((h.anti_right hΔ hb).symm hΔ) ha)
+  (((h.anti_right hΔ hb).symm hΔ).anti_right hΔ ha).symm hΔ
 
 /-- Two shapes below a common **coherent** upper bound are compatible.
 This is the form the graph lookup needs: whenever two entries are selected
@@ -1565,8 +1553,7 @@ theorem Shape.Compat.of_common_upper {n} {Δ : List Term} {a b c : Shape n} (hΔ
 theorem ShapeFun.Compat.symm {n} {Δ : List Term} {f f' : ShapeFun n}
     (h : f.Compat Shape.Compat Δ Ty f') : f'.Compat Shape.Compat Δ Ty f :=
   fun e he e' he' Θ τ hΘ W hlab hin =>
-    Shape.Compat.symm hΘ
-      (h e' he' e he Θ τ hΘ W hlab.symm (hin.symm hΘ))
+    (h e' he' e he Θ τ hΘ W hlab.symm (hin.symm hΘ)).symm hΘ
 
 /-- Two graphs under a common self-coherent graph are coherent with each
 other.  The shape-level `of_common_upper` cannot be used through a `.lam`
@@ -1580,8 +1567,7 @@ theorem ShapeFun.Compat.of_common_upper {n} {Δ : List Term} {f f' g : ShapeFun 
   have anti {Θ : List Term} {a b b' : Shape n} (hΘ : ⊢ Θ) :
       a.Compat Θ b → b'.LE Θ b → a.Compat Θ b' :=
     Shape.Compat.anti_right hΘ
-  .anti_right_of anti
-    (hg.anti_right_of anti h₁.1).symm h₂.1
+  .anti_right_of anti (hg.anti_right_of anti h₁.1).symm h₂.1
 
 @[simp] theorem Shape.subst_id {n} {s : Shape n} : s.subst .id = s := by
   induction n with | zero => cases s <;> rfl | succ n ih
@@ -1651,7 +1637,7 @@ theorem Shape.join_le (hΔ : ⊢ Δ) {n} {x y w : Shape n}
     have h₂' := h₂.1.retype (h₂.2.2.2.1.trans h₁.2.2.2.1.symm)
     have hc : ShapeFun.Compat Compat Δ Af f f' :=
       h₁.1.2.2.2.of_common_upper h₁.1 h₂'
-    refine ⟨ShapeFun.LE.append hc (ShapeFun.Compat.symm hc) h₁.1 h₂', ?_, ?_, h₁.2.2.2⟩
+    refine ⟨ShapeFun.LE.append hc hc.symm h₁.1 h₂', ?_, ?_, h₁.2.2.2⟩
     · exact fun hnil => h₁.2.1 (List.append_eq_nil_iff.1 hnil).1
     · exact fun e he => (List.mem_append.1 he).elim (h₁.2.2.1 e) (h₂.2.2.1 e)
   | forallE A B d f =>
@@ -1661,13 +1647,12 @@ theorem Shape.join_le (hΔ : ⊢ Δ) {n} {x y w : Shape n}
     · have h₂' := h₂.2.2.1.retype (h₂.1.1.trans h₁.1.1.symm)
       have hc : ShapeFun.Compat Compat Δ A f f' :=
         h₁.2.2.1.2.2.2.of_common_upper h₁.2.2.1 h₂'
-      exact ShapeFun.LE.append hc (ShapeFun.Compat.symm hc) h₁.2.2.1 h₂'
+      exact ShapeFun.LE.append hc hc.symm h₁.2.2.1 h₂'
     · have hpi := h₁.1.trans hΔ (h₂.1.symm hΔ)
-      exact WF.join_of (LE.wf (ih h₁.2.1 h₂.2.1)) h₁.2.2.2.1
-        (h₂.2.2.2.1.conv hpi.1)
+      exact (ih h₁.2.1 h₂.2.1).wf.join_of h₁.2.2.2.1 (h₂.2.2.2.1.conv hpi.1)
     · have hpi := h₁.1.trans hΔ (h₂.1.symm hΔ)
       refine ShapeFun.codeCanonS_append hΔ hpi (fun e he => ?_) h₁.2.2.2.2 h₂.2.2.2.2
-      exact ((LE.wf h₂).2.2.2.1.1 e he).2.1
+      exact (h₂.wf.2.2.2.1.1 e he).2.1
   | sigma A B d f =>
     cases y with | bot => exact h₁ | sigma A' B' d' f' => ?_ | _ => exact h₁
     cases w <;> try exact absurd h₁ id
@@ -1675,13 +1660,12 @@ theorem Shape.join_le (hΔ : ⊢ Δ) {n} {x y w : Shape n}
     · have h₂' := h₂.2.2.1.retype (h₂.1.1.trans h₁.1.1.symm)
       have hc : ShapeFun.Compat Compat Δ A f f' :=
         h₁.2.2.1.2.2.2.of_common_upper h₁.2.2.1 h₂'
-      exact ShapeFun.LE.append hc (ShapeFun.Compat.symm hc) h₁.2.2.1 h₂'
+      exact ShapeFun.LE.append hc hc.symm h₁.2.2.1 h₂'
     · have hpi := h₁.1.trans hΔ (h₂.1.symm hΔ)
-      exact WF.join_of (LE.wf (ih h₁.2.1 h₂.2.1)) h₁.2.2.2.1
-        (h₂.2.2.2.1.conv hpi.1)
+      exact (ih h₁.2.1 h₂.2.1).wf.join_of h₁.2.2.2.1 (h₂.2.2.2.1.conv hpi.1)
     · have hpi := h₁.1.trans hΔ (h₂.1.symm hΔ)
       refine ShapeFun.codeCanonS_append hΔ hpi (fun e he => ?_) h₁.2.2.2.2 h₂.2.2.2.2
-      exact ((LE.wf h₂).2.2.2.1.1 e he).2.1
+      exact (h₂.wf.2.2.2.1.1 e he).2.1
   | succ v =>
     cases y with | succ v' => ?_ | _ => exact h₁
     cases w <;> first | exact absurd h₁ id | exact ih h₁ h₂
@@ -1743,22 +1727,20 @@ theorem Shape.le_join (hΔ : ⊢ Δ) {n} {x y : Shape n} (hx : x.WF Δ) (hy : y.
     have ⟨⟨_, hA⟩, ⟨_, hB⟩, hd, hff, _⟩ := hx
     have hxf := hff.forget
     have hyf := hy.2.2.2.1.forget
-    have hfg := hxf.append (hyf.retype h.1.1.symm) h.2.2
-      h.2.2.symm
+    have hfg := hxf.append (hyf.retype h.1.1.symm) h.2.2 h.2.2.symm
     have hle := ih hd.forget hy.2.2.1.forget h.2.1
-    refine ⟨⟨.refl hA hB, hle.1, .append_left hxf hfg, hd,
-      hff.canon⟩, h.1.symm hΔ, hle.2, ?_, hy.2.2.1, hy.2.2.2.1.canon⟩
+    refine ⟨?_, h.1.symm hΔ, hle.2, ?_, hy.2.2.1, hy.2.2.2.1.canon⟩
+    · exact ⟨.refl hA hB, hle.1, .append_left hxf hfg, hd, hff.canon⟩
     exact .append_right hyf (hfg.retype h.1.1)
   | sigma A B d f =>
     cases y with | bot => exact ⟨.refl hx, trivial⟩ | sigma A' B' d' f' => ?_ | _ => cases h
     have ⟨⟨_, hA⟩, ⟨_, hB⟩, hd, hff, _⟩ := hx
     have hxf := hff.forget
     have hyf := hy.2.2.2.1.forget
-    have hfg := hxf.append (hyf.retype h.1.1.symm) h.2.2
-      h.2.2.symm
+    have hfg := hxf.append (hyf.retype h.1.1.symm) h.2.2 h.2.2.symm
     have hle := ih hd.forget hy.2.2.1.forget h.2.1
-    refine ⟨⟨.refl hA hB, hle.1, .append_left hxf hfg, hd,
-      hff.canon⟩, h.1.symm hΔ, hle.2, ?_, hy.2.2.1, hy.2.2.2.1.canon⟩
+    refine ⟨?_, h.1.symm hΔ, hle.2, ?_, hy.2.2.1, hy.2.2.2.1.canon⟩
+    · exact ⟨.refl hA hB, hle.1, .append_left hxf hfg, hd, hff.canon⟩
     exact .append_right hyf (hfg.retype h.1.1)
   | succ v =>
     cases y with | bot => exact ⟨.refl hx, trivial⟩ | succ v' => ?_ | _ => cases h
@@ -1796,18 +1778,14 @@ theorem Shape.WF.join {n} {Δ : List Term} {y z : Shape n} (hΔ : ⊢ Δ)
     · match List.mem_append.1 he with
       | .inl he => exact hy.2.1 e he
       | .inr he => exact hz.2.1 e he
-    · exact ShapeFun.WF.append (ShapeFun.WF.forget hy.2.2.1)
-        ((ShapeFun.WF.forget hz.2.2.1).retype hc.1.symm) hc.2 (ShapeFun.Compat.symm hc.2)
+    · exact hy.2.2.1.forget.append (hz.2.2.1.forget.retype hc.1.symm) hc.2 hc.2.symm
   | forallE A B d f | sigma A B d f =>
     cases z <;> try exact hy
-    refine ⟨hy.1, hy.2.1, ?_, ShapeFun.WF.name (ShapeFun.WF.append
-      (ShapeFun.WF.forget hy.2.2.2.1) ((ShapeFun.WF.forget hz.2.2.2.1).retype
-        hc.1.1.symm) hc.2.2 hc.2.2.symm) ?_, trivial⟩
-    · exact join_of (ih hc.2.1 hy.2.2.1.forget
-        hz.2.2.1.forget) hy.2.2.1 (hz.2.2.1.conv hc.1.1)
-    · refine ShapeFun.codeCanonS_append hΔ hc.1 (fun e he => ?_)
-        hy.2.2.2.1.canon hz.2.2.2.1.canon
-      exact (hz.2.2.2.1.1 e he).2.1
+    refine ⟨hy.1, hy.2.1, ?_, .name ?_ ?_, trivial⟩
+    · exact (ih hc.2.1 hy.2.2.1.forget hz.2.2.1.forget).join_of hy.2.2.1 (hz.2.2.1.conv hc.1.1)
+    · exact hy.2.2.2.1.forget.append (hz.2.2.2.1.forget.retype hc.1.1.symm) hc.2.2 hc.2.2.symm
+    refine ShapeFun.codeCanonS_append hΔ hc.1 (fun e he => ?_) hy.2.2.2.1.canon hz.2.2.2.1.canon
+    exact (hz.2.2.2.1.1 e he).2.1
   | succ v => cases z with | succ w => exact ih hc hy hz | _ => exact hy
   | refl => cases z with | refl => trivial | _ => exact hy
   | pair A a x₁ y₁ =>
@@ -1876,9 +1854,10 @@ theorem ShapeFun.Eval.compat {Δ : List Term} (hΔ : ⊢ Δ) {n} {f : ShapeFun n
   induction hz with
   | bot => exact .bot_right
   | entry e' he' hlab' hin' =>
-    simpa using hf e he e' he' Δ .id hΔ (.id hΔ)
-      (by simpa using hlab.trans hlab'.symm)
-      (by simpa using hx.of_common_upper hΔ hin hin')
+    have := hf e he e' he' Δ .id hΔ (.id hΔ) ?_ ?_
+    · simpa using this
+    · simpa using hlab.trans hlab'.symm
+    simpa using hx.of_common_upper hΔ hin hin'
   | lower hle _ ih => exact ih.anti_right hΔ hle
   | join _ _ _ ih₁ ih₂ => exact ((ih₁.symm hΔ).join hΔ (ih₂.symm hΔ)).symm hΔ
 
@@ -1911,15 +1890,15 @@ theorem ShapeFun.Eval.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k
   | bot => exact ⟨.bot, by rw [Shape.lift_bot]; exact .bot, .bot⟩
   | entry e' he' hlab hin =>
     obtain ⟨e, he, rfl⟩ := mem_lift.1 he'
-    exact ⟨e.out, Shape.LE.refl ((Shape.lift_wf h).2 (Shape.WF.forget (hwf.1 e he).2.2.2)),
-      .entry e he hlab (ihlift.1 hin)⟩
+    refine ⟨e.out, ?_, .entry e he hlab (ihlift.1 hin)⟩
+    exact .refl ((Shape.lift_wf h).2 (hwf.1 e he).2.2.2.forget)
   | lower hle _ ih =>
     have ⟨c, hc, hev⟩ := ih
     exact ⟨c, hle.trans hΔ hc, hev⟩
   | join _ _ _ ih₁ ih₂ =>
     have ⟨c₁, hc₁, hev₁⟩ := ih₁
     have ⟨c₂, hc₂, hev₂⟩ := ih₂
-    have houts : ∀ e ∈ f, Shape.WF Δ e.out := fun e he => Shape.WF.forget (hwf.1 e he).2.2.2
+    have houts : ∀ e ∈ f, Shape.WF Δ e.out := fun e he => (hwf.1 e he).2.2.2.forget
     have hcc : Shape.Compat Δ c₁ c₂ := compat hΔ hco hwx.coherent hev₁ hev₂
     have hw₁ := wf hΔ houts hev₁
     have hw₂ := wf hΔ houts hev₂
@@ -1975,8 +1954,7 @@ theorem Shape.lift_le_lift (hΓ : ⊢ Γ) {n m} (h : n ≤ m) {s t : Shape n} :
       (∀ e ∈ ShapeFun.lift (lift m) f, ¬ e.out.IsBot) ↔ (∀ e ∈ f, ¬ e.out.IsBot) := by
     constructor
     · intro H e he hb
-      exact H ⟨e.tm, e.inp.lift m, e.out.lift m⟩
-        (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩) ((lift_isBot h').2 hb)
+      exact H _ (ShapeFun.mem_lift.2 ⟨e, he, rfl⟩) ((lift_isBot h').2 hb)
     · intro H e'' he'' hb
       obtain ⟨e, he, rfl⟩ := ShapeFun.mem_lift.1 he''
       exact H e he ((lift_isBot h').1 hb)
@@ -2110,8 +2088,7 @@ theorem LE.trans {Δ : List Term} (hΔ : ⊢ Δ) {a b c : TShape}
   have hb : b.1 ≤ max (max a.1 b.1) c.1 :=
     Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_left ..)
   have hc : c.1 ≤ max (max a.1 b.1) c.1 := Nat.le_max_right ..
-  exact (LE.def hΔ ha hc).2
-    (((LE.def_mp ha hb) h1).trans hΔ ((LE.def_mp hb hc) h2))
+  exact (LE.def hΔ ha hc).2 ((def_mp ha hb h1).trans hΔ (def_mp hb hc h2))
 
 theorem LE.T {Δ : List Term} {n} {s t : Shape n} :
     LE Δ (Shape.T s) (Shape.T t) ↔ Shape.LE Δ s t := by
@@ -2139,7 +2116,7 @@ is indexed by a level. -/
 theorem TShape.le_bot {Δ : List Term} (hΔ : ⊢ Δ) {a b : TShape} (hb : b.2 = .bot)
     (h : a.LE Δ b) : a.2 = .bot := by
   have hk : a.1 ≤ max a.1 b.1 := Nat.le_max_left ..
-  have h' := (LE.def_mp (Nat.le_max_left ..) (Nat.le_max_right ..)) h
+  have h' := LE.def_mp (Nat.le_max_left ..) (Nat.le_max_right ..) h
   rw [hb, Shape.lift_bot,
     show (Shape.bot : Shape (max a.1 b.1)) = (Shape.bot : Shape a.1).lift _ from
       Shape.lift_bot.symm] at h'
@@ -2160,11 +2137,11 @@ theorem TShape.bot_le' {Δ : List Term} {a b : TShape} (ha : a.2 = .bot) :
 theorem TShape.LE.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (W : Ctx.SubstEq Θ τ τ Δ) {a b : TShape} (h : a.LE Δ b) :
     (a.subst τ).LE Θ (b.subst τ) := by
-  refine (TShape.LE.def hΘ (Nat.le_max_left ..) (Nat.le_max_right ..)).2 ?_
+  refine (LE.def hΘ (Nat.le_max_left ..) (Nat.le_max_right ..)).2 ?_
   show ((a.2.subst τ).lift (max a.1 b.1)).LE Θ
     ((b.2.subst τ).lift (max a.1 b.1))
   rw [Shape.lift_subst, Shape.lift_subst]
-  exact ((TShape.LE.def_mp (Nat.le_max_left ..) (Nat.le_max_right ..)) h).subst hΘ W
+  exact (def_mp (Nat.le_max_left ..) (Nat.le_max_right ..) h).subst hΘ W
 
 nonrec theorem TShape.WF.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (W : Ctx.SubstEq Θ τ τ Δ) {a : TShape} {o} (h : a.WF Δ o) :
@@ -2187,14 +2164,16 @@ theorem TShape.join_eq_bot {a b : TShape} (ha : a.2 = .bot) (hb : b.2 = .bot) :
 
 theorem TShape.LE.succ_of {Δ : List Term} (hΔ : ⊢ Δ) {a b : TShape} (h : a.LE Δ b) :
     LE Δ (Shape.T (n := a.1+1) (ShapeS.succ a.2))
-      (Shape.T (n := b.1+1) (ShapeS.succ b.2)) :=
-  (TShape.LE.def hΔ (k := max a.1 b.1 + 1) (Nat.succ_le_succ (Nat.le_max_left ..))
-    (Nat.succ_le_succ (Nat.le_max_right ..))).2 h
+      (Shape.T (n := b.1+1) (ShapeS.succ b.2)) := by
+  refine (LE.def hΔ (k := max a.1 b.1 + 1) ?_ ?_).2 h
+  · exact Nat.succ_le_succ (Nat.le_max_left ..)
+  · exact Nat.succ_le_succ (Nat.le_max_right ..)
 
 theorem TShape.LE.refl_of {Δ : List Term} (hΔ : ⊢ Δ) {j k : Nat} :
-    LE Δ (Shape.T (n := j+1) (ShapeS.refl)) (Shape.T (n := k+1) (ShapeS.refl)) :=
-  (TShape.LE.def hΔ (k := max j k + 1) (Nat.succ_le_succ (Nat.le_max_left ..))
-    (Nat.succ_le_succ (Nat.le_max_right ..))).2 trivial
+    LE Δ (Shape.T (n := j+1) (ShapeS.refl)) (Shape.T (n := k+1) (ShapeS.refl)) := by
+  refine (LE.def hΔ (k := max j k + 1) ?_ ?_).2 trivial
+  · exact Nat.succ_le_succ (Nat.le_max_left ..)
+  · exact Nat.succ_le_succ (Nat.le_max_right ..)
 
 nonrec theorem TShape.Compat.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ)
     (W : Ctx.SubstEq Θ τ τ Δ) {a b : TShape} (h : a.Compat Δ b) :
@@ -2314,8 +2293,7 @@ theorem le_join {Δ : List Term} (hΔ : ⊢ Δ) {x y : TShape}
   have h₁ : x.1 ≤ max x.1 y.1 := Nat.le_max_left ..
   have h₂ : y.1 ≤ max x.1 y.1 := Nat.le_max_right ..
   have hj : (x.join y).1 ≤ max x.1 y.1 := Nat.le_refl _
-  have hjx := Shape.le_join hΔ ((WF.def h₁).1 hx) ((WF.def h₂).1 hy)
-    ((Compat.def h₁ h₂).1 hc)
+  have hjx := Shape.le_join hΔ ((WF.def h₁).1 hx) ((WF.def h₂).1 hy) ((Compat.def h₁ h₂).1 hc)
   rw [← join.def h₁ h₂] at hjx
   exact ⟨(LE.def hΔ h₁ hj).2 hjx.1, (LE.def hΔ h₂ hj).2 hjx.2⟩
 
@@ -2327,9 +2305,8 @@ theorem Compat.of_common_upper {Δ : List Term} (hΔ : ⊢ Δ) {a b c : TShape}
   have hb : b.1 ≤ max (max a.1 b.1) c.1 :=
     Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_left ..)
   have hcc : c.1 ≤ max (max a.1 b.1) c.1 := Nat.le_max_right ..
-  exact (TShape.Compat.def ha hb).2 <| Shape.Compat.of_common_upper hΔ
-    ((TShape.WF.def hcc).1 hc).coherent
-    ((TShape.LE.def_mp ha hcc) h₁) ((TShape.LE.def_mp hb hcc) h₂)
+  refine (Compat.def ha hb).2 <| .of_common_upper hΔ ?_ (LE.def_mp ha hcc h₁) (LE.def_mp hb hcc h₂)
+  exact ((WF.def hcc).1 hc).coherent
 
 @[simp] theorem Compat.bot_left {Δ : List Term} {n} {b : TShape} :
     (Shape.T (n := n) .bot).Compat Δ b := by
@@ -2357,8 +2334,7 @@ theorem Compat.anti_right {Δ : List Term} (hΔ : ⊢ Δ) {a b b' : TShape}
   have hbk : b.1 ≤ max (max a.1 b.1) b'.1 :=
     Nat.le_trans (Nat.le_max_right ..) (Nat.le_max_left ..)
   have hb'k : b'.1 ≤ max (max a.1 b.1) b'.1 := Nat.le_max_right ..
-  exact (Compat.def ha hb'k).2 <| Shape.Compat.anti_right hΔ
-    ((Compat.def ha hbk).1 h) ((LE.def_mp hb'k hbk) hb)
+  exact (Compat.def ha hb'k).2 <| ((Compat.def ha hbk).1 h).anti_right hΔ (LE.def_mp hb'k hbk hb)
 
 /-- The join of two shapes compatible with `d` is compatible with `d`. -/
 theorem Compat.join {Δ : List Term} (hΔ : ⊢ Δ) {y z d : TShape}
@@ -2379,8 +2355,7 @@ theorem WF.join {Δ : List Term} (hΔ : ⊢ Δ) {y z : TShape} {o}
   have h₁ : y.1 ≤ max y.1 z.1 := Nat.le_max_left ..
   have h₂ : z.1 ≤ max y.1 z.1 := Nat.le_max_right ..
   show ((y.2.lift (max y.1 z.1)).join (z.2.lift (max y.1 z.1))).WF Δ o
-  exact Shape.WF.join_mem hΔ ((Compat.def h₁ h₂).1 hc)
-    ((TShape.WF.def h₁).1 hy) ((TShape.WF.def h₂).1 hz)
+  exact ((WF.def h₁).1 hy).join_mem hΔ ((Compat.def h₁ h₂).1 hc) ((WF.def h₂).1 hz)
 
 end TShape
 
@@ -2439,5 +2414,4 @@ theorem TShape.le_prop_cases {Δ : List Term} {b : TShape}
     b.2 = .bot ∨ b.2 = .sort false := by
   have h2 := LE.def_mp (k := b.1) (Nat.le_refl _) (Nat.zero_le _) h
   rw [Shape.lift_self] at h2
-  exact Shape.le_prop_cases
-    (show b.2.LE Δ (.sort false) from Shape.lift_sort ▸ h2)
+  exact Shape.le_prop_cases (show b.2.LE Δ (.sort false) from Shape.lift_sort ▸ h2)

@@ -119,8 +119,9 @@ theorem HasType.hasType : HasType Γ e A b → Γ ⊢ e : A
   | .Y ihA ihbody => .YDF ihA.hasType ihbody.hasType ihbody.hasType
   | .id ihA iha ihb => .idDF ihA.hasType iha.hasType ihb.hasType
   | .refl ihA iha => .reflDF ihA.hasType iha.hasType (.idDF ihA.hasType iha.hasType iha.hasType)
-  | .tr ihA iha ihb hC hCb ihx ihh => .trDF ihA.hasType iha.hasType ihb.hasType hC hC ihx.hasType
-      ihh.hasType hCb (.idDF ihA.hasType iha.hasType ihb.hasType)
+  | .tr ihA iha ihb hC hCb ihx ihh =>
+    .trDF ihA.hasType iha.hasType ihb.hasType hC hC ihx.hasType ihh.hasType hCb
+      (.idDF ihA.hasType iha.hasType ihb.hasType)
   | .base ih => ih.hasType
   | .defeq d ihe => d.defeqDF ihe.hasType
 
@@ -176,8 +177,7 @@ theorem HasType.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
     obtain ⟨_, h_pi_eq⟩ := ih_f hΓ h_f'
     obtain ⟨_, _, h_A_eq, h_B_eq⟩ := forallE_inv hΓ h_pi_eq
     have W : Ctx.SubstEq Γ' (.one a) (.one a) (A :: Γ') :=
-      .cons (.id hΓ) h_A_eq.hasType.1
-        (by simpa using h_a.hasType)
+      .cons (.id hΓ) h_A_eq.hasType.1 (by simpa using h_a.hasType)
     exact transport (h_B_eq.subst hΓ W)
   | lam h_A _ h_body ih_A ih_body =>
     obtain ⟨_, H2_s, transport⟩ := H2.toStructural
@@ -237,7 +237,7 @@ theorem HasType.uniq {Γ : List Term} {e A B : Term} {b₁ b₂ : Bool}
   | refl _ h_a _ ih_a =>
     let ⟨_, .refl _ h_a_2, transport⟩ := H2.toStructural
     obtain ⟨u, h_A_eq⟩ := ih_a hΓ h_a_2
-    exact transport (IsDefEq.idDF (u := u) h_A_eq h_a.hasType h_a.hasType)
+    exact transport (.idDF (u := u) h_A_eq h_a.hasType h_a.hasType)
   | tr _ _ _ _ hCb =>
     let ⟨_, .tr .., transport⟩ := H2.toStructural
     exact transport hCb
@@ -277,20 +277,20 @@ theorem IsDefEq.toHasType {Γ : List Term} {e₁ e₂ A : Term}
     refine ⟨.base (.lam (ih_A hΓ).1 hB (ih_body hΓ').1), ?_⟩
     exact .defeq (.symm <| .forallEDF h_A hB hB') (.base (.lam (ih_A hΓ).2 hB' (ih_body' hΓ_A').2))
   | forallEDF h_A _ _ ih_A ih_body ih_body' =>
-    exact ⟨.base (.forallE (ih_A hΓ).1 (ih_body ⟨hΓ, _, h_A.hasType.1⟩).1),
-      .base (.forallE (ih_A hΓ).2 (ih_body' ⟨hΓ, _, h_A.hasType.2⟩).2)⟩
+    refine ⟨.base (.forallE (ih_A hΓ).1 (ih_body ⟨hΓ, _, h_A.hasType.1⟩).1), ?_⟩
+    exact .base (.forallE (ih_A hΓ).2 (ih_body' ⟨hΓ, _, h_A.hasType.2⟩).2)
   | defeqDF d _ _ ih2 => exact ⟨.defeq d (ih2 hΓ).1, .defeq d (ih2 hΓ).2⟩
   | beta _ _ _ _ _ _ _ _ ih_app ih_inst => exact ⟨(ih_app hΓ).1, (ih_inst hΓ).1⟩
   | eta _ _ ih_e ih_lam => exact ⟨(ih_lam hΓ).1, (ih_e hΓ).1⟩
   | unit_eta _ ih => exact ⟨.base .star, (ih hΓ).1⟩
   | sigmaDF h_A _ _ ih_A ih_body ih_body' =>
-    exact ⟨.base (.sigma (ih_A hΓ).1 (ih_body ⟨hΓ, _, h_A.hasType.1⟩).1),
-      .base (.sigma (ih_A hΓ).2 (ih_body' ⟨hΓ, _, h_A.hasType.2⟩).2)⟩
+    refine ⟨.base (.sigma (ih_A hΓ).1 (ih_body ⟨hΓ, _, h_A.hasType.1⟩).1), ?_⟩
+    exact .base (.sigma (ih_A hΓ).2 (ih_body' ⟨hΓ, _, h_A.hasType.2⟩).2)
   | pairDF h_A h_B h_B' _ _ h_Bin _ ih_A ih_B _ ih_a ih_b =>
     refine ⟨.base (.pair h_A.hasType.1 h_B.hasType.1 h_Bin.hasType.1 (ih_a hΓ).1 (ih_b hΓ).1), ?_⟩
-    exact .defeq (.symm <| .sigmaDF₀ hΓ h_A h_B)
-      (.base (.pair h_A.hasType.2 h_B'.hasType.2 h_Bin.hasType.2
-        (.defeq h_A (ih_a hΓ).2) (.defeq h_Bin (ih_b hΓ).2)))
+    refine .defeq (.symm <| .sigmaDF₀ hΓ h_A h_B) (.base ?_)
+    exact .pair h_A.hasType.2 h_B'.hasType.2 h_Bin.hasType.2 (.defeq h_A (ih_a hΓ).2)
+      (.defeq h_Bin (ih_b hΓ).2)
   | fstDF h_A h_B _ _ _ ih_p =>
     exact ⟨.base (.fst h_A h_B (ih_p hΓ).1), .base (.fst h_A h_B (ih_p hΓ).2)⟩
   | sndDF h_A h_B _ h_Bfst _ _ ih_p =>
@@ -339,15 +339,16 @@ theorem IsDefEq.toHasType {Γ : List Term} {e₁ e₂ A : Term}
   | @trDF Γ A A' u a a' b b' C C' v x x' h h' r HA Ha Hb HC HC' Hx Hh HCb H_id
       ih_A ih_a ih_b ih_C ih_C' ih_x ih_h ih_Cb ih_id =>
     refine ⟨.base ?_, .defeq HCb.symm (.base ?_)⟩
-    · exact .tr (ih_A hΓ).1 (ih_a hΓ).1 (ih_b hΓ).1 HC.hasType.1
-        (.inst0 hΓ Hb.hasType.1 HC.hasType.1) (ih_x hΓ).1 (ih_h hΓ).1
-    · refine .tr (ih_A hΓ).2 ((ih_a hΓ).2.defeq HA) ((ih_b hΓ).2.defeq HA)
-        HC'.hasType.2 HCb.hasType.2 ?_ ((ih_h hΓ).2.defeq (HA.idDF Ha Hb))
-      exact (ih_x hΓ).2.defeq (HA.hasType.1.instDF hΓ .sort HC Ha)
+    · refine .tr (ih_A hΓ).1 (ih_a hΓ).1 (ih_b hΓ).1 HC.hasType.1 ?_ (ih_x hΓ).1 (ih_h hΓ).1
+      exact Hb.hasType.1.inst0 hΓ HC.hasType.1
+    refine .tr (ih_A hΓ).2 ((ih_a hΓ).2.defeq HA) ((ih_b hΓ).2.defeq HA) HC'.hasType.2 ?_ ?_ ?_
+    · exact HCb.hasType.2
+    · exact (ih_x hΓ).2.defeq (HA.hasType.1.instDF hΓ .sort HC Ha)
+    exact (ih_h hΓ).2.defeq (HA.idDF Ha Hb)
   | @tr_refl Γ A u a C v x r HA Ha HC Hx H_tr ih_A ih_a ih_C ih_x ih_tr =>
     refine ⟨.base ?_, (ih_x hΓ).1⟩
-    exact .tr (ih_A hΓ).1 (ih_a hΓ).1 (ih_a hΓ).1 HC (.inst0 hΓ Ha HC)
-      (ih_x hΓ).1 (.base (.refl (ih_A hΓ).1 (ih_a hΓ).1))
+    refine .tr (ih_A hΓ).1 (ih_a hΓ).1 (ih_a hΓ).1 HC (Ha.inst0 hΓ HC) (ih_x hΓ).1 ?_
+    exact .base (.refl (ih_A hΓ).1 (ih_a hΓ).1)
   | proofIrrel _ _ _ _ ih_h ih_h' => exact ⟨(ih_h hΓ).1, (ih_h' hΓ).1⟩
   | YDF h_A h_b h_b' ih_A ih_b ih_b' =>
     refine ⟨.base (.Y (ih_A hΓ).1 (ih_b ⟨hΓ, _, h_A.hasType.1⟩).1), ?_⟩
@@ -414,10 +415,10 @@ theorem IsDefEq₀.iff' {Γ : List Term} {e₁ e₂ A : Term}
     | reflDF _ ih => exact .reflDF₀ hΓ (ih hΓ)
     | trDF h_A _ _ _ _ _ _ ihA iha ihb ihC ihC' ihx ihh =>
       have ihA_l := (ihA hΓ).hasType.1
-      exact .trDF (ihA hΓ) (iha hΓ) (ihb hΓ)
-        (ihC ⟨hΓ, _, ihA_l⟩) (ihC' ⟨hΓ, _, (ihA hΓ).hasType.2⟩)
-        (ihx hΓ) (ihh hΓ) (.instDF hΓ ihA_l .sort (ihC ⟨hΓ, _, ihA_l⟩) (ihb hΓ))
-        (IsDefEq.idDF (ihA hΓ) (iha hΓ) (ihb hΓ)).hasType.1
+      refine .trDF (ihA hΓ) (iha hΓ) (ihb hΓ) (ihC ⟨hΓ, _, ihA_l⟩) ?_ (ihx hΓ) (ihh hΓ) ?_ ?_
+      · exact ihC' ⟨hΓ, _, (ihA hΓ).hasType.2⟩
+      · exact ihA_l.instDF hΓ .sort (ihC ⟨hΓ, _, ihA_l⟩) (ihb hΓ)
+      exact ((ihA hΓ).idDF (iha hΓ) (ihb hΓ)).hasType.1
     | tr_refl _ _ _ iha ihC ihx =>
       let ⟨_, hA⟩ := (iha hΓ).isType hΓ
       exact .tr_refl₀ hΓ (iha hΓ) (ihC ⟨hΓ, _, hA⟩) (ihx hΓ)
@@ -483,8 +484,8 @@ mutually derivable, by induction on `Γ` calling `IsDefEq₀.iff'` on the
 head sort proof. -/
 theorem Ctx.WF.iff {Γ} : ⊢ Γ ↔ ⊢₀ Γ := by
   induction Γ with | nil => exact .rfl | cons A Γ ih
-  exact ⟨fun ⟨hΓ, _, hA⟩ => ⟨ih.1 hΓ, _, (IsDefEq₀.iff' hΓ).2 hA⟩,
-    fun ⟨hΓ, _, hA⟩ => ⟨ih.2 hΓ, _, (IsDefEq₀.iff' (ih.2 hΓ)).1 hA⟩⟩
+  refine ⟨fun ⟨hΓ, _, hA⟩ => ⟨ih.1 hΓ, _, (IsDefEq₀.iff' hΓ).2 hA⟩, fun ⟨hΓ, _, hA⟩ => ?_⟩
+  exact ⟨ih.2 hΓ, _, (IsDefEq₀.iff' (ih.2 hΓ)).1 hA⟩
 
 /-! ### Discharging the scaffolding -/
 
@@ -568,11 +569,10 @@ theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) {A} (hM : Γ ⊢ M : A)
     cases id_rel_inv hΓ h_id_eq
     obtain ⟨_, _, hay, hby⟩ := id_inv hΓ (h_id_eq.to_id_type hΓ)
     have hA := ihA.hasType
-    have step1 := IsDefEq.trDF hA hay hby hC hC ihx.hasType h_h.hasType
-      (.instDF hΓ hA .sort hC hby) (.idDF hA iha.hasType ihb.hasType)
-    have step2 := (IsDefEq.instDF hΓ hA .sort hC hby.symm).defeqDF
-      (.tr_refl₀ (r := r) hΓ hay.hasType.2 hC
-        ((IsDefEq.instDF hΓ hA .sort hC hay).defeqDF ihx.hasType))
+    have step1 := hA.trDF hay hby hC hC ihx.hasType h_h.hasType (hA.instDF hΓ .sort hC hby)
+      (hA.idDF iha.hasType ihb.hasType)
+    have step2 := (hA.instDF hΓ .sort hC hby.symm).defeqDF
+      (.tr_refl₀ (r := r) hΓ hay.hasType.2 hC ((hA.instDF hΓ .sort hC hay).defeqDF ihx.hasType))
     obtain ⟨_, eqA⟩ := transport hCb
     exact eqA.defeqDF (step1.trans step2)
   | @app f f' a hf ih =>
@@ -961,8 +961,7 @@ theorem not_UIP
   specialize @uip Γ .type .type _ (.bvar₀ hΓ .zero)
   -- at the all-`⊥` valuation the variable has only `⊥`, while `refl type`
   -- has a `refl` shape; soundness would make them the same
-  have hw : TShape.WF Γ (Shape.T (n := 1) (ShapeS.refl)) := TShape.WF.T.2 trivial
-  have hr : Interp Γ Γ (.refl true .type) Subst.id Valuation.nil
-      (Shape.T (n := 1) (ShapeS.refl)) := .refl (TShape.LE.refl hw)
-  have h := ((IsDefEq.sound hΓ uip).eq (Adm.bot hΓ (Ctx.SubstEq.id hΓ))).2 hr
-  cases TShape.le_bot hΓ rfl (Interp.bvar_le h)
+  have hw : (Shape.T (n := 1) .refl).WF Γ := TShape.WF.T.2 trivial
+  have hr : Interp Γ Γ (.refl true .type) .id .nil (Shape.T (n := 1) .refl) := .refl (.refl hw)
+  have h := ((uip.sound hΓ).eq (.bot hΓ (.id hΓ))).2 hr
+  cases TShape.le_bot hΓ rfl h.bvar_le

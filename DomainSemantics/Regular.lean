@@ -82,10 +82,9 @@ theorem IsDefEq.sigma_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡
 `IsDefEq.subst` at `Subst.one a`, which is what `Term.inst` unfolds to. -/
 theorem IsDefEq.inst_cod {Γ : List Term} {A B B' a : Term} {u v : Bool} (hΓ : ⊢ Γ)
     (hA : Γ ⊢ A : .sort u) (ha : Γ ⊢ a : A) (h : A :: Γ ⊢ B ≡ B' : .sort v) :
-    Γ ⊢ B.inst a ≡ B'.inst a : .sort v :=
-  subst hΓ
-    (show Ctx.SubstEq Γ (.one a) (.one a) (A :: Γ) from
-      .cons (.id hΓ) hA (by simpa using ha)) h
+    Γ ⊢ B.inst a ≡ B'.inst a : .sort v := by
+  refine subst hΓ ?_ h
+  exact .cons (.id hΓ) hA (by simpa using ha)
 
 /-- The same for `succ`: its argument is a numeral wherever it occurs in a
 definitional equality.  `succDF` is the only case with content; the
@@ -221,8 +220,9 @@ theorem IsDefEq.tr_regular {Γ : List Term} {e e' X : Term} (H : Γ ⊢ e ≡ e'
   | trDF hA ha hb hC hC' hx hh => ?_
   | _ => rcases he with he | he <;> first | (cases he; done) | solve_by_elim [Or.inl, Or.inr]
   rcases he with he | he <;> cases he
-  · exact ⟨⟨_, hA.hasType.1⟩, ha.hasType.1, hb.hasType.1, hh.hasType.1,
-      ⟨_, _, _, hx.hasType.1, ha.hasType.1, hC.hasType.1⟩, _, hC.hasType.1⟩
-  · exact ⟨⟨_, hA.hasType.2⟩, hA.defeqDF ha.hasType.2, hA.defeqDF hb.hasType.2,
-      (idDF hA ha hb).defeqDF hh.hasType.2,
-      ⟨_, _, _, hx.hasType.2, hA.defeqDF ha, hC'⟩, _, hC'.hasType.2⟩
+  · refine ⟨⟨_, hA.hasType.1⟩, ha.hasType.1, hb.hasType.1, hh.hasType.1, ?_, _, hC.hasType.1⟩
+    exact ⟨_, _, _, hx.hasType.1, ha.hasType.1, hC.hasType.1⟩
+  · refine ⟨⟨_, hA.hasType.2⟩, hA.defeqDF ha.hasType.2, hA.defeqDF hb.hasType.2, ?_, ?_, ?_⟩
+    · exact (idDF hA ha hb).defeqDF hh.hasType.2
+    · exact ⟨_, _, _, hx.hasType.2, hA.defeqDF ha, hC'⟩
+    · exact ⟨_, hC'.hasType.2⟩

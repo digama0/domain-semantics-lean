@@ -78,19 +78,19 @@ theorem sort_nat_inv {Γ : List Term} {u s : Bool} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ .sort u ≡ .nat : .sort s := by
   intro H
   have h := ((H.sound hΓ).eq (.bot hΓ (.id hΓ))).1 .sort'
-  cases TShape.LE.def_mp (Nat.zero_le 1) (Nat.le_refl 1) (Interp.le_nat h)
+  cases h.le_nat.def_mp (Nat.zero_le 1) (Nat.le_refl 1)
 
 theorem sort_unit_inv {Γ : List Term} {u s r : Bool} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ .sort u ≡ .unit r : .sort s := by
   intro H
   have h := ((H.sound hΓ).eq (.bot hΓ (.id hΓ))).1 .sort'
-  cases TShape.LE.def_mp (Nat.zero_le 1) (Nat.le_refl 1) (Interp.le_unit h)
+  cases h.le_unit.def_mp (Nat.zero_le 1) (Nat.le_refl 1)
 
 theorem sort_id_inv {Γ : List Term} {u s r : Bool} {A a b : Term} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ .sort u ≡ .id r A a b : .sort s := by
   intro H
   have h := ((H.sound hΓ).eq (.bot hΓ (.id hΓ))).1 .sort'
-  cases TShape.LE.def_mp (Nat.zero_le 1) (Nat.le_refl 1) (Interp.le_id h)
+  cases h.le_id.def_mp (Nat.zero_le 1) (Nat.le_refl 1)
 
 theorem forallE_nat_inv {Γ : List Term} {s : Bool} {A₀ B₀ : Term} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ .forallE A₀ B₀ ≡ .nat : .sort s := by
@@ -128,19 +128,19 @@ theorem nat_unit_inv {Γ : List Term} {s r : Bool} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ .nat ≡ .unit r : .sort s := by
   intro H
   have h := ((H.sound hΓ).eq (.bot hΓ (.id hΓ))).1 .nat'
-  cases TShape.LE.def_mp (Nat.le_refl 1) (Nat.le_refl 1) (Interp.le_unit h)
+  cases h.le_unit.def_mp (Nat.le_refl 1) (Nat.le_refl 1)
 
 theorem nat_id_inv {Γ : List Term} {s r : Bool} {A a b : Term} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ .nat ≡ .id r A a b : .sort s := by
   intro H
   have h := ((H.sound hΓ).eq (.bot hΓ (.id hΓ))).1 .nat'
-  cases TShape.LE.def_mp (Nat.le_refl 1) (Nat.le_refl 1) (Interp.le_id h)
+  cases h.le_id.def_mp (Nat.le_refl 1) (Nat.le_refl 1)
 
 theorem unit_id_inv {Γ : List Term} {s r r' : Bool} {A a b : Term} (hΓ : ⊢ Γ) :
     ¬Γ ⊢ .unit r' ≡ .id r A a b : .sort s := by
   intro H
   have h := ((H.sound hΓ).eq (.bot hΓ (.id hΓ))).1 .unit'
-  cases TShape.LE.def_mp (Nat.le_refl 1) (Nat.le_refl 1) (Interp.le_id h)
+  cases h.le_id.def_mp (Nat.le_refl 1) (Nat.le_refl 1)
 
 /-! The three that need a Π or Σ probe, and so a regularity lemma first. -/
 
@@ -151,7 +151,7 @@ theorem forallE_sigma_inv {Γ : List Term} {s : Bool} {A₀ B₀ A₁ B₁ : Ter
   have ⟨v, hB₀⟩ := H.forallE_cod
   have hprobe : Interp Γ Γ (.forallE A₀ B₀) .id .nil
       (Shape.T (n := 1) (.piAtom (A₀.subst .id) (B₀.subst Subst.id.lift))) :=
-    Interp.piAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀) hA₀ hB₀
+    .piAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀) hA₀ hB₀
   have h := ((H.sound hΓ).eq (.bot hΓ (.id hΓ))).1 hprobe
   rcases h.le_sigma with hb | ⟨n, d, g, hle⟩
   · cases hb
@@ -164,9 +164,9 @@ theorem forallE_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term}
   have ⟨v, hB₀⟩ := H.forallE_cod
   have hprobe : Interp Γ Γ (.forallE A₀ B₀) .id .nil
       (Shape.T (n := 1) (.piAtom (A₀.subst .id) (B₀.subst Subst.id.lift))) :=
-    Interp.piAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀) hA₀ hB₀
+    .piAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀) hA₀ hB₀
   have h := ((H.sound hΓ).eq (.bot hΓ (.id hΓ))).1 hprobe
-  cases TShape.LE.def_mp (Nat.le_refl 1) (Nat.le_refl 1) (Interp.le_id h)
+  cases h.le_id.def_mp (Nat.le_refl 1) (Nat.le_refl 1)
 
 theorem sigma_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term}
     (hΓ : ⊢ Γ) : ¬Γ ⊢ .sigma A₀ B₀ ≡ .id r A a b : .sort s := by
@@ -175,9 +175,9 @@ theorem sigma_id_inv {Γ : List Term} {s r : Bool} {A₀ B₀ A a b : Term}
   have ⟨v, hB₀⟩ := H.sigma_cod
   have hprobe : Interp Γ Γ (.sigma A₀ B₀) .id .nil
       (Shape.T (n := 1) (.sigmaAtom (A₀.subst .id) (B₀.subst Subst.id.lift))) :=
-    Interp.sigmaAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀) hA₀ hB₀
+    .sigmaAtom (u := u) (v := v) (by simpa using hA₀) (by simpa using hB₀) hA₀ hB₀
   have h := ((H.sound hΓ).eq (.bot hΓ (.id hΓ))).1 hprobe
-  cases TShape.LE.def_mp (Nat.le_refl 1) (Nat.le_refl 1) (Interp.le_id h)
+  cases h.le_id.def_mp (Nat.le_refl 1) (Nat.le_refl 1)
 
 /-! ### The remaining label inversions -/
 
@@ -200,11 +200,9 @@ it.  (`id_inv` assumes it; this is where it comes from.) -/
 theorem id_rel_inv {Γ : List Term} {r r' s : Bool} {A₀ a₀ b₀ A₁ a₁ b₁ : Term}
     (hΓ : ⊢ Γ) (H : Γ ⊢ .id r A₀ a₀ b₀ ≡ .id r' A₁ a₁ b₁ : .sort s) : r = r' := by
   have ⟨⟨u, hA₀⟩, ha₀, hb₀⟩ := H.id_dom
-  have hw : TShape.WF Γ (Shape.T (n := 1)
-      (.id r (A₀.subst .id) (a₀.subst .id) (b₀.subst .id))) :=
+  have hw : (Shape.T (n := 1) (.id r (A₀.subst .id) (a₀.subst .id) (b₀.subst .id))).WF Γ :=
     .id_of hΓ (.id hΓ) hA₀ ha₀ hb₀
-  have hmove := ((H.sound hΓ).eq (.bot hΓ (.id hΓ))).1
-    (.id (.refl hw) ⟨u, hA₀⟩ ha₀ hb₀)
+  have hmove := ((H.sound hΓ).eq (.bot hΓ (.id hΓ))).1 (.id (.refl hw) ⟨u, hA₀⟩ ha₀ hb₀)
   cases hmove with | id hle
   obtain ⟨M, _, _, h2⟩ := hle.at_succ
   exact h2.1
@@ -226,8 +224,7 @@ theorem zero_ne_succ {Γ : List Term} (hΓ : ⊢ Γ) :
   intro h
   have hwz : (Shape.T (n := 1) .zero).WF Γ := TShape.WF.T.2 trivial
   have hws : (Shape.T (n := 2) Shape.zero.succ).WF Γ := TShape.WF.T.2 trivial
-  have hs : Interp Γ Γ (.succ .zero) .id .nil
-      (Shape.T (n := 2) Shape.zero.succ) :=
+  have hs : Interp Γ Γ (.succ .zero) .id .nil (Shape.T (n := 2) Shape.zero.succ) :=
     .succ (.zero (.refl hwz)) (.refl hws)
   have hle := (((h.sound hΓ).eq (.bot hΓ (.id hΓ))).2 hs).le_zero
   obtain ⟨M, _, _, h2⟩ := hle.src_succ
