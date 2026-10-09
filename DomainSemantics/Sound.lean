@@ -254,7 +254,8 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ)
       obtain ⟨ρ_b, hb', hApb⟩ := ihA hΓ hAA hPA hΓ' Wθ Wσ hAdm hSat hb
       obtain ⟨ρ_s, hles, hAps, hAdms⟩ := hSat hApb
       rw [subst_subst]
-      exact hAty.apply hAdms (hb'.mono_val hΔ hles)
+      have hb := hb'.mono_val hΔ hles
+      exact ⟨hAty.1.apply hAdms hb, hAty.2 hAdms hb⟩
     have hisTypeSrc := fun b hb => (hisTypeSrc' b hb).1
     have hAdmE : ∀ e ∈ g, Adm Δ (A.subst θ :: Γ') (σ.cons e.tm) (ρ.push e.inp.T) :=
       fun e he => Adm.cons hAdm (hcons e he) hΓ' hAint ⟨hNV e he, (hisTypeSrc' _ hAint).2⟩
@@ -300,7 +301,8 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ)
       obtain ⟨ρ_b, hb', hApb⟩ := ihA hΓ hAA hPA hΓ' Wθ Wσ hAdm hSat hb
       obtain ⟨ρ_s, hles, hAps, hAdms⟩ := hSat hApb
       rw [subst_subst]
-      exact hAty.apply hAdms (hb'.mono_val hΔ hles)
+      have hb := hb'.mono_val hΔ hles
+      exact ⟨hAty.1.apply hAdms hb, hAty.2 hAdms hb⟩
     have hisTypeSrc := fun b hb => (hisTypeSrc' b hb).1
     have hAdmE : ∀ e ∈ g, Adm Δ (A.subst θ :: Γ') (σ.cons e.tm) (ρ.push e.inp.T) :=
       fun e he => Adm.cons hAdm (hcons e he) hΓ' hAint ⟨hNV e he, (hisTypeSrc' _ hAint).2⟩
@@ -347,7 +349,8 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ)
       obtain ⟨ρ_b, hb', hApb⟩ := ihA hΓ hAA hPA hΓ' Wθ Wσ hAdm hSat hb
       obtain ⟨ρ_s, hles, hAps, hAdms⟩ := hSat hApb
       rw [subst_subst]
-      exact hAty.apply hAdms (hb'.mono_val hΔ hles)
+      have hb := hb'.mono_val hΔ hles
+      exact ⟨hAty.1.apply hAdms hb, hAty.2 hAdms hb⟩
     have hisTypeSrc := fun b hb => (hisTypeSrc' b hb).1
     have hAdmE : ∀ e ∈ g, Adm Δ (A.subst θ :: Γ') (σ.cons e.tm) (ρ.push e.inp.T) :=
       fun e he => Adm.cons hAdm (hcons e he) hΓ' hAint ⟨hNV e he, (hisTypeSrc' _ hAint).2⟩
@@ -392,7 +395,8 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ)
       obtain ⟨ρ_b, hb', hApb⟩ := ihA hΓ hAA hPA hΓ' Wθ Wσ hAdm hSat hb
       obtain ⟨ρ_s, hles, hAps, hAdms⟩ := hSat hApb
       rw [subst_subst]
-      exact hAty.apply hAdms (hb'.mono_val hΔ hles)
+      have hb := hb'.mono_val hΔ hles
+      exact ⟨hAty.1.apply hAdms hb, hAty.2 hAdms hb⟩
     have hisTypeSrc := fun b hb => (hisTypeSrc' b hb).1
     have hAdmE : Adm Δ (A.subst θ :: Γ') (σ.cons ((a.subst θ).subst σ)) (ρ.push x.T) :=
       hAdm.cons hcons hΓ' hAint hslot
@@ -503,7 +507,8 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ)
         obtain ⟨ρ_c, hc', hApc⟩ := ihA hΓ hAA hPA hΓ₂ Wθ₂ Wσ₂ hAdm₂ hSat₂ hc
         obtain ⟨ρ_t, hlet, hApt, hAdmt⟩ := hSat₂ hApc
         rw [subst_subst]
-        exact hAty.apply hAdmt (hc'.mono_val hΔ hlet)
+        have hc := hc'.mono_val hΔ hlet
+        exact ⟨hAty.1.apply hAdmt hc, hAty.2 hAdmt hc⟩
       have hisTypeSrc := fun c hc => (hisTypeSrc' c hc).1
       have hAdmE : Adm Δ (A.subst θ :: Γ₂)
           (σ₂.cons (((Term.Y A b).subst θ).subst σ₂)) (ρ₂.push x) :=
@@ -557,7 +562,8 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ)
     obtain ⟨ρ_c, hc', hApc⟩ := ihA hΓ hAA hPA hΓ' Wθ Wσ hAdm hSat hc
     obtain ⟨ρ_t, hlet, hApt, hAdmt⟩ := hSat hApc
     rw [subst_subst]
-    exact hAty.apply hAdmt (hc'.mono_val hΔ hlet)
+    have hc := hc'.mono_val hΔ hlet
+    exact ⟨hAty.1.apply hAdmt hc, hAty.2 hAdmt hc⟩
   have hisTypeSrc := fun c hc => (hisTypeSrc' c hc).1
   have hAdmE : Adm Δ (A.subst θ :: Γ') (σ.cons ((b.subst θ).subst σ)) (ρ.push v) :=
     hAdm.cons hcons hΓ' hAint hslotv

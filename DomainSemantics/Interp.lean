@@ -1529,18 +1529,16 @@ def TypedAt (Γ : List Term) (t A : Term) : Prop :=
 /-- **Every approximant of `A` is a type, and names `A` as a code.**  Both
 halves exist already: it is `TypedAt` at the top sort together with
 `CodeAt`, which is how `SoundTy Γ A (.sort u)` delivers it. -/
-def IsTypeAt (Γ : List Term) (A : Term) : Prop :=
-  TypedAt Γ A (.sort true) ∧ CodeAt Γ A
+def IsTypeAt (Γ : List Term) (A : Term) : Prop := TypedAt Γ A .type ∧ CodeAt Γ A
 
-/-- The form every consumer reads it in: at a stage, an approximant of `A`
-is typed at `type` and names `A`.  `TypedAt`'s existential allows a `⊥`
-witness, which is no weaker — typing is monotone in the type and `⊥` is
-below `type`. -/
-theorem IsTypeAt.apply {Γ Δ : List Term} {A : Term} {σ ρ} {c : TShape}
-    (h : IsTypeAt Γ A) (hAdm : Adm Δ Γ σ ρ) (hc : Interp Δ Γ A σ ρ c) :
-    c.HasType Δ .type ∧ c.WF Δ (A.subst σ) := by
-  obtain ⟨a, ha, hca⟩ := h.1 hAdm hc
-  exact ⟨hca.mono_r hAdm.ctx _ ha.le_sort .sort, h.2 hAdm hc⟩
+/-- Typed at the top sort is typed at `type` outright: the `⊥` witness the
+existential allows is no weaker, since typing is monotone in the type and
+`⊥` is below `type`.  This is `IsTypeAt`'s first half, read at a stage. -/
+theorem TypedAt.apply {Γ Δ : List Term} {A : Term} {σ ρ} {c : TShape}
+    (h : TypedAt Γ A .type) (hAdm : Adm Δ Γ σ ρ) (hc : Interp Δ Γ A σ ρ c) :
+    c.HasType Δ .type := by
+  obtain ⟨a, ha, hca⟩ := h hAdm hc
+  exact hca.mono_r hAdm.ctx _ ha.le_sort .sort
 
 /-- A λ-shape approximating `F` has its label definitionally equal to the
 argument's type at the stage.  In the original this is the function's
