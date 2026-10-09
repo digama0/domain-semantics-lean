@@ -1519,21 +1519,6 @@ def CodeAt (Γ : List Term) (t : Term) : Prop :=
   ∀ {{Δ : List Term}} {{σ ρ}}, Adm Δ Γ σ ρ →
     ∀ {m}, Interp Δ Γ t σ ρ m → TShape.WF Δ m (t.subst σ)
 
-/-- Every approximant of `A` at an admissible stage is a type:
-`SoundTy Γ A (.sort u)`'s `isType` half, spelled without `SoundTy` so
-that `Interp.lean` stays below it. -/
-def IsTypeAt (Γ : List Term) (A : Term) : Prop :=
-  ∀ {{Δ : List Term}} {σ ρ}, Adm Δ Γ σ ρ →
-    ∀ {c}, Interp Δ Γ A σ ρ c →
-      TShape.HasType Δ c TShape.type ∧ TShape.WF Δ c (A.subst σ)
-
-/-- The second half of `IsTypeAt` is `CodeAt` on the nose: an
-approximant of a type names it. -/
-theorem IsTypeAt.codeAt {Γ : List Term} {A : Term} (h : IsTypeAt Γ A) :
-    CodeAt Γ A := by
-  intro _ _ _ hAdm _ hc
-  exact (h hAdm hc).2
-
 /-- Every approximant of `t` at an admissible stage is typed at an
 approximant of `A`: `SoundTy Γ t A`'s `approx` half.  Needed at the two
 binders whose slot is not an entry input — `natCase`'s and `Y`'s. -/
@@ -1541,20 +1526,21 @@ def TypedAt (Γ : List Term) (t A : Term) : Prop :=
   ∀ {{Δ : List Term}} {σ ρ}, Adm Δ Γ σ ρ →
     ∀ {m}, Interp Δ Γ t σ ρ m → ∃ a, Interp Δ Γ A σ ρ a ∧ TShape.HasType Δ m a
 
-/-- **`IsTypeAt` is the conjunction of two notions that exist already.**
-Its first half is `TypedAt` at the top sort: the `⊥` witness that the
-existential allows is no weaker, since typing is monotone in the type
-(`HasType.mono_r`) and `⊥` is below `type`.  Its second half is `CodeAt`
-on the nose.  Kept as one definition because every consumer reads both
-halves at the same stage. -/
-theorem IsTypeAt.iff {Γ : List Term} {A : Term} :
-    IsTypeAt Γ A ↔ TypedAt Γ A (.sort true) ∧ CodeAt Γ A := by
-  refine ⟨fun h => ⟨?_, h.codeAt⟩, fun ⟨hty, hc⟩ => ?_⟩
-  · intro _ _ _ hAdm _ hm
-    exact ⟨TShape.type, Interp.sort', (h hAdm hm).1⟩
-  · intro _ _ _ hAdm _ hm
-    obtain ⟨a, ha, hma⟩ := hty hAdm hm
-    exact ⟨hma.mono_r hAdm.ctx _ (Interp.le_sort ha) TShape.HasType.sort, hc hAdm hm⟩
+/-- **Every approximant of `A` is a type, and names `A` as a code.**  Both
+halves exist already: it is `TypedAt` at the top sort together with
+`CodeAt`, which is how `SoundTy Γ A (.sort u)` delivers it. -/
+def IsTypeAt (Γ : List Term) (A : Term) : Prop :=
+  TypedAt Γ A (.sort true) ∧ CodeAt Γ A
+
+/-- The form every consumer reads it in: at a stage, an approximant of `A`
+is typed at `type` and names `A`.  `TypedAt`'s existential allows a `⊥`
+witness, which is no weaker — typing is monotone in the type and `⊥` is
+below `type`. -/
+theorem IsTypeAt.apply {Γ Δ : List Term} {A : Term} {σ ρ} {c : TShape}
+    (h : IsTypeAt Γ A) (hAdm : Adm Δ Γ σ ρ) (hc : Interp Δ Γ A σ ρ c) :
+    c.HasType Δ .type ∧ c.WF Δ (A.subst σ) := by
+  obtain ⟨a, ha, hca⟩ := h.1 hAdm hc
+  exact ⟨hca.mono_r hAdm.ctx _ ha.le_sort .sort, h.2 hAdm hc⟩
 
 /-- A λ-shape approximating `F` has its label definitionally equal to the
 argument's type at the stage.  In the original this is the function's
@@ -1596,10 +1582,11 @@ def Term.Pinned (Γ : List Term) : Term → Prop
 
 /-- `nat` is a type at every stage, so its binders cost nothing. -/
 theorem IsTypeAt.nat {Γ : List Term} : IsTypeAt Γ .nat := by
-  intro _ _ _ hAdm _ hb
-  have hΔ := hAdm.ctx
-  refine ⟨TShape.HasType.mono_l hΔ .nat hb.le_nat, ?_⟩
-  exact TShape.WF.mono hΔ hb.le_nat (x := .nat) (show TyEq _ _ _ from .refl .nat)
+  refine ⟨?_, ?_⟩
+  · intro _ _ _ hAdm _ hb
+    exact ⟨.type, .sort', .mono_l hAdm.ctx .nat hb.le_nat⟩
+  · intro _ _ _ hAdm _ hb
+    exact TShape.WF.mono hAdm.ctx hb.le_nat (x := .nat) (show TyEq _ _ _ from .refl .nat)
 
 /-- `zero` is a numeral at every stage. -/
 theorem TypedAt.zero {Γ : List Term} : TypedAt Γ .zero .nat := by
@@ -1637,13 +1624,14 @@ theorem Adm.unlift {Δ Γ Γ' : List Term} {l σ ρ} (hΔ : ⊢ Δ) (hΓ : ⊢ �
   obtain ⟨_, hlkty⟩ := hΓ.lookup hlk
   exact ⟨a, ha.unweak hΔ hΓ hlkty WΓ W (fun _ => rfl), hn, by rwa [subst_lift'] at hac⟩
 
-theorem IsTypeAt.weak' {Γ Γ' : List Term} {l : Lift} {A T : Term} (hΓ : ⊢ Γ)
-    (hA : Γ ⊢ A : T) (WΓ : Ctx.Lift' l Γ Γ') (h : IsTypeAt Γ A) :
-    IsTypeAt Γ' (A.lift' l) := by
+/-- A code's naming survives weakening, the same way a type's does. -/
+theorem CodeAt.weak' {Γ Γ' : List Term} {l : Lift} {t T : Term} (hΓ : ⊢ Γ)
+    (ht : Γ ⊢ t : T) (WΓ : Ctx.Lift' l Γ Γ') (h : CodeAt Γ t) :
+    CodeAt Γ' (t.lift' l) := by
   intro Δ σ ρ hAdm c hc
   have hΔ := hAdm.ctx
   have W := hAdm.stage
-  have := h (hAdm.unlift hΔ hΓ WΓ W) (hc.unweak hΔ hΓ hA WΓ W (fun _ => rfl))
+  have := h (hAdm.unlift hΔ hΓ WΓ W) (hc.unweak hΔ hΓ ht WΓ W (fun _ => rfl))
   rwa [← subst_lift'] at this
 
 theorem TypedAt.weak' {Γ Γ' : List Term} {l : Lift} {t A T : Term} (hΓ : ⊢ Γ)
@@ -1654,6 +1642,11 @@ theorem TypedAt.weak' {Γ Γ' : List Term} {l : Lift} {t A T : Term} (hΓ : ⊢ 
   have W := hAdm.stage
   obtain ⟨a, ha, hty⟩ := h (hAdm.unlift hΔ hΓ WΓ W) (hm.unweak hΔ hΓ ht WΓ W (fun _ => rfl))
   exact ⟨a, ha.weak' hΓ WΓ (fun _ => rfl), hty⟩
+
+theorem IsTypeAt.weak' {Γ Γ' : List Term} {l : Lift} {A T : Term} (hΓ : ⊢ Γ)
+    (hA : Γ ⊢ A : T) (WΓ : Ctx.Lift' l Γ Γ') (h : IsTypeAt Γ A) :
+    IsTypeAt Γ' (A.lift' l) :=
+  ⟨h.1.weak' hΓ hA WΓ, h.2.weak' hΓ hA WΓ⟩
 
 theorem PinApp.weak' {Γ Γ' : List Term} {l : Lift} {F a T : Term} (hΓ : ⊢ Γ)
     (hF : Γ ⊢ F : T) (WΓ : Ctx.Lift' l Γ Γ') (h : PinApp Γ F a) :

@@ -254,8 +254,9 @@ would:
   the subject's typing and invert it a layer at a time; a predicate
   `Term.Annot` gathering all of this used to be threaded through them
   instead.
-- **`Term.Pinned t Γ`** (`Interp.lean`), built from `IsTypeAt`,
-  `TypedAt`, `PinApp`, `PinSnd`: the *semantic* counterpart of those,
+- **`Term.Pinned t Γ`** (`Interp.lean`), built from `IsTypeAt`
+  (itself `TypedAt` at the top sort together with `CodeAt`), `TypedAt`,
+  `PinApp`, `PinSnd`: the *semantic* counterpart of those,
   being the clause conditions that `Interp.to_substTerm` consumes. It is
   a conclusion of soundness, not a hypothesis, and is quantified over
   later stages *and* over ambient substitutions. It mentions a subterm
@@ -316,7 +317,10 @@ for. The ones that carry the argument:
 
 - **`pin` ← `ty`.** `Term.Pinned` at a binder is `IsTypeAt Γ A` together
   with the subterms' own, and `IsTypeAt` comes from `SoundTy` at a sort
-  (`SoundTy.isTypeAt`). `PinApp.of_sound` and `PinSnd.of_sound` are the
+  (`SoundTy.isTypeAt`). It is not a notion of its own: it is `TypedAt Γ A
+  (.sort true) ∧ CodeAt Γ A`, and `IsTypeAt.apply` reads the pair off at a
+  stage, the `⊥` witness `TypedAt` allows being no weaker because typing
+  is monotone in the type. `PinApp.of_sound` and `PinSnd.of_sound` are the
   others.
 - **`ty` ← `pin`.** Every `sound_*_dom` takes the codomain's or motive's
   `Pinned`, because saturating the result means instantiating, and
