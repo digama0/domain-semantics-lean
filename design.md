@@ -14,14 +14,63 @@ relation on shapes. Every fact that is free for him is here a lemma, a
 hypothesis, or a premise on a clause. That accounts for most of the
 definitions below that have no counterpart on his side.
 
-Four groups: the domain, its typing, the interpretation, and the
-syntactic bookkeeping that stands in for his quotient.
+Five groups: the syntax and its judgments, the domain, its typing, the
+interpretation, and the syntactic bookkeeping that stands in for his
+quotient.
 
 The files, in dependency order: `Term`/`Label`/`Regular` are the
 syntax and its judgments, `Shape` and `HasType` the domain and its
 typing, `Interp` the interpretation, `Directed` the directedness
 induction, `Sound` soundness, and `Inversion`/`Consequences` what follows
 from it.
+
+## 0. The syntax and its judgments
+
+**`IsDefEq`** (`Term.lean`) exists twice: the raw judgment `Γ ⊢₀ t ≡ t' : A`
+and the **instrumented** one `Γ ⊢ t ≡ t' : A`, whose congruence rules carry
+their subterms' sort proofs and whose computation rules carry both sides as
+typings. `Γ ⊢ t : A` is notation for `Γ ⊢ t ≡ t : A`, so there is no separate
+typing judgment anywhere. The instrumentation is what makes each shallow
+inversion (§4) a single induction, and `Consequences.lean` proves the two
+judgments equivalent — after soundness, since the instrumented `trans'` is
+what avoids needing sort uniqueness first.
+
+**`Ctx.WF Γ`** (`⊢ Γ`), by recursion on the context: every entry has a sort
+typing in the entries before it. `Ctx.WF' Γ` (`⊢₀ Γ`) is the same against the
+raw judgment, and `Ctx.WF.iff` bridges them.
+
+**`Lookup Γ i A`**, de Bruijn lookup: the `i`th entry is `A`, already weakened
+over the binders crossed to reach it, which is what the `.lift` in each
+constructor accounts for. It is also the *bound* on valuations (§3) — a context
+says where its variables stop by what it can look up.
+
+**`Ctx.Lift' l Γ Γ'`**, context weakening as a relation between a `Lift` and
+two contexts: `skip` inserts a fresh entry, `cons` keeps one and applies `l` to
+it. It is the source of truth for `IsDefEq.weak'`, and `Lookup.weak'`
+transports a lookup along it — which is why `Lookup`, and not `i < Γ.length`,
+is what the valuation relations quantify over.
+
+**`Ctx.SubstEq Γ₀ σ σ' Γ`** — a **stage**, and the word means this throughout:
+a two-sided typed substitution from `Γ` into `Γ₀`, each `.cons` carrying the
+entry's sort proof in the source and its head's equality in the target. `.nil`
+admits any `σ`, `σ'`, which is what leaves a substitution's junk slots past the
+end of `Γ` unconstrained (§3).
+
+**`Stable Δ Γ σ a A`** (`Label.lean`): reading `a` at the stage and at any
+later stage out of `Γ` gives two terms equal *at the label* `A`, and this
+survives any substitution of the ambient context — the same device
+`Shape.Compat` uses, for the same reason. This is what an `app` or `snd` clause
+carries in place of "`a` has type `A₀` in `Γ`, and the label is `A₀` here". The
+two are interderivable where the argument's typing is at hand
+(`Stable.of_typed`, its only producer), but only this form survives
+`Stable.unweak`, the move to a *smaller* context: the existential "there is a
+type the term has, and the label is it" would have to re-match the clause's
+label against a strengthened typing, which is type uniqueness and so circular
+here. It carries one transport per `Interp` transport — nine in all.
+
+**`WHRed`** (`⤳`), weak-head reduction: β, the two projections, `natCase`,
+`Y`, and recursion on the head. It appears only above soundness, in subject
+reduction and progress.
 
 ## 1. The domain
 
@@ -48,6 +97,17 @@ indexed by a context; `Compat` is the compatibility that makes the join
 an upper bound; `join` is total and context-free. A well-formed λ-shape
 is never information-free, so `IsBot` collapses to `= ⊥` and the
 collapse clauses the order would otherwise need disappear.
+
+**`ShapeFun.Compat`** is the graph-level compatibility that `Shape.Compat` is
+defined against: two graphs are compatible when any two of their entries whose
+labels become definitionally equal at some later stage, with compatible inputs
+there, have compatible outputs there. **`TShape.Compat`** lifts both shapes to
+their common level and compares there, which is how every total-level order
+fact is stated.
+
+**`ShapeFun.WFE`** is the entrywise half of `ShapeFun.WF` — a predicate holds
+of both components of every entry — split out so the recursion can hand itself
+down without mentioning labels.
 
 **`Shape.WF Γ s o`**, well-formedness, with an `Option Term` index: every
 label in `s` is well typed in `Γ`, and at a name the head's own labels
@@ -126,6 +186,16 @@ derived *from* soundness here and so unavailable. It is one induction on
 `Named`, legal because the index is a variable: the conclusion maps it to
 the constant `t'`, so `none` goes to `none` and a name `t` to `t'`.
 
+**The head probes.** `TShape.IsBinder` is the two codes whose decoder does
+more than filter; `TShape.IsPi` and `TShape.IsSigma` are those two separately,
+and `TShape.IsLam` the value-side λ. Each is a recursion returning `False` at
+level 0, so a probe on a shape of unknown level is decided rather than
+inverted. They exist because the order pins heads upward — a shape dominating a
+λ-shape is one — which is how `fst`, `snd` and `app` recover a head from a
+bound. **`Shape.IsNumeral`** is the same kind of probe for `natCase`'s
+scrutinee: `⊥`, `zero`, or a successor of one, with `⊥` included because the
+interpretation is downward closed.
+
 **`TShape.Slot Δ T d t x`** is `Named Δ d x t ∧ TShape.WF Δ d T` — the
 shape names the term, and its code names the type. Two
 conjuncts, not three and not a bundle, because the naming already travels
@@ -150,6 +220,12 @@ at the source context. Nothing downstream reads them; they are what let
 `Interp.ctx`, `Interp.weak'` and `Interp.of_substTerm` rebuild the
 extended context's well-formedness without taking an annotation
 hypothesis.
+
+**`Valuation`, and the three relations on one.** A `Valuation` is
+`Nat → TShape`, a shape per variable. `Valuation.WF Δ Γ ρ`, `Valuation.LE Δ Γ ρ ρ'`
+and `Valuation.Approx Δ Γ' Γ θ σ ρ ρ'` are its well-formedness, order and
+approximation, each quantified over `Γ`'s variables only — see *Where a
+substitution ends* below for why the bound is there and why it is a `Lookup`.
 
 **`Adm Δ Γ σ ρ`**, admissibility: every variable's slot is an
 approximant of its type and a `Slot` at it — hereditarily typed there,
@@ -295,6 +371,15 @@ The syntactic typing is *not* here. It is `H.hasType.1`, which every
 consumer of soundness already holds, so carrying it would be carrying the
 input back out.
 
+**`SoundJoin Γ A`** is a fifth notion that is *not* a field and has no
+consumer: two subjects hereditarily typed at one approximant of `A`, compatible
+there, have a join still typed there. It was meant for `tr` in `IsDefEq.dir`,
+where two approximants typed at two approximants of the motive need the joined
+witness typed at the joined motive; in the event that case gets
+`TShape.Named.join` directly. `sound_join` proves it for every type and nothing
+reads either — the pair records a problem that dissolved rather than a notion
+the proof uses.
+
 `SoundEq` is type-agnostic, which is what lets the instrumented
 judgment's heterogeneous `trans'` rule go through without sort
 uniqueness, and so breaks the circularity: soundness comes first, type
@@ -386,8 +471,10 @@ is a projection out of the order. There is no logical relation and no
 adequacy theorem anywhere in the development.
 
 **`Consequences.lean`**: type uniqueness, sort uniqueness, the
-equivalence of the instrumented and standard judgments, canonical forms,
-subject reduction, progress, and the refutation of definitional UIP.
+equivalence of the instrumented and standard judgments (`Ctx.WF'` is the
+context well-formedness of the raw one), canonical forms — `Value`, the closed
+weak-head normal forms — subject reduction and progress for `WHRed`, and the
+refutation of definitional UIP.
 
 ## 8. Axioms
 
