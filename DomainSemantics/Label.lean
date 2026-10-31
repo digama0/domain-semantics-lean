@@ -1,4 +1,4 @@
-import DomainSemantics.Term
+import DomainSemantics.DefEq
 
 /-! # Label equality
 

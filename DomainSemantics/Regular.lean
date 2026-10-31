@@ -1,4 +1,4 @@
-import DomainSemantics.Term
+import DomainSemantics.DefEq
 
 /-! # Regularity and shallow inversion
 

@@ -1,9 +1,9 @@
 import DomainSemantics.Inversion
 
-/-! # Unique typing, and discharging the `IsDefEq` scaffolding
+/-! # Unique typing, the `IsDefEq` scaffolding, and progress
 
 The "real" defeq judgment for the project is `IsDefEq₀`, defined in
-`Term.lean`. Internally we work with the instrumented variant `IsDefEq`,
+`DefEq.lean`. Internally we work with the instrumented variant `IsDefEq`,
 which carries explicit sort-typing premises at every congruence rule
 and has a heterogeneous transitivity rule `trans'` whose middle term
 may live at a different sort. This file ties the two together.
@@ -21,7 +21,12 @@ is equivalent to the standard one.
 * `IsDefEq.iff` is the headline result: on well-formed contexts the
   scaffolded `IsDefEq` and the standard `IsDefEq₀` derive the same
   equalities. After this point clients are free to think of `IsDefEq`
-  as `IsDefEq₀`. -/
+  as `IsDefEq₀`.
+
+Then the operational consequences, which run on the same inversions:
+canonical forms, one-step weak-head reduction `WHRed` with its subject
+reduction (`WHRed.subject_red`), progress for closed terms (`progress`),
+and `not_UIP`, the failure of definitional UIP. -/
 
 namespace DomainSemantics
 
@@ -303,12 +308,10 @@ theorem IsDefEq.toHasType {Γ : List Term} {e₁ e₂ A : Term}
   | pair_snd h_A h_B h_a h_b _ _ _ ih_a ih_b =>
     refine ⟨?_, (ih_b hΓ).1⟩
     have h_Bin := h_a.inst0 hΓ h_B
-    have h_pair_typing := (HasType.base (.pair h_A h_B h_Bin (ih_a hΓ).1 (ih_b hΓ).1)).hasType
     have h_fst_eq := h_B.pair_fst₀ hΓ h_a h_b
     have h_B_eq := h_A.instDF hΓ .sort h_B h_fst_eq
-    refine .defeq h_B_eq ?_
-    exact .base (.snd h_A h_B h_B_eq.hasType.1
-      (.base (.pair h_A h_B h_Bin (ih_a hΓ).1 (ih_b hΓ).1)))
+    exact .defeq h_B_eq <| .base <| .snd h_A h_B h_B_eq.hasType.1
+      (.base (.pair h_A h_B h_Bin (ih_a hΓ).1 (ih_b hΓ).1))
   | fst_snd _ _ ih_p ih_pair => exact ⟨(ih_pair hΓ).1, (ih_p hΓ).1⟩
   | nat => exact ⟨.base .nat, .base .nat⟩
   | zero => exact ⟨.base .zero, .base .zero⟩
@@ -521,8 +524,7 @@ theorem sort_inv' (hΓ : ⊢₀ Γ) (d : Γ ⊢₀ .sort u ≡ .sort v : V) : u 
 are definitionally equal.  `HasType.uniq` is the same fact on the
 bundled scaffold; this is the form a reader of `IsDefEq` wants. -/
 theorem IsDefEq.uniq (hΓ : ⊢ Γ) (h₁ : Γ ⊢ e : A) (h₂ : Γ ⊢ e : B) :
-    ∃ u, Γ ⊢ A ≡ B : .sort u :=
-  (h₁.toHasType hΓ).1.uniq hΓ (h₂.toHasType hΓ).1
+    ∃ u, Γ ⊢ A ≡ B : .sort u := (h₁.toHasType hΓ).1.uniq hΓ (h₂.toHasType hΓ).1
 
 theorem IsDefEq.trans_r (hΓ : ⊢ Γ)
     (H : Γ ⊢ M ≡ N : A) (h2 : Γ ⊢ N ≡ P : B) : Γ ⊢ M ≡ P : B := by
@@ -540,7 +542,7 @@ Mirrors `to_sigma_type`. -/
 theorem IsDefEq.to_id_type (hΓ : ⊢ Γ)
     (H : Γ ⊢ e ≡ .id r A a b : .sort w) : Γ ⊢ e ≡ .id r A a b : .sort r := by
   have ⟨⟨_, h1⟩, h2, h3⟩ := H.id_inv' hΓ (.inr rfl)
-  exact H.trans_r hΓ (h1.idDF (r := r) h2 h3)
+  exact H.trans_r hΓ (h1.idDF h2 h3)
 
 /-! ### Subject reduction (subject conversion)
 
@@ -553,6 +555,29 @@ recover the body typing at the function's actual domain, then build the
 β-equation with `IsDefEq.beta₀`. Ordinary subject reduction
 (`Γ ⊢ N : A`) is the immediate corollary, since `Γ ⊢ N : A` is just
 reflexive defeq `Γ ⊢ N ≡ N : A`. -/
+
+section
+set_option hygiene false
+scoped notation:65 e1 " ⤳ " e2:36 => WHRed e1 e2
+/-- Single-step weak-head reduction `Γ ⊢ e ⤳ e'`. Only the head position is
+reduced: either β-reduce a `lam`-headed application, or recurse on the
+function side of an `app`. Right-context-indexed for uniformity with the
+typing judgment, although the rules never inspect `Γ`. -/
+inductive WHRed : Term → Term → Prop where
+  | app : f ⤳ f' → .app f a ⤳ .app f' a
+  | beta : .app (.lam A e) a ⤳ e.inst a
+  | fst : p ⤳ p' → .fst p ⤳ .fst p'
+  | snd : p ⤳ p' → .snd p ⤳ .snd p'
+  | pair_fst : .fst (.pair A B a b) ⤳ a
+  | pair_snd : .snd (.pair A B a b) ⤳ b
+  | natCase : M ⤳ M' → .natCase C M a b ⤳ .natCase C M' a b
+  | natCase_zero : .natCase C .zero a b ⤳ a
+  | natCase_succ : .natCase C (.succ n) a b ⤳ b.inst n
+  | Y : .Y A b ⤳ b.inst (.Y A b)
+  | tr : h ⤳ h' → .tr r A a b C x h ⤳ .tr r A a b C x h'
+  | tr_refl : .tr r A a b C x (.refl r' y) ⤳ x
+
+end
 
 /-- Subject conversion for instrumented `IsDefEq`: one weak-head step is
 a definitional equality at the term's type. -/
@@ -569,10 +594,10 @@ theorem WHRed.subject_conv (hΓ : ⊢ Γ) (hr : M ⤳ N) {A} (hM : Γ ⊢ M : A)
     cases id_rel_inv hΓ h_id_eq
     obtain ⟨_, _, hay, hby⟩ := id_inv hΓ (h_id_eq.to_id_type hΓ)
     have hA := ihA.hasType
-    have step1 := hA.trDF hay hby hC hC ihx.hasType h_h.hasType (hA.instDF hΓ .sort hC hby)
-      (hA.idDF iha.hasType ihb.hasType)
-    have step2 := (hA.instDF hΓ .sort hC hby.symm).defeqDF
-      (.tr_refl₀ (r := r) hΓ hay.hasType.2 hC ((hA.instDF hΓ .sort hC hay).defeqDF ihx.hasType))
+    have step1 := hA.trDF hay hby hC hC ihx.hasType h_h.hasType
+      (hA.instDF hΓ .sort hC hby) (hA.idDF iha.hasType ihb.hasType)
+    have step2 := (hA.instDF hΓ .sort hC hby.symm).defeqDF <|
+      .tr_refl₀ (r := r) hΓ hay.hasType.2 hC <| (hA.instDF hΓ .sort hC hay).defeqDF ihx.hasType
     obtain ⟨_, eqA⟩ := transport hCb
     exact eqA.defeqDF (step1.trans step2)
   | @app f f' a hf ih =>
@@ -850,10 +875,9 @@ to an Id-type. -/
 theorem Value.id_r (hΓ : ⊢ Γ) (hv : Value f) (h : Γ ⊢ f : .id r A a b) :
     ∃ a', f = .refl r a' := by
   have H := (h.toHasType hΓ).1
-  have no {T} (H2 : Γ ⊨ f : T) (hd : ¬(Γ ⊢ T ≡ .id r A a b : .sort r)) :
-      ∃ a', f = .refl r a' := by
+  have no {T} (H2 : Γ ⊨ f : T) (hd : ¬Γ ⊢ T ≡ .id r A a b : .sort r) : ∃ a', f = .refl r a' :=
     let ⟨_, eq⟩ := H.uniq hΓ H2
-    exact (hd (eq.symm.to_id_type hΓ)).elim
+    (hd (eq.symm.to_id_type hΓ)).elim
   cases hv with
   | refl =>
     let ⟨_, .refl hA' ha', _⟩ := H.toStructural

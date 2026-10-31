@@ -28,7 +28,7 @@ from it.
 
 ## 0. The syntax and its judgments
 
-**`IsDefEq`** (`Term.lean`) exists twice: the raw judgment `Γ ⊢₀ t ≡ t' : A`
+**`IsDefEq`** (`DefEq.lean`) exists twice: the raw judgment `Γ ⊢₀ t ≡ t' : A`
 and the **instrumented** one `Γ ⊢ t ≡ t' : A`, whose congruence rules carry
 their subterms' sort proofs and whose computation rules carry both sides as
 typings. `Γ ⊢ t : A` is notation for `Γ ⊢ t ≡ t : A`, so there is no separate
@@ -72,7 +72,7 @@ here. It carries one transport per `Interp` transport — nine in all.
 
 **`WHRed`** (`⤳`), weak-head reduction: β, the two projections, `natCase`,
 `Y`, and recursion on the head. It appears only above soundness, in subject
-reduction and progress.
+reduction and progress, and is defined there, in `Consequences.lean`.
 
 ## 1. The domain
 
