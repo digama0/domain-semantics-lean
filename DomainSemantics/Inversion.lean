@@ -234,14 +234,3 @@ theorem zero_ne_succ {Γ : List Term} (hΓ : ⊢ Γ) :
 is not the total relation. -/
 theorem zero_ne_succ_zero : ¬ ([] ⊢ .zero ≡ .succ .zero : .nat) :=
   zero_ne_succ trivial
-
-/-- **A stuck transport has no information.**  `tr false nat zero (succ
-zero) nat zero h` is a transport no rule computes, because its endpoints
-are not equal, and the `tr` clause now *asks* for them to be equal at the
-stage.  The hypothesis this used to take, that `zero ≢ succ zero`, is
-`zero_ne_succ`; before the model could separate two closed terms it had
-to be assumed. -/
-theorem Interp.tr_stuck_bot {Δ Γ : List Term} {σ ρ m H} (hΔ : ⊢ Δ)
-    (h : Interp Δ Γ (.tr false .nat .zero (.succ .zero) .nat .zero H) σ ρ m) :
-    m.2 = .bot :=
-  h.tr_bot_of_ne (by simpa using zero_ne_succ hΔ)

@@ -157,7 +157,13 @@ being the subject's own — from `Term.Pinned`, which is the original's
 `HasFixedness` threaded structurally.  The `bvar` case is where the
 valuation is built (slot `i` holds the approximant, every other slot
 `⊥`), the merges are `Valuation.Approx.foldr`, through `body_merge` under
-a binder, and `Y` runs on the tower. -/
+a binder, and `Y` runs on the tower.
+
+Directedness of each in-range `θ i` is read off `Ctx.SubstEq.dir`, which
+is why this sits after `IsDefEq.dir` and carries no premise of its own
+for it; master uses its global `compat_join` here.  Labels need no stage
+lemma, `A[θ ∘ σ]` and `A[θ][σ]` being equal on the nose
+(`subst_subst`). -/
 theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ)
     {t : Term} {Γ Γ' : List Term} {θ σ ρ m T} (hΓ : ⊢ Γ) (hAnn : Γ ⊢ t : T)
     (hPin : t.Pinned Γ) (hΓ' : ⊢ Γ') (Wθ : Ctx.SubstEq Γ' θ θ Γ) (Wσ : Ctx.SubstEq Δ σ σ Γ')
@@ -597,36 +603,13 @@ theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ)
   · simpa only [subst_subst, Subst.lift_comp_cons] using hslotc
   · simpa only [subst_subst] using hH hr
 
-/-- Substitution in the **term**, in master's `∃ ρ'` form.  A substitution
-`θ` from `Γ` into `Γ'` turns an approximant of `t[θ]` into an approximant
-of `t` under a valuation whose slots approximate the `θ i`, with the stage
-moving from `σ` to `θ.comp σ` — the one place the two kinds of
-substitution meet.
-
-The `←` direction needs `Interp.weak'` (the `lam` case gains a valuation
-slot) and none of the hypotheses.  The `→` direction merges the valuations
-that several subderivations return, one slot at a time.  Master uses its
-global `compat_join` there; we read directedness of each in-range `θ i`
-off `Ctx.SubstEq.dir`, which is why this lemma sits after `IsDefEq.dir`
-and carries no premise of its own for it.  Labels need no stage lemma: `A[θ ∘ σ]` and
-`A[θ][σ]` are equal on the nose (`subst_subst`). -/
-theorem Interp.substTerm {T : Term} (hΔ : ⊢ Δ) {θ : Subst} (hΓ : ⊢ Γ)
-    (ht : Γ ⊢ t : T) (hPin : t.Pinned Γ)
-    (hΓ' : ⊢ Γ') (Wθ : Ctx.SubstEq Γ' θ θ Γ)
-    (Wσ : Ctx.SubstEq Δ σ σ Γ') (hAdm : Adm Δ Γ' σ ρ)
-    (hSat : θ.Saturates Δ Γ Γ' σ ρ) :
-    Interp Δ Γ' (t.subst θ) σ ρ m ↔
-    ∃ ρ', Interp Δ Γ t (θ.comp σ) ρ' m ∧ ρ.Approx Δ Γ' Γ θ σ ρ' :=
-  ⟨to_substTerm hΔ hΓ ht hPin hΓ' Wθ Wσ hAdm hSat,
-    fun ⟨_, h, hs⟩ => h.of_substTerm hΔ hΓ' Wθ rfl hs⟩
-
 -- Stage invariance under a definitionally equal stage is **not** a lemma
 -- about `Interp`: for a raw `t` it is false.  Take `t = .forallE A B` with
 -- `A` ill-typed in `Γ` but `A[σ]` typed in `Δ`; the `forallE` rule holds
 -- with label `A[σ]`, and nothing relates `A[σ']` to it, because no rule
 -- types a label in `Γ` -- `hlab` types it in `Δ`.  So the statement has to
--- be indexed by a typing derivation of `t`, and it lives with soundness as
--- `IsDefEq.stage` (`Sound.lean`).
+-- be indexed by a typing derivation of `t`, and it is `IsDefEq.stage`
+-- (`Directed.lean`).
 
 /-- The stage an instantiation is read at: `(one a).comp σ` is `σ`
 extended by `a[σ]`. -/
@@ -1161,64 +1144,6 @@ theorem sound_sigma_eq {Γ : List Term} {A A' B B' : Term} {u v : Bool}
   intro Δ σ ρ hAdm m
   exact ⟨sound_sigma_eq_of hAA' hB ihA ihAtyD ihB hAdm,
     sound_sigma_eq_of hAA'.symm hB'.symm ihA.symm (ihAtyD.of_eq hAA' ihA) ihB'.symm hAdm⟩
-
-/-! ## Stage invariance
-
-The interpretation depends on its stage only up to definitional equality.
-Master needs no such lemma, its shapes carrying no labels; the other repo
-gets it from the quotient, two definitionally equal substitutions being
-the *same* morphism of `Ctx`.  Here it is a theorem, and — this is the
-point — a theorem about a **typed** term, not about `Interp` alone.
-
-For a raw `t` the statement is false.  Take `t = .forallE A B` with `A`
-ill-typed in `Γ` but `A[σ]` typed in `Δ`: the `forallE` rule holds with
-label `A[σ]`, and nothing relates it to `A[σ']`, because no rule types a
-label in `Γ` — `hlab` types labels in `Δ`.  So the induction is on a
-typing derivation, which is exactly what supplies `Δ ⊢ A[σ] ≡ A[σ'] : sort u`
-for each label, by `IsDefEq.subst'`. -/
-
-/-- **Directedness of a type's extension**: two compatible shapes typed at
-an approximant of `⟦A⟧` have a *typed upper bound* there.
-
-The elementary shadow of the other repo's
-`CodeAssignment.rawExtend_isDirected`.  There a value is an *ideal* and
-semantic typing is the fixed point `rawExtend ⟦A⟧ x = x`, so the shape
-this asks for is literally `rawExtend ⟦A⟧ (x ⊔ y)`: it dominates both
-because both are already fixed points below the join, it is typed by
-idempotence, and it is directed because `rawExtend` is a `bind₂` of
-ideals — three facts free from the ideal structure, none an induction.  A
-value here is a *single shape*, so there is no retraction to appeal to and
-the fact is content.
-
-Upper-bound form, to match his `IsDirected`, which never mentions the
-join.  The join form is out of reach anyway: the `pair` clause of
-`HasType` types a pair at a *dominating* first component, and two
-compatible pairs can carry incompatible dominators, so there need be no
-code to read at `x ⊔ y`.  He never meets this, having no Σ-types.
-
-**Its one consumer is `tr`** (`IsDefEq.dir`), where two approximants are
-typed at two approximants of the motive and the joined witness has to be
-typed at the joined motive; master does it with `TShape.HasType.join'` at
-an arbitrary type, which is the lemma this branch removed.  Π and λ do not
-need it, now that directedness runs under `Valuation.WF`. -/
-def SoundJoin (Γ : List Term) (A : Term) : Prop :=
-  ∀ {{Δ : List Term}} {σ ρ}, Adm Δ Γ σ ρ →
-    ∀ {a x y}, Interp Δ Γ A σ ρ a → TShape.WF Δ x → TShape.WF Δ y →
-      TShape.Named Δ a x none → TShape.Named Δ a y none → TShape.Compat Δ x y →
-      ∃ z, TShape.WF Δ z ∧ TShape.LE Δ x z ∧ TShape.LE Δ y z ∧ TShape.Named Δ a z none
-
-/-- **`SoundJoin` holds, for every type.**  The subject join is
-`TShape.Named.join`: no `Interp`, no `Adm`, no induction on `A`.  It is
-stated with `Named` rather than `HasType` because that is what survives
-the graph-free Σ-value (`design.md` §2): `HasType` reads the second
-component's code at a *dominator* of the first, and two dominators need
-not be compatible, while `Named` reads it at the first component itself,
-which the shapes' own compatibility covers. -/
-theorem sound_join {Γ : List Term} {A : Term} : SoundJoin Γ A := by
-  intro Δ σ ρ hAdm a x y _ hx hy hxa hya hc
-  have hΔ := hAdm.ctx
-  have hj := TShape.le_join hΔ hx hy hc
-  exact ⟨x.join y, hx.join hΔ hc hy, hj.1, hj.2, hxa.join hΔ hc hya⟩
 
 /-! ## λ
 
@@ -2202,10 +2127,8 @@ sits above, which is why the same argument does not run at `snd`.
 
 The `join` rule of the lookup lands on two typed shapes, and typing their
 join is join-closure of a type's extension — not only `tr`'s business,
-but every consumer's of a relational lookup.
-Each such point reaches the subject join `TShape.Named.join` directly;
-`sound_join` packages the same fact as a property of the type, and nothing
-needs it in that form. -/
+but every consumer's of a relational lookup.  Each such point reaches the
+subject join `TShape.Named.join` directly. -/
 
 /-! ## The `app` label
 
@@ -2243,7 +2166,7 @@ gives a λ-approximant whose entries' *outputs* are hereditarily typed at
 the codomain read there — `Named`'s second Π condition, and the reason it
 is there — so the lookup's value is below one that is, the `lower` rule
 being why this is up to the order and the `join` rule why the codes have
-to join (`SoundJoin`, `dir_inst`). -/
+to join (`TShape.Named.join`, `dir_inst`). -/
 theorem sound_app_dom {Γ : List Term} {A B f a : Term} {u v : Bool}
     (hPB : B.Pinned (A :: Γ))
     (hΓ : ⊢ Γ) (hA : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v) (ha : Γ ⊢ a : A)
@@ -3382,11 +3305,12 @@ labels carry the syntax through the model, so the inversion principles of
 
 /-! ## The soundness theorem
 
-Two conclusions, as master's: the terms have the same approximants
-(`SoundEq`, his `HasEquality`) and every approximant of the left one is
-below a typed one (`SoundTy`, his `HasFixedness`).  Directedness is
-`IsDefEq.dir` above; his `HasSubstitution`/`HasRenaming` are
-`Interp.substTerm`/`Interp.weak'`; his `PiReady` dissolves into
+Four fields and three notions: the terms have the same approximants
+(`SoundEq`, his `HasEquality`), every approximant of the left one is
+below a typed one (`SoundTy`, his `HasFixedness`), and both sides are
+`Pinned`.  Directedness is `IsDefEq.dir` above; his
+`HasSubstitution`/`HasRenaming` are `Interp.to_substTerm`/`Interp.weak'`;
+his `PiReady` dissolves into
 `IsDefEq.dir` of the domain and the codomain; his `regular` is never
 used, here or there. -/
 
@@ -4060,20 +3984,3 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
     exact h.eq_bot_of_prop (ih₁ hΓ).ty (ih₃ hΓ).ty hAdm
   intro _ _ _ hAdm _ h
   exact h.eq_bot_of_prop (ih₁ hΓ).ty (ih₂ hΓ).ty hAdm
-
-/-- **Semantic typing.**  Every approximant of a well-typed term is below
-one that is hereditarily typed: the original's `HasFixedness`
-(`rawExtend ⟦A⟧ ⟦t⟧ = ⟦t⟧`), read through "ideal = set of approximants".
-It is a conclusion of the induction above, and it has to be *that* -- not
-a theorem of its own -- because the slot discipline makes the other three
-depend on it: η needs it at the function, `Interp.lam`'s slot needs it at
-the argument, and `Adm` needs it at every variable. -/
-theorem IsDefEq.soundTy {Γ : List Term} {t A : Term} (hΓ : ⊢ Γ) (ht : Γ ⊢ t : A) :
-    SoundTy Γ t A := (ht.sound hΓ).ty
-
-/-- **Every well-typed term is pinned.**  This was the development's last
-assumption before saturation; it is the third conclusion of the induction
-above, which is where the original proves its `HasFixedness` too -- a
-field of `RawTermProperties`, alongside substitution. -/
-theorem IsDefEq.pinned {Γ : List Term} {t T : Term} (hΓ : ⊢ Γ) (ht : Γ ⊢ t : T) :
-    t.Pinned Γ := (ht.sound hΓ).pin

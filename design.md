@@ -430,11 +430,11 @@ For a substitution the same fact is `Ctx.SubstEq.dir`: the stage types
 the slot, so `IsDefEq.dir` applies. There is no second case, because
 nothing ever asks about a slot the stage does not type — see
 *Where a substitution ends* below. The substitution lemmas carry the
-stage anyway, so the merges (`to_substTerm`, `substTerm`, `body_merge`,
+stage anyway, so the merges (`to_substTerm`, `body_merge`,
 `Subst.Saturates.lift`, the `Valuation.Approx` joins) have no
 directedness hypothesis either.
 
-The merging lemmas — `to_substTerm`, `substTerm`, `inst`, `body_merge` —
+The merging lemmas — `to_substTerm`, `inst`, `body_merge` —
 are about `Interp` alone but each needs a slot's two approximants joined,
 so they sit after `IsDefEq.dir` rather than beside the rest of `Interp`'s
 theory.
@@ -570,13 +570,13 @@ at the domain* (`rawExtend ⟦A⟧ I`, never `I`), so what we saturate for is
 in his clause. His `application_piOperator_fixed` is what makes that
 work, and `Interp.lam_label_ty` is the half of it we have outright.
 
-**`SoundJoin Γ A`** is a fourth notion that is *not* a field and has no
-consumer: two subjects hereditarily typed at one approximant of `A`,
-compatible there, have a join still typed there. `sound_join` proves it
-for every type. The place that would want it is `tr` in `IsDefEq.dir`,
-where two approximants typed at two approximants of the motive need the
-joined witness typed at the joined motive, and that case reaches
-`TShape.Named.join` (§2) directly instead.
+There is **no notion of join-closure** here, although the `join` rule of
+the graph lookup asks for it wherever a lookup's value has to be typed:
+`tr` in `IsDefEq.dir` is the case with the most to maintain, two
+approximants typed at two approximants of the motive needing the joined
+witness typed at the joined motive. Every such point reaches the subject
+join `TShape.Named.join` (§2) directly, so the property of a *type* that
+would package them has no consumer and is not stated.
 
 `SoundEq` is type-agnostic, which is what lets the instrumented
 judgment's heterogeneous `trans'` rule go through without sort
@@ -737,7 +737,7 @@ A dash means the notion has no counterpart on that side.
 | `normalizedBodyAction`: the body read at `rawExtend ⟦A⟧ x` | the binder clauses read it at the entry's own input, and demand that input typed at the domain (§5) |
 | `application_piOperator_fixed` | `Interp.lam_label_ty` for the support half, `SoundTy`'s saturation for the normalisation half |
 | `HasEquality`, `HasFixedness` | `SoundEq`, `SoundTy` |
-| `HasSubstitution`, `HasRenaming`, fields of `RawTermProperties` proved inside the main induction | `Interp.substTerm`, `Interp.weak'`/`unweak`, standalone lemmas taking `Term.Pinned` and `Subst.Saturates` instead |
+| `HasSubstitution`, `HasRenaming`, fields of `RawTermProperties` proved inside the main induction | `Interp.to_substTerm`, `Interp.weak'`/`unweak`, standalone lemmas taking `Term.Pinned` and `Subst.Saturates` instead |
 | `SingleSubstitution.variable_eq` | `Interp.bvar_iff` |
 | `SourceAdmissible` | `Adm`, plus the naming his quotient makes unnecessary (§6) |
 | `SourceAdmissible` with `SingleSubstitution` | `Subst.Saturates` |

@@ -1392,13 +1392,6 @@ def Valuation.Approx (Δ Γ' Γ : List Term) (θ σ : Subst) (ρ ρ' : Valuation
 theorem Valuation.Approx.nil {Δ Γ' Γ : List Term} {θ σ ρ} :
     Approx Δ Γ' Γ θ σ ρ Valuation.nil := fun {_ _} _ => .bot
 
-theorem Interp.tr_bot_of_ne {Δ Γ : List Term} {r : Bool} {A a b C X H : Term} {σ ρ m}
-    (h : Interp Δ Γ (.tr r A a b C X H) σ ρ m)
-    (hne : ¬ (Δ ⊢ a.subst σ ≡ b.subst σ : A.subst σ)) : m.2 = .bot := by
-  cases h with
-  | bot => rfl
-  | tr _ _ _ _ _ _ _ _ _ _ heq => cases hne heq
-
 /-- An approximant of a variable is below its slot. -/
 theorem Interp.le_bvar {Δ Γ : List Term} {i σ ρ m}
     (H : Interp Δ Γ (.bvar i) σ ρ m) : m.LE Δ (ρ i) := by

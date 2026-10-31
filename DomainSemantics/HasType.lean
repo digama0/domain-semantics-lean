@@ -114,38 +114,19 @@ theorem Shape.IsNumeral.lift_iff {n k} (h : n ≤ k) {v : Shape n} :
     | zero => let k+1 := k; exact .zero
     | succ _ ih => let k+1 := k; exact .succ (ih (Nat.le_of_succ_le_succ h))
 
-/-! ## What the level-indexed typing cost, and why it is gone
+/-! ## Why typing is not indexed by the level
 
-A first version of this file defined typing by *recursion on the level*,
-mirroring master's `Shape.lean`.  It is deleted; this note says what it was and
-why, since the shape of the difficulty recurs.
+Typing by recursion on the level has to be transported along `lift`, and
+the reflection direction of that transport dictates the clauses: to
+reflect, the `lam` clause must be stated per entry, and per entry it is
+not closed under the order, whose lookup has joins (`design.md` §2 has
+the Σ counterexample).  A dominating codomain restores closure and
+destroys reflection.  The inductive over `TShape` has neither problem,
+and the tension recurs wherever a clause quantifies over a witness at a
+level of its own.
 
-Every fact about a level-indexed relation has to be transported along
-`lift`, and the reflection direction of that transport is expensive:
-`Shape.HasType.lift_iff` ran 160 lines.  Worse, it dictated the clauses.
-To reflect, the `lam` clause had to be stated *per entry*; stated per
-entry it is not closed under the order, whose lookup has joins; so
-`mono_l` at `lam` was **false**, not merely unproved (`design.md` §2 has
-the Σ counterexample).  Stating it with a
-*dominating* codomain instead restores closure and destroys reflection.
-That is the dilemma the inductive over `TShape` dissolves.
-
-Two further casualties of dropping saturation went at the same time, and
-neither is missed.  Join-closure of typing at an arbitrary type
-(`join_at`) has no counterpart in the other repo: its directedness lemmas
-(`pi_isDirected`, `abstraction_isDirected`, `succ_isDirected`) are about
-*values*, which are ideals there and directed by construction, never about
-the extension of a type.  Master needs it only because its interpretation
-is a relation, so soundness's `tr` case has two interpretations to
-combine; `Interp` makes compatibility of any two elements automatic.  And
-`HasDom` reflection along `lift` fails for the same reason the `lam`
-clause did: a dominating graph at the level above need not be a lift.
-
-The cycle argument that was built for those went with them, and with it
-the `List` and closure lemmas it ran on (`Basic.lean` is what is left of
-that grab-bag).  Reflection of the order along `lift` now comes from
-`ShapeFun.Eval.lift_of` alone, which the lookup's `join` side condition
-pays for. -/
+Reflection of the order along `lift` comes from `ShapeFun.Eval.lift_of`
+alone, which the lookup's `join` side condition pays for. -/
 
 /-! ## Typing over `TShape`, as one inductive
 
@@ -1964,7 +1945,7 @@ theorem TShape.Named.sg_inv {Δ : List Term} {o} {n k} {A B A₀ a : Term} {d : 
   exact ⟨c, hx _ rfl, hev _ rfl, hy _ rfl⟩
 
 /-- **The join of two compatible subjects at one type, at one level** —
-master's `WShape.HasType.join`, and the content of `SoundJoin`.
+master's `WShape.HasType.join`.
 
 The hypotheses are `Named`, and that is what makes it provable: the `sg`
 clause reads the second component's code at the first component itself,
