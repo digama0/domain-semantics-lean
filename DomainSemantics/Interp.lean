@@ -1,5 +1,3 @@
-import DomainSemantics.Regular
-import DomainSemantics.HasType
 import DomainSemantics.HasType
 
 /-! # The interpretation relation
@@ -27,7 +25,14 @@ Reading `m` as a lower bound is what makes the relation monotone
 `(A[σ], a[σ])` of its first component, which is what lets the second
 component be typed at the codomain family applied there; `fst` and `snd`
 read a component off a pair shape exactly as `app` reads an output off a
-λ-shape. -/
+λ-shape.
+
+After the relation's own theory comes what a *stage* has to satisfy for it
+to be of use: admissibility `Adm`, the three valuation relations it is
+bounded by, and the semantic side conditions that `Interp.to_substTerm`
+needs and the subject's syntax does not supply (`IsTypeAt`, `PinApp` and
+`PinSnd`, collected per former as `Term.Pinned`).  All of them are stated
+without `SoundTy`, which is what keeps this file below soundness. -/
 
 namespace DomainSemantics
 
@@ -127,9 +132,9 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
   equivalence: a substitution in the term leaves the label's type alone.
 
   The lookup is `TEvaluates`, over `TShape`s, not the level-indexed
-  `Evaluates`: the input and output of a lookup in a *bigger* graph land at
-  that graph's level, and the reflection back down does not exist
-  (`Evaluates.lift` is one-directional).  Directedness needs exactly that
+  `ShapeFun.Eval`: the input and output of a lookup in a *bigger* graph
+  land at that graph's level, and the reflection back down does not exist
+  (`ShapeFun.Eval.lift` only goes up).  Directedness needs exactly that
   move, so the rule is stated where it is available. -/
   | app {n} {g : ShapeFun n} {x y : TShape} {A : Term} :
     Interp Δ Γ F σ ρ (Shape.T (n := n+1) (ShapeS.lam A g)) →

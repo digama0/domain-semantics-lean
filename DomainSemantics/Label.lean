@@ -12,7 +12,12 @@ These are *plain* definitional equality: there is no syntactic-equality
 escape clause, so they are symmetric and transitive but **not reflexive**
 on arbitrary terms. Reflexivity holds exactly on well-typed labels, which
 is why the order on shapes is reflexive only on well-formed shapes
-(`Shape.WF`), and why every reflexivity lemma downstream takes a context. -/
+(`Shape.WF`), and why every reflexivity lemma downstream takes a context.
+
+Last comes `Stable`, what an `app` or `snd` clause carries in place of
+"the argument has type `A₀` in `Γ`, and the label is `A₀` at the stage".
+It is the weaker of the two, and the one that survives a move to a
+smaller context. -/
 
 namespace DomainSemantics
 

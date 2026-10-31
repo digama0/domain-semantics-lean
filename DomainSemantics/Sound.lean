@@ -1,26 +1,25 @@
 import DomainSemantics.Directed
-import DomainSemantics.HasType
-import DomainSemantics.Regular
 
-/-! # Admissibility and the soundness statement
+/-! # Soundness
 
 `Interp` is the core definition; everything else about it is a lemma.
-This file adds the two things that are genuinely *new data* rather than
-properties of `Interp` — admissibility of a valuation, and the saturated
-form of typing — and then states what soundness says.
+This file adds the one piece of genuinely *new data* rather than a
+property of `Interp` — the saturating form of semantic typing — states
+what soundness says, and proves it rule by rule.
 
 The other repo bundles its properties into `RawTermProperties` and
 `RawJudgment`, because they are established simultaneously by one
 induction over a structure that also carries category-theoretic data.  We
-do not need the bundle: directedness, naturality and the substitution
-lemma are unconditional facts about `Interp`, so they are lemmas in
-`Interp.lean`, and only the two judgment-indexed properties — `SoundEq`
-and `SoundTy` — are stated here.
+do not need the bundle: naturality and the substitution lemma are
+unconditional facts about `Interp`, so they are lemmas in `Interp.lean`,
+directedness is an induction of its own in `Directed.lean`, and only the
+two judgment-indexed properties — `SoundEq` and `SoundTy` — are stated
+here.
 
 | his | here |
 |---|---|
 | `SourceAdmissible σ ρ` | `Adm` |
-| `HasIdeality Γ t` | `SoundDir`, proved *with* soundness (§4.5) |
+| `HasIdeality Γ t` | `SoundDir`, an induction of its own first (§4.5) |
 | `HasRenaming` + `HasSubstitution` | a lemma: `Interp.subst` |
 | reindexing along `σ` (functoriality, free) | a lemma: `Interp.subst` |
 | `HasEquality Γ t t'` | `SoundEq` |
@@ -157,8 +156,8 @@ semantic ones — a binder's annotation being a type, an eliminator's label
 being the subject's own — from `Term.Pinned`, which is the original's
 `HasFixedness` threaded structurally.  The `bvar` case is where the
 valuation is built (slot `i` holds the approximant, every other slot
-`⊥`), the merges are `Valuation.Approx.foldr` through
-`body_merge`/`list_merge` under binders, and `Y` runs on the tower. -/
+`⊥`), the merges are `Valuation.Approx.foldr`, through `body_merge` under
+a binder, and `Y` runs on the tower. -/
 theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ)
     {t : Term} {Γ Γ' : List Term} {θ σ ρ m T} (hΓ : ⊢ Γ) (hAnn : Γ ⊢ t : T)
     (hPin : t.Pinned Γ) (hΓ' : ⊢ Γ') (Wθ : Ctx.SubstEq Γ' θ θ Γ) (Wσ : Ctx.SubstEq Δ σ σ Γ')
@@ -1834,8 +1833,7 @@ theorem sound_fst {Γ : List Term} {A B p p' : Term}
 case there is no graph to rebuild: `Interp.pair` already carries a code
 for every entry.  This is the Σ-shape whose domain is the clause's own
 domain slot joined with a code for `a`, and whose graph has one entry
-per code; `sound_pair_ty` reads the typing off it, `sound_pair_dom` the
-hereditary typing. -/
+per code, and `sound_pair_dom` reads the hereditary typing off it. -/
 theorem pair_sigma_code {Γ Δ : List Term} {A B a : Term} {u v : Bool} {σ ρ}
     (hΓ : ⊢ Γ) (hAty : Γ ⊢ A : .sort u) (hB : A :: Γ ⊢ B : .sort v)
     (ihAty : SoundTy Γ A (.sort u))
@@ -2200,9 +2198,11 @@ slot the code is read at approximates `a`.  The `pair` clause's dominator
 sits above, which is why the same argument does not run at `snd`.
 
 The `join` rule of the lookup lands on two typed shapes, and typing their
-join is exactly `SoundJoin` (§5.1) — not only `tr`'s business, as the plan
-had it, but every consumer's of a relational lookup.  It is `sound_join`,
-proved once and for all. -/
+join is join-closure of a type's extension (§5.1) — not only `tr`'s
+business, as the plan had it, but every consumer's of a relational lookup.
+Each such point reaches the subject join `TShape.Named.join` directly;
+`sound_join` packages the same fact as a property of the type, and nothing
+needs it in that form. -/
 
 /-! ## The `app` label
 
@@ -3387,7 +3387,7 @@ below a typed one (`SoundTy`, his `HasFixedness`).  Directedness is
 used, here or there. -/
 
 /-- What one derivation yields.  A record rather than a tuple: the
-conclusions have grown from two to six, and each addition would
+conclusions have grown from two to four, and each addition would
 otherwise renumber every projection in the file. -/
 structure Sound (Γ : List Term) (t t' A : Term) : Prop where
   /-- The two sides have the same approximants. -/

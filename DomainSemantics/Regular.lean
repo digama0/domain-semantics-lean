@@ -1,19 +1,22 @@
 import DomainSemantics.Term
 
-/-! # Regularity for `forallE`
+/-! # Regularity and shallow inversion
 
-A purely syntactic lemma: if a Π-type appears as either side of a
-definitional equality, its domain is a type and its codomain is a type
-over the domain.
+Purely syntactic lemmas, each reading one layer off a definitional
+equality: the subject's own premises, and typings for its subterms in the
+contexts they live in.  For `forallE` that says the domain is a type and
+the codomain is a type over the domain.
 
-Master gets these two facts out of `forallE_inv`, which comes out of
+Master gets those two facts out of `forallE_inv`, which comes out of
 adequacy.  This branch proves Π-injectivity *from* soundness instead, and
 the semantic probe that reads the Π label back (`Interp.piAtom`) needs
 exactly these two facts to be built.  So they have to be recovered here,
-by induction on the derivation, before inversion can run.
+by induction on the derivation, before inversion can run.  The remaining
+formers follow under "Shallow inversion" below, where strengthening is
+what reads them.
 
-The statement is **two-sided** — `e` or `e'` is the Π — and that is
-forced, in two separate ways.
+Every statement is **two-sided** — `e` or `e'` is the subject — and that
+is forced, in two separate ways.
 
 * `symm` and `trans` move a subject from one side to the other, so a
   one-sided statement has no induction hypothesis to appeal to.
@@ -123,13 +126,11 @@ theorem IsDefEq.sigma_cod {Γ : List Term} {A B e X : Term}
 
 /-! ## Shallow inversion, former by former
 
-Each lemma below reads one layer off a definitional equality: the subject's
-own premises, and typings for its subterms in the contexts they live in.
-Together they are what `Term.Annot` carried as a predicate before it was
-deleted, and the
-induction is the same in each — the former's congruence rule is the only
-case with content, the computation rules go through their reflexive
-premise's induction hypothesis, and everything else is `noConfusion`.
+Together these are what `Term.Annot` carried as a predicate before it was
+deleted, and the induction is the same in each — the former's congruence
+rule is the only case with content, the computation rules go through their
+reflexive premise's induction hypothesis, and everything else is
+`noConfusion`.
 
 They are two-sided (`e = … ∨ e' = …`) because `symm` and `trans` demand
 it: proving the left side for `symm H` is proving the right side for `H`. -/

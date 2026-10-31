@@ -478,9 +478,9 @@ refutation of definitional UIP.
 
 ## 8. Axioms
 
-The development is **choice-free**: every one of the 25 guards in
-`DomainSemantics.lean` pins `[propext, Quot.sound]`, and one is tighter
-still. The two places `Classical.choice` would enter are handled
+The development is **choice-free**: every one of the eleven guards in
+`DomainSemantics.lean` pins `[propext, Quot.sound]`. The two places
+`Classical.choice` would enter are handled
 structurally rather than classically — the sort level hidden inside
 `TyEq Δ A A' := ∃ u, Δ ⊢ A ≡ A' : .sort u` is destructured rather than
 chosen, and the one case split on whether a shape is `⊥` goes through the

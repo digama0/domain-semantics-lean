@@ -5,8 +5,10 @@ import DomainSemantics.Lift
 The syntactic core of the project.
 
 * `Term` is the untyped pre-syntax: de Bruijn variables, sorts indexed by
-  a `Bool` (proof-relevant vs proof-irrelevant), application, and the two
-  binders `lam` and `forallE`.
+  a `Bool` (proof-relevant vs proof-irrelevant), application, the binders
+  `lam`/`forallE`, `sigma` with `pair`/`fst`/`snd`, `unit`/`star`, `nat`
+  with `zero`/`succ`/`natCase`, the fixpoint `Y`, and the proof-relevant
+  identity type `id` with `refl`/`tr`.
 * `Subst := Nat → Term` is the substitution monoid, with operations
   `id`, `cons`, `one e`, `lift`, `comp`, `tail`, and the action
   `Term.subst : Term → Subst → Term`. β-instantiation is the special
@@ -359,7 +361,7 @@ default for a dependently-typed λ-calculus, with the usual congruence
 rules, β, η, proof-irrelevance and *homogeneous* transitivity. The
 sister relation `IsDefEq` (below) is a formalisation trick that adds
 heterogeneous transitivity (`trans'`) and beefier sort-proof premises
-to make internal proofs go through; `IsDefEq.iff` (in `UniqueTyping.lean`)
+to make internal proofs go through; `IsDefEq.iff` (in `Consequences.lean`)
 shows it is equivalent to `IsDefEq₀` on well-formed contexts. -/
 
 section
@@ -467,7 +469,7 @@ Two features distinguish it from `IsDefEq₀`:
   with `B ≡ C : sort v` before we have proved sort uniqueness.
 
 Both features are technically removable: `IsDefEq.iff` in
-`UniqueTyping.lean` exhibits an equivalence with `IsDefEq₀` on
+`Consequences.lean` exhibits an equivalence with `IsDefEq₀` on
 well-formed contexts, and the strengthened premises are recoverable
 via `IsDefEq.hasType` / `IsDefEq.isType`. We keep `IsDefEq` as the
 working judgment because it streamlines the soundness and adequacy

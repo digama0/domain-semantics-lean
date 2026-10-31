@@ -8,13 +8,13 @@ the type-shape `a`.  It is one inductive over `TShape`, the shapes at all
 levels; see the section heading below it for why, and §5.5/§5.5a of
 `presheaf-proof-strategy.md` for the history.
 
-Before it comes the machinery it is built on: `Evaluates`, the relational
-graph lookup at a fixed level (master's `ShapeFun.app` was a
+It is built on two graph lookups: `ShapeFun.Eval` (`Shape.lean`), the
+relational lookup at a fixed level (master's `ShapeFun.app` was a
 function, correct only because graphs were saturated; saturation is gone,
 so the codomain type comes from a relation, which is also how the other
 repo reads it — `rawExtend T X` quantifies `∃ c ∈ T`), and `TEvaluates`,
-the same lookup over `TShape`, which is where all the level bookkeeping
-happens once.
+just below, the same lookup over `TShape`, which is where all the level
+bookkeeping happens once.
 
 Together with `SoundTy` this plays the role of the other repo's decoder:
 see §4.2 of `presheaf-plan.md`.  Its fixed-point construction
@@ -141,11 +141,11 @@ combine; `Interp` makes compatibility of any two elements automatic.  And
 `HasDom` reflection along `lift` fails for the same reason the `lam`
 clause did: a dominating graph at the level above need not be a lift.
 
-The cycle argument that was built for those went with them.  What stays,
-because it is independent: `find_cycle`,
-`List.Sublist.union`/`allSublists`/`sublist_map`, `Shape.Joins`, and
-`Evaluates.tighten`/`of_sublist`/`joins_iff`, from which
-`Evaluates.lift_of` is proved. -/
+The cycle argument that was built for those went with them, and with it
+the `List` and closure lemmas it ran on (`Basic.lean` is what is left of
+that grab-bag).  Reflection of the order along `lift` now comes from
+`ShapeFun.Eval.lift_of` alone, which the lookup's `join` side condition
+pays for. -/
 
 /-! ## Typing over `TShape`, as one inductive
 

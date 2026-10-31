@@ -64,8 +64,8 @@ inductive ShapeS (Shape : Type) : Type where
   -- here made typing lower- *and* join-closed, at the price of Σ's η: an
   -- entry's input was a condition the order enforced and the term's
   -- meaning did not.  With one unconditional second component, η holds and
-  -- typing is lower-closed; join-closure moves to `sound_join`, which has
-  -- the provenance its consumers always had (§5.1b (γ))
+  -- typing is lower-closed, and join-closure is the subject join read at
+  -- the component's own name (`TShape.Named.join`, §5.1b (γ))
   | pair (A a : Term) : Shape → Shape → ShapeS Shape
   | nat : ShapeS Shape
   | zero : ShapeS Shape
