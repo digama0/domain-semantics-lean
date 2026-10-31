@@ -19,7 +19,7 @@ here.
 | his | here |
 |---|---|
 | `SourceAdmissible σ ρ` | `Adm` |
-| `HasIdeality Γ t` | `SoundDir`, an induction of its own first (§4.5) |
+| `HasIdeality Γ t` | `SoundDir`, an induction of its own first |
 | `HasRenaming` + `HasSubstitution` | a lemma: `Interp.subst` |
 | reindexing along `σ` (functoriality, free) | a lemma: `Interp.subst` |
 | `HasEquality Γ t t'` | `SoundEq` |
@@ -657,7 +657,7 @@ is below an approximant that is *hereditarily* typed at an approximant of
 This is the original's `HasFixedness` — `rawExtend ⟦A⟧ ⟦t⟧ = ⟦t⟧` — read
 through "ideal = set of approximants".  Hereditary typing is not itself
 downward closed, and this form is: it is what every slot in the model
-needs (`Adm`), and what η reads its typed inputs off (§4.5g). -/
+needs (`Adm`), and what η reads its typed inputs off (`design.md` §5). -/
 def SoundTy (Γ : List Term) (t A : Term) : Prop :=
   ∀ {{Δ : List Term}} {{σ ρ}}, Adm Δ Γ σ ρ →
     ∀ {m}, Interp Δ Γ t σ ρ m →
@@ -900,7 +900,8 @@ theorem SoundTy.isTypeAt {Γ : List Term} {A : Term} {u : Bool}
 `Interp.to_substTerm` returns *some* valuation approximating `θ`, and
 `SoundTy` is read at admissible ones — so to use a subterm's `SoundTy`
 after a substitution one needs the returned valuation to be admissible,
-which it need not be (admissibility is not upward closed, §3.1d).
+which it need not be (admissibility is not upward closed, `design.md`
+§4).
 
 At a **single** substitution it is, and the valuation is canonical: the
 source valuation with the argument's approximant pushed on.  This is the
@@ -1209,10 +1210,10 @@ def SoundJoin (Γ : List Term) (A : Term) : Prop :=
 /-- **`SoundJoin` holds, for every type.**  The subject join is
 `TShape.Named.join`: no `Interp`, no `Adm`, no induction on `A`.  It is
 stated with `Named` rather than `HasType` because that is what survives
-the graph-free Σ-value (§4.7e): `HasType` reads the second component's
-code at a *dominator* of the first, and two dominators need not be
-compatible, while `Named` reads it at the first component itself, which
-the shapes' own compatibility covers. -/
+the graph-free Σ-value (`design.md` §2): `HasType` reads the second
+component's code at a *dominator* of the first, and two dominators need
+not be compatible, while `Named` reads it at the first component itself,
+which the shapes' own compatibility covers. -/
 theorem sound_join {Γ : List Term} {A : Term} : SoundJoin Γ A := by
   intro Δ σ ρ hAdm a x y _ hx hy hxa hya hc
   have hΔ := hAdm.ctx
@@ -1643,9 +1644,10 @@ rather than assembled from the two component bounds. -/
 /-! ## Application
 
 Directedness at `app` is where the λ-shape's domain label pays for itself
-(§5.5b).  Two `app` derivations for the same term look their arguments up
-in two λ-shapes of `F`, at those shapes' own labels `A₁`, `A₂`.  A common
-upper bound of the two λ-shapes is a λ-shape, its graph covers both, and
+(`design.md` §1).  Two `app` derivations for the same term look their
+arguments up in two λ-shapes of `F`, at those shapes' own labels `A₁`,
+`A₂`.  A common upper bound of the two λ-shapes is a λ-shape, its graph
+covers both, and
 the order on λ-shapes makes its label definitionally equal to both — so
 the two lookups become lookups in *one* graph at *one* query, whose
 outputs the graph's coherence makes joinable.  No typing of `F` or of the
@@ -2112,8 +2114,9 @@ theorem sound_pair_eq {Γ : List Term} {A A' B B' a a' b b' : Term} {u v : Bool}
 
 /-! ## The second projection
 
-`Interp.snd` is a query at `fst p` (§4.7a), so the codomain family's
-lookup that types the second component is at that label, and the value
+`Interp.snd` is a query at `fst p` (`design.md` §6), so the codomain
+family's lookup that types the second component is at that label, and
+the value
 read off is an approximant of `B[fst p]` — provided the query's *type* is
 the Σ's domain.  That is what the typed approximant gives: the Σ-shape's
 graph labels are all `≡ A[σ]`, and a lookup that reaches a non-`⊥` output
@@ -2191,15 +2194,15 @@ graph at the canonical query, which `sound_graph_lookup` turns into an
 approximant of `B` at the stage extended by `a[σ]`, and `Interp.inst`
 into one of `B[a]`.
 
-The slot works out, and this is where Π differs from Σ (§4.7b): the
-generator sits *below* the λ-entry's input — coverage is a lookup at the
+The slot works out, and this is where Π differs from Σ (`design.md` §2):
+the generator sits *below* the λ-entry's input — coverage is a lookup at the
 entry's own input — and that input is below the argument's shape, so the
 slot the code is read at approximates `a`.  The `pair` clause's dominator
 sits above, which is why the same argument does not run at `snd`.
 
 The `join` rule of the lookup lands on two typed shapes, and typing their
-join is join-closure of a type's extension (§5.1) — not only `tr`'s
-business, as the plan had it, but every consumer's of a relational lookup.
+join is join-closure of a type's extension — not only `tr`'s business,
+but every consumer's of a relational lookup.
 Each such point reaches the subject join `TShape.Named.join` directly;
 `sound_join` packages the same fact as a property of the type, and nothing
 needs it in that form. -/
@@ -2212,8 +2215,9 @@ is that label, by `Shape.WF`.  What typing adds, at an admissible stage, is
 that the label is the *syntactic* domain `A[σ]` of the function's Π-type:
 `HasType.lam` requires the label to agree with the Π-shape's domain, and
 the Π-shape approximating `Π A B` is labelled by `A[σ]`.  This is the η
-condition of §4.5: a slot of type `Π A B` holds only λ-shapes labelled by
-(something definitionally equal to) `A[σ]`, as `λ A (f↑ 0)` is. -/
+condition of `design.md` §5: a slot of type `Π A B` holds only λ-shapes
+labelled by (something definitionally equal to) `A[σ]`, as `λ A (f↑ 0)`
+is. -/
 theorem Interp.lam_label_ty {Γ Δ : List Term} {f A B : Term} {σ ρ}
     (hAdm : Adm Δ Γ σ ρ)
     (hty : SoundTy Γ f (.forallE A B))
@@ -3374,7 +3378,7 @@ theorem SoundEq.id_inv {Γ : List Term} {r : Bool} {A₀ a₀ b₀ A₁ a₁ b�
 The one theorem this branch is for.  Master needs `LogRel.lean` and
 `Adequacy.lean` on top of its soundness theorem to get inversion; here the
 labels carry the syntax through the model, so the inversion principles of
-§6 are corollaries of this statement alone. -/
+`design.md` §7 are corollaries of this statement alone. -/
 
 /-! ## The soundness theorem
 
@@ -3396,7 +3400,7 @@ structure Sound (Γ : List Term) (t t' A : Term) : Prop where
   one.  The right-hand side needs no field of its own: `SoundTy.of_eq`
   moves this one across `eq`. -/
   ty : SoundTy Γ t A
-  /-- The clause conditions `Interp.to_substTerm` reads (§3.1d). -/
+  /-- The clause conditions `Interp.to_substTerm` reads (`design.md` §4). -/
   pin : t.Pinned Γ
   /-- And for the right-hand side, which `symm` needs. -/
   pin' : t'.Pinned Γ
@@ -3473,7 +3477,7 @@ it whose entry inputs are *hereditarily* typed, which is exactly what
 `Interp.lam`'s slot asks, and the expansion's bodies are then that
 approximant's own lookups (`TEvaluates.refl`).  The original gets the
 same effect from its λ clause, which reads the body at the input
-normalised at the domain (§4.5g). -/
+normalised at the domain (`design.md` §5). -/
 
 theorem sound_eta_of {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
     (hA : Γ ⊢ A : .sort u) (ihedom : SoundTy Γ e (.forallE A B))
@@ -3557,9 +3561,9 @@ theorem sound_eta_of {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
 /-- **η**, the easy direction: an approximant of the expansion is one of
 `e`.  Each entry's body is a lookup in a λ-approximant of `e` one binder
 up, `Interp.unweak` brings it down, directedness puts one approximant
-above them all, and the lookup-coverage order (§5.2) is what lets the
-expansion's graph be covered by it — an entry's output is a *join* of
-outputs, which entry-by-entry coverage could not reach. -/
+above them all, and the lookup-coverage order (`design.md` §1) is what
+lets the expansion's graph be covered by it — an entry's output is a
+*join* of outputs, which entry-by-entry coverage could not reach. -/
 theorem sound_eta_to {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
     (hA : Γ ⊢ A : .sort u) (he : Γ ⊢ e : .forallE A B)
     (ihety : SoundTy Γ e (.forallE A B))
@@ -3661,10 +3665,10 @@ theorem sound_eta_to {Γ : List Term} {A B e : Term} {u : Bool} (hΓ : ⊢ Γ)
     obtain ⟨q, hq, rfl⟩ := ShapeFun.mem_lift.1 he
     exact fun hb => hwf.2.1 q hq ((Shape.lift_isBot hkn).1 hb)
 
-/-- **The §4.7a label invariant.**  Every pair-approximant of `p` is
-named by `p`'s *own* first projection.  It is what Σ's η needs, and it
-is false for an admissibility that does not ask slots to name their
-terms (§4.7i); with `Adm` asking that, it follows from saturation: the
+/-- **The label invariant** (`design.md` §6).  Every pair-approximant of
+`p` is named by `p`'s *own* first projection.  It is what Σ's η needs,
+and it is false for an admissibility that does not ask slots to name
+their terms; with `Adm` asking that, it follows from saturation: the
 pair-approximant sits below the saturated one, which names `fst p`, and
 the order compares names. -/
 theorem SoundTy.pair_name {Γ : List Term} {A B p : Term} (h : SoundTy Γ p (.sigma A B))
@@ -3774,8 +3778,8 @@ theorem sound_fst_snd_of {Γ : List Term} {A B p : Term} {u v : Bool} (hΓ : ⊢
   exact ⟨.refl hwP.2.2.2.1, .refl hwP.2.2.2.2, hwP.1, hAlab, hname⟩
 
 /-- **Σ's η, the easy direction**: an approximant of `⟨fst p, snd p⟩` is
-one of `p`.  With the graph gone this is true, where with it it was not
-(§4.7e): the expansion's pair has no inputs to promise a second
+one of `p`.  It is true because a pair carries no graph (`design.md` §2):
+the expansion's pair has no inputs to promise a second
 component at, so its two components are approximants of the projections
 and nothing more.  Each comes from a pair-approximant of `p`; one
 directedness step puts both under a single one, whose name is `fst p`
@@ -3822,8 +3826,8 @@ theorem sound_fst_snd_to {Γ : List Term} {A B p : Term} {u v : Bool}
   exact (hlex.trans hΔ hx₁).pair_mk hΔ (hley.trans hΔ hy₂) hwf.1
     hAP.symm (hAP.defeqDF (ihpty.pair_name hAdm hP).symm)
 
-/-- The four conclusions proved by the induction itself.  `Sound` adds
-saturation on top, which is where the remaining work is (§4.5g). -/
+/-- The four conclusions, in one induction over every rule; `design.md`
+§5 says why they cannot be separated. -/
 theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
     (hΓ : ⊢ Γ) (H : Γ ⊢ t ≡ t' : A) : Sound Γ t t' A := by
   induction H with
@@ -3847,7 +3851,7 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
     have ⟨he, hd, hpL, hpR⟩ := ih hΓ
     exact ⟨he, hd.of_tyEq hAB heAB, hpL, hpR⟩
   -- everything below is one rule of the induction, each an independent
-  -- obligation; see §4 of `presheaf-proof-strategy.md` for what each needs
+  -- obligation; `design.md` §5 says what the induction needs where
   -- the slot's typing is `Adm`'s own, read off at the index by `Adm.lookupCanon`
   | @bvar _ _ _ _ hl hA =>
     exact ⟨.refl, .bvar hl, trivial, trivial⟩
@@ -3960,9 +3964,9 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
       ha.hasType.1 (ihB ⟨hΓ, _, hA.hasType.1⟩).pin hfst (ihA hΓ).ty (iha hΓ).ty (ihb hΓ).ty
     exact ⟨he, (ihlhs hΓ).ty, (ihlhs hΓ).pin, (ihb hΓ).pin⟩
   | @fst_snd Γ p A B hp hpair ihp ihpair =>
-    -- both directions of Σ's η, against the one condition the model does
-    -- not yet give: a pair-approximant's name is the subject's own first
-    -- projection (§4.7a, `SoundTy.pair_name`)
+    -- both directions of Σ's η, against the one condition the subject's
+    -- syntax does not give: a pair-approximant's name is the subject's
+    -- own first projection (`SoundTy.pair_name`, `design.md` §6)
     obtain ⟨hAty, hpb, hpB, hpa⟩ := (ihpair hΓ).pin
     obtain ⟨_, hSg⟩ := hp.isType hΓ
     obtain ⟨u, hA⟩ := hSg.sigma_dom
@@ -3971,7 +3975,7 @@ theorem IsDefEq.sound {Γ : List Term} {t t' A : Term}
     have he : SoundEq Γ (.pair A B (.fst p) (.snd p)) p := by
       intro Δ σ ρ hAdm m
       -- a pair-approximant's name is the subject's own first projection,
-      -- because the saturated one names it (§4.7i)
+      -- because the saturated one names it (`design.md` §6)
       exact ⟨sound_fst_snd_to hA hB hp (ihp hΓ).ty hAdm,
         sound_fst_snd_of hΓ hA hB hp (ihp hΓ).ty hAdm⟩
     exact ⟨he, (ihpair hΓ).ty, (ihpair hΓ).pin, (ihp hΓ).pin⟩

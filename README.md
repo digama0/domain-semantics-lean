@@ -92,9 +92,7 @@ source.
 | [`Consequences.lean`](DomainSemantics/Consequences.lean) | 968 | Type uniqueness, sort uniqueness, `IsDefEq.iff`, canonical forms, subject reduction, progress, `not_UIP`. |
 | [`DomainSemantics.lean`](DomainSemantics.lean) | 72 | Umbrella: the axiom board for the headline theorems. |
 
-`design.md` is the map of the finished proof: what each definition is and
-why it has the shape it has. `presheaf-proof-strategy.md` is the design
-record and keeps the history — §1 for what the other development's
-hypotheses become here, §4.7c for Σ's η, §5.1 for join-closure, and §6
-onwards for a dated log of what the model shed. `presheaf-plan.md` is the
-comparison with the two developments this one was boiled down from.
+`design.md` is the map of the proof: what each definition is, why it has
+the shape it has, and how each piece corresponds to the presheaf-over-syntax
+development this one was boiled down from. The module docstrings carry the
+local detail and point there for the reasons.

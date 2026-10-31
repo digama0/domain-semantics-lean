@@ -13,7 +13,7 @@ level-graded `Shape n` with two changes:
 
 The labels are what glue syntax into the domain: application looks a graph
 up at the label of the argument, and Π-injectivity is then a projection out
-of the Π-label. See `presheaf-plan.md`.
+of the Π-label. See `design.md` §1.
 
 Because labels are compared up to definitional equality in a context, the
 order `Shape.LE Δ` is context-indexed and `Prop`-valued (the old `ble` and
@@ -60,12 +60,12 @@ inductive ShapeS (Shape : Type) : Type where
   | sigma (A B : Term) : Shape → List (Entry Shape) → ShapeS Shape
   -- a pair is its two components, with the first component's *term* `a`
   -- as a label: the second component's type is `B[a]`, so the code that
-  -- types it is read at that name (§4.7e).  The graph that used to stand
-  -- here made typing lower- *and* join-closed, at the price of Σ's η: an
-  -- entry's input was a condition the order enforced and the term's
-  -- meaning did not.  With one unconditional second component, η holds and
-  -- typing is lower-closed, and join-closure is the subject join read at
-  -- the component's own name (`TShape.Named.join`, §5.1b (γ))
+  -- types it is read at that name (`design.md` §2).  A graph here would
+  -- make typing lower- *and* join-closed, at the price of Σ's η: an
+  -- entry's input is a condition the order enforces and the term's
+  -- meaning does not.  With one unconditional second component η holds
+  -- and typing is lower-closed, and join-closure is the subject join
+  -- read at the component itself (`TShape.Named.join`)
   | pair (A a : Term) : Shape → Shape → ShapeS Shape
   | nat : ShapeS Shape
   | zero : ShapeS Shape
@@ -2358,7 +2358,8 @@ theorem TShape.WF.mono {Δ : List Term} (hΔ : ⊢ Δ) {T : Term} {x x' : TShape
 A shape and its lift are equivalent in the order, so any shape may be
 moved to a higher level without changing what it approximates.  This is
 what lets a proof put every shape in sight at one level before touching
-`HasType`, whose transport only goes up (§4.5c of `presheaf-plan.md`). -/
+`HasType`, where the level bookkeeping is done once and for all
+(`TShape.HasType.lift_subject` and `lower_subject`; `design.md` §1). -/
 
 namespace TShape
 

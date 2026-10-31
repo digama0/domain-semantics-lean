@@ -187,7 +187,7 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
       (∃ u, Γ ⊢ A : .sort u) → (∃ v, A :: Γ ⊢ B : .sort v) →
       Interp Δ Γ (.sigma A B) σ ρ m
   /-- A pair is its two components, with the first's term as its name
-  (§4.7e).  The name is what the codomain code is read at — the second
+  (`design.md` §2).  The name is what the codomain code is read at — the second
   component's type is `B[a]` — and it is also what `snd` queries, so the
   value says which term its first component stands for.  There is no
   graph: an entry's input would be a condition the order enforces and the
@@ -211,9 +211,9 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
       TShape.LE Δ m (Shape.T x) →
       Interp Δ Γ (.fst p) σ ρ m
   /-- The second projection reads the second component, at a pair whose
-  name is `fst p` — the §4.7a label invariant, now a clause premise
-  rather than a graph query.  The name is what makes `snd p`'s type
-  `B[fst p]` rather than `B` at some other term. -/
+  name is `fst p` — the label invariant of `design.md` §6, as a clause
+  premise rather than a graph query.  The name is what makes `snd p`'s
+  type `B[fst p]` rather than `B` at some other term. -/
   | snd {n} {A₀ a₀ : Term} {x y : Shape n} :
       Interp Δ Γ p σ ρ (Shape.T (n := n+1) (ShapeS.pair A₀ a₀ x y)) →
       Δ ⊢ a₀ ≡ (Term.fst p).subst σ : A₀ →
@@ -282,9 +282,9 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
   not enough: with no UIP a variable `h : Id A a a` may hold a `refl`
   slot while `tr A a a C X h` is stuck, and the transport would then pass
   on `X`'s values, whose pairs are named `fst X` rather than
-  `fst (tr … X h)` — which breaks Σ's η (§4.7i).  With the equation the
-  transport is `X` by `tr_refl`, and names move along it.  At `r = false`
-  the equation is `proofIrrel`, so only `a ≡ b` is asked. -/
+  `fst (tr … X h)` — which breaks Σ's η (`design.md` §6).  With the
+  equation the transport is `X` by `tr_refl`, and names move along it.  At
+  `r = false` the equation is `proofIrrel`, so only `a ≡ b` is asked. -/
   | tr {v vA m' cb : TShape} {r : Bool} {A a b C X H : Term} :
     TShape.LE Δ m m' →
     Interp Δ Γ X σ ρ m' →
@@ -1501,7 +1501,7 @@ takes it as a hypothesis and `outputAtom_rawPi_fixed_support` turns it
 into exactly this: a non-`⊥` response sits at a genuine point of the
 domain.  They are stated here without `SoundTy`, so that `Interp.lean`
 stays below it, and discharged in `Sound.lean` as a third conclusion of
-`IsDefEq.sound` (§3.1d of the strategy note). -/
+`IsDefEq.sound` (`design.md` §4). -/
 
 /-- **Every valuation approximating `θ` is below an admissible one that
 still approximates it.**  `Adm` is not upward closed — enlarging a

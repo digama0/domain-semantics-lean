@@ -1,20 +1,20 @@
 # The labelled model: what the definitions are
 
-A map of the finished proof — what each definition is and why it has the
-shape it has. `presheaf-proof-strategy.md` is the design record and keeps
-the history; this file describes only the settled architecture.
+A map of the proof — what each definition is and why it has the shape it
+has. This is the only design document: the module docstrings carry the
+local detail and point here for the reasons.
 
 Throughout, **intgrah** means Jeremy Chen's presheaf-over-syntax
 development,
 [`intgrah/domain-semantics-lean`](https://github.com/intgrah/domain-semantics-lean).
 The organising difference from it is that his hypotheses are our
-constructions. He builds objects in a
-category whose morphisms are typed by construction, so directedness,
-idempotence and functoriality come free with the object. We build raw
-data: a value is one shape, a stage is a raw substitution, a type is a
-relation on shapes. Every fact that is free for him is here a lemma, a
-hypothesis, or a premise on a clause. That accounts for most of the
-definitions below that have no counterpart on his side.
+constructions. He builds objects in a category whose morphisms are typed
+by construction, so directedness, idempotence and functoriality come free
+with the object. We build raw data: a value is one shape, a stage is a raw
+substitution, a type is a relation on shapes. Every fact that is free for
+him is here a lemma, a hypothesis, or a premise on a clause. That accounts
+for most of the definitions below that have no counterpart on his side,
+and the appendix lists the correspondence.
 
 Five groups: the syntax and its judgments, the domain, its typing, the
 interpretation, and the syntactic bookkeeping that stands in for his
@@ -93,6 +93,22 @@ projection out of a Π-shape's label.
 **`TShape = Σ n, Shape n`**, the total domain. Everything downstream is
 stated here; `Shape n` exists so the recursions terminate.
 
+**Why a label and not a shape.** A λ-shape carries the Π's domain *label*
+`A`, not an approximant of the domain. A label is exact syntax up to
+definitional equality, so a λ-shape cut into single-entry pieces and
+rebuilt (which is what η does) carries the same `A[σ]` throughout, whereas
+an approximant is graded by stage and the slot a variable reads would
+carry an arbitrary smaller one. `Shape.WF` asks every entry's label type
+to be `TyEq` to the shape's own, `LE` and `Compat` ask two λ-shapes'
+labels to agree, `join` keeps the left one, and `Interp.app` looks the
+argument up at the λ-shape's own label instead of at an existentially
+quantified type. That last point is what makes directedness at `app` need
+no typing input: two λ-approximants of one term have a common upper bound
+whose order clause forces their labels definitionally equal, so one lookup
+sits above both. `HasType.lam`'s `TyEq Δ A₀ A` (the label is the Π's
+domain) is intgrah's `Section` condition, stored rather than derived.
+A pair carries its first component's label for the same reason (§6).
+
 **`Shape.LE Δ`, `Shape.Compat Δ`, `Shape.join`.** The order compares
 labels up to definitional equality in `Δ`, so it lives in `Prop` and is
 indexed by a context; `Compat` is the compatibility that makes the join
@@ -109,7 +125,8 @@ fact is stated.
 
 **`ShapeFun.WFE`** is the entrywise half of `ShapeFun.WF` — a predicate holds
 of both components of every entry — split out so the recursion can hand itself
-down without mentioning labels.
+down without mentioning labels. It is also what two generators certifying
+*compatible* values share, coherence being exactly what they need not have.
 
 **`Shape.WF Γ s o`**, well-formedness, with an `Option Term` index: every
 label in `s` is well typed in `Γ`, and at a name the head's own labels
@@ -138,22 +155,159 @@ the graph `f` at argument `a` and input `x`: `bot`, or an `entry` whose
 label is definitionally equal to `a`, or `lower`, or a `join` of two
 lookups. `TEvaluates` is the total-level version. A code's codomain is
 never stored; it is looked up, which is why an entry that is dead at one
-stage can be live at a later one.
+stage can be live at a later one. The lookup is parameterised by the order
+one level down and lives in `Shape.lean`, because the dependency descends
+a level: `Shape.LE` at `n+1` needs the lookup at `n`, which needs
+`Shape.LE` at `n`.
 
 **Coverage, not entry-matching.** `ShapeFun.LE` says every entry of the
 smaller graph is *reached by a lookup* in the bigger one, not that it
 occurs there. Entry-matching is not transitive once labels are compared
-up to definitional equality.
+up to definitional equality, and it cannot state η: an entry of an
+η-expansion's graph has as its output a *join* of several outputs of the
+function's graph, and no single entry need dominate a join. (Saturated
+graphs escape by having that join as an entry, and ideals by being closed
+under every graph valid for their action; a level index with
+non-saturated graphs has neither escape.) Three things the lookup order
+asks for, each of them earning its keep:
+
+- the `join` rule carries `Compat`, which is what makes the join of two
+  reflected lookups an upper bound of them (`le_join`, through
+  `Eval.compat` and `Eval.wf`);
+- `ShapeFun.LE` carries well-formedness of both graphs, which is what
+  `ShapeFun.Eval.lift_of` needs of the covering graph and cannot take as
+  a hypothesis. It is not decoration: an entry whose output is `⊥` says
+  nothing, `Eval.bot` discharging it;
+- the order demands `WF` only of graphs and of its *lower* bound
+  (`Shape.LE.wf`). It cannot be had for the upper one: `⊥` is below
+  everything, well formed or not, and has to be, or `Interp.le_id` could
+  not invert the `bot` rule without knowing the label is typed.
+
+**Preservation and reflection are separate lemmas.** `Shape.lift_le`
+(preservation) is hypothesis-free; `Shape.lift_le_lift` (the iff) needs
+`⊢ Δ`, through `Eval.compat` and `le_join`, and so does `TShape.LE.def`
+beside `TShape.LE.def_mp`. Reflection is the minority use — an order fact
+is read at a higher level far more often than it is built from one — and
+keeping preservation free is what stops `⊢ Δ` from spreading to every
+site that mentions the order. At the canonical level `max a.1 b.1` a
+`TShape.LE` *is* the shape order definitionally, so `LE.refl`, `bot_le`
+and `LE.T` are a `show` and a rewrite.
+
+**Normalising the level.** A shape and its lift are equivalent in the
+order, so any shape may be moved up without changing what it
+approximates (`TShape.lift`, and `Interp.mono` to come back down). That
+is what lets a proof put every shape in sight at one level before
+touching typing, where the level bookkeeping is done once and for all by
+`TShape.HasType.lift_subject` and `lower_subject`.
 
 ## 2. Typing of the domain
 
 **`TShape.HasType Δ m a`** (`HasType.lean`). One inductive over `TShape`,
-not a recursion: at a Π the codomain code is a lookup in the Π's graph,
-and a premise may not existentially quantify the inductive being defined.
-A code *filters* (the shape has the right head) and, at a binder, types
-the parts. The `pair` clause reads the second component's code at a
-**dominator** of the first rather than at the first itself, which is what
-keeps typing lower-closed.
+not a recursion on the level. A code *filters* (the shape has the right
+head) and, at a binder, types the parts: at a Π the codomain code is a
+lookup in the Π's graph. It is what intgrah builds as a decoder — a
+retraction operator per code, with a fixed point (`piStep`, `piStage`,
+`rank`, `piLimit`) over stages, because his codes are domain elements.
+Ours are finite shapes, and the level index already stratifies what that
+fixed point constructs, so the whole of that layer is one inductive here.
+
+**Pinning, and the generators.** Every clause **pins the head of its
+subject and leaves the contents free**: `.succ v'` below `.succ v` is the
+`succ` clause again at `v'`, a λ below `.lam A g` is the `lam` clause
+again at its own graph, a pair below `.pair A a x y` is the `pair` clause
+again at its own first component. Everything strictly below a shape and
+not of its head is `⊥`, and the `bot` clause takes that. The *type* is
+pinned too at `lam` and `pair`: the clause names the Π, resp. the Σ,
+outright, and `mono_r` moves to a bigger one. `id`, `refl`, `pair`,
+`lam`, `forallE` and `sigma` pay for pinning with a `Shape.WF` premise;
+`succ` does not, `IsNumeral` implying it. Being above a named type does
+not by itself make a type a type (a `forallE` above a `forallE` may have
+an untyped codomain graph), so the clauses whose type is not a sort carry
+`HasType Δ a .type` outright, which is also what `isType` reads off them;
+the sort-typed clauses must not, or `sort` would regress, and they need
+not, a sort being rigid (`TShape.LE.sort_symm`).
+
+Only `lam` and `pair` name a **generator** — for `lam` the codomain
+witnesses `g₀`, a list of pairs — and ask the subject to be below it. That
+is what makes `mono_l` and `mono_r` transitivity of the order rather than
+rules of the relation, and it is what gives `proofIrrel` and `subst`
+their recursive calls: a dominating witness supplies no induction
+hypothesis at the codomain.
+
+**Why an inductive, not a recursion on the level.** Three facts meet. A
+level-indexed relation must reflect along `lift`, since the total-level
+one is it at the canonical level. Reflection goes clause by clause only
+if every object a clause mentions is itself a lift, which forces the λ
+clause to be stated per entry. And per entry the clause is *not* closed
+under the order, because an entry of a smaller graph has a join of
+outputs, and typing a join at an arbitrary type is false — the pair
+counterexample below. A generator closes the clause but is not the lift
+of anything, so no level-indexed form has both. Over `TShape` there is no
+per-level definition to walk back: the generator may live at any level,
+`TShape.LE` being level-independent already, and lift-invariance of the
+subject becomes a lemma (`lift_subject`, `lower_subject`) instead of a
+constraint on the clauses. Two kernel restrictions shape the spelling:
+
+- a premise may not existentially quantify the witness — an `∃` nests the
+  inductive inside `Exists`, whose type parameters may not mention
+  locals — so the generator is a parameter of the clause. A *list of
+  pairs* rather than a function, because a list is reindexed by
+  `List.map`, which is the whole of `HasType.subst`;
+- `ShapeFun.THasPi` is spelled out in the constructors, the kernel
+  refusing the inductive being declared as an argument to a definition.
+
+A third thing to know when reading the file: `Shape.sort` at a variable
+level is a stuck `match`, so it does not unify with itself. Any `cases`
+on a derivation whose type index is a sort needs that index to be a
+variable, which is the `a.2 = Shape.sort j` idiom of `sort_level` and
+`cumul`, and why `forallE_inv`/`sigma_inv` are stated as they are.
+
+**The dominator, and what joins two subjects.** The `pair` clause reads
+the second component's code at the Σ's codomain graph, looked up at the
+pair's own name `a` and at a **dominator** `xd ≥ x` of the first
+component. The dominator is what keeps typing lower-closed: shrinking
+either component keeps the same `xd`, and so the same code. What it costs
+is a join:
+
+> let `f` be a Σ codomain graph with entries at `.zero` and at `.succ ⊥`,
+> and let `y` and `z` be pairs with first component `⊥` whose second
+> components are typed at those two codes, non-`⊥` and compatible. Both
+> are typed at the Σ, with those two dominators, and they are compatible,
+> their first components being equal. Their join is typed only if a
+> single input serves both, and no numeral is above both `.zero` and
+> `.succ ⊥`.
+
+A pair shape records only *one* conditional fact ("at this much of the
+first component, the second is at least that"), because it has one second
+component and therefore one dominator; a join needs two such facts at
+once. So join-closure of typing is not a shape-level fact, and neither is
+lower-closure in the per-entry form: both hold of approximants *of a
+term*, and for the same reason — a dominating existential is compatible
+with another only through the term both dominate. What supplies the join
+where it is needed is `TShape.HasType.join`, whose hypotheses are
+`TShape.Named` rather than `HasType`: `Named`'s Σ clause reads the code
+at the first component *itself*, so joining the first components turns
+the two codes into lookups at one query (`TEvaluates.mono_inp` moves each
+up to the join), and the codes then join too. A dominator cannot be moved
+like that, which is the whole of the counterexample above, and `Named`
+can afford to read the component because it is only ever used upward and
+so needs no lower-closure. The configuration the counterexample needs
+cannot arise in the image of `Interp` either, two compatible pairs having
+definitionally equal labels and so approximating one term; the shape
+level simply cannot see that, `HasType` not reading labels.
+
+**A Σ-value is two components, not a graph.** The symmetric design —
+mirror the λ-value, a first component and a graph from first-component
+approximants to second-component approximants — makes the join work
+outright (append the graphs, each entry keeping its own code) and breaks
+η. A λ-entry's input *is* the slot its body reads, so an entry's output
+is justified at exactly that input, and the η-expansion, whose body is a
+lookup at the pushed slot, lands on the same one. A pair-entry's input is
+never read: it only picks the code that types the output. The order,
+though, honours an entry only by a lookup *at that same input*, so a
+graph lets a value promise its second component conditionally where the
+η-expansion promises it outright, and the expansion is then not below the
+value.
 
 **`TShape.Named Δ d x o`**, hereditary typing with a name. An inductive
 over the code, with an `Option Term` index that is the name, last and
@@ -169,7 +323,9 @@ clauses:
   input and `app t e.tm` on the output;
 - at a Σ, the first component at the domain and the second at the
   codomain read at the pair's own name, the index becoming `fst t` and
-  `snd t`, and the pair's label equated with `fst t`.
+  `snd t`, and the pair's label equated with `fst t`. This clause reads
+  the code at the first component *itself* rather than at a dominator,
+  which is what makes the subject join available.
 
 Making the name an index rather than an argument is what lets one
 inductive and one copy of each closure lemma (`subst`, `lift_subject`,
@@ -236,21 +392,27 @@ intgrah's `SourceAdmissible`, plus the naming his quotient makes
 unnecessary. Slotwise well-formedness is not part of it: hereditary
 typing is well-formedness at the name, so forgetting the name gives it
 (`Adm.wf`). `Adm.bot` holds for free at the all-`⊥` valuation, which is
-the stage every inversion theorem runs at.
+the stage every inversion theorem runs at. It is a predicate on *slots*
+rather than an inductive indexed by a base context, which is what makes
+enlargements and joins expressible and keeps a context index off every
+signature; `Adm.unlift`, its restriction along a context lift, is what
+the weakening lemmas run on.
 
 **`SoundDir Γ t`** (`Directed.lean`): directedness, that two approximants
 of `t` have a common upper bound that is still an approximant, at every
 stage the context admits. This is intgrah's `HasIdeality`. He proves it
 inside the main induction because his `app` case needs the function's
-fixedness; ours is `IsDefEq.dir`, a *separate* induction on typing,
-running under the weaker `Valuation.WF` rather than `Adm` — which works
-only because `IsDefEq.dir` never instantiates a binder.
+fixedness — his query is the *set* of all typings of the argument, and
+collapsing that sup to the canonical label is what the function's typing
+pays for. Ours is `IsDefEq.dir`, a *separate* induction on typing,
+running under the weaker `Valuation.WF` rather than `Adm`, which works
+because a λ-shape carries its own domain label (§1) and because
+`IsDefEq.dir` never instantiates a binder.
 
 That induction is its own file, and what makes it one is that it needs
 none of `Interp`'s substitution or merging machinery — only the
 interpretation, its order lemmas and `Interp.lift`. So `Directed.lean`
-imports `Interp` and nothing else, and the dependency runs the other way
-from what the old file order suggested. It holds one theorem per typing
+imports `Interp` and nothing else. It holds one theorem per typing
 rule (`sound_forallE_dir`, `dir_pair`, `dir_app` and so on, each the whole
 of its rule's argument, the upper bound's construction included),
 `IsDefEq.stage`, and the order-inversion lemmas (`TShape.LE.lam_ub` and
@@ -305,12 +467,11 @@ a `Lookup` rather than `i < Γ.length` because `Lookup.weak'` already
 transports it across a context lift; a numeric bound would need a new
 transport lemma at every index-moving step.
 
-This is why there is no predicate saying a substitution's junk is
-harmless. An earlier version had one — `Subst.Good`, "every slot is typed
-in the target or is a variable" — carried by every merge and read for
-both strengthening and directedness. It existed only because the
-valuation relations ranged over every natural number. Bounding them
-deleted it.
+This is also why no predicate says that a substitution's junk is
+harmless. The alternative is one bounded by the context — "every slot is
+typed in the target or is a variable", carried by every merge and read
+for both strengthening and directedness — and bounding the valuation
+relations instead is exactly what makes it unnecessary.
 
 ## 4. Bookkeeping that replaces the quotient
 
@@ -322,16 +483,16 @@ would:
 - **`LabelEq` / `TyEq` / `PiLabelEq` / `IdLabelEq`** (`Label.lean`):
   equality of labels up to definitional equality. Partial equivalences,
   not reflexive on arbitrary terms, which is why every reflexivity lemma
-  downstream takes a context.
+  downstream takes a context. They are his `Tm.presheaf` — an element of
+  which is a type and a term of it, both quotiented by definitional
+  equality — spelled as a relation.
 - **The shallow inversions** (`Regular.lean`), one per former: from a
   definitional equality mentioning `.lam A b` (on either side — `symm` and
   `trans` force that), the annotation's own typing and a typing for each
   subterm in the context it lives in. The instrumented judgment carries
   subterm sort proofs, so each is one induction whose only case with
   content is the former's congruence rule. The strengthening lemmas take
-  the subject's typing and invert it a layer at a time; a predicate
-  `Term.Annot` gathering all of this used to be threaded through them
-  instead.
+  the subject's typing and invert it a layer at a time.
 - **`Term.Pinned t Γ`** (`Interp.lean`), built from `IsTypeAt`
   (itself `TypedAt` at the top sort together with `CodeAt`), `TypedAt`,
   `PinApp`, `PinSnd`: the *semantic* counterpart of those,
@@ -344,43 +505,78 @@ would:
   be a type. The `app` and `snd`
   clauses need this rather than a typing, because a typing cannot be
   strengthened out of a larger context while a stage can be extended into
-  one.
+  one. Each conjunct is one half of a subterm's own `SoundTy`, which is
+  what lets the induction discharge it: `IsTypeAt` at a binder is
+  `SoundTy` at a sort, and `PinApp`/`PinSnd` are what intgrah gets from
+  `HasFixedness` together with `outputAtom_rawPi_fixed_support`.
 - **`Subst.Saturates`** and **`Valuation.Approx`**: every valuation that
   approximates a substitution lies below an *admissible* one. intgrah's
   `SourceAdmissible` together with his `SingleSubstitution`, and what
   lets the `Pinned` conditions be read at the source stage.
 
+**Admissibility is not upward closed**, and that is what decides where
+the `Pinned` conditions live. Enlarging a valuation breaks its slots'
+typings, typing being a lower set. So the conditions cannot be stated at
+the stage `to_substTerm` reconstructs: transporting a subterm's `SoundTy`
+across `θ` would read it under the valuation that lemma *builds*, which
+need not be admissible, and "enlarge it until it hosts the
+type-approximants `Adm` wants" does not close, each enlargement needing
+its new slots typed at a bigger valuation again. Stating them on the `Γ`
+side and carrying `Subst.Saturates` is what closes it, and the only `θ`
+that arises is `one a` lifted, which is why saturation is available. This
+is the ideal-versus-approximant gap in its third place (§2 has the other
+two, join-closure and lower-closure of typing): on his side the
+`Γ`-valuation *is* `⟦θ⟧`, one object, admissible by construction.
+
+Two ways of pinning a label that the model does not take. **Annotating
+`Term.app`** with its domain would pin it, at the price of changing the
+object language, and the model does not need it. **Indexing `Interp` by a
+type** would not pin it at all: the `app` clause's index is `B₀.inst a`,
+in which the domain does not occur, so the function's Π-type stays
+existential and `to_substTerm` still has to invent `Γ`-level data.
+
 ## 5. What soundness says
 
 `IsDefEq.sound` takes `⊢ Γ` and `Γ ⊢ t ≡ t' : A` and returns a record
-with five fields — four notions, `pin` once per side — proved in one
+with four fields — three notions, `pin` once per side — proved in one
 induction over every rule:
 
 | field | meaning | intgrah |
 |---|---|---|
 | `eq : SoundEq Γ t t'` | the two sides have the same approximants at every admissible stage | `HasEquality` |
-| `ty : SoundTy Γ t A` | **semantic typing**: every approximant sits below one that is a `Slot` at an approximant of `A` | `HasFixedness` read through "ideal = set of approximants", now with names |
+| `ty : SoundTy Γ t A` | **semantic typing**: every approximant sits below one that is a `Slot` at an approximant of `A` | `HasFixedness` read through "ideal = set of approximants", with the names added |
 | `pin`, `pin'` | both sides are `Pinned` | fields of `RawTermProperties` |
 
 Four fields, three notions, and nothing syntactic: the record says only
 what the model adds. `SoundTy` is the *saturating* form and the only
 semantic typing notion. The weaker reading — every approximant is itself
-typed at one of `A` — is `SoundTy.approx`, a consequence: typing became
+typed at one of `A` — is `SoundTy.approx`, a consequence: typing is
 lower-closed (`TShape.HasType.mono_l`), so the saturating witness can be
-dropped. Every lemma that used to take the two separately now takes one.
+dropped.
 
 The syntactic typing is *not* here. It is `H.hasType.1`, which every
 consumer of soundness already holds, so carrying it would be carrying the
 input back out.
 
-**`SoundJoin Γ A`** is a fifth notion that is *not* a field and has no
-consumer: two subjects hereditarily typed at one approximant of `A`, compatible
-there, have a join still typed there. It was meant for `tr` in `IsDefEq.dir`,
-where two approximants typed at two approximants of the motive need the joined
-witness typed at the joined motive; in the event that case gets
-`TShape.Named.join` directly. `sound_join` proves it for every type and nothing
-reads either — the pair records a problem that dissolved rather than a notion
-the proof uses.
+**What the saturation is for** is η. The expansion's graph has to have
+*typed* inputs, `Interp.lam` demanding them, and nothing types the inputs
+of an arbitrary approximant of the function; what the saturating form
+gives is an approximant above it all of whose entry inputs are typed at
+the domain, and that one's own lookups are the expansion's bodies. An
+entry at an untyped input carries no more than the value at its typed
+part, which is why dropping to that approximant loses nothing. intgrah
+needs no such step: his λ clause reads the body at the input *normalised
+at the domain* (`rawExtend ⟦A⟧ I`, never `I`), so what we saturate for is
+in his clause. His `application_piOperator_fixed` is what makes that
+work, and `Interp.lam_label_ty` is the half of it we have outright.
+
+**`SoundJoin Γ A`** is a fourth notion that is *not* a field and has no
+consumer: two subjects hereditarily typed at one approximant of `A`,
+compatible there, have a join still typed there. `sound_join` proves it
+for every type. The place that would want it is `tr` in `IsDefEq.dir`,
+where two approximants typed at two approximants of the motive need the
+joined witness typed at the joined motive, and that case reaches
+`TShape.Named.join` (§2) directly instead.
 
 `SoundEq` is type-agnostic, which is what lets the instrumented
 judgment's heterogeneous `trans'` rule go through without sort
@@ -425,8 +621,13 @@ right-hand side's `pin'` is built from the *other* side's `ty`, not from
 the equation.
 
 At the type formers the saturation comes from `SoundTy.of_sort` applied to
-a `TypedAt`, which is what `sound_forallE_typedAt` and friends now produce
-— the only thing left of the lemmas that used to prove the weaker reading.
+a `TypedAt`, which is what `sound_forallE_typedAt` and friends produce.
+The computation and congruence rules are *padded* — `appDF` carries
+`Γ ⊢ B.inst a ≡ B.inst a' : sort v`, `trDF` carries
+`Γ ⊢ C.inst b ≡ C'.inst b' : sort v` — so the typing of a rule's own
+result type is an induction hypothesis wherever a case needs one, and at
+`beta` and `eta` only `SoundEq` has content at all (intgrah's
+`of_typings` is the same observation).
 
 One derived notion sits on top: **`CodeAt Γ t`** says every approximant of
 `t`, read as a code, names `t`. It is the same shape as `SoundTy` with a
@@ -436,24 +637,22 @@ naming is downward closed on codes, so the name comes down off the
 saturated witness), `SoundTy.of_sort` and `SoundTy.of_typedAt` the other.
 `CodeAt` is the half that survives going down the order, which is why it
 can be an input to `SoundTy.of_typedAt` without circularity — and that is
-now the only place a `CodeAt` on a *type* is asked for. It has to be: the
+the only place a `CodeAt` on a *type* is asked for. It has to be: the
 atoms' own `SoundTy`s (`soundTy_sort`, `soundTy_nat`, `soundTy_unit`,
 `soundTy_zero`, hypothesis-free theorems rather than cases of the
 induction) are proved *through* `of_typedAt`, so asking it for a `SoundTy`
 of the type would make `soundTy_sort` refer to itself. Everywhere else the
-type's `CodeAt` is now a `SoundTy … (.sort u)`. `CodeAt` has no relation
+type's `CodeAt` is a `SoundTy … (.sort u)`. `CodeAt` has no relation
 to `SoundEq` or `SoundDir` — `Directed.lean` never reads a name.
-The last step of Σ's η is a lemma rather than a notion —
-**`SoundTy.pair_name`**, that every pair-approximant of `p` is named by
-`p`'s own first projection, read off the saturated one above it.
 
 ## 6. Why the naming is there
 
-The naming discipline has no counterpart in intgrah, and it is what makes
-Σ's η true. In a value-driven model a pair's second component is typed at
-a *shape*; here the model is stage-driven, so the second component is
-typed at the code read at a **term**, and that term has to be the pair's
-own first projection or η fails.
+The naming discipline has no counterpart in intgrah — he has no Σ-types
+at all — and it is what makes Σ's η true. In a value-driven model a
+pair's second component is typed at a *shape*; here the model is
+stage-driven, so the second component is typed at the code read at a
+**term**, and that term has to be the pair's own first projection or η
+fails.
 
 The witness, for `Γ = [Σ nat nat]`: the slot
 `pair nat nat (succ zero) zero zero` is well formed and hereditarily
@@ -461,6 +660,24 @@ typed at a Σ-code, so admissibility without the naming accepts it; it is
 an approximant of `#0`; and it is *not* one of `⟨fst #0, snd #0⟩`, whose
 approximants are all named `fst #0`. With the naming it is not
 admissible.
+
+**The label invariant** is the same fact about approximants rather than
+about slots: every pair-approximant of `p` carries, as its first
+component's label, a term definitionally equal at the stage to `p`'s own
+first projection. It is `SoundTy.pair_name`, read off the saturated
+approximant above it, and Σ's β at `snd` and Σ's η need it in the same
+place — the second component of an approximant is typed at the codomain
+looked up *at that label*, while what is wanted is an approximant of
+`B.inst (fst p)`. For a literal pair the label is `a[σ]` and `pair_fst`
+gives it; for a slot (`p` a variable, the shape handed over by `Adm`)
+nothing else does. Like join-closure and lower-closure of typing (§2) it
+is a property of approximants of a term and not of shapes: a shape
+records the term it approximates only in its labels, and `HasType` does
+not read them.
+
+`Interp.snd` reads its query at `fst p` for the same reason, and that is
+what the `tr` clause's equation is for: without it `fst (tr … X h)` is
+not a name the pair clause can be read at, and Σ's η breaks.
 
 ## 7. Above soundness
 
@@ -470,7 +687,8 @@ adequacy: the type is regular, so it has a label-only approximant
 (`Interp.piAtom`); soundness moves that approximant to the other side at
 the identity stage and the `⊥` valuation; and reading the label back off
 is a projection out of the order. There is no logical relation and no
-adequacy theorem anywhere in the development.
+adequacy theorem anywhere in the development. These theorems are what the
+labels are for, and the reason the values carry syntax at all.
 
 **`Consequences.lean`**: type uniqueness, sort uniqueness, the
 equivalence of the instrumented and standard judgments (`Ctx.WF'` is the
@@ -495,3 +713,38 @@ Consistency. `Y` inhabits every type at every sort, which with
 `Type : Type` is deliberate. The non-triviality claim is about the
 *equational* theory, and `zero_ne_succ_zero` and `not_UIP` are its two
 witnesses.
+
+## Appendix. Correspondence with intgrah
+
+His hypotheses are our constructions, and this is that sentence in full.
+A dash means the notion has no counterpart on that side.
+
+| intgrah | here |
+|---|---|
+| `Ctx := Quotient RawCtx.homRel`; a stage is a morphism, a typed substitution modulo defeq | a stage is a raw `Subst`; invariance under `Ctx.SubstEq` is the theorem `Interp.stage` |
+| equality of morphisms mod defeq, and functoriality in the stage, both free | `Interp.stage` and `Interp.subst`, structural in the term, each clause carrying what moves its own label |
+| `rawInterpret`, a *function* on raw terms, each clause supping over the typings it needs | `Interp`, a relation, those typings being clause premises |
+| `RawValue = ΩLower`, a Kripke lower set; `ΩIdeal` adds directedness | one shape; directedness is `SoundDir`, an induction of its own (§3) |
+| `IsDirected`, a field of the ideal | `SoundDir Γ t`, with `sound_dir_of_ub` as his form of the conclusion |
+| `Compatible.of_common_upper` | `TShape.Compat.of_common_upper` |
+| `cSup`, `CondSemilatticeSup` | `Shape.join` with `Shape.Compat` |
+| `Graph.IsCoherent`, `InternallyCompatible` | the coherence conjunct of `Shape.WF`, hereditary and label-sensitive |
+| `Graph.LE`, single-entry coverage | `ShapeFun.LE`, lookup coverage (§1) |
+| the decoder: `CodeAssignment`, `extend`, `piOperator`, and the `piStep`/`piStage`/`rank`/`piLimit` fixed point | `TShape.HasType` (§2); the level index stratifies what the fixed point constructs |
+| `IsCode r`, separate from inhabitation | `HasType · (.sort r)`, cumulative |
+| `Section`: a value responds only at labels of the right type | `HasType.lam`'s `TyEq Δ A₀ A`, stored in the shape (§1) |
+| `sourceQuery`, the set of all typings of the argument, transported as the image of a set | the λ-shape's own domain label, and one lookup (§1) |
+| `normalizedBodyAction`: the body read at `rawExtend ⟦A⟧ x` | the binder clauses read it at the entry's own input, and demand that input typed at the domain (§5) |
+| `application_piOperator_fixed` | `Interp.lam_label_ty` for the support half, `SoundTy`'s saturation for the normalisation half |
+| `HasEquality`, `HasFixedness` | `SoundEq`, `SoundTy` |
+| `HasSubstitution`, `HasRenaming`, fields of `RawTermProperties` proved inside the main induction | `Interp.substTerm`, `Interp.weak'`/`unweak`, standalone lemmas taking `Term.Pinned` and `Subst.Saturates` instead |
+| `SingleSubstitution.variable_eq` | `Interp.bvar_iff` |
+| `SourceAdmissible` | `Adm`, plus the naming his quotient makes unnecessary (§6) |
+| `SourceAdmissible` with `SingleSubstitution` | `Subst.Saturates` |
+| `Ctx.extension` unquotiented, hence `contextConversion` and `HasRenaming` | nothing: `Interp`'s context index is phantom (`Interp.ctx`) |
+| `rawExtend ⟦C[b/]⟧ ⟦x⟧` as the value of `tr` | the `tr` clause's two typing premises |
+| `IsIdealValued`: the body action directed at every input | `SoundDir (A::Γ) B` at every well-formed slot |
+| `regular`, a field of `RawJudgment` | — (he never uses it) |
+| an ideal is closed under every graph valid for its action | — (a value is one shape; lookup coverage is the replacement) |
+| — | the naming discipline, `TShape.Named` and `Slot`: he has no Σ |
+| — | the inversion theorems, which is what the labels buy (§7) |

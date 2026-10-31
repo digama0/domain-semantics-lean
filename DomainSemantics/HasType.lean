@@ -5,8 +5,8 @@ import DomainSemantics.Regular
 
 `TShape.HasType Δ m a` says the shape `m` is a well-typed inhabitant of
 the type-shape `a`.  It is one inductive over `TShape`, the shapes at all
-levels; see the section heading below it for why, and §5.5/§5.5a of
-`presheaf-proof-strategy.md` for the history.
+levels; see the section heading below it for why, and `design.md` §2 for
+the design it settles.
 
 It is built on two graph lookups: `ShapeFun.Eval` (`Shape.lean`), the
 relational lookup at a fixed level (master's `ShapeFun.app` was a
@@ -17,7 +17,7 @@ just below, the same lookup over `TShape`, which is where all the level
 bookkeeping happens once.
 
 Together with `SoundTy` this plays the role of the other repo's decoder:
-see §4.2 of `presheaf-plan.md`.  Its fixed-point construction
+see `design.md` §2.  Its fixed-point construction
 (`piStep`/`piStage`/`rank`/`piLimit`) is unnecessary here because the
 recursion is structural in the level. -/
 
@@ -125,8 +125,8 @@ Every fact about a level-indexed relation has to be transported along
 `Shape.HasType.lift_iff` ran 160 lines.  Worse, it dictated the clauses.
 To reflect, the `lam` clause had to be stated *per entry*; stated per
 entry it is not closed under the order, whose lookup has joins; so
-`mono_l` at `lam` was **false**, not merely unproved (§5.5 of
-`presheaf-proof-strategy.md` has the Σ counterexample).  Stating it with a
+`mono_l` at `lam` was **false**, not merely unproved (`design.md` §2 has
+the Σ counterexample).  Stating it with a
 *dominating* codomain instead restores closure and destroys reflection.
 That is the dilemma the inductive over `TShape` dissolves.
 
@@ -155,7 +155,7 @@ Defined directly on `TShape` there is nothing to reflect, and every clause
 `v'`; a λ below `.lam A₀ g` is the `lam` clause again at its own graph, with
 `g₀` kept as the generator the codomain witnesses live over (the other
 repo's pattern — *the conditions constrain a generator above the shape
-being classified*, `ΩLower`, `piGenerator`; §5.5); a pair below
+being classified*, `ΩLower`, `piGenerator`; `design.md` §2); a pair below
 `.pair A₀ a x y` is the `pair` clause again at its own first component
 `x'`, with the dominator `xd` that the code is read at kept where it was.
 Everything strictly below a shape and not of its head is `⊥`, and the
@@ -628,7 +628,7 @@ inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
     Shape.WF (n := n+1) Δ (.sigma A B d f) →
     HasType Δ (Shape.T (n := n+1) (.sigma A B d f)) (Shape.T (n := k) .type)
   -- the shape is pinned, the graph is not: `g` is any graph below the
-  -- generator `g₀`, which is where the codomain witnesses live (§5.5)
+  -- generator `g₀`, which is where the codomain witnesses live
   | lam {n n₀ n'} {A₀ : Term} {g : ShapeFun n} {f : ShapeFun n'}
       {A B : Term} {d : Shape n'} {g₀ : List (Entry (Shape n₀) × TShape)} :
     HasType Δ d.T .type →
@@ -642,14 +642,14 @@ inductive TShape.HasType (Δ : List Term) : TShape → TShape → Prop where
     -- the domain label is the Π's domain: intgrah's `Section` condition
     TyEq Δ A₀ A →
     HasType Δ (Shape.T (n := n+1) (.lam A₀ g)) (Shape.T (n := n'+1) (.forallE A B d f))
-  -- **A pair is two components, not a graph** (§4.7f).  The first is
-  -- typed at the Σ's domain; the second at the code the Σ's codomain
-  -- graph gives at the pair's own name `a`, read at a **dominator** `xd`
-  -- of the first component.  The dominator is what keeps typing lower-closed
-  -- (§4.7b): shrinking either component keeps the same `xd` and the same
-  -- code.  Join-closure is what it costs, and `TShape.Named`'s `sg`
-  -- clause, which reads the code at the first component itself, is what
-  -- supplies it where it is needed
+  -- **A pair is two components, not a graph** (`design.md` §2).  The
+  -- first is typed at the Σ's domain; the second at the code the Σ's
+  -- codomain graph gives at the pair's own name `a`, read at a
+  -- **dominator** `xd` of the first component.  The dominator is what
+  -- keeps typing lower-closed: shrinking either component keeps the same
+  -- `xd` and the same code.  Join-closure is what it costs, and
+  -- `TShape.Named`'s `sg` clause, which reads the code at the first
+  -- component itself, is what supplies it where it is needed
   | pair {n n'} {A₀ a : Term} {x y : Shape n} {f : ShapeFun n'}
       {A B : Term} {d : Shape n'} {xd c : TShape} :
     HasType Δ d.T .type →
@@ -812,7 +812,7 @@ theorem TShape.HasType.wf {Δ : List Term} {m a : TShape}
 `⟨k, m.lift k⟩` are order-equivalent, and every clause reaches the subject
 only through the order or a pin.  Its converse `lower_subject` is below;
 the level-indexed relation had the first at 40 lines and the second not at
-all (§5.5). -/
+all (`design.md` §2). -/
 theorem TShape.HasType.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
     (H : m.HasType Δ a) {k} (hk : m.1 ≤ k) : (m.lift k).HasType Δ a := by
   have succ_of {n k} (hk : n + 1 ≤ k) : ∃ k', k = k' + 1 := ⟨k - 1, by omega⟩
@@ -852,11 +852,11 @@ theorem TShape.HasType.lift_subject {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShap
   | refl hc hA => obtain ⟨k, rfl⟩ := succ_of hk; exact .refl hc hA
 
 /-- **And the level of the subject can be lowered again.**  This is the
-reflection direction that §5.5 shows the level-indexed definition cannot
-have: it works here because every object a clause quantifies over — the
-codomain generator `g₀`, the pair's dominator `x` and its code `c` — is a
-`TShape`, so `lift` touches none of them.  What is left is entrywise, and
-`TEvaluates.lower_cover` does it.
+reflection direction that a level-indexed definition cannot have
+(`design.md` §2): it works here because every object a clause quantifies
+over — the codomain generator `g₀`, the pair's dominator `x` and its code
+`c` — is a `TShape`, so `lift` touches none of them.  What is left is
+entrywise, and `TEvaluates.lower_cover` does it.
 
 With `lift_subject` this makes typing blind to the subject's level, which
 is what lets `mono_l` at a sort be run at one fixed level. -/
@@ -1964,17 +1964,18 @@ theorem TShape.Named.sg_inv {Δ : List Term} {o} {n k} {A B A₀ a : Term} {d : 
   exact ⟨c, hx _ rfl, hev _ rfl, hy _ rfl⟩
 
 /-- **The join of two compatible subjects at one type, at one level** —
-master's `WShape.HasType.join`, and the content of `SoundJoin` (§5.1).
+master's `WShape.HasType.join`, and the content of `SoundJoin`.
 
-It is provable now that a Σ-value is a first component and a graph
-(§5.1b): two pairs join by joining first components and *appending*
-graphs, each entry keeping the code it was typed at, exactly as two λs
-do.  With the old product pair it was false — §5.5's counterexample — and
-that is what made `SoundJoin` an open problem.
+The hypotheses are `Named`, and that is what makes it provable: the `sg`
+clause reads the second component's code at the first component itself,
+so joining the first components turns the two codes into lookups at one
+query (`TEvaluates.mono_inp`) and `TEvaluates.join` joins them.  Stated
+with `HasType` it is false — there the code is read at a *dominator*, and
+two dominators need have none above both (`design.md` §2).
 
 The sort-typed shapes go to `join_sort`, numerals to `IsNumeral.join`,
-and `lam`/`pair` append their graphs and concatenate their generators,
-lifted to a common level. -/
+`lam` appends graphs and concatenates generators, and `pair` joins
+componentwise, all lifted to a common level. -/
 theorem TShape.HasType.join_at {Δ : List Term} (hΔ : ⊢ Δ) {n} {o} {y z : Shape n} {c : TShape}
     (hc : y.Compat Δ z) (hyD : c.Named Δ y.T o) (hzD : c.Named Δ z.T o) :
     (y.join z).T.HasType Δ c := by
