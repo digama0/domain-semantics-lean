@@ -4,9 +4,11 @@ A map of the finished proof — what each definition is and why it has the
 shape it has. `presheaf-proof-strategy.md` is the design record and keeps
 the history; this file describes only the settled architecture.
 
-Throughout, **intgrah** means `/project/presheaf-semantics-lean`, Jeremy
-Chen's presheaf-over-syntax development. The organising difference from it
-is that his hypotheses are our constructions. He builds objects in a
+Throughout, **intgrah** means Jeremy Chen's presheaf-over-syntax
+development,
+[`intgrah/domain-semantics-lean`](https://github.com/intgrah/domain-semantics-lean).
+The organising difference from it is that his hypotheses are our
+constructions. He builds objects in a
 category whose morphisms are typed by construction, so directedness,
 idempotence and functoriality come free with the object. We build raw
 data: a value is one shape, a stage is a raw substitution, a type is a

@@ -3,7 +3,7 @@
 Appendix A is a three-way comparison table (other repo / master / this
 branch) and is the quickest way in.  The body below analyses how
 `intgrah/domain-semantics-lean` (Jeremy Chen, 2026-09-10, ~14k
-lines, Mathlib + lean-autosubst, local clone at `/project/presheaf-semantics-lean`)
+lines, Mathlib + lean-autosubst, https://github.com/intgrah/domain-semantics-lean)
 proves definitional inversion *from soundness alone*, and a plan for an
 elementary reimplementation on the `presheaf` branch of this repo, over the
 `master` syntax (`Term.lean`), without Mathlib or autosubst.
@@ -785,7 +785,7 @@ was the point.
 | construct | model | status |
 |---|---|---|
 | `sort`, `forallE`, `lam`, `app`, `proofIrrel` | as his, on our shapes | core of the work |
-| `id r A a b`, `refl r a`, `tr r …` (the `eq` worktree's syntax: one `Bool` flag, `id r A a b : sort r`) | label-only `id r` shape; `refl` shape kept for `r = true`; `tr` inspects the proof only when `r = true` | both equalities at once; syntactic side (Term.lean, substitution lemmas) to be taken from the `eq` worktree's uncommitted diff (`/home/mario/claude-test/domain-semantics-lean-2`, 141 changed lines in `Term.lean`); keeps `not_UIP` for `r = true` |
+| `id r A a b`, `refl r a`, `tr r …` (the `eq` worktree's syntax: one `Bool` flag, `id r A a b : sort r`) | label-only `id r` shape; `refl` shape kept for `r = true`; `tr` inspects the proof only when `r = true` | both equalities at once; syntactic side (Term.lean, substitution lemmas) to be taken from the `eq` worktree's uncommitted diff (141 changed lines in `Term.lean`); keeps `not_UIP` for `r = true` |
 | `unit r`, `star r`, `unit_eta` | atom, `star ↦ ⊥`, decodes to `⊥` | cheap |
 | `sigma`, `pair`, `fst`, `snd` | Σ-shape with `(A,B)` label, componentwise retraction | done: mirrors Π, with the pair shape carrying `(A,a)` |
 | `nat`, `zero`, `succ`, `natCase` | our shapes; `natCase` inductive like `Y` | after Π |

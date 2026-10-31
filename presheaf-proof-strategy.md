@@ -4,7 +4,7 @@ Companion to `presheaf-plan.md`.  That document records the design and its
 history; this one is a *proof strategy*: for each key lemma and for a
 selection of cases of soundness it says what the statement should be, what
 the proof does move by move, and where that move comes from in the two
-originals.  "His" is intgrah's `presheaf-semantics-lean`; "master" is this
+originals.  "His" is intgrah's `domain-semantics-lean`; "master" is this
 repo's `master` branch (`Sound.lean`, `Shape.lean`).  Nothing here assumes
 the statements currently in the tree are right; §2 proposes corrections.
 
@@ -509,7 +509,7 @@ it, and every other lemma is now unconditional — but it cannot stay.
 
 ### 3.1d What the original does here, and where we left it
 
-Read against `/project/presheaf-semantics-lean`.  The object language
+Read against intgrah's source.  The object language
 there is **extrinsic too** — raw `Term`s and a typing judgement
 (`Syntax/Extrinsic.lean`, `Syntax/Typing.lean`), the same as ours; what
 is categorical is the *ambient*, not the syntax.  (An earlier note in
@@ -1181,7 +1181,7 @@ the tree.
 
 #### 4.5g What the original actually does at η — read off the source
 
-Read against `/project/presheaf-semantics-lean`, after §4.5f ruled out
+Read against intgrah's source, after §4.5f ruled out
 the cheap route.  **The original has no typed-input condition at all**,
 and the reason is one line of its λ clause:
 
@@ -2808,7 +2808,7 @@ is uniqueness of the type of `a[σ]`.  §3.2's sketch overlooked this (it
 says "the labels agree on the nose", which is true only of the term
 halves), and §1's `sourceQuery` row drew the opposite conclusion.
 
-**intgrah** (`/project/presheaf-semantics-lean`).  His query is not a
+**intgrah** (`intgrah/domain-semantics-lean`).  His query is not a
 label but a *set* of them:
 
 ```lean
