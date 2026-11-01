@@ -16,6 +16,15 @@ him is here a lemma, a hypothesis, or a premise on a clause. That accounts
 for most of the definitions below that have no counterpart on his side,
 and the appendix lists the correspondence.
 
+**`popl27`** means the previous proof of these theorems, the Lean
+development behind *Definitional Inversion, Without Normalisation*
+([arXiv:2607.13662](https://arxiv.org/abs/2607.13662)), kept in this
+repository on the branch of that name. Its shapes carry no labels, its
+graphs are saturated, and its inversion principles come from a logical
+relation and an adequacy theorem stacked on top of soundness rather than
+from soundness alone. The module comments compare definition by
+definition against it.
+
 Five groups: the syntax and its judgments, the domain, its typing, the
 interpretation, and the syntactic bookkeeping that stands in for his
 quotient.

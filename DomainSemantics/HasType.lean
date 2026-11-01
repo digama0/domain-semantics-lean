@@ -9,7 +9,7 @@ levels; see the section heading below it for why, and `design.md` §2 for
 the design it settles.
 
 It is built on two graph lookups: `ShapeFun.Eval` (`Shape.lean`), the
-relational lookup at a fixed level (master's `ShapeFun.app` was a
+relational lookup at a fixed level (`popl27`'s `ShapeFun.app` was a
 function, correct only because graphs were saturated; saturation is gone,
 so the codomain type comes from a relation, which is also how the other
 repo reads it — `rawExtend T X` quantifies `∃ c ∈ T`), and `TEvaluates`,
@@ -63,7 +63,7 @@ Cumulativity is built into the clauses that compare sorts with `≤`
 
 (The other repo does keep a separate `IsCode`, because it has no typing
 relation on shapes at all and needs a downward-closed predicate for its
-universe retraction.  With `HasType` available, master's route is the
+universe retraction.  With `HasType` available, `popl27`'s route is the
 right one: the lemma that replaces downward closure is `mono_r`, which
 carries the hypothesis that the *larger* type is itself a type, and so
 never needs `HasType · (sort r)` to be downward closed.) -/
@@ -92,7 +92,7 @@ theorem Shape.IsNumeral.subst {τ : Subst} {n} {v : Shape n} (h : v.IsNumeral) :
 
 /-! ## The lookup is coherent
 
-What the relational lookup owes and master does not: master's lookup is a
+What the relational lookup owes and `popl27` does not: `popl27`'s lookup is a
 saturated max-below *function*, single-valued, so there is nothing to
 join and nothing to check. -/
 
@@ -454,7 +454,7 @@ theorem TEvaluates.of_cover_lift {Δ : List Term} (hΔ : ⊢ Δ) {j k n'} (hjk :
 
 /-! ### The `_decomp` family
 
-Master's component inversions for the order, in the form these clauses
+`popl27`'s component inversions for the order, in the form these clauses
 consume them: the sub-shape relations come back as `TShape.LE` **at their
 own canonical levels** rather than at `max n n'`, and a graph relation
 comes back as *coverage over `TShape`* — each entry of the smaller graph
@@ -1208,7 +1208,7 @@ theorem TShape.HasType.mono_l {Δ : List Term} (hΔ : ⊢ Δ) {m a : TShape}
 
 /-! ## Proof irrelevance, over `TShape`
 
-`HasType Δ a .prop → HasType Δ x a → x = ⊥`.  Master's `HasType.proofIrrel`
+`HasType Δ a .prop → HasType Δ x a → x = ⊥`.  `popl27`'s `HasType.proofIrrel`
 and the shape-level content of the syntactic `proofIrrel` rule.
 
 The old level-indexed proof inducted on the *level*, because everything in
@@ -1400,7 +1400,7 @@ theorem TShape.HasType.sort_not_prop {Δ : List Term} {a : TShape} {j : Bool}
 
 /-- **A proposition is inhabited only by `⊥`.**
 
-Master's `HasType.proofIrrel`.  The old level-indexed proof inducted on the
+`popl27`'s `HasType.proofIrrel`.  The old level-indexed proof inducted on the
 *level*, because everything in sight lived at one; here it is an induction
 on the **derivation**, and the `lam` clause's own induction hypothesis —
 the one at `hg₀ty`, the codomain generator — is exactly the recursive call
@@ -1945,7 +1945,7 @@ theorem TShape.Named.sg_inv {Δ : List Term} {o} {n k} {A B A₀ a : Term} {d : 
   exact ⟨c, hx _ rfl, hev _ rfl, hy _ rfl⟩
 
 /-- **The join of two compatible subjects at one type, at one level** —
-master's `WShape.HasType.join`.
+`popl27`'s `WShape.HasType.join`.
 
 The hypotheses are `Named`, and that is what makes it provable: the `sg`
 clause reads the second component's code at the first component itself,

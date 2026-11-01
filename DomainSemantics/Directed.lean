@@ -39,34 +39,34 @@ where a stage is a morphism and carries its typing.
 But it need not travel with `SoundEq`/`SoundTy` either, and it should not:
 the hypothesis here is `Valuation.WF`, not `Adm`, so the recursive call
 under a binder — at the joined argument slot — has nothing to type.  With
-`Adm` it would need the joined slot typed at an approximant of `⟦A⟧`,
-which is `SoundJoin` and, at Σ, unproved.  His `IsIdealValued` is likewise
-directedness at *every* shape, and master's `compat_join` takes no `Fits`.
+`Adm` it would need the joined slot named at an approximant of `⟦A⟧`,
+which is a join-closure obligation this induction is better off not
+having: under `Valuation.WF` there is no slot typing to maintain at all.  His `IsIdealValued` is likewise
+directedness at *every* shape, and `popl27`'s `compat_join` takes no `Fits`.
 His bundling into `RawTermProperties` is forced only because his
 application is a sup over `sourceQuery` and needs `PiReady` plus
 fixedness to collapse; ours names the label and looks up once.
 
 The conclusion is his `IsDirected` — a common upper bound *in the set* —
-rather than master's `Compat ∧ join`, which is `SoundDir.join`. -/
+rather than `popl27`'s `Compat ∧ join`, which is `SoundDir.join`. -/
 def SoundDir (Γ : List Term) (t : Term) : Prop :=
   ∀ {{Δ : List Term}} {σ ρ}, ⊢ Δ → Ctx.SubstEq Δ σ σ Γ → Valuation.WF Δ Γ ρ →
     ∀ {{m₁ m₂}}, Interp Δ Γ t σ ρ m₁ → Interp Δ Γ t σ ρ m₂ →
       ∃ s, TShape.WF Δ s ∧ Interp Δ Γ t σ ρ s ∧ TShape.LE Δ m₁ s ∧ TShape.LE Δ m₂ s
 
-/-- Directedness gives compatibility and the join, master's form. -/
+/-- Directedness gives compatibility and the join, `popl27`'s form. -/
 theorem SoundDir.join {Γ : List Term} {t} (h : SoundDir Γ t) {Δ σ ρ} (hΔ : ⊢ Δ)
     (W : Ctx.SubstEq Δ σ σ Γ) (hρ : ρ.WF Δ Γ) {m₁ m₂}
     (h₁ : Interp Δ Γ t σ ρ m₁) (h₂ : Interp Δ Γ t σ ρ m₂) :
-    TShape.Compat Δ m₁ m₂ ∧ Interp Δ Γ t σ ρ (m₁.join m₂) := by
-  obtain ⟨s, hws, hs, hle₁, hle₂⟩ := h hΔ W hρ h₁ h₂
-  have hc := TShape.Compat.of_common_upper hΔ hws hle₁ hle₂
-  exact ⟨hc, hs.mono hΔ (TShape.join_le hΔ hle₁ hle₂)⟩
+    TShape.Compat Δ m₁ m₂ ∧ Interp Δ Γ t σ ρ (m₁.join m₂) :=
+  have ⟨_, hws, hs, hle₁, hle₂⟩ := h hΔ W hρ h₁ h₂
+  ⟨.of_common_upper hΔ hws hle₁ hle₂, hs.mono hΔ (TShape.join_le hΔ hle₁ hle₂)⟩
 
 /-- Directedness for such a term: `⊥` is its own upper bound. -/
 theorem dir_of_bot {Γ : List Term} {t : Term}
-    (h : ∀ {Δ Γ' σ ρ m}, Interp Δ Γ' t σ ρ m → m.2 = .bot) : SoundDir Γ t := by
-  intro _ _ _ _ _ _ _ _ hm₁ hm₂
-  exact ⟨.bot, trivial, .of_bot rfl, TShape.bot_le' (h hm₁), TShape.bot_le' (h hm₂)⟩
+    (h : ∀ {Δ Γ' σ ρ m}, Interp Δ Γ' t σ ρ m → m.2 = .bot) : SoundDir Γ t :=
+  fun _ _ _ _ _ _ _ _ hm₁ hm₂ =>
+  ⟨.bot, trivial, .of_bot rfl, TShape.bot_le' (h hm₁), TShape.bot_le' (h hm₂)⟩
 
 /-- Directedness for a variable: its slot bounds everything. -/
 theorem dir_bvar {Γ : List Term} {i : Nat} {A : Term} (hlk : Lookup Γ i A) :
@@ -80,9 +80,9 @@ theorem dir_bvar {Γ : List Term} {i : Nat} {A : Term} (hlk : Lookup Γ i A) :
 theorem dir_atom {Γ : List Term} {t : Term} {s : TShape}
     (hle : ∀ {Δ Γ' σ ρ m}, Interp Δ Γ' t σ ρ m → m.LE Δ s)
     (hmk : ∀ {Δ Γ' σ ρ m}, m.LE Δ s → Interp Δ Γ' t σ ρ m)
-    (hws : ∀ {Δ : List Term}, s.WF Δ) : SoundDir Γ t := by
-  intro _ _ _ _ _ _ _ _ hm₁ hm₂
-  exact ⟨s, hws, hmk (.refl hws), hle hm₁, hle hm₂⟩
+    (hws : ∀ {Δ : List Term}, s.WF Δ) : SoundDir Γ t :=
+  fun _ _ _ _ _ _ _ _ hm₁ hm₂ =>
+  ⟨s, hws, hmk (.refl hws), hle hm₁, hle hm₂⟩
 
 theorem IsDefEq.stage {Γ : List Term} {t t' A : Term} (hΓ : ⊢ Γ)
     (H : Γ ⊢ t ≡ t' : A) {Δ : List Term} {σ σ' : Subst} (hΔ : ⊢ Δ)
@@ -114,7 +114,8 @@ His `IsIdealValued` is directedness at *every* argument shape, with no
 "the argument is in `⟦A⟧`" side condition, because his body action coerces
 its argument through `rawExtend ⟦A⟧` first.  Ours is `SoundDir` under a
 `Valuation.WF` hypothesis, which asks nothing of the slot either — and
-that is what keeps `SoundJoin` out of this proof. -/
+that is what keeps join-closure of a type's extension out of this
+proof. -/
 
 /-- Directedness of a Π-type's interpretation: the `forallEDF` case of
 `IsDefEq.dir`. -/
@@ -314,8 +315,8 @@ theorem sound_sigma_dir {Γ : List Term} {A B : Term} {u v : Bool}
     (hNV₂ e he).mono_r hΔ hled₂ hdjty
   -- **the cross pairs**
   have hcross : ShapeFun.Compat Shape.Compat Δ (A.subst σ)
-      (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₁)
-      (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₂) := by
+      (ShapeFun.lift (.lift (max n₁ n₂)) g₁)
+      (ShapeFun.lift (.lift (max n₁ n₂)) g₂) := by
     intro e he e' he' Θ τ hΘ Wτ hlab hin
     obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
     obtain ⟨b, hb, rfl⟩ := ShapeFun.mem_lift.1 he'
@@ -357,21 +358,21 @@ theorem sound_sigma_dir {Γ : List Term} {A B : Term} {u v : Bool}
   obtain ⟨_, hBσ⟩ := hwf₁.2.1
   have hcS : Shape.Compat (n := max n₁ n₂ + 1) Δ
       (.sigma (A.subst σ) (B.subst σ.lift) (d₁.lift (max n₁ n₂))
-        (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₁))
+        (ShapeFun.lift (.lift (max n₁ n₂)) g₁))
       (.sigma (A.subst σ) (B.subst σ.lift) (d₂.lift (max n₁ n₂))
-        (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₂)) :=
+        (ShapeFun.lift (.lift (max n₁ n₂)) g₂)) :=
     ⟨.refl hAσ hBσ, hcd', hcross⟩
-  have hwS₁ : Shape.WF Δ (Shape.lift (n := n₁+1) (max n₁ n₂ + 1)
+  have hwS₁ : Shape.WF Δ (.lift (n := n₁+1) (max n₁ n₂ + 1)
       (.sigma (A.subst σ) (B.subst σ.lift) d₁ g₁)) :=
     (Shape.lift_wf (Nat.succ_le_succ k₁)).2 hwf₁
-  have hwS₂ : Shape.WF Δ (Shape.lift (n := n₂+1) (max n₁ n₂ + 1)
+  have hwS₂ : Shape.WF Δ (.lift (n := n₂+1) (max n₁ n₂ + 1)
       (.sigma (A.subst σ) (B.subst σ.lift) d₂ g₂)) :=
     (Shape.lift_wf (Nat.succ_le_succ k₂)).2 hwf₂
   have hwSJ : Shape.WF (n := max n₁ n₂ + 1) Δ
       (.sigma (A.subst σ) (B.subst σ.lift)
         ((d₁.lift (max n₁ n₂)).join (d₂.lift (max n₁ n₂)))
-        (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₁ ++
-          ShapeFun.lift (Shape.lift (max n₁ n₂)) g₂)) :=
+        (ShapeFun.lift (.lift (max n₁ n₂)) g₁ ++
+          ShapeFun.lift (.lift (max n₁ n₂)) g₂)) :=
     hwS₁.join hΔ hcS hwS₂
   refine ⟨_, TShape.WF.T.2 hwSJ, ?_, hle₁.trans hΔ ?_, hle₂.trans hΔ ?_⟩
   refine .sigma hdj' hdjty hwSJ ?_ ?_ (.refl hwSJ) ⟨u, hAty⟩ ⟨v, hB⟩
@@ -432,8 +433,8 @@ theorem sound_lam_dir {Γ : List Term} {A B b : Term} {u : Bool}
   -- **the cross pairs**: the body at the join of two entries' inputs, a
   -- valuation that is well formed but not admissible
   have hcross : ShapeFun.Compat Shape.Compat Δ (A.subst σ)
-      (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₁)
-      (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₂) := by
+      (ShapeFun.lift (.lift (max n₁ n₂)) g₁)
+      (ShapeFun.lift (.lift (max n₁ n₂)) g₂) := by
     intro e he e' he' Θ τ hΘ Wτ hlab hin
     obtain ⟨a, ha, rfl⟩ := ShapeFun.mem_lift.1 he
     obtain ⟨c, hc, rfl⟩ := ShapeFun.mem_lift.1 he'
@@ -472,8 +473,8 @@ theorem sound_lam_dir {Γ : List Term} {A B b : Term} {u : Bool}
     exact (TShape.Compat.def k₁ k₂).1 (.of_common_upper hΘ (by assumption) hs₁ hs₂)
   -- the two λ-shapes are compatible, so their join is well formed
   have hcS : Shape.Compat (n := max n₁ n₂ + 1) Δ
-      (.lam (A.subst σ) (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₁))
-      (.lam (A.subst σ) (ShapeFun.lift (Shape.lift (max n₁ n₂)) g₂)) :=
+      (.lam (A.subst σ) (ShapeFun.lift (.lift (max n₁ n₂)) g₁))
+      (.lam (A.subst σ) (ShapeFun.lift (.lift (max n₁ n₂)) g₂)) :=
     ⟨hwf₁.dom, hcross⟩
   have hwS₁ : (Shape.lift (n := n₁+1) (max n₁ n₂ + 1) (.lam (A.subst σ) g₁)).WF Δ :=
     (Shape.lift_wf (Nat.succ_le_succ k₁)).2 hwf₁
@@ -918,13 +919,11 @@ theorem dir_refl {Γ : List Term} {a : Term} {r : Bool} : SoundDir Γ (.refl r a
   cases h₂ with
   | bot => exact ⟨_, hle₁.wf, .refl hle₁, .refl hle₁.wf, TShape.bot_le' rfl⟩
   | refl hle₂
-  exact ⟨_, hwz, .refl (.refl hwz),
-    hle₁.trans hΔ (.refl_of hΔ), hle₂.trans hΔ (.refl_of hΔ)⟩
+  exact ⟨_, hwz, .refl (.refl hwz), hle₁.trans hΔ (.refl_of hΔ), hle₂.trans hΔ (.refl_of hΔ)⟩
 
-/-- **Directedness for `.tr`** — the case the plan called open, and the
-case `SoundJoin` was meant for.  In the event it goes through
-`TShape.HasType.join` directly, which is `SoundJoin`'s own ingredient, so
-join-closure of a type's *extension* is never needed.
+/-- **Directedness for `.tr`** — the one case with a typing to maintain.
+It goes through `TShape.HasType.join` directly, so join-closure of a
+type's *extension* is never needed.
 
 Everything in the `tr` clause is joined slotwise: the witness shape `v`
 (which interprets both endpoints, so it is the *join*, not an upper
@@ -1013,7 +1012,8 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
   -- `bvar` reads the slot's well-formedness off `Valuation.WF`; the rest
   -- are one per term former, each the other repo's `*_isDirected`
   | bvar h => exact and_self_iff.2 (dir_bvar h)
-  -- the λ-shape's domain label is what makes this one standalone (§5.5b)
+  -- the λ-shape's domain label is what makes this one standalone
+  -- (`design.md` §1)
   | appDF _ _ _ _ _ _ _ ihf iha =>
     exact ⟨dir_app (ihf hΓ).1 (iha hΓ).1, dir_app (ihf hΓ).2 (iha hΓ).2⟩
   -- λ: Π's argument, with the body in place of the codomain
@@ -1040,9 +1040,9 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
     exact ⟨dir_id hAA'.hasType.1 haa'.hasType.1 hbb'.hasType.1,
       dir_id hAA'.hasType.2 (hAA'.defeqDF haa'.hasType.2) (hAA'.defeqDF hbb'.hasType.2)⟩
   | reflDF => exact ⟨dir_refl, dir_refl⟩
-  -- the case `SoundJoin` was meant for: two transports are typed at two
-  -- approximants of the motive, and the witness above both has to be
-  -- typed at the motive above both (`dir_tr does this with the subject
+  -- the one case with a typing to maintain: two transports are typed at
+  -- two approximants of the motive, and the witness above both has to be
+  -- typed at the motive above both (`dir_tr` does this with the subject
   -- join).  Every other case is an upper bound
   -- with no typing to preserve, which is why they run under
   -- `Valuation.WF` with no admissibility in sight

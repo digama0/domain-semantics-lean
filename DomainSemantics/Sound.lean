@@ -161,7 +161,7 @@ a binder, and `Y` runs on the tower.
 
 Directedness of each in-range `θ i` is read off `Ctx.SubstEq.dir`, which
 is why this sits after `IsDefEq.dir` and carries no premise of its own
-for it; master uses its global `compat_join` here.  Labels need no stage
+for it; `popl27` uses its global `compat_join` here.  Labels need no stage
 lemma, `A[θ ∘ σ]` and `A[θ][σ]` being equal on the nose
 (`subst_subst`). -/
 theorem Interp.to_substTerm {Δ : List Term} (hΔ : ⊢ Δ)
@@ -626,7 +626,7 @@ substitutions are morphisms; ours has to carry both facts explicitly,
 which is the "no quotient, preservation lemmas instead" policy applied to
 the presheaf structure. -/
 
-/-- The two terms have the same approximants at every stage: master's
+/-- The two terms have the same approximants at every stage: `popl27`'s
 `SoundEq`, his `HasEquality`, and the semantic content of a definitional
 equality. -/
 def SoundEq (Γ : List Term) (t t' : Term) : Prop :=
@@ -930,7 +930,7 @@ theorem Subst.Saturates.one {Γ Δ : List Term} {A a : Term} {u : Bool} {σ ρ}
 
 /-- The single-substitution form, which is what `beta` uses: `b[a]` at
 stage `σ` is `b` at the stage extended by `a[σ]`, under the valuation
-extended by an approximant of `a`.  Master's `LE_Interp.inst`. -/
+extended by an approximant of `a`.  `popl27`'s `LE_Interp.inst`. -/
 theorem Interp.inst {B : Term} (hΔ : ⊢ Δ) (hΓ : ⊢ Γ)
     (hA : Γ ⊢ A : .sort u) (hat : Γ ⊢ a : A) (hb : A :: Γ ⊢ b : B)
     (hPin : b.Pinned (A :: Γ)) (Wσ : Ctx.SubstEq Δ σ σ Γ) (hAdm : Adm Δ Γ σ ρ)
@@ -3298,7 +3298,7 @@ theorem SoundEq.id_inv {Γ : List Term} {r : Bool} {A₀ a₀ b₀ A₁ a₁ b�
 
 /-! ## The target
 
-The one theorem this branch is for.  Master needs `LogRel.lean` and
+The one theorem this development is for.  `popl27` needs `LogRel.lean` and
 `Adequacy.lean` on top of its soundness theorem to get inversion; here the
 labels carry the syntax through the model, so the inversion principles of
 `design.md` §7 are corollaries of this statement alone. -/

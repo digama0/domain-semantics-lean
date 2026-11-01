@@ -1163,7 +1163,7 @@ theorem IsDefEq.subst' (hΓ₀ : ⊢ Γ₀) (W : Ctx.SubstEq Γ₀ σ σ' Γ) (H
 
 /-- Composition of substitutions.  Needed to transport hereditary
 conditions (which quantify over all later typed stages) from one context
-to another.  Master had `id`, `lift`, `skip` and `lift_at` but no `comp`. -/
+to another.  `popl27` had `id`, `lift`, `skip` and `lift_at` but no `comp`. -/
 theorem Ctx.SubstEq.comp {Ξ Θ : List Term} {υ : Subst} (hΞ : ⊢ Ξ)
     (V : SubstEq Ξ υ υ Θ) {Δ : List Term} {σ σ' : Subst} (W : SubstEq Θ σ σ' Δ) :
     Ctx.SubstEq Ξ (σ.comp υ) (σ'.comp υ) Δ := by

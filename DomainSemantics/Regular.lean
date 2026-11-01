@@ -7,8 +7,8 @@ equality: the subject's own premises, and typings for its subterms in the
 contexts they live in.  For `forallE` that says the domain is a type and
 the codomain is a type over the domain.
 
-Master gets those two facts out of `forallE_inv`, which comes out of
-adequacy.  This branch proves Π-injectivity *from* soundness instead, and
+`popl27` gets those two facts out of `forallE_inv`, which comes out of
+adequacy.  Here Π-injectivity comes *from* soundness instead, and
 the semantic probe that reads the Π label back (`Interp.piAtom`) needs
 exactly these two facts to be built.  So they have to be recovered here,
 by induction on the derivation, before inversion can run.  The remaining

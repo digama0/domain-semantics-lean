@@ -3,7 +3,7 @@ import DomainSemantics.Regular
 
 /-! # Inversion from soundness
 
-Π-injectivity, straight out of soundness.  Master gets it from adequacy:
+Π-injectivity, straight out of soundness.  `popl27` gets it from adequacy:
 `LogRel.lean` plus `Adequacy.lean`, 4.9k lines, to relate the semantics to
 weak-head reduction and read the head former off a normal form.  Here the
 head former never leaves the shape, so the argument is four steps:
@@ -22,7 +22,7 @@ The only input beyond the syntax is `IsDefEq.sound`. -/
 
 namespace DomainSemantics
 
-/-- **Π-injectivity.**  Master's `forallE_inv`, with the same statement,
+/-- **Π-injectivity.**  `popl27`'s `forallE_inv`, with the same statement,
 proved from soundness instead of adequacy. -/
 theorem forallE_inv {Γ : List Term} {A₀ B₀ A₁ B₁ : Term} {s : Bool}
     (hΓ : ⊢ Γ) (H : Γ ⊢ .forallE A₀ B₀ ≡ .forallE A₁ B₁ : .sort s) :

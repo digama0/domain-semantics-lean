@@ -2,7 +2,7 @@ import DomainSemantics.Label
 
 /-! # Labelled shapes
 
-The semantic domain of the gluing model. This is master's
+The semantic domain of the gluing model. This is `popl27`'s
 level-graded `Shape n` with two changes:
 
 * a function graph is a `List (Entry (Shape n))` rather than a
@@ -44,7 +44,7 @@ inductive Shape0 : Type where
   | sort (rel : Bool) : Shape0
 
 /-- One step of the level-graded shape constructor. Compared with
-master's `Shape`: graphs are lists of `Entry`, and `forallE`/`sigma`/`id`
+`popl27`'s `Shape`: graphs are lists of `Entry`, and `forallE`/`sigma`/`id`
 carry syntactic labels. `refl` carries nothing: no rule reads a proof of
 an identity past its head (transport asks for `H ≡ refl a` at the stage),
 so its only information is that it is not `⊥`. -/
@@ -111,7 +111,7 @@ instance : Inhabited (Shape n) := ⟨.bot⟩
 
 /-! ## Lifting between levels
 
-Master's `lift`, with labels carried through unchanged.  Lifting *down*
+`popl27`'s `lift`, with labels carried through unchanged.  Lifting *down*
 (to a level too small to hold the shape) collapses to `⊥`, as it does
 there.  This is what lets the level index be hidden behind a total shape
 type `TShape`, which the interpretation quantifies over. -/
@@ -158,7 +158,7 @@ theorem Shape.lift_self {n} {s : Shape n} : s.lift n = s := by
   | forallE A B d f => show ShapeS.forallE .. = _; rw [ih, hf]
   | sigma A B d f => show ShapeS.sigma .. = _; rw [ih, hf]
 
-/-- Lifting *up* and then anywhere is lifting anywhere.  Master's
+/-- Lifting *up* and then anywhere is lifting anywhere.  `popl27`'s
 `lift_lift`, restricted to the disjunct that is actually used: once a
 shape has been lifted to a level that already holds it, no information is
 left to lose on the way to a third level. -/
@@ -340,7 +340,7 @@ def Shape.WF (Γ : List Term) : ∀ {n}, Shape n → (o : Option Term := none) �
   -- conjunct keeps `⊥` the only bottom
   | _+1, .pair A a x y, _ =>
       ¬ (x.IsBot ∧ y.IsBot) ∧ (Γ ⊢ a : A) ∧ TyEq Γ A A ∧ WF Γ x ∧ WF Γ y
-  -- master's `NonZero`, strengthened to every entry: a well-formed λ-shape
+  -- `popl27`'s `NonZero`, strengthened to every entry: a well-formed λ-shape
   -- carries real information, so `IsBot` collapses to `= .bot` and the
   -- collapse clauses disappear from `LE`, `Compat` and `join`
   -- the last conjunct is **internal coherence**, the other repo's
@@ -444,9 +444,9 @@ indexed by a context and lives in `Prop`.
 
 A graph is covered by another when every entry's output is reached by the
 **lookup** in the covering graph at that entry's label and input.  Coverage
-by a single *entry* — master's order, and the other repo's `Graph.LE` — is
+by a single *entry* — `popl27`'s order, and the other repo's `Graph.LE` — is
 too fine: η needs an entry whose output is a *join* of several outputs of
-the covering graph, which no single entry dominates.  Master can afford
+the covering graph, which no single entry dominates.  `popl27` can afford
 entry coverage because its graphs are saturated, so a join of matching
 outputs *is* an entry; the other repo because a λ-value is an ideal,
 closed under every graph valid for its action.
@@ -709,7 +709,7 @@ theorem Shape.le_bot_iff {n} {s : Shape n} : s.LE Δ .bot ↔ s = .bot := by
 
 /-! ### What sits below a shape
 
-Master's `Shape.le_sort`, `le_unit`, `le_nat_iff`, `le_succ_iff`, … , one
+`popl27`'s `Shape.le_sort`, `le_unit`, `le_nat_iff`, `le_succ_iff`, … , one
 per head: below a shape is `⊥`, or a shape of the same head whose
 components are below its.  These are the one-directional halves — the
 converse is `bot_le` and the componentwise constructor — and they are what
@@ -966,7 +966,7 @@ theorem Shape.subst_subst {σ τ : Subst} {n} {x : Shape n} :
     show ShapeS.sigma .. = .sigma ..
     simp [ShapeFun.subst, DomainSemantics.subst_subst, Subst.comp_lift, ih]
 
-/-- The total shape domain: a shape together with its level, as master's
+/-- The total shape domain: a shape together with its level, as `popl27`'s
 `TShape`.  The interpretation quantifies over this, so that the level
 index never appears in the statement of a soundness lemma. -/
 def TShape := Σ n, Shape n
@@ -995,7 +995,7 @@ end TShape
 
 /-! ## Compatibility and join
 
-`Compat Δ x y` says `x` and `y` can be joined.  For graphs it is master's
+`Compat Δ x y` says `x` and `y` can be joined.  For graphs it is `popl27`'s
 condition, with the label premise added: entries with definitionally equal
 labels and compatible inputs must have compatible outputs.  That single
 clause is what the other repo splits into `IsCoherent` (`f` against
@@ -1250,7 +1250,7 @@ theorem Shape.join_subst {τ : Subst} {n} {x y : Shape n} :
 /-! ### Is `IsBot` a usable invariant?
 
 Two facts decide whether bottom outputs can be forbidden inside graphs
-(master's `NonZero` / `lam'`, strengthened to a per-entry condition).
+(`popl27`'s `NonZero` / `lam'`, strengthened to a per-entry condition).
 Unlike saturation — which failed because substitution merges label classes
 — being information-free is *structural*: it never inspects a label, so it
 is invariant under substitution in **both** directions, and it is
@@ -1271,7 +1271,7 @@ instance Shape.decIsBot : ∀ {n} (s : Shape n), Decidable s.IsBot
 
 /-! ## Compatibility: symmetry, anti-monotonicity, common upper bounds
 
-These are what the relational graph lookup needs.  Master gets away
+These are what the relational graph lookup needs.  `popl27` gets away
 without them because its lookup is a saturated max-below *function*; ours
 collects matching entries and joins them, so it has to know the joins
 exist. -/
@@ -1892,7 +1892,7 @@ theorem ShapeFun.Eval.lift_of {Δ : List Term} (hΔ : ⊢ Δ) {n k} (h : n ≤ k
     exact Shape.join_le hΔ (hc₁.trans hΔ (ihlift.2 hu₁)) (hc₂.trans hΔ (ihlift.2 hu₂))
 
 /-- Lifting *up* is an order embedding.  This is what makes the level
-index invisible to `TShape.LE`: master's `lift_le_lift`, and the reason
+index invisible to `TShape.LE`: `popl27`'s `lift_le_lift`, and the reason
 its proof is a plain induction here rather than a `simp` over a `Bool`
 function is that the order is `Prop`-valued. -/
 theorem Shape.lift_le_lift (hΓ : ⊢ Γ) {n m} (h : n ≤ m) {s t : Shape n} :

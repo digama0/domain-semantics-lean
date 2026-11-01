@@ -4,7 +4,7 @@ import DomainSemantics.HasType
 
 `Interp Δ Γ t σ ρ m` says that the shape `m` is a lower bound on an
 interpretation of the term `t` at the **stage** `(Δ, σ)`, under the
-valuation `ρ`.  It is master's `LE_Interp`, with two changes.
+valuation `ρ`.  It is `popl27`'s `LE_Interp`, with two changes.
 
 * It carries a stage.  `Γ` is the context the term lives in, `Δ` the
   context the shape's labels live in, and `σ` a substitution from `Γ` to
@@ -18,7 +18,7 @@ valuation `ρ`.  It is master's `LE_Interp`, with two changes.
   equation that justifies it.
 
 Reading `m` as a lower bound is what makes the relation monotone
-(`Interp.mono`), as in master.  There is no `⊥`-escape anywhere else: the
+(`Interp.mono`), as in `popl27`.  There is no `⊥`-escape anywhere else: the
 `bot` constructor covers every term.
 
 Σ mirrors Π throughout.  The `pair` shape carries the syntactic pair
@@ -148,7 +148,7 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
   /-- The binder rule.  The shape is labelled by the domain `A[σ]`, and
   each entry of the graph is a *probe*: a label term `e.tm` at a type
   definitionally equal to the domain (part of `Shape.WF`), an input typed
-  at the domain shape (master's `HasDom`, and what makes the extended
+  at the domain shape (`popl27`'s `HasDom`, and what makes the extended
   valuation admissible), and the body's interpretation at the stage
   extended by that term.  The premises
   are kept separate rather than conjoined, so that the nested `Interp`
@@ -260,7 +260,7 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
   | protected refl {n} :
     TShape.LE Δ m (Shape.T (n := n+1) .refl) →
     Interp Δ Γ (.refl true a) σ ρ m
-  /-- Transport.  Master's constructor, with the motive evaluated at the
+  /-- Transport.  `popl27`'s constructor, with the motive evaluated at the
   stage extended by `b`, which is the label term the motive's binder is
   instantiated with — **and with the endpoints' equation at the stage**.
 
@@ -274,7 +274,7 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
   clause carries it at the stage, exactly as `natCase_zero` carries
   `M[σ] ≡ zero`.  Without it a *stuck* transport (endpoints not equal at
   the stage) would still be given `X`'s approximants, which no syntactic
-  rule can justify: that is the hole left in master's context-free
+  rule can justify: that is the hole left in `popl27`'s context-free
   `LE_Interp`, and the reason for the labelled redesign.
 
   At `r = true` the proof is informative, and the clause asks for it to
@@ -309,7 +309,7 @@ theorem Interp.of_bot {Δ Γ σ ρ} {t : Term} {m : TShape} (h : m.2 = .bot) :
 
 /-! ## Monotonicity
 
-Both directions master has: down in the shape, up in the valuation.
+Both directions `popl27` has: down in the shape, up in the valuation.
 Neither touches the stage, so both are the same induction as there. -/
 
 theorem Interp.wf {Δ Γ : List Term} {t : Term} {σ ρ m}
@@ -506,8 +506,8 @@ theorem Interp.ctx {Δ Γ : List Term} {t σ ρ m} (H : Interp Δ Γ t σ ρ m)
 
 /-! ## Constructors at the canonical shape
 
-Master's primed forms.  Each takes the well-formedness that `LE` needs to
-be reflexive, which master gets from its shapes being a `WF` subtype. -/
+`popl27`'s primed forms.  Each takes the well-formedness that `LE` needs to
+be reflexive, which `popl27` gets from its shapes being a `WF` subtype. -/
 
 theorem Interp.sort' {Δ Γ σ ρ r} :
     Interp Δ Γ (.sort r) σ ρ (.sort r) :=
@@ -588,7 +588,7 @@ labelling.  He proves that the label-only Π atom is a member of a Π value
 equality in his quotient, which is definitional equality, which is our
 `PiLabelEq`.
 
-Master has nothing like this.  In its place master carries a second
+`popl27` has nothing like this.  In its place `popl27` carries a second
 inductive with one constructor per term former running in lockstep with
 the semantics, so that the logical relation can read the head former back
 out — and then needs `LogRel.lean` plus
@@ -741,7 +741,7 @@ theorem Interp.subst (H : Interp Δ Γ t σ ρ m) (hΘ : ⊢ Θ) (W : Ctx.SubstE
 
 /-! ## Weakening
 
-Master's `weak'_iff`, in the direction that builds.  A renaming `l` of the
+`popl27`'s `weak'_iff`, in the direction that builds.  A renaming `l` of the
 term is matched by a stage `σ'` and valuation `ρ'` that agree with `σ` and
 `ρ` along it; the labels are then literally the same terms, since
 `(t.lift' l).subst σ' = t.subst σ` once `σ = σ' ∘ l`.
@@ -850,7 +850,7 @@ theorem Subst.lift_comp_cons {θ σ : Subst} {e : Term} :
 
 /-- **Substitution in the term, the constructive direction.**  An
 approximant of `t` at the composed stage, under a valuation whose slots
-approximate the `θ i`, is an approximant of `t[θ]`.  Master's
+approximate the `θ i`, is an approximant of `t[θ]`.  `popl27`'s
 `LE_Interp.subst` in the direction that needs no directedness: every
 clause is rebuilt verbatim, with `subst_subst` for the labels and
 `Interp.weak'` for the slot a binder adds. -/
@@ -985,7 +985,7 @@ not strengthening.  So the lemma is indexed by a typing of the term in
 the small context, and the induction runs on that — the same shape as
 `IsDefEq.stage`, and for the same reason.
 
-Master proves the raw version by casing on the term at each step; here
+`popl27` proves the raw version by casing on the term at each step; here
 each case of the *typing* supplies the premises the clause needs. -/
 theorem Interp.unweak {Δ : List Term} (hΔ : ⊢ Δ) {t : Term} {Γ Γ' : List Term} {l σ' ρ ρ' m T}
     (hΓ : ⊢ Γ) (hAnn : Γ ⊢ t : T) (WΓ : Ctx.Lift' l Γ Γ') (hd : Ctx.SubstEq Δ σ' σ' Γ')
@@ -1161,7 +1161,7 @@ theorem TyEq.tr_motive {Γ Δ : List Term} {A a a₀ b C C₀ : Term} {u v : Boo
   exact ⟨v, hAσ.instDF hΔ .sort hC1 ((ha₀.subst hΔ W).trans heq)⟩
 
 /-- **Stage invariance.**  The interpretation depends on its stage only up
-to definitional equality.  Master needs no such lemma, his shapes carrying
+to definitional equality.  `popl27` needs no such lemma, its shapes carrying
 no labels; the other repo gets it from the quotient, two definitionally
 equal substitutions being the *same* morphism of `Ctx`.
 
