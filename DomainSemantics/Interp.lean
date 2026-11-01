@@ -8,7 +8,7 @@ valuation `ρ`.  It is `popl27`'s `LE_Interp`, with two changes.
 
 * It carries a stage.  `Γ` is the context the term lives in, `Δ` the
   context the shape's labels live in, and `σ` a substitution from `Γ` to
-  `Δ`.  This is the presheaf structure of the other repo, spelled out
+  `Δ`.  This is intgrah's presheaf structure, spelled out
   syntactically: the "presheaf over contexts" is the family of relations
   indexed by `(Δ, σ)`, and naturality is the substitution lemma.
 * Every binder rule extends the stage with a **label term** as well as the
@@ -267,7 +267,7 @@ inductive Interp (Δ : List Term) : List Term → Term → Subst → Valuation �
   That equation is what the proof-irrelevant identity type needs, and it
   is the one thing an unlabelled model cannot say.  At `r = false` a
   proof has only the `⊥` shape (`HasType.proofIrrel`), so nothing about
-  it can license the transport's value; the other repo's answer is that
+  it can license the transport's value; intgrah's answer is that
   the proof never licenses it — `⟦tr A a b C x h⟧ = rawExtend ⟦C[b]⟧ ⟦x⟧`
   is a *coercion*, and its computation rule is **K**: `tr A a b C x h ≡ x`
   as soon as `a ≡ b`, whatever `h` is.  Here `a ≡ b` is a judgment, so the
@@ -582,7 +582,7 @@ theorem Interp.le_sigma (H : Interp Δ Γ (.sigma A B) σ ρ m) :
 
 /-! ## The Π label, in and out
 
-This is the other repo's `mem_piAtom_pi_iff`, and the point of the whole
+This is intgrah's `mem_piAtom_pi_iff`, and the point of the whole
 labelling.  He proves that the label-only Π atom is a member of a Π value
 **iff** its label is the reindexed label; equality of labels there is
 equality in his quotient, which is definitional equality, which is our
@@ -638,7 +638,7 @@ theorem Interp.le_sigmaAtom
 /-! ## Naturality in the stage
 
 The presheaf property, and the reason every shape-level notion had to be
-shown stable under `Shape.subst` first.  For the other repo this is
+shown stable under `Shape.subst` first.  For intgrah this is
 functoriality of `ΩLower` and costs nothing; here the stage is raw syntax,
 so it is an induction, and each case is the corresponding `subst` lemma
 one level down.
@@ -1162,7 +1162,7 @@ theorem TyEq.tr_motive {Γ Δ : List Term} {A a a₀ b C C₀ : Term} {u v : Boo
 
 /-- **Stage invariance.**  The interpretation depends on its stage only up
 to definitional equality.  `popl27` needs no such lemma, its shapes carrying
-no labels; the other repo gets it from the quotient, two definitionally
+no labels; intgrah gets it from the quotient, two definitionally
 equal substitutions being the *same* morphism of `Ctx`.
 
 Here every clause carries what its own labels need to move: a binder's
@@ -1412,7 +1412,7 @@ theorem Interp.unweak_slot {Δ Γ' Γ'' : List Term} {s : Term} (hΔ : ⊢ Δ) (
 stage is a typed substitution into it, the valuation is well formed, and
 every variable's slot is an approximant of its type and a `Slot` at it —
 hereditarily typed there, at a code that names the type, and named by the
-variable it stands for.  The other repo's `SourceAdmissible`, plus the
+variable it stands for.  intgrah's `SourceAdmissible`, plus the
 naming his quotient makes unnecessary.
 
 The last two conjuncts are what the model is for.  Dropping the naming

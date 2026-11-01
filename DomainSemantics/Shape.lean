@@ -241,7 +241,7 @@ compatible outputs — **at every later typed stage**.
 
 The quantification over later stages is what makes the condition stable
 under substitution, and it sits inside the graph clause only, exactly as in
-the other repo's `Shape.Compatible σ` (`Basis/InternalCoherence.lean`),
+intgrah's `Shape.Compatible σ` (`Basis/InternalCoherence.lean`),
 whose `lam` clause likewise reads `∀ i j Γ₂ (σ₁ : Γ₂ ⟶ _), … (σ₁ ≫ σ) …`.
 It is needed because a substitution can *create* label equalities — two
 distinct variables becoming definitionally equal — so a merely local
@@ -343,7 +343,7 @@ def Shape.WF (Γ : List Term) : ∀ {n}, Shape n → (o : Option Term := none) �
   -- `popl27`'s `NonZero`, strengthened to every entry: a well-formed λ-shape
   -- carries real information, so `IsBot` collapses to `= .bot` and the
   -- collapse clauses disappear from `LE`, `Compat` and `join`
-  -- the last conjunct is **internal coherence**, the other repo's
+  -- the last conjunct is **internal coherence**, intgrah's
   -- `IsCoherent`: entries whose labels become definitionally equal at some
   -- later stage, with compatible inputs there, must have compatible outputs
   -- there.  It is what makes the graph lookup's joins exist, and it belongs
@@ -405,7 +405,7 @@ theorem ShapeFun.WF.forget {Δ : List Term} {n} {T : Term} {oB : Option Term} {f
 
 Since a well-formed λ-shape is never information-free, a λ-shape facing a
 different head is genuinely incompatible, so the mixed-`lam` clauses that
-the other repo's `cSup` needs are unnecessary here.  Labels of the left argument
+intgrah's `cSup` needs are unnecessary here.  Labels of the left argument
 are kept elsewhere, which is legitimate under `Compat Δ` since they are
 then definitionally equal to the right one's. -/
 def Shape.join : ∀ {n}, Shape n → Shape n → Shape n
@@ -444,11 +444,11 @@ indexed by a context and lives in `Prop`.
 
 A graph is covered by another when every entry's output is reached by the
 **lookup** in the covering graph at that entry's label and input.  Coverage
-by a single *entry* — `popl27`'s order, and the other repo's `Graph.LE` — is
+by a single *entry* — `popl27`'s order, and intgrah's `Graph.LE` — is
 too fine: η needs an entry whose output is a *join* of several outputs of
 the covering graph, which no single entry dominates.  `popl27` can afford
 entry coverage because its graphs are saturated, so a join of matching
-outputs *is* an entry; the other repo because a λ-value is an ideal,
+outputs *is* an entry; intgrah because a λ-value is an ideal,
 closed under every graph valid for its action.
 
 The lookup is `ShapeFun.Eval`, and it is defined here, **parameterised by
@@ -457,7 +457,7 @@ the order one level down**, which is what closes the recursion: `LE` at
 `TEvaluates` is this one at `R := Shape.LE Δ`. -/
 
 /-- The graph lookup at a label and an input: `⊥`, the outputs of matching
-entries, closed downwards and under compatible joins.  The other repo's
+entries, closed downwards and under compatible joins.  intgrah's
 `Evaluates`, with the order it is relative to as a parameter.
 
 The side condition on `join` is not decoration: it makes the join a
@@ -998,7 +998,7 @@ end TShape
 `Compat Δ x y` says `x` and `y` can be joined.  For graphs it is `popl27`'s
 condition, with the label premise added: entries with definitionally equal
 labels and compatible inputs must have compatible outputs.  That single
-clause is what the other repo splits into `IsCoherent` (`f` against
+clause is what intgrah splits into `IsCoherent` (`f` against
 itself) and `InternallyCompatible` (`f` against `g`).
 
 `join` is context-free and total, producing junk (`⊥`) on mismatched
@@ -1368,7 +1368,7 @@ theorem Shape.LE.subst {Δ Θ : List Term} {τ : Subst} (hΘ : ⊢ Θ) (W : Ctx.
     a.Compat Δ .bot := by cases n <;> cases a <;> trivial
 
 /-- The join of two shapes compatible with `d` is compatible with `d`.
-This is the other repo's `cSup_compatible`, and it is what lets the graph
+This is intgrah's `cSup_compatible`, and it is what lets the graph
 lookup be closed under joins without losing coherence. -/
 theorem Shape.Compat.join {n} {Δ : List Term} {y z d : Shape n} (hΔ : ⊢ Δ)
     (hy : y.Compat Δ d) (hz : z.Compat Δ d) : (y.join z).Compat Δ d := by
@@ -2176,7 +2176,7 @@ theorem TShape.join_subst {τ : Subst} {a b : TShape} :
   rw [Shape.join_subst, ← Shape.lift_subst, ← Shape.lift_subst]
   rfl
 
-/-- The **label-only Π shape**: the other repo's `piAtom`.  A Π-shape with
+/-- The **label-only Π shape**: intgrah's `piAtom`.  A Π-shape with
 no information in it but the syntactic pair.  It is the probe that reads a
 label back out of a Π type, and the reason is the order: a `piAtom` is
 below `forallE A B d f` exactly when the labels are definitionally equal,

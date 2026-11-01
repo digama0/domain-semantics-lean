@@ -7,7 +7,7 @@ This file adds the one piece of genuinely *new data* rather than a
 property of `Interp` — the saturating form of semantic typing — states
 what soundness says, and proves it rule by rule.
 
-The other repo bundles its properties into `RawTermProperties` and
+intgrah bundles its properties into `RawTermProperties` and
 `RawJudgment`, because they are established simultaneously by one
 induction over a structure that also carries category-theoretic data.  We
 do not need the bundle: naturality and the substitution lemma are
@@ -745,8 +745,8 @@ theorem SoundEq.trans {Γ : List Term} {t t' t'' : Term}
 
 -- There is no `Adm.subst`.  Moving a judgment to a later stage is only
 -- ever needed inside directedness, whose hypothesis is `Valuation.WF`, and
--- that moves by `TShape.WF.subst` slotwise (`Valuation.WF.subst`).  The
--- other repo needs `SourceAdmissible.pullback` because its admissibility
+-- that moves by `TShape.WF.subst` slotwise (`Valuation.WF.subst`).
+-- intgrah needs `SourceAdmissible.pullback` because its admissibility
 -- carries the decoder fixed-point condition on every slot.
 
 /-! ## Terms with no rule but `bot`
@@ -2571,7 +2571,7 @@ theorem TShape.LE.zero_succ_absurd' {Δ : List Term} {n} {v : Shape n}
 /-! ## β
 
 The rule is padded with typings of both sides, so only `SoundEq` has
-content (the other repo's `of_typings` observation).
+content (intgrah's `of_typings` observation).
 
 `→` is the graph lookup unfolded: the function's λ-shape is covered by the
 rule's own graph, each of whose entries carries the body at the entry's

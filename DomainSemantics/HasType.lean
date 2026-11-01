@@ -16,7 +16,7 @@ repo reads it — `rawExtend T X` quantifies `∃ c ∈ T`), and `TEvaluates`,
 just below, the same lookup over `TShape`, which is where all the level
 bookkeeping happens once.
 
-Together with `SoundTy` this plays the role of the other repo's decoder:
+Together with `SoundTy` this plays the role of intgrah's decoder:
 see `design.md` §2.  Its fixed-point construction
 (`piStep`/`piStage`/`rank`/`piLimit`) is unnecessary here because the
 recursion is structural in the level. -/
@@ -61,7 +61,7 @@ in the model** — a proof-irrelevant former is also a proof-relevant type.
 Cumulativity is built into the clauses that compare sorts with `≤`
 (`unit`, `id`) and is the lemma below for the rest.
 
-(The other repo does keep a separate `IsCode`, because it has no typing
+(intgrah does keep a separate `IsCode`, because it has no typing
 relation on shapes at all and needs a downward-closed predicate for its
 universe retraction.  With `HasType` available, `popl27`'s route is the
 right one: the lemma that replaces downward closure is `mono_r`, which

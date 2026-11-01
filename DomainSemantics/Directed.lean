@@ -3,7 +3,7 @@ import DomainSemantics.Interp
 /-! # Directedness
 
 Two approximants of a term have a common upper bound that is again an
-approximant.  This is the other repo's `HasIdeality`, and it is what lets
+approximant.  This is intgrah's `HasIdeality`, and it is what lets
 the approximant set be read as an ideal.
 
 It is a separate induction on typing, before soundness and independent of
@@ -33,7 +33,7 @@ become definitionally equal at a later stage must have compatible outputs
 there.  Discharging that moves both bodies to one stage along the label
 equation, and the hypothesis of `IsDefEq.stage` is a *typed* substitution
 equality — so the binder's annotation has to be typed, which a raw term
-does not say.  That is the whole residue of the other repo's quotient,
+does not say.  That is the whole residue of intgrah's quotient,
 where a stage is a morphism and carries its typing.
 
 But it need not travel with `SoundEq`/`SoundTy` either, and it should not:
@@ -96,7 +96,7 @@ is the whole content of `SoundDir`, and compatibility and the join come
 off it by `SoundDir.join`.  `Compat` has no introduction rule of its
 own, so there is no other way.
 
-The Π case is the other repo's `BasisAction.pi_isDirected` — bound the two
+The Π case is intgrah's `BasisAction.pi_isDirected` — bound the two
 domain shapes inside `⟦A⟧`, append the two graphs, and the generator is
 monotone in both — resting on his `GraphValid.internallyCompatible` for
 the appended graph's cross pairs.  That argument transfers step for step,
@@ -750,7 +750,7 @@ theorem dir_id {Γ : List Term} {A a b : Term} {u r : Bool}
   · cases h₁ with | bot => exact TShape.bot_le' rfl | id hle => exact hle
   · cases h₂ with | bot => exact TShape.bot_le' rfl | id hle => exact hle
 
-/-- Directedness for `.succ`: the other repo's `succ_isDirected`. -/
+/-- Directedness for `.succ`: intgrah's `succ_isDirected`. -/
 theorem dir_succ {Γ : List Term} {N : Term} (h : SoundDir Γ N) : SoundDir Γ (.succ N) := by
   intro Δ σ ρ hΔ W hwρ m₁ m₂ h₁ h₂
   cases h₁ with
@@ -985,10 +985,10 @@ theorem dir_tr {Γ : List Term} {r : Bool} {A a b C X H : Term} {u : Bool}
 
 Every non-congruence rule is an identity on the two conclusions: the
 structural rules permute them, `defeqDF` changes only the type, and the
-computation rules carry typings of both sides (the other repo's
+computation rules carry typings of both sides (intgrah's
 `of_typings` observation), so their conclusions are their premises'.  Only
 one case per term former has content, and each is the corresponding
-`isDirected` lemma of the other repo. -/
+`isDirected` lemma of intgrah's. -/
 theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
     (hΓ : ⊢ Γ) (H : Γ ⊢ t ≡ t' : A) : SoundDir Γ t ∧ SoundDir Γ t' := by
   induction H with
@@ -1003,14 +1003,14 @@ theorem IsDefEq.dir {Γ : List Term} {t t' A : Term}
   | nat => exact and_self_iff.2 <| dir_atom Interp.le_nat (fun h => .nat h) trivial
   | zero => exact and_self_iff.2 <| dir_atom Interp.le_zero (fun h => .zero h) trivial
   | star => exact and_self_iff.2 <| dir_of_bot fun .bot => rfl
-  -- Π: the other repo's `pi_isDirected`, with `IsDefEq.stage` for the
+  -- Π: intgrah's `pi_isDirected`, with `IsDefEq.stage` for the
   -- cross pairs of the appended graph
   | forallEDF hAA' hB hB' ihA ihB ihB' =>
     exact ⟨
       sound_forallE_dir hΓ hAA'.hasType.1 hB.hasType.1 (ihA hΓ).1 (ihB ⟨hΓ, _, hAA'.hasType.1⟩).1,
       sound_forallE_dir hΓ hAA'.hasType.2 hB'.hasType.2 (ihA hΓ).2 (ihB' ⟨hΓ, _, hAA'.hasType.2⟩).2⟩
   -- `bvar` reads the slot's well-formedness off `Valuation.WF`; the rest
-  -- are one per term former, each the other repo's `*_isDirected`
+  -- are one per term former, each intgrah's `*_isDirected`
   | bvar h => exact and_self_iff.2 (dir_bvar h)
   -- the λ-shape's domain label is what makes this one standalone
   -- (`design.md` §1)
