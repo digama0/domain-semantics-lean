@@ -78,5 +78,9 @@ def findUnused (pfx : Name) (outFile : System.FilePath) (roots : Array Name) :
 end FindUnused
 
 open DomainSemantics
+-- The roots are the headline theorems of the axiom board in
+-- `DomainSemantics.lean`; anything not reachable from them is unused.
 run_cmd FindUnused.findUnused `DomainSemantics "unused.txt"  #[
-  ``IsDefEq.iff, ``forallE_inv', ``sort_inv', ``sort_forallE_inv']
+  ``IsDefEq.sound, ``IsDefEq.iff, ``forallE_inv', ``sort_inv',
+  ``sort_forallE_inv', ``IsDefEq.uniq', ``IsDefEq.uniq_sort,
+  ``WHRed.subject_red', ``progress', ``zero_ne_succ_zero, ``not_UIP]
